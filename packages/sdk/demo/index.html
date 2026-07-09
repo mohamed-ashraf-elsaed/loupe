@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acme Analytics — Loupe demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #16181f; background: #f4f5f9; }
+    header { background: #fff; border-bottom: 1px solid #e2e5ee; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 800; letter-spacing: -.02em; font-size: 18px; }
+    .logo span { color: #4a55d6; }
+    nav a { color: #6b7180; text-decoration: none; margin-left: 20px; font-size: 14px; font-weight: 500; }
+    main { max-width: 980px; margin: 0 auto; padding: 28px; }
+    h1 { font-size: 26px; letter-spacing: -.02em; margin: 8px 0 20px; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .card { background: #fff; border: 1px solid #e2e5ee; border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(20,24,40,.04); }
+    .card .k { font-size: 12px; color: #6b7180; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    .card .v { font-size: 30px; font-weight: 700; margin-top: 8px; letter-spacing: -.02em; }
+    .card .d { font-size: 13px; margin-top: 4px; }
+    .up { color: #10935a; } .down { color: #d23f38; }
+    .panel { background: #fff; border: 1px solid #e2e5ee; border-radius: 14px; padding: 20px; margin-bottom: 24px; }
+    .panel h2 { font-size: 17px; margin: 0 0 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eef0f4; }
+    th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7180; }
+    .btn { background: #4a55d6; color: #fff; border: 0; border-radius: 9px; padding: 10px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn.ghost { background: #eceef4; color: #16181f; }
+    form { display: grid; gap: 12px; max-width: 420px; }
+    label { font-size: 13px; font-weight: 600; }
+    input, select { width: 100%; padding: 9px 11px; border: 1px solid #d7dbe6; border-radius: 9px; font-size: 14px; margin-top: 4px; }
+    .redact { background: #fff8e6; border: 1px dashed #e0a92c; border-radius: 9px; padding: 10px 12px; font-size: 12px; color: #8a6a12; margin-top: 6px; }
+    .toolbar-note { position: fixed; top: 12px; right: 12px; background: #1b1e27; color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 8px; opacity: .85; }
+    footer { text-align: center; color: #9aa0af; font-size: 12px; padding: 40px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Acme <span>Analytics</span></div>
+    <nav>
+      <a href="#">Dashboard</a>
+      <a href="#">Reports</a>
+      <a href="#" data-testid="nav-settings">Settings</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1 data-testid="page-title">Q3 Performance Overview</h1>
+
+    <section class="cards" id="kpis">
+      <div class="card" data-testid="kpi-revenue">
+        <div class="k">Revenue</div>
+        <div class="v">$482k</div>
+        <div class="d up">▲ 12.4% vs Q2</div>
+      </div>
+      <div class="card" data-testid="kpi-users">
+        <div class="k">Active Users</div>
+        <div class="v">28,410</div>
+        <div class="d up">▲ 6.1%</div>
+      </div>
+      <div class="card" data-testid="kpi-churn">
+        <div class="k">Churn</div>
+        <div class="v">3.2%</div>
+        <div class="d down">▲ 0.4%</div>
+      </div>
+    </section>
+
+    <section class="panel" data-testid="table-panel">
+      <h2>Top campaigns</h2>
+      <table>
+        <thead><tr><th>Campaign</th><th>Spend</th><th>Conversions</th><th>ROAS</th></tr></thead>
+        <tbody id="rows">
+          <tr><td>Summer Launch</td><td>$12,400</td><td>1,204</td><td>3.8×</td></tr>
+          <tr><td>Retargeting</td><td>$8,100</td><td>986</td><td>4.2×</td></tr>
+          <tr><td>Brand Awareness</td><td>$21,000</td><td>640</td><td>1.9×</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" data-testid="signup-panel">
+      <h2>Invite a teammate</h2>
+      <form onsubmit="return false">
+        <div>
+          <label>Full name</label>
+          <input type="text" data-testid="field-name" placeholder="Jane Doe" />
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="email" data-testid="field-email" placeholder="jane@acme.com" value="secret.person@acme.com" data-loupe-redact />
+          <div class="redact">This email field is marked <code>data-loupe-redact</code> → blurred/omitted from screenshots.</div>
+        </div>
+        <div>
+          <label>Role</label>
+          <select data-testid="field-role"><option>Viewer</option><option>Editor</option><option>Admin</option></select>
+        </div>
+        <button class="btn" data-testid="btn-invite">Send invite</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Demo controls</h2>
+      <p style="font-size:13px;color:#6b7180;margin-top:0">Leave a comment on any element above, then click <b>Simulate redeploy</b>. The dev "ships new code" — the KPI cards get re-ordered and re-rendered as brand-new DOM nodes with changed markup. Watch the pins re-anchor to the right elements.</p>
+      <button class="btn ghost" id="redeploy">⟳ Simulate redeploy</button>
+      <button class="btn ghost" id="reset" style="margin-left:8px">Clear stored comments</button>
+    </section>
+  </main>
+
+  <footer>Acme Analytics — a fake product for demoing the Loupe SDK</footer>
+
+  <div class="toolbar-note">Loupe toolbar is at the bottom ↓</div>
+
+  <!-- The one line a dev adds. In prod: <script src="https://cdn.loupe.dev/v1.js"></script> -->
+  <script src="/sdk/index.global.js"></script>
+  <script>
+    Loupe.init({
+      projectKey: "pk_demo_acme",
+      user: { id: "u_92", name: "Sara (PM)", email: "sara@acme.com" },
+      // In production the host app's SERVER computes this HMAC and injects it into
+      // the page. Here it's precomputed from the seeded project secret (see `npm run seed`).
+      userHmac: "decb2c23961bbcea494b1034aad995b8f30c9a2e517598667b791b73e8752846",
+      // Served by the backend, so the API is same-origin.
+      apiBase: location.origin,
+    });
+
+    // --- Demo-only: simulate a dev shipping new code -----------------------
+    let deployed = false;
+    document.getElementById("redeploy").addEventListener("click", () => {
+      const kpis = document.getElementById("kpis");
+      // Brand-new nodes (old element references become disconnected), reordered,
+      // with changed classes/markup — but the same data-testids survive.
+      if (!deployed) {
+        kpis.innerHTML = `
+          <div class="card" data-testid="kpi-churn">
+            <div class="k">Churn rate</div><div class="v">3.2%</div><div class="d down">▲ 0.4% — needs attention</div>
+          </div>
+          <div class="card" data-testid="kpi-revenue">
+            <div class="k">Total revenue</div><div class="v">$482,109</div><div class="d up">▲ 12.4% vs last quarter</div>
+          </div>
+          <div class="card" data-testid="kpi-users">
+            <div class="k">Monthly active users</div><div class="v">28,410</div><div class="d up">▲ 6.1%</div>
+          </div>`;
+        // also mutate the table: add a row above the existing ones
+        const rows = document.getElementById("rows");
+        const tr = document.createElement("tr");
+        tr.innerHTML = "<td>Newsletter</td><td>$3,200</td><td>410</td><td>5.1×</td>";
+        rows.insertBefore(tr, rows.firstChild);
+        deployed = true;
+        document.getElementById("redeploy").textContent = "✓ Redeployed (reload to reset)";
+      }
+    });
+
+    document.getElementById("reset").addEventListener("click", () => {
+      Object.keys(localStorage).filter(k => k.startsWith("loupe:")).forEach(k => localStorage.removeItem(k));
+      location.reload();
+    });
+  </script>
+</body>
+</html>

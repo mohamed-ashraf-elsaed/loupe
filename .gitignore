@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.playwright-mcp/
+packages/server/data/
+packages/extension/content.js
+*.log
+.DS_Store
+
+# Claude Code setup — kept local, not tracked (per project preference).
+# To share with teammates, remove the two lines below and commit them.
+.claude/
+CLAUDE.md
+coverage/

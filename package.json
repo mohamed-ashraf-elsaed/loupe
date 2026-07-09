@@ -1,0 +1,32 @@
+{
+  "name": "loupe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pin feedback to the live UI. Hand it to Claude.",
+  "workspaces": [
+    "packages/shared",
+    "packages/sdk",
+    "packages/dashboard",
+    "packages/server",
+    "packages/mcp",
+    "packages/extension"
+  ],
+  "scripts": {
+    "build": "npm run build -w @loupe/shared && npm run build -w @loupe/sdk && npm run build -w @loupe/dashboard && npm run build -w @loupe/extension",
+    "build:shared": "npm run build -w @loupe/shared",
+    "build:extension": "npm run build -w @loupe/extension",
+    "start": "npm run start -w @loupe/server",
+    "seed": "npm run seed -w @loupe/server",
+    "typecheck": "npm run typecheck -w @loupe/sdk",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
+    "happy-dom": "^20.10.6",
+    "tsup": "^8.5.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@loupe/extension",
+  "version": "0.1.0",
+  "description": "Loupe MV3 browser extension — inspect and comment on any site.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@loupe/sdk": "*"
+  }
+}

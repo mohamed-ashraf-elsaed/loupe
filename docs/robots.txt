@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mohamed-ashraf-elsaed.github.io/loupe/sitemap.xml

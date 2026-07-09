@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 280px; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #16181f; background: #fff; }
+    header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #e2e5ee; font-weight: 750; }
+    .mark { width: 18px; height: 18px; border-radius: 5px; background: #4a55d6; }
+    form { padding: 12px 14px; display: grid; gap: 9px; }
+    label { font-size: 11px; font-weight: 600; color: #545a6b; display: grid; gap: 3px; }
+    input { padding: 7px 9px; border: 1px solid #d7dbe6; border-radius: 7px; font-size: 13px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { border: 0; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 9px; cursor: pointer; }
+    .save { background: #eceef4; color: #16181f; }
+    .start { background: #4a55d6; color: #fff; }
+    .msg { font-size: 11px; color: #10935a; min-height: 14px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header><span class="mark"></span> Loupe</header>
+  <form id="f">
+    <label>Project key
+      <input id="projectKey" placeholder="pk_demo_acme" />
+    </label>
+    <div class="row">
+      <label>User id<input id="userId" placeholder="u_92" /></label>
+      <label>Name<input id="userName" placeholder="Sara" /></label>
+    </div>
+    <label>API base (optional)
+      <input id="apiBase" placeholder="http://localhost:8787" />
+    </label>
+    <label>User HMAC (optional, from your server)
+      <input id="userHmac" placeholder="hex…" />
+    </label>
+    <button type="button" class="save" id="save">Save settings</button>
+    <button type="button" class="start" id="start">Start Loupe on this tab</button>
+    <div class="msg" id="msg"></div>
+  </form>
+  <script src="popup.js"></script>
+</body>
+</html>

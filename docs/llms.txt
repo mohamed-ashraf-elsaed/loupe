@@ -1,0 +1,24 @@
+# Loupe
+
+> Loupe is an open-source, embeddable visual-feedback SDK. Product managers inspect any element on a live product, pin a comment, and capture a screenshot; comments persist, re-anchor across redeploys, and are handed to Claude Code as an actionable backlog via the Model Context Protocol (MCP). MIT licensed, written in TypeScript.
+
+## What it does
+- Embeds a Shadow-DOM widget in any web product (npm package or script tag).
+- Lets authorized users inspect a DOM element and attach a comment + screenshot.
+- Stores comments in Postgres and screenshots in object storage.
+- Re-anchors each pin to its element after redeploys using a multi-signal fingerprint.
+- Exposes an MCP server (tools: list_comments, get_comment, update_status) so Claude Code reads feedback with full element context and resolves it.
+- Ships a Kanban triage dashboard and an MV3 browser extension (pixel-perfect capture on any site).
+
+## Docs
+- [README](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/README.md): quick start and run instructions.
+- [Architecture](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/ARCHITECTURE.md): system design with diagrams, the re-anchor algorithm, auth model, data model.
+- [Testing](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md): test strategy and coverage.
+
+## Facts
+- License: MIT
+- Language: TypeScript (npm workspaces monorepo)
+- Packages: @loupe/sdk, @loupe/server, @loupe/dashboard, @loupe/mcp, @loupe/extension, @loupe/shared
+- Repository: https://github.com/mohamed-ashraf-elsaed/loupe
+- Category: developer tools, visual feedback, bug reporting, product management, AI agent tooling
+- Related: Model Context Protocol (MCP), Claude Code, Postgres

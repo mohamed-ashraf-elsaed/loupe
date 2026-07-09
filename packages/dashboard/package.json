@@ -1,0 +1,13 @@
+{
+  "name": "@loupe/dashboard",
+  "version": "0.1.0",
+  "description": "Loupe feedback triage board (Kanban).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@loupe/shared": "*"
+  }
+}
