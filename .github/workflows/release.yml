@@ -34,18 +34,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
 
-  # Publishing to npm runs after the release is cut. Requires an NPM_TOKEN secret and a
-  # scope you own (see RELEASING.md). Left disabled until those are set.
-  #
-  # publish-npm:
-  #   needs: release
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
-  #     - run: npm ci && npm run build
-  #     - run: npm publish -w @loupekit/shared --access public
-  #     - run: npm publish -w @loupekit/mcp --access public
-  #     - run: npm publish -w @loupekit/sdk --access public
-  #       env: { NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} }
+  # Publishes to npm after the release is cut. Requires the NPM_TOKEN repo secret
+  # (an npm Automation token for the @loupekit scope). Publishes in dependency order.
+  publish-npm:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm run build
+      - name: Publish packages (shared → mcp → sdk)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish -w @loupekit/shared --access public
+          npm publish -w @loupekit/mcp --access public
+          npm publish -w @loupekit/sdk --access public
