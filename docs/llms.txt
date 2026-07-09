@@ -18,7 +18,7 @@
 ## Facts
 - License: MIT
 - Language: TypeScript (npm workspaces monorepo)
-- Packages: @loupe/sdk, @loupe/server, @loupe/dashboard, @loupe/mcp, @loupe/extension, @loupe/shared
+- Packages: @loupekit/sdk, @loupekit/server, @loupekit/dashboard, @loupekit/mcp, @loupekit/extension, @loupekit/shared
 - Repository: https://github.com/mohamed-ashraf-elsaed/loupe
 - Category: developer tools, visual feedback, bug reporting, product management, AI agent tooling
 - Related: Model Context Protocol (MCP), Claude Code, Postgres

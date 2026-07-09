@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: { index: "src/index.ts" },
-  // ESM for `npm i @loupe/sdk`, IIFE (global `Loupe`) for the <script> snippet.
+  // ESM for `npm i @loupekit/sdk`, IIFE (global `Loupe`) for the <script> snippet.
   format: ["esm", "iife"],
   globalName: "Loupe",
   platform: "browser",

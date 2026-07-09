@@ -1,5 +1,5 @@
 {
-  "name": "@loupe/mcp",
+  "name": "@loupekit/mcp",
   "version": "0.1.0",
   "description": "MCP server that exposes Loupe comments to Claude Code as an actionable backlog.",
   "license": "MIT",
@@ -13,7 +13,7 @@
     "test:client": "node test-client.ts"
   },
   "dependencies": {
-    "@loupe/shared": "*",
+    "@loupekit/shared": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.24.1"
   }

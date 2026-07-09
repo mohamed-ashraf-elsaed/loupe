@@ -13,7 +13,7 @@ npm start         # http://localhost:8787 (API + dashboard + demo + SDK)
 
 ## Ground rules
 
-- **TypeScript, `strict`.** Data types live in `@loupe/shared`.
+- **TypeScript, `strict`.** Data types live in `@loupekit/shared`.
 - **Node packages** (`server`, `mcp`) run TypeScript natively (`node file.ts`, `.ts`
   import extensions). **Browser packages** (`sdk`, `dashboard`, `extension`) are bundled by
   tsup (`.js` import extensions, output to `dist/`).

@@ -76,7 +76,7 @@ by unguessable id (prod: signed URLs).
 uploads a screenshot to `POST /v1/blobs` and stores only the returned **URL** on the
 comment, so lists/reads stay small.
 
-**URL normalization** — `normalizeUrl()` in `@loupe/shared` strips `utm_*`, click ids,
+**URL normalization** — `normalizeUrl()` in `@loupekit/shared` strips `utm_*`, click ids,
 and Loupe's dev params, so a comment on `/checkout?utm_source=x` and one on `/checkout`
 don't fragment. Applied server-side on write and query.
 

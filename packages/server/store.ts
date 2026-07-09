@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { normalizeUrl, type Comment } from "@loupe/shared";
+import { normalizeUrl, type Comment } from "@loupekit/shared";
 
 export interface Project {
   project_key: string;

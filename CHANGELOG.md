@@ -16,16 +16,16 @@ _Nothing yet._
 The first release — the full loop, end to end.
 
 ### Added
-- **`@loupe/sdk`** — embeddable Shadow-DOM widget: element inspector, comment composer,
+- **`@loupekit/sdk`** — embeddable Shadow-DOM widget: element inspector, comment composer,
   screenshot capture, and redeploy-surviving re-anchoring (multi-signal fingerprint).
-- **`@loupe/server`** — `node:http` API with Postgres (PGlite locally, `pg` in prod),
+- **`@loupekit/server`** — `node:http` API with Postgres (PGlite locally, `pg` in prod),
   object storage for screenshots, per-project HMAC authentication, and static hosting.
-- **`@loupe/dashboard`** — Kanban triage board (status columns, page filter, live refresh).
-- **`@loupe/mcp`** — MCP server exposing comments to Claude Code (`list_comments`,
+- **`@loupekit/dashboard`** — Kanban triage board (status columns, page filter, live refresh).
+- **`@loupekit/mcp`** — MCP server exposing comments to Claude Code (`list_comments`,
   `get_comment`, `update_status`).
-- **`@loupe/extension`** — MV3 browser extension reusing the SDK core with pixel-perfect
+- **`@loupekit/extension`** — MV3 browser extension reusing the SDK core with pixel-perfect
   `captureVisibleTab` screenshots.
-- **`@loupe/shared`** — canonical types + `normalizeUrl`.
+- **`@loupekit/shared`** — canonical types + `normalizeUrl`.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 

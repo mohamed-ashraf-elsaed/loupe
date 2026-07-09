@@ -8,7 +8,7 @@ import * as store from "./store.ts";
 import { authenticate } from "./auth.ts";
 import { putBlob, getBlob, dataUrlToBuffer } from "./blobs.ts";
 import { migrate } from "./db.ts";
-import type { Comment } from "@loupe/shared";
+import type { Comment } from "@loupekit/shared";
 
 const PORT = Number(process.env.PORT || 8787);
 

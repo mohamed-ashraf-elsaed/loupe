@@ -1,5 +1,5 @@
 {
-  "name": "@loupe/shared",
+  "name": "@loupekit/shared",
   "version": "0.1.0",
   "description": "Loupe shared types + helpers (normalizeUrl).",
   "license": "MIT",

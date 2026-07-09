@@ -45,7 +45,7 @@ jobs:
   #     - uses: actions/setup-node@v4
   #       with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
   #     - run: npm ci && npm run build
-  #     - run: npm publish -w @loupe/shared --access public
-  #     - run: npm publish -w @loupe/mcp --access public
-  #     - run: npm publish -w @loupe/sdk --access public
+  #     - run: npm publish -w @loupekit/shared --access public
+  #     - run: npm publish -w @loupekit/mcp --access public
+  #     - run: npm publish -w @loupekit/sdk --access public
   #       env: { NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} }

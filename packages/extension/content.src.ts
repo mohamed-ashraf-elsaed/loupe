@@ -1,7 +1,7 @@
 // Injected into the active tab. Reuses the exact same SDK core as the embedded
 // widget — the only difference is the screenshot source: the extension captures
 // real pixels via the background worker and crops to the element (with redaction).
-import { init } from "@loupe/sdk";
+import { init } from "@loupekit/sdk";
 
 declare const chrome: any;
 

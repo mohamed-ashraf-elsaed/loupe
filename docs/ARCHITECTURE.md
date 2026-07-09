@@ -20,12 +20,12 @@ together and how the non-obvious logic works.
 ```mermaid
 flowchart LR
   subgraph Product["Customer product (any site)"]
-    SDK["@loupe/sdk<br/>Shadow-DOM widget"]
+    SDK["@loupekit/sdk<br/>Shadow-DOM widget"]
   end
   subgraph Ext["Any site (no install)"]
-    EXT["@loupe/extension<br/>MV3 + captureVisibleTab"]
+    EXT["@loupekit/extension<br/>MV3 + captureVisibleTab"]
   end
-  subgraph Backend["@loupe/server (one Node process)"]
+  subgraph Backend["@loupekit/server (one Node process)"]
     API["HTTP API<br/>node:http"]
     DBSEAM["db.ts seam"]
     BLOB["blobs.ts seam"]
@@ -33,8 +33,8 @@ flowchart LR
   end
   PG[("Postgres<br/>PGlite / hosted")]
   OBJ[["Object storage<br/>disk / S3"]]
-  DASH["@loupe/dashboard<br/>Kanban triage"]
-  MCP["@loupe/mcp<br/>MCP server"]
+  DASH["@loupekit/dashboard<br/>Kanban triage"]
+  MCP["@loupekit/mcp<br/>MCP server"]
   CLAUDE["Claude Code"]
 
   SDK -->|"identity HMAC"| API
@@ -56,12 +56,12 @@ PGlite), object storage (disk), and static hosting of the dashboard, demo, and S
 ```mermaid
 sequenceDiagram
   actor PM as PM (in the product)
-  participant SDK as @loupe/sdk
-  participant API as @loupe/server
+  participant SDK as @loupekit/sdk
+  participant API as @loupekit/server
   participant PG as Postgres
   participant OBJ as Object storage
   actor Dev as Developer
-  participant MCP as @loupe/mcp
+  participant MCP as @loupekit/mcp
   participant Claude as Claude Code
 
   PM->>SDK: click element, write comment
@@ -85,12 +85,12 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  SHARED["@loupe/shared<br/>types + normalizeUrl (built)"]
-  SDK["@loupe/sdk"]
-  DASH["@loupe/dashboard"]
-  SRV["@loupe/server"]
-  MCP["@loupe/mcp"]
-  EXT["@loupe/extension"]
+  SHARED["@loupekit/shared<br/>types + normalizeUrl (built)"]
+  SDK["@loupekit/sdk"]
+  DASH["@loupekit/dashboard"]
+  SRV["@loupekit/server"]
+  MCP["@loupekit/mcp"]
+  EXT["@loupekit/extension"]
   SHARED --> SDK
   SHARED --> DASH
   SHARED --> SRV
@@ -100,12 +100,12 @@ flowchart TD
 
 | Package | Runtime | Build | Responsibility |
 |---|---|---|---|
-| `@loupe/shared` | both | `tsc` → dist | Canonical types + `normalizeUrl` |
-| `@loupe/sdk` | browser | tsup (ESM + IIFE) | Inspect, comment, capture, re-anchor |
-| `@loupe/server` | Node (native TS) | none | API, Postgres, blobs, auth, static |
-| `@loupe/dashboard` | browser | tsup (ESM) | Kanban triage board |
-| `@loupe/mcp` | Node (native TS) | none | MCP server for Claude Code |
-| `@loupe/extension` | browser | tsup (IIFE) | MV3 extension, pixel-perfect capture |
+| `@loupekit/shared` | both | `tsc` → dist | Canonical types + `normalizeUrl` |
+| `@loupekit/sdk` | browser | tsup (ESM + IIFE) | Inspect, comment, capture, re-anchor |
+| `@loupekit/server` | Node (native TS) | none | API, Postgres, blobs, auth, static |
+| `@loupekit/dashboard` | browser | tsup (ESM) | Kanban triage board |
+| `@loupekit/mcp` | Node (native TS) | none | MCP server for Claude Code |
+| `@loupekit/extension` | browser | tsup (IIFE) | MV3 extension, pixel-perfect capture |
 
 ## Re-anchoring: the crown jewel
 
@@ -182,7 +182,7 @@ are excluded before the image ever leaves the browser.
 
 ## URL normalization
 
-`normalizeUrl` (in `@loupe/shared`) strips `utm_*`, click ids (`gclid`, `fbclid`, …), and
+`normalizeUrl` (in `@loupekit/shared`) strips `utm_*`, click ids (`gclid`, `fbclid`, …), and
 Loupe's dev params (`api`, `key`), sorts the remaining query, and drops trailing slashes.
 Applied server-side on write and on the list filter, so `/checkout?utm_source=x` and
 `/checkout` share one comment thread instead of fragmenting.

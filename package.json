@@ -12,12 +12,12 @@
     "packages/extension"
   ],
   "scripts": {
-    "build": "npm run build -w @loupe/shared && npm run build -w @loupe/sdk && npm run build -w @loupe/dashboard && npm run build -w @loupe/extension",
-    "build:shared": "npm run build -w @loupe/shared",
-    "build:extension": "npm run build -w @loupe/extension",
-    "start": "npm run start -w @loupe/server",
-    "seed": "npm run seed -w @loupe/server",
-    "typecheck": "npm run typecheck -w @loupe/sdk",
+    "build": "npm run build -w @loupekit/shared && npm run build -w @loupekit/sdk && npm run build -w @loupekit/dashboard && npm run build -w @loupekit/extension",
+    "build:shared": "npm run build -w @loupekit/shared",
+    "build:extension": "npm run build -w @loupekit/extension",
+    "start": "npm run start -w @loupekit/server",
+    "seed": "npm run seed -w @loupekit/server",
+    "typecheck": "npm run typecheck -w @loupekit/sdk",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

@@ -23,7 +23,7 @@ import { z } from "zod";
  *   }
  */
 
-import type { Comment } from "@loupe/shared";
+import type { Comment } from "@loupekit/shared";
 
 const API = (process.env.LOUPE_API || "http://localhost:8787").replace(/\/$/, "");
 const PROJECT_KEY = process.env.LOUPE_PROJECT_KEY || "pk_demo_acme";

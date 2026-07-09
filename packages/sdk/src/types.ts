@@ -1,8 +1,8 @@
-// Data types + helpers are canonical in @loupe/shared; re-export so the SDK's
+// Data types + helpers are canonical in @loupekit/shared; re-export so the SDK's
 // internal `./types.js` imports keep working.
-export * from "@loupe/shared";
+export * from "@loupekit/shared";
 
-import type { Comment, LoupeUser } from "@loupe/shared";
+import type { Comment, LoupeUser } from "@loupekit/shared";
 
 export interface LoupeConfig {
   /** Public project key issued by the backend. */

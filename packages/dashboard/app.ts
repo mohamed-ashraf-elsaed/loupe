@@ -1,6 +1,6 @@
 // Loupe feedback board — reads the backend API and renders a Kanban of comments.
 // Vanilla TS to match the SDK's zero-framework footprint.
-import type { Comment, CommentStatus as Status } from "@loupe/shared";
+import type { Comment, CommentStatus as Status } from "@loupekit/shared";
 
 const params = new URLSearchParams(location.search);
 const API = (params.get("api") || location.origin).replace(/\/$/, "");

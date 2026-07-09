@@ -1,5 +1,5 @@
 {
-  "name": "@loupe/sdk",
+  "name": "@loupekit/sdk",
   "version": "0.1.0",
   "description": "Embeddable visual-feedback layer: pin comments to the live UI and hand them to Claude.",
   "type": "module",
@@ -24,7 +24,7 @@
   "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
   "publishConfig": { "access": "public" },
   "devDependencies": {
-    "@loupe/shared": "*",
+    "@loupekit/shared": "*",
     "modern-screenshot": "^4.6.6"
   }
 }

@@ -1,6 +1,6 @@
 process.env.LOUPE_PG_DIR = "memory://";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Comment } from "@loupe/shared";
+import type { Comment } from "@loupekit/shared";
 import { db, migrate } from "../db.ts";
 import * as store from "../store.ts";
 

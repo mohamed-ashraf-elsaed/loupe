@@ -38,8 +38,8 @@ creates the GitHub Release with notes from `CHANGELOG.md`.
 
 ## Publishing packages
 
-Publishable to npm: **`@loupe/shared`**, **`@loupe/sdk`**, **`@loupe/mcp`**.
-Not published (apps): `@loupe/server`, `@loupe/dashboard`. The **extension** ships to the
+Publishable to npm: **`@loupekit/shared`**, **`@loupekit/sdk`**, **`@loupekit/mcp`**.
+Not published (apps): `@loupekit/server`, `@loupekit/dashboard`. The **extension** ships to the
 Chrome Web Store.
 
 Prerequisites (one-time):
@@ -52,15 +52,15 @@ Manual publish (in dependency order — `shared` first, since `mcp` imports it a
 
 ```bash
 npm run build
-npm publish -w @loupe/shared --access public
-npm publish -w @loupe/mcp    --access public
-npm publish -w @loupe/sdk    --access public   # bundles shared + modern-screenshot
+npm publish -w @loupekit/shared --access public
+npm publish -w @loupekit/mcp    --access public
+npm publish -w @loupekit/sdk    --access public   # bundles shared + modern-screenshot
 ```
 
 Notes:
-- `@loupe/sdk` bundles its dependencies (tsup `noExternal`), so the published tarball has no
-  runtime deps; `@loupe/shared` and `modern-screenshot` are dev-only for it.
-- `@loupe/mcp` imports `@loupe/shared` at runtime, so publish `shared` first (or convert the
+- `@loupekit/sdk` bundles its dependencies (tsup `noExternal`), so the published tarball has no
+  runtime deps; `@loupekit/shared` and `modern-screenshot` are dev-only for it.
+- `@loupekit/mcp` imports `@loupekit/shared` at runtime, so publish `shared` first (or convert the
   workspace `*` dependency to the published version before publishing `mcp`).
 
 ### Chrome Web Store (extension)
