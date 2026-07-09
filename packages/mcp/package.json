@@ -2,6 +2,10 @@
   "name": "@loupe/mcp",
   "version": "0.1.0",
   "description": "MCP server that exposes Loupe comments to Claude Code as an actionable backlog.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git", "directory": "packages/mcp" },
+  "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
+  "publishConfig": { "access": "public" },
   "type": "module",
   "bin": { "loupe-mcp": "./index.ts" },
   "scripts": {

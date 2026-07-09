@@ -1,0 +1,51 @@
+name: Release
+
+# Tag a version (vX.Y.Z) → this creates the GitHub Release from CHANGELOG.md.
+# It enforces the project rule: a release must update the docs (the changelog).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce the docs rule — CHANGELOG must have this version
+        run: |
+          if ! grep -q "## \[${{ steps.v.outputs.version }}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no entry for ${{ steps.v.outputs.version }}. Update the docs before releasing (see RELEASING.md)."
+            exit 1
+          fi
+
+      - name: Extract release notes for this version
+        run: awk '/^## \[${{ steps.v.outputs.version }}\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md > NOTES.md
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
+
+  # Publishing to npm runs after the release is cut. Requires an NPM_TOKEN secret and a
+  # scope you own (see RELEASING.md). Left disabled until those are set.
+  #
+  # publish-npm:
+  #   needs: release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
+  #     - run: npm ci && npm run build
+  #     - run: npm publish -w @loupe/shared --access public
+  #     - run: npm publish -w @loupe/mcp --access public
+  #     - run: npm publish -w @loupe/sdk --access public
+  #       env: { NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} }

@@ -20,7 +20,10 @@
   },
   "keywords": ["feedback", "annotation", "visual-feedback", "product-management", "claude", "mcp"],
   "license": "MIT",
-  "dependencies": {
+  "repository": { "type": "git", "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git", "directory": "packages/sdk" },
+  "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
+  "publishConfig": { "access": "public" },
+  "devDependencies": {
     "@loupe/shared": "*",
     "modern-screenshot": "^4.6.6"
   }
