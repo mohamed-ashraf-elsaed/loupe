@@ -3,7 +3,9 @@ export const STYLES = /* css */ `
 :host { all: initial; }
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
 
-:root, .loupe {
+/* Custom properties must live on :host — inside the Shadow DOM, :root matches
+   nothing and no element carries a .loupe class, so they'd never resolve. */
+:host {
   --accent: #4a55d6;
   --pin: #ff5842;
   --ink: #16181f;
@@ -29,6 +31,17 @@ export const STYLES = /* css */ `
   position: absolute; top: -24px; left: 0; background: var(--accent); color: #fff;
   font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
   font-family: ui-monospace, Menlo, monospace;
+}
+
+/* region selection (during drag) + active-comment outline */
+.selbox {
+  position: fixed; pointer-events: none; z-index: 2147483001; display: none;
+  border: 2px dashed var(--accent); background: rgba(74, 85, 214, 0.12); border-radius: 4px;
+}
+.region-box {
+  position: fixed; pointer-events: none; z-index: 2147483001; display: none;
+  border: 2px solid var(--pin); border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(255, 88, 66, .25), 0 4px 16px rgba(0,0,0,.25);
 }
 
 /* pins */
@@ -60,6 +73,7 @@ export const STYLES = /* css */ `
   display: flex; align-items: center; gap: 6px;
 }
 .toolbar button:hover { background: #2b2f3b; color: #fff; }
+.toolbar button .ico { flex: none; display: block; }
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
 .toolbar .brand { font-weight: 700; padding-left: 8px; padding-right: 4px; letter-spacing: -.01em; }

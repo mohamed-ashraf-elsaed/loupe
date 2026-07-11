@@ -25,6 +25,28 @@ export interface ElementContext {
   styles: Record<string, string>;
 }
 
+/** A rectangle in **document** coordinates (page px, scroll included). */
+export interface RegionRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /**
+   * The same rectangle expressed as fractions of the region's anchor element
+   * (the element under the region's center). Present when an anchor element was
+   * found. Used to re-place the region across responsive reflow / different
+   * viewports — absolute x/y/w/h are only a fallback when the anchor is gone.
+   */
+  rel?: { fx: number; fy: number; fw: number; fh: number };
+}
+
+/**
+ * How a comment is pinned to the page:
+ * - "element" (default) → anchored to a DOM element via its fingerprint.
+ * - "region"  → a free-form rectangle the user dragged out; carries `region`.
+ */
+export type CommentKind = "element" | "region";
+
 export interface Comment {
   id: string;
   projectKey: string;
@@ -32,9 +54,13 @@ export interface Comment {
   author: LoupeUser;
   body: string;
   status: CommentStatus;
+  /** Defaults to "element" when absent (back-compat with pre-region comments). */
+  kind?: CommentKind;
   anchor: Anchor;
   context: ElementContext;
   offset: { x: number; y: number };
+  /** Present for region comments: the dragged rectangle in document coords. */
+  region?: RegionRect;
   /** A URL (object storage) in server mode, or an inline data URL in offline mode. */
   screenshot?: string;
   createdAt: string;

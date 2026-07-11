@@ -65,7 +65,9 @@ describe("LoupeApp", () => {
   it("shows the comment in the panel and can mark it done then delete it", async () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
     await leaveComment("triage me");
-    sr().querySelectorAll<HTMLElement>(".toolbar button")[1]!.click(); // "Comments" opens the panel
+    const commentsBtn = [...sr().querySelectorAll<HTMLElement>(".toolbar button")]
+      .find((b) => /Comments/.test(b.textContent || ""))!;
+    commentsBtn.click(); // "Comments" opens the panel
     expect(sr().querySelector(".panel")!.classList.contains("open")).toBe(true);
     expect(sr().querySelector(".item .body")!.textContent).toBe("triage me");
 
@@ -77,6 +79,35 @@ describe("LoupeApp", () => {
     del.click();
     await new Promise((r) => setTimeout(r, 5));
     expect(sr().querySelectorAll(".pin").length).toBe(0);
+  });
+
+  it("region shot → drag creates a persisted region comment with a screenshot", async () => {
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      captureRegion: async () => "data:image/png;base64,REGION",
+    });
+    // Enter region mode, then drag a box.
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    fire(document.body, "mousedown", { clientX: 10, clientY: 20, button: 0 });
+    fire(document.body, "mousemove", { clientX: 130, clientY: 110 });
+    fire(document.body, "mouseup", { clientX: 130, clientY: 110, button: 0 });
+    await new Promise((r) => setTimeout(r, 10)); // capture is async
+
+    const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
+    expect(ta).toBeTruthy();
+    ta.value = "this whole area is misaligned";
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>(".composer .primary")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelectorAll(".pin").length).toBe(1);
+    const stored = JSON.parse(localStorage.getItem(`loupe:pk:${location.pathname}${location.search}`)!);
+    expect(stored[0].kind).toBe("region");
+    expect(stored[0].region).toMatchObject({ x: 10, y: 20, w: 120, h: 90 });
+    expect(stored[0].screenshot).toBe("data:image/png;base64,REGION");
+    // The region anchors to the element under its center (survives reflow), so it
+    // carries that element's real fingerprint rather than a synthetic one.
+    expect(stored[0].anchor.testid).toBe("save");
   });
 
   it("Escape cancels the inspector", () => {

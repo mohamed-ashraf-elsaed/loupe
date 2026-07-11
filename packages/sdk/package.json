@@ -1,6 +1,6 @@
 {
   "name": "@loupekit/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Embeddable visual-feedback layer: pin comments to the live UI and hand them to Claude.",
   "type": "module",
   "main": "./dist/index.js",

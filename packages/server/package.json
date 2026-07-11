@@ -1,6 +1,6 @@
 {
   "name": "@loupekit/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Loupe comment API — node:http, Postgres (PGlite locally / pg in prod), object storage for screenshots.",
   "type": "module",
   "scripts": {

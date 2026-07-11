@@ -38,30 +38,63 @@ creates the GitHub Release with notes from `CHANGELOG.md`.
 
 ## Publishing packages
 
-Publishable to npm: **`@loupekit/shared`**, **`@loupekit/sdk`**, **`@loupekit/mcp`**.
+Publishable: **`@loupekit/shared`**, **`@loupekit/sdk`**, **`@loupekit/mcp`**.
 Not published (apps): `@loupekit/server`, `@loupekit/dashboard`. The **extension** ships to the
 Chrome Web Store.
 
-Prerequisites (one-time):
-- An npm account that owns the package scope. If the `@loupe` org isn't available, publish
-  under your own scope (e.g. `@mohamed-ashraf-elsaed/loupe-sdk`) or unscoped names, and
-  update each `package.json` `name` + inter-package deps accordingly.
-- Add `NPM_TOKEN` (an npm automation token) as a repository secret so CI can publish.
+### Two channels, two registries
 
-Manual publish (in dependency order — `shared` first, since `mcp` imports it at runtime):
+Publishing is fully automated by CI to **both** registries:
+
+| Channel  | Trigger                | dist-tag | public npm scope | GitHub Packages scope     |
+| -------- | ---------------------- | -------- | ---------------- | ------------------------- |
+| Canary   | **every push to main** | `next`   | `@loupekit/*`    | `@mohamed-ashraf-elsaed/*`|
+| Stable   | **tag `vX.Y.Z`**       | `latest` | `@loupekit/*`    | `@mohamed-ashraf-elsaed/*`|
+
+- **Canary** (`.github/workflows/publish-next.yml`): each push to `main` publishes a
+  prerelease `X.Y.Z-next.<run_number>` under the `next` dist-tag. Install with
+  `npm i @loupekit/sdk@next`. `latest` is never touched by canaries.
+- **Stable** (`.github/workflows/release.yml`): tagging `vX.Y.Z` verifies the changelog,
+  cuts the GitHub Release, and publishes that exact version as `latest`.
+
+GitHub Packages requires the package scope to equal the repo owner, so before its publish
+step CI renames `@loupekit/*` → `@mohamed-ashraf-elsaed/*` in place (via
+`scripts/set-version.mjs --name-scope`); internal deps keep pointing at `@loupekit/*` on
+public npm, which resolves fine. Nothing is committed back.
+
+### Installing from GitHub Packages
+
+```
+# .npmrc
+@mohamed-ashraf-elsaed:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+```bash
+npm i @mohamed-ashraf-elsaed/sdk
+```
+
+### Prerequisites (one-time)
+
+- Add **`NPM_TOKEN`** (an npm automation token for the `@loupekit` scope) as a repository
+  secret. Both workflows need it. GitHub Packages uses the built-in `GITHUB_TOKEN`
+  (`packages: write`) — no extra secret.
+
+### Manual publish (fallback)
+
+In dependency order — `shared` first, since `mcp` imports it at runtime:
 
 ```bash
 npm run build
-npm publish -w @loupekit/shared --access public
-npm publish -w @loupekit/mcp    --access public
-npm publish -w @loupekit/sdk    --access public   # bundles shared + modern-screenshot
+npm publish ./packages/shared --access public
+npm publish ./packages/mcp    --access public
+npm publish ./packages/sdk    --access public   # bundles shared + modern-screenshot
 ```
 
 Notes:
-- `@loupekit/sdk` bundles its dependencies (tsup `noExternal`), so the published tarball has no
-  runtime deps; `@loupekit/shared` and `modern-screenshot` are dev-only for it.
-- `@loupekit/mcp` imports `@loupekit/shared` at runtime, so publish `shared` first (or convert the
-  workspace `*` dependency to the published version before publishing `mcp`).
+- `@loupekit/sdk` bundles its dependencies (tsup), so the published tarball has no runtime
+  deps; `@loupekit/shared` and `modern-screenshot` are dev-only for it.
+- `@loupekit/mcp` imports `@loupekit/shared` at runtime, so publish `shared` first.
 
 ### Chrome Web Store (extension)
 

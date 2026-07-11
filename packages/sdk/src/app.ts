@@ -1,9 +1,15 @@
 import { STYLES } from "./styles.js";
 import { captureAnchor, resolveAnchor } from "./fingerprint.js";
-import { captureElementContext, captureScreenshot } from "./capture.js";
+import { captureElementContext, captureScreenshot, captureRegionScreenshot } from "./capture.js";
 import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
-import type { Comment, LoupeConfig, StorageAdapter } from "./types.js";
+import type { Anchor, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
+
+type Mode = "off" | "inspect" | "region";
+/** What the composer is about to attach a comment to. */
+type ComposeTarget =
+  | { kind: "element"; element: Element }
+  | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string };
 
 const uid = () =>
   (crypto as any).randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
@@ -16,6 +22,8 @@ export class LoupeApp {
   private shadow!: ShadowRoot;
   private overlay!: HTMLElement;
   private hl!: HTMLElement;
+  private selbox!: HTMLElement;
+  private regionBox!: HTMLElement;
   private toolbar!: HTMLElement;
   private composer!: HTMLElement;
   private panel!: HTMLElement;
@@ -27,10 +35,13 @@ export class LoupeApp {
   /** comment.id → pin element. */
   private pins = new Map<string, HTMLElement>();
 
-  private inspecting = false;
-  private target: Element | null = null;
+  private mode: Mode = "off";
   private targetOffset = { x: 0.5, y: 0.5 };
-  private activeId: string | null = null;
+  private pending: ComposeTarget | null = null;
+  private dragStart: { x: number; y: number } | null = null;
+  /** region comment whose outline is currently highlighted (tracks scroll). */
+  private activeRegionId: string | null = null;
+  private regionTimer?: number;
 
   private raf = 0;
   private mo?: MutationObserver;
@@ -40,7 +51,7 @@ export class LoupeApp {
     this.cfg = cfg;
     // apiBase set → talk to the backend; otherwise persist locally (prototype).
     this.store = cfg.apiBase
-      ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac)
+      ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac, cfg.headers, cfg.credentials)
       : new LocalStorageAdapter();
   }
 
@@ -52,7 +63,7 @@ export class LoupeApp {
     this.renderPins();
     this.renderPanel();
     this.observe();
-    if (this.cfg.autoOpen) this.setInspecting(true);
+    if (this.cfg.autoOpen) this.setMode("inspect");
   }
 
   // ---- DOM construction -----------------------------------------------------
@@ -70,7 +81,9 @@ export class LoupeApp {
     this.overlay = el("div", "overlay");
     this.hl = el("div", "hl");
     this.hl.appendChild(el("span", "tip"));
-    this.overlay.appendChild(this.hl);
+    this.selbox = el("div", "selbox");
+    this.regionBox = el("div", "region-box");
+    this.overlay.append(this.hl, this.selbox, this.regionBox);
     this.shadow.appendChild(this.overlay);
 
     this.composer = el("div", "composer");
@@ -88,19 +101,25 @@ export class LoupeApp {
     const brand = el("span", "brand", "◎ Loupe");
     const inspectBtn = el("button", "", "✛ Inspect & comment") as HTMLButtonElement;
     inspectBtn.dataset.role = "inspect";
-    inspectBtn.onclick = () => this.setInspecting(!this.inspecting);
+    inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
+    const regionBtn = el("button") as HTMLButtonElement;
+    // Inline SVG (not a font glyph) so the icon renders on every system.
+    regionBtn.innerHTML = `${REGION_ICON}<span>Region shot</span>`;
+    regionBtn.dataset.role = "region";
+    regionBtn.title = "Drag a free-size box, screenshot it, and comment";
+    regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
     const listBtn = el("button", "", "☰ Comments") as HTMLButtonElement;
     this.countEl = el("span", "count", "0");
     listBtn.appendChild(this.countEl);
     listBtn.onclick = () => this.togglePanel();
-    bar.append(brand, sep(), inspectBtn, listBtn);
+    bar.append(brand, sep(), inspectBtn, regionBtn, listBtn);
     return bar;
   }
 
   // ---- inspector ------------------------------------------------------------
 
   private onMove = (e: MouseEvent) => {
-    if (!this.inspecting) return;
+    if (this.mode !== "inspect") return;
     const target = this.pick(e.clientX, e.clientY);
     if (!target) { this.hl.style.display = "none"; return; }
     const r = target.getBoundingClientRect();
@@ -113,7 +132,7 @@ export class LoupeApp {
   };
 
   private onClick = (e: MouseEvent) => {
-    if (!this.inspecting) return;
+    if (this.mode !== "inspect") return;
     const target = this.pick(e.clientX, e.clientY);
     if (!target) return;
     e.preventDefault();
@@ -123,14 +142,83 @@ export class LoupeApp {
       x: r.width ? clamp((e.clientX - r.left) / r.width) : 0.5,
       y: r.height ? clamp((e.clientY - r.top) / r.height) : 0.5,
     };
-    this.target = target;
-    this.setInspecting(false);
-    this.openComposer(target, e.clientX, e.clientY);
+    this.setMode("off");
+    this.openComposer({ kind: "element", element: target }, e.clientX, e.clientY);
   };
 
   private onKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") { this.setInspecting(false); this.closeComposer(); }
+    if (e.key === "Escape") { this.cancelDrag(); this.setMode("off"); this.closeComposer(); }
   };
+
+  // ---- region ("free-size screenshot") selection ----------------------------
+
+  private onRegionDown = (e: MouseEvent) => {
+    if (this.mode !== "region" || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.dragStart = { x: e.clientX, y: e.clientY };
+    document.addEventListener("mousemove", this.onRegionMove, true);
+    document.addEventListener("mouseup", this.onRegionUp, true);
+    this.drawSelection(e.clientX, e.clientY);
+  };
+
+  private onRegionMove = (e: MouseEvent) => {
+    if (!this.dragStart) return;
+    e.preventDefault();
+    this.drawSelection(e.clientX, e.clientY);
+  };
+
+  private onRegionUp = (e: MouseEvent) => {
+    if (!this.dragStart) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = this.dragStart;
+    this.cancelDrag();
+    const vp: RegionRect = {
+      x: Math.min(start.x, e.clientX), y: Math.min(start.y, e.clientY),
+      w: Math.abs(e.clientX - start.x), h: Math.abs(e.clientY - start.y),
+    };
+    if (vp.w < 8 || vp.h < 8) { this.selbox.style.display = "none"; return; } // stray click
+    this.setMode("off");
+    this.finishRegion(vp);
+  };
+
+  private drawSelection(curX: number, curY: number) {
+    const s = this.dragStart!;
+    Object.assign(this.selbox.style, {
+      display: "block",
+      left: Math.min(s.x, curX) + "px", top: Math.min(s.y, curY) + "px",
+      width: Math.abs(curX - s.x) + "px", height: Math.abs(curY - s.y) + "px",
+    });
+  }
+
+  private cancelDrag() {
+    this.dragStart = null;
+    document.removeEventListener("mousemove", this.onRegionMove, true);
+    document.removeEventListener("mouseup", this.onRegionUp, true);
+  }
+
+  /** Capture the selected viewport rect, then open the composer for a region comment. */
+  private async finishRegion(vp: RegionRect) {
+    // Anchor the region to the element under its center so it survives reflow.
+    const centerEl = this.pick(vp.x + vp.w / 2, vp.y + vp.h / 2);
+    let rel: RegionRect["rel"];
+    if (centerEl) {
+      const er = centerEl.getBoundingClientRect();
+      if (er.width > 0 && er.height > 0) {
+        rel = {
+          fx: (vp.x - er.left) / er.width, fy: (vp.y - er.top) / er.height,
+          fw: vp.w / er.width, fh: vp.h / er.height,
+        };
+      }
+    }
+    const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
+    const screenshot = await capture(vp);
+    this.selbox.style.display = "none";
+    // Document coords are the fallback; `rel` (element-relative) is preferred.
+    const region: RegionRect = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
+    this.openComposer({ kind: "region", region, element: centerEl, screenshot }, vp.x + vp.w, vp.y);
+  }
 
   /** elementFromPoint, ignoring our own UI. */
   private pick(x: number, y: number): Element | null {
@@ -143,34 +231,47 @@ export class LoupeApp {
     return elAt;
   }
 
-  private setInspecting(on: boolean) {
-    this.inspecting = on;
+  private setMode(mode: Mode) {
+    this.mode = mode;
     this.hl.style.display = "none";
-    document.body.style.cursor = on ? "crosshair" : "";
-    const btn = this.toolbar.querySelector('[data-role="inspect"]') as HTMLElement;
-    btn.classList.toggle("on", on);
-    if (on) {
+    this.selbox.style.display = "none";
+    this.cancelDrag();
+    document.body.style.cursor = mode === "off" ? "" : "crosshair";
+    (this.toolbar.querySelector('[data-role="inspect"]') as HTMLElement)?.classList.toggle("on", mode === "inspect");
+    (this.toolbar.querySelector('[data-role="region"]') as HTMLElement)?.classList.toggle("on", mode === "region");
+
+    document.removeEventListener("mousemove", this.onMove, true);
+    document.removeEventListener("click", this.onClick, true);
+    document.removeEventListener("mousedown", this.onRegionDown, true);
+
+    if (mode === "off") return;
+    document.addEventListener("keydown", this.onKey, true);
+    this.closeComposer();
+    if (mode === "inspect") {
       document.addEventListener("mousemove", this.onMove, true);
       document.addEventListener("click", this.onClick, true);
-      document.addEventListener("keydown", this.onKey, true);
-      this.closeComposer();
-    } else {
-      document.removeEventListener("mousemove", this.onMove, true);
-      document.removeEventListener("click", this.onClick, true);
+    } else if (mode === "region") {
+      document.addEventListener("mousedown", this.onRegionDown, true);
     }
   }
 
   // ---- composer -------------------------------------------------------------
 
-  private openComposer(target: Element, x: number, y: number) {
+  private openComposer(target: ComposeTarget, x: number, y: number) {
+    this.pending = target;
     const c = this.composer;
     c.innerHTML = "";
-    const label = el("div", "target", describe(target));
+    const label = el("div", "target",
+      target.kind === "element" ? describe(target.element)
+        : `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`);
     const ta = el("textarea") as HTMLTextAreaElement;
-    ta.placeholder = "What should change here?";
+    ta.placeholder = target.kind === "region" ? "What's the issue in this area?" : "What should change here?";
     const row = el("div", "row");
     const chk = el("label", "chk") as HTMLLabelElement;
-    const box = document.createElement("input"); box.type = "checkbox"; box.checked = true;
+    const box = document.createElement("input"); box.type = "checkbox";
+    // Region shots already captured the pixels; only offer to attach if we got them.
+    box.checked = target.kind === "region" ? !!target.screenshot : true;
+    if (target.kind === "region" && !target.screenshot) box.disabled = true;
     chk.append(box, document.createTextNode("Attach screenshot"));
     const btns = el("div", "btns");
     const cancel = el("button", "ghost", "Cancel") as HTMLButtonElement;
@@ -193,16 +294,42 @@ export class LoupeApp {
 
   private closeComposer() {
     this.composer.style.display = "none";
-    this.target = null;
+    this.pending = null;
   }
 
-  private async submit(target: Element, body: string, withShot: boolean) {
+  private async submit(target: ComposeTarget, body: string, withShot: boolean) {
     if (!body) return;
     const saveBtn = this.composer.querySelector(".primary") as HTMLButtonElement;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
 
-    const capture = this.cfg.captureScreenshot ?? captureScreenshot;
-    const screenshot = withShot ? await capture(target) : undefined;
+    let anchor: Anchor, context: Comment["context"], offset: Comment["offset"];
+    let screenshot: string | undefined;
+    let region: RegionRect | undefined;
+    let anchoredEl: Element | null = null;
+
+    if (target.kind === "element") {
+      const capture = this.cfg.captureScreenshot ?? captureScreenshot;
+      screenshot = withShot ? await capture(target.element) : undefined;
+      anchor = captureAnchor(target.element);
+      context = captureElementContext(target.element);
+      offset = this.targetOffset;
+      anchoredEl = target.element;
+    } else {
+      screenshot = withShot ? target.screenshot : undefined;
+      region = target.region;
+      offset = { x: 0, y: 0 };
+      // Prefer the real center-element anchor (survives reflow + gives Claude a
+      // real element); fall back to a synthetic region anchor when there's none.
+      if (target.element) {
+        anchor = captureAnchor(target.element);
+        context = captureElementContext(target.element);
+        anchoredEl = target.element;
+      } else {
+        anchor = regionAnchor(region);
+        context = { html: regionNote(region), styles: {} };
+      }
+    }
+
     const comment: Comment = {
       id: uid(),
       projectKey: this.cfg.projectKey,
@@ -210,15 +337,17 @@ export class LoupeApp {
       author: this.cfg.user,
       body,
       status: "open",
-      anchor: captureAnchor(target),
-      context: captureElementContext(target),
-      offset: this.targetOffset,
+      kind: target.kind,
+      anchor,
+      context,
+      offset,
+      region,
       screenshot,
       createdAt: new Date().toISOString(),
     };
     await this.store.save(comment);
     this.comments.push(comment);
-    this.resolved.set(comment.id, target);
+    this.resolved.set(comment.id, anchoredEl);
     this.closeComposer();
     this.renderPins();
     this.renderPanel();
@@ -252,12 +381,29 @@ export class LoupeApp {
     for (const c of this.comments) {
       const pin = this.pins.get(c.id);
       if (!pin) continue;
+
       let elx = this.resolved.get(c.id) ?? null;
       if (!elx || !elx.isConnected) {
         const r = resolveAnchor(c.anchor);
         elx = r?.element ?? null;
         this.resolved.set(c.id, elx);
       }
+
+      if (c.kind === "region") {
+        // Compute the region's live viewport rect from its anchor element; fall
+        // back to stored document coords (older data / no anchor found).
+        const box = this.regionRect(c, elx);
+        if (box) {
+          const onScreen = box.x + box.w > 0 && box.x < window.innerWidth && box.y + box.h > 0 && box.y < window.innerHeight;
+          Object.assign(pin.style, { left: box.x + "px", top: box.y + "px", display: onScreen ? "grid" : "none" });
+          pin.classList.toggle("detached", !elx && !c.region?.rel);
+        } else {
+          pin.style.display = "none";
+          pin.classList.add("detached");
+        }
+        continue;
+      }
+
       if (elx) {
         const rect = elx.getBoundingClientRect();
         const px = rect.left + c.offset.x * rect.width;
@@ -270,7 +416,35 @@ export class LoupeApp {
         pin.classList.add("detached");
       }
     }
+
+    // Keep the highlighted region outline glued to its live rect while scrolling.
+    if (this.activeRegionId) {
+      const c = this.comments.find((x) => x.id === this.activeRegionId);
+      const box = c && this.regionRect(c, this.resolved.get(c.id) ?? null);
+      if (box) {
+        Object.assign(this.regionBox.style, {
+          display: "block", left: box.x + "px", top: box.y + "px", width: box.w + "px", height: box.h + "px",
+        });
+      }
+    }
   };
+
+  /**
+   * The current viewport rect for a region comment. Prefers the element-relative
+   * fractions (so it tracks reflow across viewports); falls back to the stored
+   * document coordinates minus scroll. Returns null if neither is available.
+   */
+  private regionRect(c: Comment, elx: Element | null): { x: number; y: number; w: number; h: number } | null {
+    const rel = c.region?.rel;
+    if (elx && rel) {
+      const r = elx.getBoundingClientRect();
+      return { x: r.left + rel.fx * r.width, y: r.top + rel.fy * r.height, w: rel.fw * r.width, h: rel.fh * r.height };
+    }
+    if (c.region) {
+      return { x: c.region.x - window.scrollX, y: c.region.y - window.scrollY, w: c.region.w, h: c.region.h };
+    }
+    return null;
+  }
 
   private observe() {
     const reposition = () => {
@@ -380,7 +554,28 @@ export class LoupeApp {
   }
 
   private flash(id: string) {
+    const c = this.comments.find((x) => x.id === id);
     const pin = this.pins.get(id);
+
+    if (c?.kind === "region" && c.region) {
+      for (const p of this.pins.values()) p.classList.remove("active");
+      pin?.classList.add("active");
+      // Show the outline, keep it tracking scroll, then fade it out.
+      this.activeRegionId = id;
+      window.clearTimeout(this.regionTimer);
+      this.regionTimer = window.setTimeout(() => {
+        this.activeRegionId = null;
+        this.regionBox.style.display = "none";
+      }, 2400);
+      // Scroll to the anchor element when we have it (correct across reflow),
+      // otherwise to the stored document position.
+      const elx = this.resolved.get(id);
+      if (elx) elx.scrollIntoView({ behavior: "smooth", block: "center" });
+      else window.scrollTo({ top: Math.max(0, c.region.y - 120), left: Math.max(0, c.region.x - 120), behavior: "smooth" });
+      this.position();
+      return;
+    }
+
     if (!pin || pin.classList.contains("detached")) return;
     for (const p of this.pins.values()) p.classList.remove("active");
     pin.classList.add("active");
@@ -389,9 +584,10 @@ export class LoupeApp {
   }
 
   destroy() {
-    this.setInspecting(false);
+    this.setMode("off");
     this.mo?.disconnect();
     if (this.tick) clearInterval(this.tick);
+    window.clearTimeout(this.regionTimer);
     document.removeEventListener("keydown", this.onKey, true);
     this.root?.remove();
   }
@@ -407,6 +603,30 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 function sep() { return el("span", "sep"); }
 function clamp(n: number) { return Math.max(0, Math.min(1, n)); }
+
+/** Dashed marquee icon for the "Region shot" button — inline SVG so it never depends on a font. */
+const REGION_ICON =
+  `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
+  `<rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/>` +
+  `</svg>`;
+
+/** Synthesize an Anchor for a free region so downstream (dashboard/MCP) stays happy. */
+function regionAnchor(region: RegionRect): Anchor {
+  return {
+    tag: "region",
+    cssPath: `region ${Math.round(region.w)}×${Math.round(region.h)}`,
+    xpath: "",
+    testid: null,
+    text: "",
+    attrs: {},
+    nthOfType: 1,
+    rect: { x: Math.round(region.x), y: Math.round(region.y), w: Math.round(region.w), h: Math.round(region.h) },
+    viewport: { w: window.innerWidth, h: window.innerHeight },
+  };
+}
+function regionNote(region: RegionRect): string {
+  return `<!-- Loupe free-region annotation: ${Math.round(region.w)}×${Math.round(region.h)}px at document (${Math.round(region.x)}, ${Math.round(region.y)}). No single DOM element — see the attached screenshot. -->`;
+}
 
 function describe(elx: Element): string {
   const testid = elx.getAttribute("data-testid") || elx.getAttribute("data-test");

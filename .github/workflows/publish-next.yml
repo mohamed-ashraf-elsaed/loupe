@@ -1,0 +1,67 @@
+name: Publish (canary)
+
+# Every push to main ships a prerelease to the `next` dist-tag on BOTH registries:
+#   • public npm      → @loupekit/*                 (needs the NPM_TOKEN repo secret)
+#   • GitHub Packages → @mohamed-ashraf-elsaed/*    (uses the built-in GITHUB_TOKEN)
+#
+# Version = <base>-next.<run_number>, e.g. 0.1.0-next.42. The base comes from
+# packages/shared/package.json; github.run_number is monotonic so versions never collide.
+# `latest` (stable) releases are cut separately by tagging vX.Y.Z (see release.yml).
+
+on:
+  push:
+    branches: [main]
+
+# Never run two canary publishes at once; don't cancel one mid-publish.
+concurrency:
+  group: publish-next
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-next:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+
+      - name: Compute canary version
+        id: v
+        run: |
+          BASE=$(node -p "require('./packages/shared/package.json').version")
+          echo "version=${BASE}-next.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Write .npmrc for both registries
+        run: |
+          cat > .npmrc <<'EOF'
+          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
+          @mohamed-ashraf-elsaed:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=${GH_TOKEN}
+          EOF
+
+      - name: "Publish to public npm (@loupekit, tag: next)"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/set-version.mjs --version "${{ steps.v.outputs.version }}"
+          npm publish ./packages/shared --tag next --access public
+          npm publish ./packages/mcp    --tag next --access public
+          npm publish ./packages/sdk    --tag next --access public
+
+      - name: "Mirror to GitHub Packages (@mohamed-ashraf-elsaed, tag: next)"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/set-version.mjs --name-scope @mohamed-ashraf-elsaed
+          npm publish ./packages/shared --tag next
+          npm publish ./packages/mcp    --tag next
+          npm publish ./packages/sdk    --tag next

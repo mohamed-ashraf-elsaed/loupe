@@ -12,3 +12,6 @@ packages/extension/content.js
 CLAUDE.md
 coverage/
 loupe-extension.zip
+
+# npm auth (CI writes this; never commit tokens)
+.npmrc

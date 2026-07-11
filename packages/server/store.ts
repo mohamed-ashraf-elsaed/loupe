@@ -35,10 +35,12 @@ function rowToComment(r: any): Comment {
     url: r.url,
     status: r.status,
     body: r.body,
+    kind: r.kind ?? "element",
     author: r.author,
     anchor: r.anchor,
     context: r.context,
     offset: r.offset,
+    region: r.region ?? undefined,
     screenshot: r.screenshot_url ?? undefined,
     createdAt: new Date(r.created_at).toISOString(),
   };
@@ -68,17 +70,18 @@ export async function upsertComment(c: Comment): Promise<Comment> {
   const d = await db();
   const url = normalizeUrl(c.url);
   const { rows } = await d.query(
-    `INSERT INTO comments (id, project_key, url, status, body, author, anchor, context, "offset", screenshot_url, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, COALESCE($11::timestamptz, now()))
+    `INSERT INTO comments (id, project_key, url, status, body, kind, author, anchor, context, "offset", region, screenshot_url, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, COALESCE($13::timestamptz, now()))
      ON CONFLICT (id) DO UPDATE SET
-       url = EXCLUDED.url, status = EXCLUDED.status, body = EXCLUDED.body,
+       url = EXCLUDED.url, status = EXCLUDED.status, body = EXCLUDED.body, kind = EXCLUDED.kind,
        author = EXCLUDED.author, anchor = EXCLUDED.anchor, context = EXCLUDED.context,
-       "offset" = EXCLUDED."offset", screenshot_url = EXCLUDED.screenshot_url
+       "offset" = EXCLUDED."offset", region = EXCLUDED.region, screenshot_url = EXCLUDED.screenshot_url
      RETURNING *`,
     [
-      c.id, c.projectKey, url, c.status ?? "open", c.body,
+      c.id, c.projectKey, url, c.status ?? "open", c.body, c.kind ?? "element",
       JSON.stringify(c.author), JSON.stringify(c.anchor), JSON.stringify(c.context),
-      JSON.stringify(c.offset), c.screenshot ?? null, c.createdAt ?? null,
+      JSON.stringify(c.offset), c.region ? JSON.stringify(c.region) : null,
+      c.screenshot ?? null, c.createdAt ?? null,
     ],
   );
   return rowToComment(rows[0]);

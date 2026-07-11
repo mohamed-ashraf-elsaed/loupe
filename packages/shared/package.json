@@ -1,7 +1,8 @@
 {
   "name": "@loupekit/shared",
-  "version": "0.1.0",
-  "description": "Loupe shared types + helpers (normalizeUrl).",
+  "version": "0.2.0",
+  "description": "Canonical TypeScript types + helpers (normalizeUrl) shared across the Loupe visual-feedback platform.",
+  "keywords": ["loupe", "types", "shared", "visual-feedback", "annotation", "normalize-url", "typescript"],
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git", "directory": "packages/shared" },
   "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",

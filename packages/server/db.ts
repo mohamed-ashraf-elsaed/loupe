@@ -69,4 +69,7 @@ export async function migrate(): Promise<void> {
     );
   `);
   await d.query(`CREATE INDEX IF NOT EXISTS comments_project_url ON comments (project_key, url);`);
+  // Additive columns for free-region comments (older tables predate them).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'element';`);
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS region JSONB;`);
 }

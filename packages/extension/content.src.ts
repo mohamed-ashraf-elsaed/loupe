@@ -2,6 +2,7 @@
 // widget — the only difference is the screenshot source: the extension captures
 // real pixels via the background worker and crops to the element (with redaction).
 import { init } from "@loupekit/sdk";
+import type { RegionRect } from "@loupekit/sdk";
 
 declare const chrome: any;
 
@@ -23,6 +24,7 @@ async function main() {
     userHmac: cfg.userHmac || undefined,
     autoOpen: true,
     captureScreenshot: captureViaExtension,
+    captureRegion: captureRegionViaExtension,
   });
 }
 
@@ -36,6 +38,19 @@ async function captureViaExtension(el: Element): Promise<string | undefined> {
     (n as Element).getBoundingClientRect(),
   );
   return crop(fullDataUrl, rect, dpr, redactRects);
+}
+
+/** Same real-pixel capture, but cropped to a free-form viewport rect (the "region shot"). */
+async function captureRegionViaExtension(rect: RegionRect): Promise<string | undefined> {
+  const fullDataUrl: string | null = await chrome.runtime.sendMessage({ type: "LOUPE_CAPTURE" });
+  if (!fullDataUrl) return undefined;
+  const dpr = window.devicePixelRatio || 1;
+  const redactRects = Array.from(document.querySelectorAll("[data-loupe-redact]")).map((n) =>
+    (n as Element).getBoundingClientRect(),
+  );
+  // rect is viewport coords {x,y,w,h}; crop() expects {left,top,width,height}.
+  const box = { left: rect.x, top: rect.y, width: rect.w, height: rect.h } as DOMRect;
+  return crop(fullDataUrl, box, dpr, redactRects);
 }
 
 function crop(dataUrl: string, rect: DOMRect, dpr: number, redact: DOMRect[]): Promise<string> {

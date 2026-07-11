@@ -1,7 +1,7 @@
 import { LoupeApp } from "./app.js";
 import type { LoupeConfig } from "./types.js";
 
-export type { LoupeConfig, LoupeUser, Comment, Anchor } from "./types.js";
+export type { LoupeConfig, LoupeUser, Comment, Anchor, RegionRect } from "./types.js";
 
 let app: LoupeApp | null = null;
 

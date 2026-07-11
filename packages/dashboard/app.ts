@@ -2,11 +2,21 @@
 // Vanilla TS to match the SDK's zero-framework footprint.
 import type { Comment, CommentStatus as Status } from "@loupekit/shared";
 
+// Config resolution. A host that embeds the board behind its own authenticated
+// session (e.g. the Laravel package) injects `window.__LOUPE__` server-side;
+// otherwise fall back to query params for the standalone demo/server.
+const injected = (window as any).__LOUPE__ as
+  | { api?: string; project?: string; csrf?: string }
+  | undefined;
 const params = new URLSearchParams(location.search);
-const API = (params.get("api") || location.origin).replace(/\/$/, "");
-const PROJECT = params.get("project") || "pk_demo_acme";
-// Admin key authenticates the back-office. Passed via ?key= (persisted) — in
-// production the dashboard runs behind its own authenticated session instead.
+const API = (injected?.api || params.get("api") || location.origin).replace(/\/$/, "");
+const PROJECT = injected?.project || params.get("project") || "pk_demo_acme";
+// Two auth paths:
+// - session mode (injected.csrf present): the request rides the host's session
+//   cookie; we only add the CSRF token so writes pass the framework's guard.
+// - admin mode (standalone): the project secret is passed via ?key= (persisted)
+//   and sent as X-Loupe-Admin.
+const CSRF = injected?.csrf || "";
 const ADMIN = params.get("key") || localStorage.getItem("loupe_admin") || "";
 if (params.get("key")) localStorage.setItem("loupe_admin", params.get("key")!);
 
@@ -27,7 +37,10 @@ const statusEl = $("#status");
 async function api(path: string, init?: RequestInit): Promise<Response> {
   const headers: Record<string, string> = { "Content-Type": "application/json", ...(init?.headers as any) };
   if (ADMIN) headers["X-Loupe-Admin"] = ADMIN;
-  return fetch(`${API}${path}`, { ...init, headers });
+  if (CSRF) headers["X-CSRF-TOKEN"] = CSRF;
+  // Session mode needs the cookie sent with the request.
+  const credentials: RequestCredentials | undefined = CSRF ? "same-origin" : undefined;
+  return fetch(`${API}${path}`, { ...init, headers, ...(credentials ? { credentials } : {}) });
 }
 
 async function load() {
@@ -47,7 +60,9 @@ async function load() {
     statusEl.style.display = "block";
     statusEl.className = "error";
     statusEl.textContent = (err as Error).message === "AUTH"
-      ? `Not authorized. Open this page with ?key=<project secret> (from \`npm run seed\`).`
+      ? CSRF
+        ? `You don't have access to this dashboard.`
+        : `Not authorized. Open this page with ?key=<project secret> (from \`npm run seed\`).`
       : `Can't reach the API at ${API}. Is the backend running? (${(err as Error).message})`;
   }
 }

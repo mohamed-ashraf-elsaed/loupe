@@ -2,7 +2,7 @@
 // internal `./types.js` imports keep working.
 export * from "@loupekit/shared";
 
-import type { Comment, LoupeUser } from "@loupekit/shared";
+import type { Comment, LoupeUser, RegionRect } from "@loupekit/shared";
 
 export interface LoupeConfig {
   /** Public project key issued by the backend. */
@@ -24,6 +24,24 @@ export interface LoupeConfig {
    * DOM-based (modern-screenshot).
    */
   captureScreenshot?: (el: Element) => Promise<string | undefined>;
+  /**
+   * Override region ("free-size screenshot") capture. `rect` is in viewport
+   * coordinates. The extension backs this with captureVisibleTab; the default is
+   * DOM-based (modern-screenshot, full page then cropped).
+   */
+  captureRegion?: (rect: RegionRect) => Promise<string | undefined>;
+  /**
+   * Extra headers merged into every backend request. Use this to pass a CSRF
+   * token (e.g. `{ "X-CSRF-TOKEN": "…" }`) when the backend authenticates via a
+   * session cookie rather than the HMAC identity headers.
+   */
+  headers?: Record<string, string>;
+  /**
+   * `credentials` mode for backend requests. Defaults to the browser default
+   * (`same-origin`). Set to `include` for cross-origin cookie auth (e.g. a
+   * Sanctum SPA on a different subdomain).
+   */
+  credentials?: RequestCredentials;
 }
 
 export interface StorageAdapter {

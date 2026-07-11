@@ -34,23 +34,47 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
 
-  # Publishes to npm after the release is cut. Requires the NPM_TOKEN repo secret
-  # (an npm Automation token for the @loupekit scope). Publishes in dependency order.
+  # Publishes the tagged version to BOTH registries after the release is cut:
+  #   • public npm      → @loupekit/*                 (needs the NPM_TOKEN repo secret)
+  #   • GitHub Packages → @mohamed-ashraf-elsaed/*    (uses the built-in GITHUB_TOKEN)
+  # Publishes in dependency order (shared → mcp → sdk).
   publish-npm:
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: npm run build
-      - name: Publish packages (shared → mcp → sdk)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Write .npmrc for both registries
         run: |
-          npm publish -w @loupekit/shared --access public
-          npm publish -w @loupekit/mcp --access public
-          npm publish -w @loupekit/sdk --access public
+          cat > .npmrc <<'EOF'
+          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
+          @mohamed-ashraf-elsaed:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=${GH_TOKEN}
+          EOF
+
+      - name: Publish to public npm (@loupekit, latest)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm publish ./packages/shared --access public
+          npm publish ./packages/mcp    --access public
+          npm publish ./packages/sdk    --access public
+
+      - name: Mirror to GitHub Packages (@mohamed-ashraf-elsaed, latest)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/set-version.mjs --name-scope @mohamed-ashraf-elsaed
+          npm publish ./packages/shared
+          npm publish ./packages/mcp
+          npm publish ./packages/sdk

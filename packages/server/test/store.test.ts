@@ -37,6 +37,19 @@ describe("store", () => {
     expect((await store.getComment("c1"))!.body).toBe("hi");
   });
 
+  it("defaults kind to 'element' and round-trips a region comment", async () => {
+    const el = await store.upsertComment(make());
+    expect(el.kind).toBe("element");
+    expect(el.region).toBeUndefined();
+
+    const region = await store.upsertComment(make({
+      id: "c2", kind: "region", region: { x: 40, y: 120, w: 300, h: 180 },
+    }));
+    expect(region.kind).toBe("region");
+    expect(region.region).toEqual({ x: 40, y: 120, w: 300, h: 180 });
+    expect((await store.getComment("c2"))!.region).toEqual({ x: 40, y: 120, w: 300, h: 180 });
+  });
+
   it("upsert replaces on conflicting id", async () => {
     await store.upsertComment(make());
     await store.upsertComment(make({ body: "updated", screenshot: "http://x/y.png" }));
