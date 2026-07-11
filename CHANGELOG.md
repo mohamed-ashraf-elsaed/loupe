@@ -9,6 +9,10 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.3.0] — 2026-07-12
+
 ### Added
 - **Loupe for Laravel (`loupekit/laravel`).** A Composer package that installs the whole
   Loupe loop into any Laravel app: the `@loupeWidget` Blade directive embeds the SDK,
@@ -83,5 +87,6 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.2.1...v0.3.0
 [0.1.0]: https://github.com/mohamed-ashraf-elsaed/loupe/releases/tag/v0.1.0

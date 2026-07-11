@@ -1,6 +1,6 @@
 {
   "name": "@loupekit/extension",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Loupe MV3 browser extension — inspect and comment on any site.",
   "type": "module",
   "private": true,

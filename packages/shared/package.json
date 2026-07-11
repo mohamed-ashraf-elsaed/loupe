@@ -1,6 +1,6 @@
 {
   "name": "@loupekit/shared",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Canonical TypeScript types + helpers (normalizeUrl) shared across the Loupe visual-feedback platform.",
   "keywords": ["loupe", "types", "shared", "visual-feedback", "annotation", "normalize-url", "typescript"],
   "license": "MIT",

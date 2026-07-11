@@ -1,6 +1,6 @@
 {
   "name": "@loupekit/mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "MCP server that exposes Loupe comments to Claude Code as an actionable, fully-contextualized backlog.",
   "keywords": ["loupe", "mcp", "model-context-protocol", "claude", "claude-code", "visual-feedback", "product-management", "ai"],
   "license": "MIT",
