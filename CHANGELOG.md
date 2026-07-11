@@ -9,7 +9,32 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Loupe for Laravel (`loupekit/laravel`).** A Composer package that installs the whole
+  Loupe loop into any Laravel app: the `@loupeWidget` Blade directive embeds the SDK,
+  comments persist to the host's own database (`loupe_comments` Eloquent model), access is
+  gated per-user via `loupe:use` / `loupe:admin` Gate abilities **and** config closures,
+  the Kanban dashboard is served on a host route (`/loupe/dashboard`) behind the host's
+  auth, and a first-party **MCP server** (`php artisan mcp:start loupe`, on
+  `laravel/mcp`) hands the backlog to Claude Code. Screenshots use the Laravel filesystem.
+  Supports **PHP 8.4+** and **Laravel 11/12/13**, with a CI matrix and a **100%
+  line-coverage** gate. See [docs/LARAVEL.md](docs/LARAVEL.md).
+
+### Changed
+- **SDK:** `LoupeConfig` gained two generic options — `headers` (extra request headers,
+  e.g. a CSRF token) and `credentials` (fetch credentials mode) — so the widget can
+  authenticate via a session cookie instead of the HMAC identity header. Fully
+  back-compatible with the standalone server.
+- **Dashboard:** now reads an injected `window.__LOUPE__` (api/project/csrf) when present
+  and sends `X-CSRF-TOKEN`, so it can run behind a host's authenticated session (used by
+  the Laravel package). Falls back to the existing `?api/?project/?key` query params.
+
+## [0.2.1] — 2026-07-12
+
+### Changed
+- **Docs:** professional npm READMEs for `@loupekit/sdk`, `@loupekit/mcp`, and
+  `@loupekit/shared` — hero banner, shields.io badges, product screenshots, feature tables,
+  and the re-anchor before/after visuals. No code changes.
 
 ## [0.2.0] — 2026-07-12
 
