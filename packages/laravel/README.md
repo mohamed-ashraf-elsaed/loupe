@@ -283,6 +283,13 @@ The browser bundles in `resources/dist` are vendored from `@loupekit/sdk` and
 - [**@loupekit/mcp**](https://www.npmjs.com/package/@loupekit/mcp) — the standalone MCP server.
 - [**@loupekit/shared**](https://www.npmjs.com/package/@loupekit/shared) — canonical types + `normalizeUrl`.
 
+## Author
+
+Created and maintained by **[Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)** —
+[LinkedIn](https://www.linkedin.com/in/mohamedashrafelsaed/) ·
+[GitHub](https://github.com/mohamed-ashraf-elsaed) ·
+[m.ashraf.saed@gmail.com](mailto:m.ashraf.saed@gmail.com)
+
 ## License
 
-[MIT](LICENSE) © Mohamed Ashraf Elsaed
+[MIT](LICENSE) © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)

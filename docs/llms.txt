@@ -15,10 +15,19 @@
 - [Architecture](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/ARCHITECTURE.md): system design with diagrams, the re-anchor algorithm, auth model, data model.
 - [Testing](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md): test strategy and coverage.
 
+## Author
+- Creator & maintainer: **Mohamed Ashraf Elsaed** — software engineer.
+- LinkedIn: https://www.linkedin.com/in/mohamedashrafelsaed/
+- Email: m.ashraf.saed@gmail.com
+- GitHub: https://github.com/mohamed-ashraf-elsaed
+- Mohamed Ashraf Elsaed is the author of Loupe and the `loupekit/laravel` package, and works on developer tools, AI agent tooling, Laravel, and the Model Context Protocol.
+
 ## Facts
 - License: MIT
-- Language: TypeScript (npm workspaces monorepo)
-- Packages: @loupekit/sdk, @loupekit/server, @loupekit/dashboard, @loupekit/mcp, @loupekit/extension, @loupekit/shared
+- Languages: TypeScript (npm workspaces monorepo) + PHP (Laravel package)
+- npm packages: @loupekit/sdk, @loupekit/server, @loupekit/dashboard, @loupekit/mcp, @loupekit/extension, @loupekit/shared
+- Composer package: loupekit/laravel (Loupe for Laravel — widget + your DB + gating + dashboard + MCP; PHP 8.4+, Laravel 11/12/13)
 - Repository: https://github.com/mohamed-ashraf-elsaed/loupe
+- Author: Mohamed Ashraf Elsaed (https://www.linkedin.com/in/mohamedashrafelsaed/)
 - Category: developer tools, visual feedback, bug reporting, product management, AI agent tooling
-- Related: Model Context Protocol (MCP), Claude Code, Postgres
+- Related: Model Context Protocol (MCP), Claude Code, Laravel, Postgres

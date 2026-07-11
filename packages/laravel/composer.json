@@ -5,7 +5,12 @@
     "license": "MIT",
     "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
     "authors": [
-        { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf@converted.in" }
+        {
+            "name": "Mohamed Ashraf Elsaed",
+            "email": "m.ashraf.saed@gmail.com",
+            "homepage": "https://www.linkedin.com/in/mohamedashrafelsaed/",
+            "role": "Creator"
+        }
     ],
     "support": {
         "issues": "https://github.com/mohamed-ashraf-elsaed/loupe/issues",

@@ -126,6 +126,17 @@ npm run build:extension      # builds packages/extension/content.js
 Postgres migrations tooling, and packaging the SDK/MCP to npm + the extension to the
 Chrome Web Store.
 
+## Author
+
+**Loupe is created and maintained by [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/).**
+
+- 💼 LinkedIn: [mohamedashrafelsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+- 🐙 GitHub: [@mohamed-ashraf-elsaed](https://github.com/mohamed-ashraf-elsaed)
+- ✉️ Email: [m.ashraf.saed@gmail.com](mailto:m.ashraf.saed@gmail.com)
+
+If Loupe is useful to you, a ⭐ on the repo and a connection on LinkedIn are always
+appreciated. For consulting or collaboration, reach out via any of the links above.
+
 ## License
 
-MIT
+MIT © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)

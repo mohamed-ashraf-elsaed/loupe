@@ -1,6 +1,7 @@
 {
   "name": "@loupekit/extension",
-  "version": "0.3.0",
+  "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
+  "version": "0.3.1",
   "description": "Loupe MV3 browser extension — inspect and comment on any site.",
   "type": "module",
   "private": true,

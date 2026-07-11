@@ -11,6 +11,22 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.3.1] — 2026-07-12
+
+### Changed
+- **SEO / GEO — author & entity metadata.** Made the project and its author,
+  **Mohamed Ashraf Elsaed**, discoverable by search engines and AI answer engines
+  (ChatGPT, Claude, Perplexity, Gemini, Copilot): a schema.org `@graph`
+  (`Person` + `Organization` + `WebSite` + `SoftwareApplication`) with `sameAs`
+  links to LinkedIn/GitHub and `mailto:`, `rel="me"`/`rel="author"` links, a visible
+  author byline, an explicit AI-crawler allow-list in `robots.txt`, an **Author**
+  section in `llms.txt`, `author` fields across the npm packages, and updated
+  `composer.json` author (email `m.ashraf.saed@gmail.com`, LinkedIn homepage).
+
+### Fixed
+- **Release/CI:** synced `package-lock.json` with the bumped versions so `npm ci`
+  (and therefore the npm publish + CI) no longer fails on release tags.
+
 ## [0.3.0] — 2026-07-12
 
 ### Added
@@ -87,6 +103,7 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.2.1...v0.3.0
 [0.1.0]: https://github.com/mohamed-ashraf-elsaed/loupe/releases/tag/v0.1.0
