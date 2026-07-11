@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loupe — Privacy Policy</title>
+<meta name="description" content="Privacy policy for the Loupe visual-feedback browser extension and SDK.">
+<link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/privacy.html">
+<style>
+  :root{--bg:#0d0e13;--surface:#14161d;--ink:#e9ebf1;--ink-2:#aab0c0;--line:#262a35;--accent:#8b95f2}
+  @media (prefers-color-scheme: light){:root{--bg:#f7f8fb;--surface:#fff;--ink:#16181f;--ink-2:#4a4f5e;--line:#e2e5ee;--accent:#4a55d6}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:56px 24px 80px}
+  h1{font-size:32px;letter-spacing:-.02em;margin:0 0 6px}
+  .meta{color:var(--ink-2);font-size:14px;margin-bottom:32px}
+  h2{font-size:20px;letter-spacing:-.01em;margin:34px 0 10px}
+  p,li{color:var(--ink-2)} p,ul{margin:0 0 14px} li{margin-bottom:6px}
+  strong{color:var(--ink)}
+  a{color:var(--accent)}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  hr{border:none;border-top:1px solid var(--line);margin:34px 0}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:28px}
+  .logo{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#8b5cf6);position:relative}
+  .logo::after{content:"";position:absolute;width:10px;height:10px;border:2.5px solid #fff;border-radius:50%;top:5px;left:4px}
+  .logo::before{content:"";position:absolute;width:3px;height:7px;background:#ff6f5c;border-radius:2px;bottom:3px;right:5px;transform:rotate(35deg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="logo"></span> Loupe</div>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Last updated: July 10, 2026 · Applies to the Loupe browser extension and the Loupe SDK.</p>
+
+  <p>Loupe is an open-source visual-feedback tool. It lets you inspect an element on a web page, attach a comment, and capture a screenshot, then send that feedback to a Loupe backend that <strong>you or your organization control</strong>. This policy explains exactly what data Loupe handles and how.</p>
+
+  <h2>What Loupe handles</h2>
+  <ul>
+    <li><strong>Settings you enter</strong> — your project key, a display name/identifier, and the URL of your Loupe backend. These are stored locally in your browser via <code>chrome.storage</code> and are never sent anywhere except to the backend you configure.</li>
+    <li><strong>Feedback you create</strong> — only when you actively leave a comment: the comment text, a screenshot of the visible page, and the selected element's HTML and computed styles. This is sent to the backend URL you configured, so your development team can act on it.</li>
+  </ul>
+
+  <h2>What Loupe does not do</h2>
+  <ul>
+    <li>It does <strong>not</strong> collect or transmit any data in the background. It only runs on a tab after you explicitly click the Loupe icon and press "Start Loupe on this tab."</li>
+    <li>It does <strong>not</strong> track your browsing history, and it does <strong>not</strong> use third-party analytics or advertising.</li>
+    <li>It does <strong>not</strong> sell or transfer your data to third parties.</li>
+    <li>It does <strong>not</strong> use your data for any purpose unrelated to delivering the feedback you create.</li>
+  </ul>
+
+  <h2>Where your data goes</h2>
+  <p>Feedback is sent only to the backend endpoint you configure in the extension's settings. That backend is operated by you or your organization (the Loupe server is open source and self-hosted). If no endpoint is configured, feedback stays in your browser's local storage and is not transmitted at all. Loupe's authors do not operate a shared server and never receive your data.</p>
+
+  <h2>Permissions</h2>
+  <ul>
+    <li><code>activeTab</code> — to run only on the tab you activate Loupe on, so it can show the feedback toolbar and capture a screenshot of that tab.</li>
+    <li><code>scripting</code> — to inject the feedback toolbar into the current page when you start Loupe.</li>
+    <li><code>storage</code> — to remember your settings locally between sessions.</li>
+  </ul>
+
+  <h2>Data retention & deletion</h2>
+  <p>Local settings are removed when you uninstall the extension or clear the extension's storage. Feedback stored on your configured backend is controlled by you — delete it there at any time (for example, from the Loupe dashboard).</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the "Last updated" date above will change and the revised version will be posted at this URL.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or requests: open an issue at <a href="https://github.com/mohamed-ashraf-elsaed/loupe/issues">github.com/mohamed-ashraf-elsaed/loupe/issues</a>.</p>
+
+  <hr>
+  <p class="meta"><a href="https://mohamed-ashraf-elsaed.github.io/loupe/">← Back to Loupe</a></p>
+</div>
+</body>
+</html>
