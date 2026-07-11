@@ -22,9 +22,10 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths:
-      - 'packages/laravel/**'
-      - '.github/workflows/laravel-split.yml'
+    # NOTE: no `paths:` filter — a `paths` filter also gates tag pushes, which
+    # would skip publishing when a release tag's commit doesn't touch
+    # packages/laravel. The split action is cheap and idempotent, so running on
+    # every main push (and every tag) is the safe choice.
 
 jobs:
   split:
