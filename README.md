@@ -22,6 +22,21 @@ packages/
   dashboard/   Kanban triage board (reads the API)
   mcp/         MCP server — exposes comments to Claude Code
   extension/   MV3 browser extension — inspect/comment on ANY site, pixel-perfect capture
+  laravel/     Loupe for Laravel — composer package: widget + your DB + gating + dashboard + MCP
+```
+
+### Loupe for Laravel
+
+Prefer to run the whole loop inside your own app? [`loupekit/laravel`](packages/laravel)
+is a Composer package that embeds the widget, stores comments in **your** database, gates
+access with **your** authorization rules, serves the dashboard on **your** routes, and
+exposes the backlog to Claude over MCP — no separate Node backend. See the
+[full guide](docs/LARAVEL.md).
+
+```bash
+composer require loupekit/laravel
+php artisan loupe:install && php artisan migrate
+# add @loupeWidget to your layout, then open /loupe/dashboard
 ```
 
 ## Run it
