@@ -1,0 +1,7 @@
+# Keep Composer `dist` installs lean — exclude dev-only files from the archive.
+/tests               export-ignore
+/phpunit.xml.dist    export-ignore
+/bin/check-coverage.php export-ignore
+/.gitattributes      export-ignore
+/.gitignore          export-ignore
+/.editorconfig       export-ignore

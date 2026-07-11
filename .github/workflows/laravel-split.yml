@@ -1,0 +1,64 @@
+name: laravel-split
+
+# Mirrors packages/laravel to its own repository so Packagist can serve
+# `loupekit/laravel` (Packagist reads a repo's ROOT composer.json — it cannot
+# publish a subdirectory of the monorepo directly).
+#
+# - Every push to main updates the split repo's main branch (Packagist dev-main).
+# - Every `vX.Y.Z` tag is FORWARDED to the split repo → Packagist auto-updates
+#   via its GitHub webhook, publishing the new stable version.
+#
+# This runs ALONGSIDE the npm release (.github/workflows/release.yml), which
+# fires on the same tags. One `vX.Y.Z` tag therefore ships the npm packages AND
+# the Packagist package together — they never touch the same registry.
+#
+# One-time setup (see docs/LARAVEL.md → Publishing):
+#   1. Create the target repo (default loupekit/laravel; override with the
+#      LARAVEL_SPLIT_ORG / LARAVEL_SPLIT_REPO repository variables).
+#   2. Add a Personal Access Token with `repo` scope as the ACCESS_TOKEN secret.
+#   3. Submit the split repo to Packagist once and enable "Auto-update".
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'packages/laravel/**'
+      - '.github/workflows/laravel-split.yml'
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Sync the subdirectory to the split repo's main branch.
+      - name: Split (branch)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: danharrin/monorepo-split-github-action@v2.3.0
+        with:
+          package_directory: packages/laravel
+          repository_organization: ${{ vars.LARAVEL_SPLIT_ORG || 'loupekit' }}
+          repository_name: ${{ vars.LARAVEL_SPLIT_REPO || 'laravel' }}
+          branch: main
+          user_name: ${{ github.actor }}
+          user_email: '${{ github.actor }}@users.noreply.github.com'
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+
+      # Forward the version tag → Packagist publishes the stable release.
+      - name: Split (tag)
+        if: "startsWith(github.ref, 'refs/tags/')"
+        uses: danharrin/monorepo-split-github-action@v2.3.0
+        with:
+          tag: ${{ github.ref_name }}
+          package_directory: packages/laravel
+          repository_organization: ${{ vars.LARAVEL_SPLIT_ORG || 'loupekit' }}
+          repository_name: ${{ vars.LARAVEL_SPLIT_REPO || 'laravel' }}
+          branch: main
+          user_name: ${{ github.actor }}
+          user_email: '${{ github.actor }}@users.noreply.github.com'
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}

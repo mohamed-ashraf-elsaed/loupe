@@ -1,0 +1,12 @@
+/vendor
+composer.lock
+.phpunit.result.cache
+.phpunit.cache
+build
+coverage
+
+# The root .gitignore ignores every `dist/`, but the vendored SDK + dashboard
+# bundles under resources/dist ARE the shipped artifact — they must be committed
+# (a consumer installs via Composer and never runs the JS build).
+!resources/dist/
+!resources/dist/**

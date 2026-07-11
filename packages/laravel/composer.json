@@ -1,0 +1,66 @@
+{
+    "name": "loupekit/laravel",
+    "description": "Loupe for Laravel — embeddable visual feedback that stores comments in your own database, gates access per user, serves the Loupe dashboard, and exposes the backlog to Claude Code over MCP.",
+    "keywords": ["laravel", "feedback", "visual-feedback", "loupe", "mcp", "product"],
+    "license": "MIT",
+    "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
+    "authors": [
+        { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf@converted.in" }
+    ],
+    "support": {
+        "issues": "https://github.com/mohamed-ashraf-elsaed/loupe/issues",
+        "source": "https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/packages/laravel",
+        "docs": "https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md"
+    },
+    "require": {
+        "php": "^8.4",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/console": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/routing": "^11.0|^12.0|^13.0",
+        "illuminate/filesystem": "^11.0|^12.0|^13.0"
+    },
+    "require-dev": {
+        "laravel/mcp": "^0.8",
+        "mockery/mockery": "^1.6",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "suggest": {
+        "laravel/mcp": "Enables `php artisan mcp:start loupe` — hands the feedback backlog to Claude Code. Use ^0.8 (supports Laravel 11, 12 and 13)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Loupekit\\Loupe\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Loupekit\\Loupe\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Loupekit\\Loupe\\LoupeServiceProvider"
+            ],
+            "aliases": {
+                "Loupe": "Loupekit\\Loupe\\Facades\\Loupe"
+            }
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:coverage": "phpunit --coverage-text",
+        "test:coverage-100": "phpunit --coverage-clover=build/clover.xml && php bin/check-coverage.php build/clover.xml 100"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "*": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

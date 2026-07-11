@@ -106,6 +106,24 @@ flowchart TD
 | `@loupekit/dashboard` | browser | tsup (ESM) | Kanban triage board |
 | `@loupekit/mcp` | Node (native TS) | none | MCP server for Claude Code |
 | `@loupekit/extension` | browser | tsup (IIFE) | MV3 extension, pixel-perfect capture |
+| `loupekit/laravel` | PHP / Laravel | Composer | Drop-in backend + dashboard + MCP for Laravel apps |
+
+### Loupe for Laravel
+
+`loupekit/laravel` is a Composer package (namespace `Loupekit\Loupe`) that replaces the
+Node `server` + `dashboard` + `mcp` trio with a self-contained Laravel implementation for
+teams who want the loop inside their own app. It **vendors the shipped `@loupekit/sdk` and
+`@loupekit/dashboard` browser bundles** (built from this monorepo) and adds:
+
+- an Eloquent `Comment` model + migration (comments live in the host's database),
+- a session-authenticated JSON API under `/{path}/v1/*` mirroring the server's contract,
+- per-user gating via `loupe:use` / `loupe:admin` Gate abilities and config closures,
+- the Kanban dashboard on a host route (`/{path}/dashboard`), and
+- a first-party MCP server (`php artisan mcp:start loupe`, built on `laravel/mcp`).
+
+The only SDK-side change this required was two generic, back-compatible `LoupeConfig`
+options — `headers` and `credentials` — so the widget authenticates via a session cookie +
+CSRF token instead of the HMAC identity header. Full guide: [LARAVEL.md](./LARAVEL.md).
 
 ## Re-anchoring: the crown jewel
 

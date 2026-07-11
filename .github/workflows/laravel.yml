@@ -1,0 +1,55 @@
+name: laravel-package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/laravel/**'
+      - '.github/workflows/laravel.yml'
+  pull_request:
+    paths:
+      - 'packages/laravel/**'
+      - '.github/workflows/laravel.yml'
+
+defaults:
+  run:
+    working-directory: packages/laravel
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4']
+        include:
+          - laravel: 11
+            testbench: '^9.0'
+          - laravel: 12
+            testbench: '^10.0'
+          - laravel: 13
+            testbench: '^11.0'
+
+    name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: pcov
+
+      - name: Pin to Laravel ${{ matrix.laravel }}
+        # Testbench pins the matching Illuminate components; laravel/mcp ^0.8
+        # supports Laravel 11/12/13, so MCP is exercised on every combination.
+        run: composer require "orchestra/testbench:${{ matrix.testbench }}" --dev --no-update --no-interaction
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies
+
+      - name: Run tests with the 100% coverage gate
+        run: composer run test:coverage-100

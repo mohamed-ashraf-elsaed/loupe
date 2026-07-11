@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Providers;
+
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\ServiceProvider;
+
+class LoupeServiceProvider extends ServiceProvider
+{
+    /**
+     * Bootstrap Loupe authorization.
+     */
+    public function boot(): void
+    {
+        $this->gate();
+    }
+
+    /**
+     * Decide who can use Loupe.
+     *
+     * "loupe:use"   → who sees the in-app feedback widget.
+     * "loupe:admin" → who can open the triage dashboard.
+     *
+     * Return true for the users you want to grant access to. This runs in every
+     * environment (the package's local-only default no longer applies once this
+     * provider is registered).
+     */
+    protected function gate(): void
+    {
+        Gate::define('loupe:use', function ($user) {
+            return in_array($user->email, [
+                // 'teammate@example.com',
+            ]);
+        });
+
+        Gate::define('loupe:admin', function ($user) {
+            return in_array($user->email, [
+                // 'admin@example.com',
+            ]);
+        });
+    }
+}
