@@ -1947,17 +1947,29 @@ var Loupe = (() => {
     }
     return { html, styles };
   }
+  async function fontsReady() {
+    try {
+      const fonts = document.fonts;
+      if (fonts?.ready) await fonts.ready;
+    } catch {
+    }
+  }
+  function captureFilter(node) {
+    if (!(node instanceof Element)) return true;
+    if (node.id === "loupe-root") return false;
+    if (node.hasAttribute("data-loupe-redact")) return false;
+    return true;
+  }
   async function captureScreenshot(el2) {
     try {
+      await fontsReady();
       return await domToPng(el2, {
         scale: Math.min(window.devicePixelRatio || 1, 2),
         backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-        filter: (node) => {
-          if (!(node instanceof Element)) return true;
-          if (node.id === "loupe-root") return false;
-          if (node.hasAttribute("data-loupe-redact")) return false;
-          return true;
-        }
+        // Give cross-origin font/asset fetches time to embed (default is short) so
+        // the capture matches the page instead of falling back to system fonts.
+        timeout: 3e4,
+        filter: captureFilter
       });
     } catch (err) {
       console.warn("[loupe] screenshot capture failed", err);
@@ -1966,16 +1978,13 @@ var Loupe = (() => {
   }
   async function captureRegionScreenshot(rect) {
     try {
+      await fontsReady();
       const scale = Math.min(window.devicePixelRatio || 1, 2);
       const full = await domToPng(document.body, {
         scale,
         backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-        filter: (node) => {
-          if (!(node instanceof Element)) return true;
-          if (node.id === "loupe-root") return false;
-          if (node.hasAttribute("data-loupe-redact")) return false;
-          return true;
-        }
+        timeout: 3e4,
+        filter: captureFilter
       });
       const bodyRect = document.body.getBoundingClientRect();
       const redact = Array.from(document.querySelectorAll("[data-loupe-redact]")).map(

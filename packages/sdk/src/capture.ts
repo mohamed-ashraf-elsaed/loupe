@@ -20,21 +20,39 @@ export function captureElementContext(el: Element): ElementContext {
   return { html, styles };
 }
 
+/** Wait for the page's web fonts to finish loading so they get embedded, not
+ * substituted with a fallback (which reflows the capture). Best-effort. */
+async function fontsReady(): Promise<void> {
+  try {
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) await fonts.ready;
+  } catch {
+    /* FontFaceSet unsupported — carry on */
+  }
+}
+
+/** Skip Loupe's own UI and redacted elements in any capture. */
+function captureFilter(node: Node): boolean {
+  if (!(node instanceof Element)) return true;
+  if (node.id === "loupe-root") return false;
+  if (node.hasAttribute("data-loupe-redact")) return false;
+  return true;
+}
+
 /**
  * Screenshot the target element. Elements marked [data-loupe-redact] are
  * excluded before anything leaves the browser, and our own UI is never captured.
  */
 export async function captureScreenshot(el: Element): Promise<string | undefined> {
   try {
+    await fontsReady();
     return await domToPng(el as HTMLElement, {
       scale: Math.min(window.devicePixelRatio || 1, 2),
       backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-      filter: (node: Node) => {
-        if (!(node instanceof Element)) return true;
-        if (node.id === "loupe-root") return false;
-        if (node.hasAttribute("data-loupe-redact")) return false;
-        return true;
-      },
+      // Give cross-origin font/asset fetches time to embed (default is short) so
+      // the capture matches the page instead of falling back to system fonts.
+      timeout: 30000,
+      filter: captureFilter,
     });
   } catch (err) {
     console.warn("[loupe] screenshot capture failed", err);
@@ -50,16 +68,13 @@ export async function captureScreenshot(el: Element): Promise<string | undefined
  */
 export async function captureRegionScreenshot(rect: RegionRect): Promise<string | undefined> {
   try {
+    await fontsReady();
     const scale = Math.min(window.devicePixelRatio || 1, 2);
     const full = await domToPng(document.body, {
       scale,
       backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-      filter: (node: Node) => {
-        if (!(node instanceof Element)) return true;
-        if (node.id === "loupe-root") return false;
-        if (node.hasAttribute("data-loupe-redact")) return false;
-        return true;
-      },
+      timeout: 30000,
+      filter: captureFilter,
     });
     // Map the viewport rect into the body image (body's box-origin is bodyRect).
     const bodyRect = document.body.getBoundingClientRect();

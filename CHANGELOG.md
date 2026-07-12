@@ -11,6 +11,18 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.3.4] — 2026-07-12
+
+### Fixed
+- **Screenshots fell back to system fonts (wrong layout).** The DOM-based capture
+  rasterized before the page's web fonts were embedded, so headings/buttons rendered
+  in a fallback font and reflowed (e.g. button text wrapping). Capture now awaits
+  `document.fonts.ready` and allows a generous 30s timeout for cross-origin font/asset
+  embedding, so the screenshot matches the page. Applies to `@loupekit/sdk` (and thus
+  the browser extension and the `loupekit/laravel` widget).
+  _Note: fonts served without CORS headers still can't be embedded by any DOM-based
+  capture — the pixel-perfect browser extension is the fallback for those._
+
 ## [0.3.3] — 2026-07-12
 
 ### Added
@@ -134,7 +146,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...v0.3.1
