@@ -3,6 +3,7 @@
 namespace Loupekit\Loupe\Http\Controllers;
 
 use Illuminate\Contracts\View\View;
+use Loupekit\Loupe\Support\Url;
 
 /**
  * Serves the Loupe triage board (the vanilla-JS Kanban, vendored from
@@ -16,6 +17,8 @@ class DashboardController extends Controller
         return view('loupe::dashboard', [
             'api' => url(config('loupe.path', 'loupe')),
             'project' => config('loupe.project_key', 'app'),
+            // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()).
+            'appSrc' => Url::asset('vendor/loupe/dashboard/app.js'),
         ]);
     }
 }

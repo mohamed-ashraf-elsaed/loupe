@@ -26,6 +26,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Asset URL
+    |--------------------------------------------------------------------------
+    | Base URL that Loupe's OWN published assets (public/vendor/loupe/**) are
+    | served from. These files live on the app's own filesystem — never on your
+    | CDN — so Loupe resolves them from the app URL, deliberately bypassing
+    | Laravel's asset() / ASSET_URL (which would point them at a CDN that doesn't
+    | have them, causing 404s and a silently missing widget). Defaults to the app
+    | URL. Set this only if you serve public/vendor/loupe from a different origin.
+    */
+    'asset_url' => env('LOUPE_ASSET_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Project key
     |--------------------------------------------------------------------------
     | A single Laravel app is one Loupe "project". Comments are scoped by this

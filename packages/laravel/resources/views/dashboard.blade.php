@@ -128,6 +128,6 @@
       csrf: @json(csrf_token()),
     };
   </script>
-  <script type="module" src="{{ asset('vendor/loupe/dashboard/app.js') }}"></script>
+  <script type="module" src="{{ $appSrc }}"></script>
 </body>
 </html>

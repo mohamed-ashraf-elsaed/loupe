@@ -11,6 +11,17 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.4.2] — 2026-07-12
+
+### Fixed
+- **`loupekit/laravel`: widget/dashboard assets now load behind a CDN.** The package
+  loaded its own JS via `asset('vendor/loupe/...')`, which respects the host's
+  `ASSET_URL` — so apps that point `ASSET_URL` at a CDN (with only their Vite build
+  uploaded there) got 404s and a silently missing widget. Loupe now resolves its own
+  published assets from the **app URL** via `Url::asset()`, bypassing `ASSET_URL`. New
+  `LOUPE_ASSET_URL` env / `config('loupe.asset_url')` to override the origin if you serve
+  `public/vendor/loupe` elsewhere. Backward-compatible (same result on non-CDN hosts).
+
 ## [0.4.1] — 2026-07-12
 
 ### Fixed
@@ -185,7 +196,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.3...v0.3.4

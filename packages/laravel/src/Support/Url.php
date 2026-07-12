@@ -19,6 +19,19 @@ class Url
         'ref', 'ref_src', 'mc_cid', 'mc_eid', '_hsenc', '_hsmi', 'igshid',
     ];
 
+    /**
+     * Resolve a URL for one of Loupe's OWN published assets (under
+     * public/vendor/loupe). Uses config('loupe.asset_url') if set, else the app
+     * URL — deliberately NOT Laravel's asset(), which is ASSET_URL/CDN-aware and
+     * would point these app-local files at a CDN that doesn't host them.
+     */
+    public static function asset(string $path): string
+    {
+        $base = (string) (config('loupe.asset_url') ?: config('app.url') ?: '');
+
+        return rtrim($base, '/').'/'.ltrim($path, '/');
+    }
+
     public static function normalize(string $input): string
     {
         try {

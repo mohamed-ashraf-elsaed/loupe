@@ -1,7 +1,7 @@
 {
   "name": "@loupekit/sdk",
   "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Embeddable visual-feedback layer: pin comments to the live UI and hand them to Claude.",
   "type": "module",
   "main": "./dist/index.js",

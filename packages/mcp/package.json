@@ -1,7 +1,7 @@
 {
   "name": "@loupekit/mcp",
   "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "MCP server that exposes Loupe comments to Claude Code as an actionable, fully-contextualized backlog.",
   "keywords": ["loupe", "mcp", "model-context-protocol", "claude", "claude-code", "visual-feedback", "product-management", "ai"],
   "license": "MIT",

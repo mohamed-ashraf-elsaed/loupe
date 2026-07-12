@@ -323,3 +323,9 @@ the vendored bundles with `packages/laravel/bin/sync-assets.sh`.
 - **Screenshots 404** — the disk isn't public and the read route can't reach the file;
   check `config('loupe.disk')` and that `storage:link` is run for the `public` disk.
 - **`mcp:start` unknown** — install `laravel/mcp` (`composer require laravel/mcp:^0.8`).
+- **Widget missing only in production behind a CDN** — Loupe's JS lives at
+  `public/vendor/loupe/**` on the app's own disk and is loaded from the app URL (not via
+  `asset()`), so a CDN `ASSET_URL` won't break it. If you serve `public/vendor/loupe` from
+  a different origin, set `LOUPE_ASSET_URL` to that origin. Also make sure your deploy runs
+  `php artisan vendor:publish --tag=loupe-assets --force` (the files aren't part of your
+  `npm`/Vite build).

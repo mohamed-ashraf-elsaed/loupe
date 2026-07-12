@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Loupekit\Loupe\Console\InstallCommand;
 use Loupekit\Loupe\Http\Middleware\Authorize;
+use Loupekit\Loupe\Support\Url;
 
 class LoupeServiceProvider extends ServiceProvider
 {
@@ -110,6 +111,8 @@ class LoupeServiceProvider extends ServiceProvider
             'projectKey' => config('loupe.project_key', 'app'),
             'apiBase' => url(config('loupe.path', 'loupe')),
             'csrf' => csrf_token(),
+            // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()).
+            'sdkSrc' => Url::asset('vendor/loupe/sdk/loupe.js'),
         ])->render();
     }
 

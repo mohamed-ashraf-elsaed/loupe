@@ -1,5 +1,5 @@
 {{-- Loupe widget bootstrap. Rendered by @loupeWidget only for authorized users. --}}
-<script src="{{ asset('vendor/loupe/sdk/loupe.js') }}"></script>
+<script src="{{ $sdkSrc }}"></script>
 <script>
     (function () {
         if (!window.Loupe || typeof window.Loupe.init !== 'function') return;

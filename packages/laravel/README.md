@@ -202,6 +202,17 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | `user_resolver` | `null` | Customize the `{id,name,email}` payload sent to the SDK. |
 | `comment_model` | `Loupekit\Loupe\Models\Comment` | Swap for your own subclass. |
 | `disk` | `public` | Filesystem disk for screenshots. |
+| `asset_url` | `env('LOUPE_ASSET_URL')` | Origin Loupe's own JS is served from. Defaults to the app URL — see the CDN note below. |
+
+### Heads-up: CDN / `ASSET_URL`
+
+Loupe's browser files live on your app's own filesystem at `public/vendor/loupe/**`, and
+Loupe loads them from your **app URL** — it deliberately does **not** use Laravel's
+`asset()` helper. That matters if you set `ASSET_URL` to a CDN/S3 bucket and upload only
+your Vite build (`public/build`) there: `asset()` would point Loupe's files at the CDN,
+which doesn't host them, and the widget would silently fail to load. Loupe sidesteps this
+automatically. If you *do* serve `public/vendor/loupe` from another origin, set
+`LOUPE_ASSET_URL` to that origin.
 
 See the [full guide](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md) for
 Sanctum/SPA setups, private screenshot disks, and the complete reference.
