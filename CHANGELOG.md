@@ -11,6 +11,16 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.3.2] — 2026-07-12
+
+### Fixed
+- **`loupekit/laravel` migration failed on MySQL** — the `loupe_comments.url` column
+  was a `TEXT`, which MySQL cannot include in the `(project_key, url)` index without a
+  key length (`SQLSTATE[42000] 1170: BLOB/TEXT column 'url' used in key specification
+  without a key length`). `url` is now `VARCHAR(500)` and `project_key` `VARCHAR(191)`
+  so the composite index fits MySQL's key-length limit. Works on MySQL, PostgreSQL and
+  SQLite. (Normalized URLs are short, so 500 chars is ample.)
+
 ## [0.3.1] — 2026-07-12
 
 ### Changed
@@ -103,7 +113,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.2.1...v0.3.0
 [0.1.0]: https://github.com/mohamed-ashraf-elsaed/loupe/releases/tag/v0.1.0

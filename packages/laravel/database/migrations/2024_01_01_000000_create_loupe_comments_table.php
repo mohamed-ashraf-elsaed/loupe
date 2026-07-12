@@ -11,8 +11,11 @@ return new class extends Migration
         Schema::create($this->table(), function (Blueprint $table) {
             // Client-generated UUID (the SDK creates it, we upsert by it).
             $table->string('id')->primary();
-            $table->string('project_key')->index();
-            $table->text('url');
+            // Bounded lengths so the (project_key, url) index fits MySQL's key-length
+            // limit — TEXT columns can't be indexed without a prefix. Normalized URLs
+            // (tracking params stripped) are short; 500 chars is ample.
+            $table->string('project_key', 191)->index();
+            $table->string('url', 500);
             $table->string('status')->default('open')->index();
             $table->text('body');
             // "element" (anchored to a DOM node) or "region" (a dragged rectangle).
