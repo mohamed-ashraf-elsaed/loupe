@@ -4,6 +4,7 @@ namespace Loupekit\Loupe;
 
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -27,6 +28,47 @@ class Loupe
     public function adminWhen(Closure $callback): void
     {
         $this->adminCallback = $callback;
+    }
+
+    /**
+     * The guards Loupe resolves identity through, in order. An empty config
+     * means "the app's default guard" (represented by [null]) — so with no
+     * configuration this behaves exactly like auth()->user().
+     *
+     * @return array<int, string|null>
+     */
+    public function guards(): array
+    {
+        $guards = config('loupe.guards');
+
+        return empty($guards) ? [null] : array_values($guards);
+    }
+
+    /** The first authenticated user across the configured guards (or null). */
+    public function resolveUser(): ?Authenticatable
+    {
+        return $this->resolve()['user'];
+    }
+
+    /**
+     * Resolve the current user and the guard that matched.
+     *
+     * @return array{user: ?Authenticatable, guard: string|null}
+     */
+    public function resolve(): array
+    {
+        foreach ($this->guards() as $guard) {
+            try {
+                $user = Auth::guard($guard)->user();
+            } catch (\Throwable $e) {
+                continue; // unknown/misconfigured guard — skip it
+            }
+            if ($user !== null) {
+                return ['user' => $user, 'guard' => $guard];
+            }
+        }
+
+        return ['user' => null, 'guard' => null];
     }
 
     public function authorizedToUse(?Authenticatable $user): bool

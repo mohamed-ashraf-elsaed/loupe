@@ -323,6 +323,10 @@ the vendored bundles with `packages/laravel/bin/sync-assets.sh`.
 - **Screenshots 404** — the disk isn't public and the read route can't reach the file;
   check `config('loupe.disk')` and that `storage:link` is run for the `public` disk.
 - **`mcp:start` unknown** — install `laravel/mcp` (`composer require laravel/mcp:^0.8`).
+- **`403 "cannot post as another user"`** — your app uses separate auth guards (e.g.
+  `web` + `admin`) and the widget rendered under one while the API authenticated under
+  another. Set `LOUPE_GUARDS=web,admin` (the guards to try, in order) so Loupe resolves
+  identity consistently across both.
 - **Widget missing only in production behind a CDN** — Loupe's JS lives at
   `public/vendor/loupe/**` on the app's own disk and is loaded from the app URL (not via
   `asset()`), so a CDN `ASSET_URL` won't break it. If you serve `public/vendor/loupe` from

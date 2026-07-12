@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Loupekit\Loupe\Console\InstallCommand;
+use Loupekit\Loupe\Http\Middleware\Authenticate;
 use Loupekit\Loupe\Http\Middleware\Authorize;
 use Loupekit\Loupe\Support\Url;
 
@@ -41,6 +42,7 @@ class LoupeServiceProvider extends ServiceProvider
     {
         /** @var Router $router */
         $router = $this->app['router'];
+        $router->aliasMiddleware('loupe.auth', Authenticate::class);
         $router->aliasMiddleware('loupe.authorize', Authorize::class);
     }
 
@@ -95,13 +97,13 @@ class LoupeServiceProvider extends ServiceProvider
             return '';
         }
 
-        $user = auth()->user();
+        /** @var Loupe $loupe */
+        $loupe = app(Loupe::class);
+        $user = $loupe->resolveUser();
         if ($user === null) {
             return '';
         }
 
-        /** @var Loupe $loupe */
-        $loupe = app(Loupe::class);
         if (! $loupe->authorizedToUse($user)) {
             return '';
         }

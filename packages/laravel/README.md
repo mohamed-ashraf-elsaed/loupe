@@ -196,13 +196,28 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | `enabled` | `true` | Master switch. |
 | `path` | `loupe` | Route prefix for the API + dashboard. |
 | `project_key` | `app` | Scopes comments (one app = one project). |
-| `middleware.api` | `['web','auth']` | Guards the JSON API. |
-| `middleware.dashboard` | `['web','auth']` | Guards the dashboard. |
+| `middleware.api` | `['web','loupe.auth']` | Guards the JSON API. |
+| `middleware.dashboard` | `['web','loupe.auth']` | Guards the dashboard. |
+| `guards` | `env('LOUPE_GUARDS')` | Auth guards to resolve the user through, in order (e.g. `web,admin`). Empty = default guard. |
 | `authorize.use` / `authorize.dashboard` | `null` | Closures `fn($user): bool` (take precedence over Gates). |
 | `user_resolver` | `null` | Customize the `{id,name,email}` payload sent to the SDK. |
 | `comment_model` | `Loupekit\Loupe\Models\Comment` | Swap for your own subclass. |
 | `disk` | `public` | Filesystem disk for screenshots. |
 | `asset_url` | `env('LOUPE_ASSET_URL')` | Origin Loupe's own JS is served from. Defaults to the app URL — see the CDN note below. |
+
+### Multiple auth guards
+
+If your app uses separate guards for users and admins (e.g. `web` and `admin`), tell
+Loupe which guards to resolve the current user through, in order:
+
+```env
+LOUPE_GUARDS=web,admin
+```
+
+Loupe then resolves identity the **same way** when rendering the widget and when handling
+the API request (first authenticated guard wins), so a user logged into a non-default
+guard no longer hits `403 "cannot post as another user"`. Leave it unset for single-guard
+apps (identical to `auth()->user()`).
 
 ### Heads-up: CDN / `ASSET_URL`
 

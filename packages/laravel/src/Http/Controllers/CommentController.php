@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Loupekit\Loupe\Loupe;
 use Loupekit\Loupe\Support\Url;
 
 /**
@@ -32,7 +33,7 @@ class CommentController extends Controller
     }
 
     /** POST /{path}/v1/comments — upsert by id. */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, Loupe $loupe): JsonResponse
     {
         $data = $request->all();
 
@@ -40,8 +41,9 @@ class CommentController extends Controller
             return response()->json(['error' => 'id required'], 422);
         }
 
-        // Identity is the session user — you cannot post as someone else.
-        $userId = (string) $request->user()->getAuthIdentifier();
+        // Identity is resolved through the same configured guards the widget used
+        // (see Loupe::resolveUser) — you cannot post as someone else.
+        $userId = (string) $loupe->resolveUser()?->getAuthIdentifier();
         $authorId = (string) data_get($data, 'author.id');
         if ($authorId !== '' && $authorId !== $userId) {
             return response()->json(['error' => 'cannot post as another user'], 403);

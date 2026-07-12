@@ -20,7 +20,7 @@ class Authorize
 
     public function handle(Request $request, Closure $next, string $ability = 'use'): Response
     {
-        $user = $request->user();
+        $user = $this->loupe->resolveUser();
 
         $allowed = $ability === 'admin'
             ? $this->loupe->authorizedForDashboard($user)

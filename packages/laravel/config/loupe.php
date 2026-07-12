@@ -56,9 +56,25 @@ return [
     | cross-subdomain SPA.
     */
     'middleware' => [
-        'api' => ['web', 'auth'],
-        'dashboard' => ['web', 'auth'],
+        'api' => ['web', 'loupe.auth'],
+        'dashboard' => ['web', 'loupe.auth'],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Guards
+    |--------------------------------------------------------------------------
+    | Guards Loupe resolves the current user through, in order — the first
+    | authenticated one wins. This keeps identity consistent between the widget
+    | (author) and the API across apps that use SEPARATE guards for users and
+    | admins (e.g. LOUPE_GUARDS=web,admin). Empty (the default) means "use the
+    | app's default guard", i.e. identical to auth()->user() — fully backward
+    | compatible for single-guard apps.
+    */
+    'guards' => array_values(array_filter(
+        array_map('trim', explode(',', (string) env('LOUPE_GUARDS', ''))),
+        fn ($guard) => $guard !== '',
+    )),
 
     /*
     |--------------------------------------------------------------------------

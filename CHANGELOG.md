@@ -11,6 +11,18 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.4.3] — 2026-07-13
+
+### Fixed
+- **`loupekit/laravel`: multi-guard apps no longer 403 with "cannot post as another
+  user".** Apps that use separate auth guards (e.g. `web` for users, `admin` for admins)
+  could render the widget under one guard and authenticate the API under another, so the
+  ids mismatched. Loupe now resolves identity through a configurable, ordered guard list
+  (`LOUPE_GUARDS`, e.g. `web,admin`) and uses the **same** resolution everywhere — the
+  widget author, the `loupe:use`/`loupe:admin` gates, the API middleware (new `loupe.auth`,
+  which accepts a session on any configured guard), and the anti-spoof check. Fully
+  backward compatible: unset = the app's default guard, identical to before.
+
 ## [0.4.2] — 2026-07-12
 
 ### Fixed
@@ -196,7 +208,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.4...v0.4.0

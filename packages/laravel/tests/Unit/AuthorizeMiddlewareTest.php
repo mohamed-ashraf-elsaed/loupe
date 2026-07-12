@@ -13,10 +13,11 @@ class AuthorizeMiddlewareTest extends TestCase
     public function test_it_allows_an_authorized_user_and_defaults_to_the_use_ability(): void
     {
         config()->set('loupe.authorize.use', fn () => true);
+        // Identity is resolved through Loupe's guards, not the request.
+        $this->actingAs($this->makeUser());
 
         $middleware = new Authorize(new Loupe);
         $request = Request::create('/loupe/v1/comments');
-        $request->setUserResolver(fn () => $this->makeUser());
 
         // No ability argument → defaults to "use".
         $response = $middleware->handle($request, fn () => response('ok'));
@@ -27,10 +28,10 @@ class AuthorizeMiddlewareTest extends TestCase
     public function test_it_aborts_403_for_an_unauthorized_user(): void
     {
         config()->set('loupe.authorize.dashboard', fn () => false);
+        $this->actingAs($this->makeUser());
 
         $middleware = new Authorize(new Loupe);
         $request = Request::create('/loupe/dashboard');
-        $request->setUserResolver(fn () => $this->makeUser());
 
         $this->expectException(HttpException::class);
         $middleware->handle($request, fn () => response('ok'), 'admin');
