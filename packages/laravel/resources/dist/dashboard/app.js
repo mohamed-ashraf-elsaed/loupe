@@ -82,9 +82,10 @@ function card(c) {
   el.dataset.id = c.id;
   const target = c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "\u2014";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const device = deviceBadge(c);
   const body = document.createElement("div");
   body.className = "cbody";
-  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span><span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
+  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
   el.appendChild(body);
   if (c.screenshot) {
     const t = document.createElement("div");
@@ -199,6 +200,13 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) {
   return escapeHtml(s);
+}
+function deviceBadge(c) {
+  const v = c.viewport;
+  if (!v || !v.w) return null;
+  const kind = v.w < 768 ? "mobile" : v.w < 1024 ? "tablet" : "desktop";
+  const icon = kind === "mobile" ? "\u{1F4F1}" : kind === "tablet" ? "\u25A6" : "\u{1F5A5}";
+  return { kind, icon, title: `${kind} \xB7 ${v.w}\xD7${v.h}` };
 }
 $("#pageFilter").addEventListener("change", (e) => {
   pageFilter = e.target.value;

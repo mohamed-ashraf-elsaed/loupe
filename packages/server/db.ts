@@ -72,4 +72,6 @@ export async function migrate(): Promise<void> {
   // Additive columns for free-region comments (older tables predate them).
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'element';`);
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS region JSONB;`);
+  // Viewport the feedback was captured on (→ desktop / tablet / mobile).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS viewport JSONB;`);
 }

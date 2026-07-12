@@ -38,6 +38,7 @@ class Comment extends Model
         'context' => 'array',
         'offset' => 'array',
         'region' => 'array',
+        'viewport' => 'array',
     ];
 
     public function getTable()
@@ -70,6 +71,10 @@ class Comment extends Model
         // Present only for region comments (keeps element comments identical to before).
         if (! empty($this->region)) {
             $out['region'] = $this->region;
+        }
+
+        if (! empty($this->viewport)) {
+            $out['viewport'] = $this->viewport;
         }
 
         return $out;

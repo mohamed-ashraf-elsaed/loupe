@@ -70,22 +70,41 @@ export async function captureRegionScreenshot(rect: RegionRect): Promise<string 
   try {
     await fontsReady();
     const scale = Math.min(window.devicePixelRatio || 1, 2);
-    const full = await domToPng(document.body, {
+    // Render the SMALLEST element that fully covers the selection, not the whole
+    // page. Rendering document.body is heavy and its cross-origin font embedding
+    // often times out (→ fallback fonts, reflow); a scoped subtree behaves like
+    // the reliable element capture.
+    const container = regionContainer(rect);
+    const origin = container.getBoundingClientRect();
+    const full = await domToPng(container, {
       scale,
       backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
       timeout: 30000,
       filter: captureFilter,
     });
-    // Map the viewport rect into the body image (body's box-origin is bodyRect).
-    const bodyRect = document.body.getBoundingClientRect();
     const redact = Array.from(document.querySelectorAll("[data-loupe-redact]")).map((n) =>
       (n as Element).getBoundingClientRect(),
     );
-    return await cropRegion(full, rect, bodyRect.left, bodyRect.top, scale, redact);
+    return await cropRegion(full, rect, origin.left, origin.top, scale, redact);
   } catch (err) {
     console.warn("[loupe] region capture failed", err);
     return undefined;
   }
+}
+
+/** The smallest on-page element whose box fully covers the selection rectangle. */
+function regionContainer(rect: RegionRect): HTMLElement {
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  let node = document.elementFromPoint(cx, cy) as HTMLElement | null;
+  if (node && node.closest("#loupe-root")) node = null; // never our own UI
+  const covers = (r: DOMRect) =>
+    r.left <= rect.x && r.top <= rect.y && r.right >= rect.x + rect.w && r.bottom >= rect.y + rect.h;
+  while (node && node !== document.body && node !== document.documentElement) {
+    if (covers(node.getBoundingClientRect())) return node;
+    node = node.parentElement;
+  }
+  return document.body;
 }
 
 /** Crop `rect` (viewport coords) out of a full-page data URL whose origin sits at (ox, oy). */

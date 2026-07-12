@@ -47,6 +47,16 @@ export interface RegionRect {
  */
 export type CommentKind = "element" | "region";
 
+/** Device class the feedback was captured on, derived from the viewport width. */
+export type DeviceType = "mobile" | "tablet" | "desktop";
+
+/** Classify a viewport width into a device bucket (mobile < 768 ≤ tablet < 1024 ≤ desktop). */
+export function deviceType(width: number): DeviceType {
+  if (width < 768) return "mobile";
+  if (width < 1024) return "tablet";
+  return "desktop";
+}
+
 export interface Comment {
   id: string;
   projectKey: string;
@@ -61,6 +71,8 @@ export interface Comment {
   offset: { x: number; y: number };
   /** Present for region comments: the dragged rectangle in document coords. */
   region?: RegionRect;
+  /** The viewport the feedback was captured on — use deviceType(viewport.w) for the device class. */
+  viewport?: { w: number; h: number };
   /** A URL (object storage) in server mode, or an inline data URL in offline mode. */
   screenshot?: string;
   createdAt: string;

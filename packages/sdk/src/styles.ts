@@ -67,26 +67,40 @@ export const STYLES = /* css */ `
   background: #1b1e27; color: #fff; padding: 6px; border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0,0,0,.4); border: 1px solid #2b2f3b;
 }
+/* every toolbar item (brand + buttons) shares one icon+label layout so they align */
+.toolbar button, .toolbar .brand {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; line-height: 1;
+}
 .toolbar button {
   background: transparent; color: #cfd3de; border: 0; cursor: pointer;
-  font-size: 13px; font-weight: 500; padding: 8px 12px; border-radius: 8px;
-  display: flex; align-items: center; gap: 6px;
 }
-.toolbar button:hover { background: #2b2f3b; color: #fff; }
-.toolbar button .ico { flex: none; display: block; }
+.toolbar button:hover, .toolbar .brand:hover { background: #2b2f3b; color: #fff; }
+.toolbar .ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
+.toolbar .ico svg { width: 16px; height: 16px; display: block; }
+.toolbar .label { white-space: nowrap; }
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
 .toolbar .brand {
-  font-weight: 700; padding: 8px; border-radius: 8px; letter-spacing: -.01em;
-  cursor: pointer; user-select: none;
+  font-weight: 700; letter-spacing: -.01em; cursor: pointer; user-select: none;
 }
-.toolbar .brand:hover { background: #2b2f3b; }
 /* collapsed → show only the brand/logo; click it again to expand */
 .toolbar.collapsed { gap: 0; }
 .toolbar.collapsed > *:not(.brand) { display: none; }
 .toolbar .count {
   background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; margin-left: 2px;
+}
+
+/* mobile → compact, icon-only, pinned to the left */
+@media (max-width: 640px) {
+  .toolbar { left: 12px; right: auto; transform: none; bottom: 12px; padding: 4px; gap: 2px; }
+  .toolbar .label { display: none; }
+  .toolbar button, .toolbar .brand { padding: 10px; }
+  .toolbar .sep { display: none; }
+  .toolbar .count { position: absolute; top: -4px; right: -4px; margin: 0; }
+  .toolbar [data-role="comments"] { position: relative; }
 }
 
 /* composer popover */
@@ -136,6 +150,7 @@ export const STYLES = /* css */ `
 .item .num.detached { background:#9aa0af; }
 .item .num.done { background:#10935a; }
 .item .who { font-size: 12px; font-weight: 600; }
+.item .device { font-size: 10px; color: var(--muted); background: var(--panel-2); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
 .item .body { font-size: 13px; line-height: 1.4; }
 .item .meta { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: ui-monospace, Menlo, monospace; }
 .item .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; margin-left: auto; }

@@ -113,12 +113,14 @@ function card(c: Comment): HTMLElement {
 
   const target = c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "—";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const device = deviceBadge(c);
 
   const body = document.createElement("div");
   body.className = "cbody";
   body.innerHTML =
     `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span>` +
     `<span class="who">${escapeHtml(c.author.name)}</span>` +
+    (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") +
     `<span class="when">${fmtTime(c.createdAt)}</span></div>` +
     `<p class="ctext">${escapeHtml(c.body)}</p>` +
     `<span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span>` +
@@ -236,6 +238,13 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
 }
 function escapeAttr(s: string): string { return escapeHtml(s); }
+function deviceBadge(c: Comment): { kind: string; icon: string; title: string } | null {
+  const v = c.viewport;
+  if (!v || !v.w) return null;
+  const kind = v.w < 768 ? "mobile" : v.w < 1024 ? "tablet" : "desktop";
+  const icon = kind === "mobile" ? "📱" : kind === "tablet" ? "▦" : "🖥";
+  return { kind, icon, title: `${kind} · ${v.w}×${v.h}` };
+}
 
 // ---- wire up ----
 $<HTMLSelectElement>("#pageFilter").addEventListener("change", (e) => {

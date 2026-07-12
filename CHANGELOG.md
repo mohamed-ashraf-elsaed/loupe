@@ -11,6 +11,30 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.4.0] — 2026-07-12
+
+### Added
+- **Device / viewport tracking (end to end).** Each comment now records the viewport
+  it was captured on; the SDK panel, the dashboard, and the MCP payload show a
+  **desktop / tablet / mobile** badge, and it's persisted in the database
+  (`comments.viewport` on the server; a new `viewport` column via
+  `add_viewport_to_loupe_comments_table` on Laravel). New `deviceType(width)` helper
+  in `@loupekit/shared`.
+- **Per-page comments on SPA navigation.** The widget reloads comments when the URL
+  changes without a full page load (patched `history.pushState`/`replaceState` +
+  `popstate`), so each page shows only its own comments.
+
+### Changed
+- **Mobile toolbar.** On small screens the bar is compact, **icon-only, and pinned to
+  the left**; every item now uses one consistent icon+label layout (fixes the
+  misaligned icons/text). Collapsing the bar (click the ◎ logo) now also hides the pins.
+- **Region-shot capture** renders the smallest element that covers the selection
+  instead of the whole page — faster, and it embeds web fonts reliably (the full-page
+  render was timing out and falling back to system fonts, distorting the shot).
+
+_All changes above are in `@loupekit/sdk`/`@loupekit/shared`, so they apply to the SDK,
+the browser extension, and the `loupekit/laravel` widget; released together at 0.4.0._
+
 ## [0.3.4] — 2026-07-12
 
 ### Fixed
@@ -146,7 +170,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...v0.3.2

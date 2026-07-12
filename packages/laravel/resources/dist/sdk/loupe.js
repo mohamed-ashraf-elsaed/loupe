@@ -96,26 +96,40 @@ var Loupe = (() => {
   background: #1b1e27; color: #fff; padding: 6px; border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0,0,0,.4); border: 1px solid #2b2f3b;
 }
+/* every toolbar item (brand + buttons) shares one icon+label layout so they align */
+.toolbar button, .toolbar .brand {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; line-height: 1;
+}
 .toolbar button {
   background: transparent; color: #cfd3de; border: 0; cursor: pointer;
-  font-size: 13px; font-weight: 500; padding: 8px 12px; border-radius: 8px;
-  display: flex; align-items: center; gap: 6px;
 }
-.toolbar button:hover { background: #2b2f3b; color: #fff; }
-.toolbar button .ico { flex: none; display: block; }
+.toolbar button:hover, .toolbar .brand:hover { background: #2b2f3b; color: #fff; }
+.toolbar .ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
+.toolbar .ico svg { width: 16px; height: 16px; display: block; }
+.toolbar .label { white-space: nowrap; }
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
 .toolbar .brand {
-  font-weight: 700; padding: 8px; border-radius: 8px; letter-spacing: -.01em;
-  cursor: pointer; user-select: none;
+  font-weight: 700; letter-spacing: -.01em; cursor: pointer; user-select: none;
 }
-.toolbar .brand:hover { background: #2b2f3b; }
 /* collapsed \u2192 show only the brand/logo; click it again to expand */
 .toolbar.collapsed { gap: 0; }
 .toolbar.collapsed > *:not(.brand) { display: none; }
 .toolbar .count {
   background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; margin-left: 2px;
+}
+
+/* mobile \u2192 compact, icon-only, pinned to the left */
+@media (max-width: 640px) {
+  .toolbar { left: 12px; right: auto; transform: none; bottom: 12px; padding: 4px; gap: 2px; }
+  .toolbar .label { display: none; }
+  .toolbar button, .toolbar .brand { padding: 10px; }
+  .toolbar .sep { display: none; }
+  .toolbar .count { position: absolute; top: -4px; right: -4px; margin: 0; }
+  .toolbar [data-role="comments"] { position: relative; }
 }
 
 /* composer popover */
@@ -165,6 +179,7 @@ var Loupe = (() => {
 .item .num.detached { background:#9aa0af; }
 .item .num.done { background:#10935a; }
 .item .who { font-size: 12px; font-weight: 600; }
+.item .device { font-size: 10px; color: var(--muted); background: var(--panel-2); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
 .item .body { font-size: 13px; line-height: 1.4; }
 .item .meta { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: ui-monospace, Menlo, monospace; }
 .item .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; margin-left: auto; }
@@ -1980,21 +1995,34 @@ var Loupe = (() => {
     try {
       await fontsReady();
       const scale = Math.min(window.devicePixelRatio || 1, 2);
-      const full = await domToPng(document.body, {
+      const container = regionContainer(rect);
+      const origin = container.getBoundingClientRect();
+      const full = await domToPng(container, {
         scale,
         backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
         timeout: 3e4,
         filter: captureFilter
       });
-      const bodyRect = document.body.getBoundingClientRect();
       const redact = Array.from(document.querySelectorAll("[data-loupe-redact]")).map(
         (n) => n.getBoundingClientRect()
       );
-      return await cropRegion(full, rect, bodyRect.left, bodyRect.top, scale, redact);
+      return await cropRegion(full, rect, origin.left, origin.top, scale, redact);
     } catch (err) {
       console.warn("[loupe] region capture failed", err);
       return void 0;
     }
+  }
+  function regionContainer(rect) {
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+    let node = document.elementFromPoint(cx, cy);
+    if (node && node.closest("#loupe-root")) node = null;
+    const covers = (r) => r.left <= rect.x && r.top <= rect.y && r.right >= rect.x + rect.w && r.bottom >= rect.y + rect.h;
+    while (node && node !== document.body && node !== document.documentElement) {
+      if (covers(node.getBoundingClientRect())) return node;
+      node = node.parentElement;
+    }
+    return document.body;
   }
   function cropRegion(dataUrl, rect, ox, oy, scale, redact) {
     return new Promise((resolve, reject) => {
@@ -2149,6 +2177,7 @@ var Loupe = (() => {
       this.pins = /* @__PURE__ */ new Map();
       this.mode = "off";
       this.collapsed = false;
+      this.lastUrl = "";
       this.targetOffset = { x: 0.5, y: 0.5 };
       this.pending = null;
       this.dragStart = null;
@@ -2285,11 +2314,42 @@ var Loupe = (() => {
     }
     async start() {
       this.buildDom();
+      this.lastUrl = this.url;
       this.comments = await this.store.list(this.cfg.projectKey, this.url);
       this.renderPins();
       this.renderPanel();
       this.observe();
+      this.watchNavigation();
       if (this.cfg.autoOpen) this.setMode("inspect");
+    }
+    /**
+     * Reload comments when the page URL changes without a full reload (SPA
+     * navigation), so each page only ever shows its own comments.
+     */
+    watchNavigation() {
+      const onChange = () => {
+        if (this.url === this.lastUrl) return;
+        this.lastUrl = this.url;
+        void this.reloadComments();
+      };
+      addEventListener("popstate", onChange);
+      for (const key of ["pushState", "replaceState"]) {
+        const original = history[key];
+        history[key] = function(...args) {
+          const result = original.apply(this, args);
+          dispatchEvent(new Event("loupe:locationchange"));
+          return result;
+        };
+      }
+      addEventListener("loupe:locationchange", onChange);
+    }
+    async reloadComments() {
+      try {
+        this.comments = await this.store.list(this.cfg.projectKey, this.url);
+        this.renderPins();
+        this.renderPanel();
+      } catch {
+      }
     }
     // ---- DOM construction -----------------------------------------------------
     buildDom() {
@@ -2316,24 +2376,31 @@ var Loupe = (() => {
     }
     buildToolbar() {
       const bar = el("div", "toolbar");
-      const brand = el("span", "brand", "\u25CE Loupe");
+      const brand = el("span", "brand");
+      brand.innerHTML = `<span class="ico">\u25CE</span><span class="label">Loupe</span>`;
       brand.title = "Collapse / expand the Loupe bar";
       brand.setAttribute("role", "button");
       brand.onclick = () => this.toggleCollapsed();
-      const inspectBtn = el("button", "", "\u271B Inspect & comment");
-      inspectBtn.dataset.role = "inspect";
+      const inspectBtn = this.toolBtn("\u271B", "Inspect & comment", "inspect");
       inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
-      const regionBtn = el("button");
-      regionBtn.innerHTML = `${REGION_ICON}<span>Region shot</span>`;
-      regionBtn.dataset.role = "region";
+      const regionBtn = this.toolBtn(REGION_ICON, "Region shot", "region");
       regionBtn.title = "Drag a free-size box, screenshot it, and comment";
       regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
-      const listBtn = el("button", "", "\u2630 Comments");
+      const listBtn = this.toolBtn("\u2630", "Comments", "comments");
       this.countEl = el("span", "count", "0");
       listBtn.appendChild(this.countEl);
       listBtn.onclick = () => this.togglePanel();
       bar.append(brand, sep(), inspectBtn, regionBtn, listBtn);
       return bar;
+    }
+    /** A toolbar button with a uniform icon + label layout. `icon` may be an SVG string. */
+    toolBtn(icon, label, role) {
+      const b = el("button");
+      b.dataset.role = role;
+      b.title = label;
+      b.setAttribute("aria-label", label);
+      b.innerHTML = `<span class="ico">${icon}</span><span class="label">${label}</span>`;
+      return b;
     }
     drawSelection(curX, curY) {
       const s = this.dragStart;
@@ -2487,6 +2554,8 @@ var Loupe = (() => {
         offset,
         region,
         screenshot,
+        // Record the screen the feedback was captured on (desktop / tablet / mobile).
+        viewport: { w: window.innerWidth, h: window.innerHeight },
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       await this.store.save(comment);
@@ -2573,6 +2642,10 @@ var Loupe = (() => {
         this.setMode("off");
         this.panel.classList.remove("open");
         this.closeComposer();
+        this.overlay.style.display = "none";
+      } else {
+        this.overlay.style.display = "";
+        this.renderPins();
       }
     }
     renderPanel() {
@@ -2598,6 +2671,12 @@ var Loupe = (() => {
       const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
       const who = el("span", "who", c.author.name);
       top.append(num, who);
+      const vw = c.viewport?.w;
+      if (vw) {
+        const kind = vw < 768 ? "mobile" : vw < 1024 ? "tablet" : "desktop";
+        const icon = vw < 768 ? "\u{1F4F1}" : vw < 1024 ? "\u25A6" : "\u{1F5A5}";
+        top.appendChild(el("span", "device", `${icon} ${kind}`));
+      }
       if (c.status === "done") top.appendChild(el("span", "badge done", "done"));
       else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
       item.appendChild(top);

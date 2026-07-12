@@ -59,6 +59,7 @@ class CommentController extends Controller
             'context' => $data['context'] ?? [],
             'offset' => $data['offset'] ?? ['x' => 0.5, 'y' => 0.5],
             'region' => $data['region'] ?? null,
+            'viewport' => $data['viewport'] ?? null,
             'screenshot_url' => $data['screenshot'] ?? null,
         ];
 

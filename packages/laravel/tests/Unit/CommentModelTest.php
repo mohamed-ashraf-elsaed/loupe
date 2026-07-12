@@ -48,6 +48,16 @@ class CommentModelTest extends TestCase
         $this->assertSame('http://x/y', $array['screenshot']);
     }
 
+    public function test_to_loupe_array_includes_viewport_when_set(): void
+    {
+        $comment = Comment::query()->create(array_merge($this->attributes(), [
+            'id' => 'cv',
+            'viewport' => ['w' => 390, 'h' => 844],
+        ]));
+
+        $this->assertSame(['w' => 390, 'h' => 844], $comment->fresh()->toLoupeArray()['viewport']);
+    }
+
     public function test_kind_defaults_to_element_when_blank(): void
     {
         $comment = new Comment(array_merge($this->attributes(), ['kind' => '']));

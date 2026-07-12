@@ -37,6 +37,7 @@ export class LoupeApp {
 
   private mode: Mode = "off";
   private collapsed = false;
+  private lastUrl = "";
   private targetOffset = { x: 0.5, y: 0.5 };
   private pending: ComposeTarget | null = null;
   private dragStart: { x: number; y: number } | null = null;
@@ -60,11 +61,44 @@ export class LoupeApp {
 
   async start() {
     this.buildDom();
+    this.lastUrl = this.url;
     this.comments = await this.store.list(this.cfg.projectKey, this.url);
     this.renderPins();
     this.renderPanel();
     this.observe();
+    this.watchNavigation();
     if (this.cfg.autoOpen) this.setMode("inspect");
+  }
+
+  /**
+   * Reload comments when the page URL changes without a full reload (SPA
+   * navigation), so each page only ever shows its own comments.
+   */
+  private watchNavigation() {
+    const onChange = () => {
+      if (this.url === this.lastUrl) return;
+      this.lastUrl = this.url;
+      void this.reloadComments();
+    };
+    addEventListener("popstate", onChange);
+    // history.pushState/replaceState don't emit events — wrap them once.
+    for (const key of ["pushState", "replaceState"] as const) {
+      const original = history[key];
+      history[key] = function (this: History, ...args: unknown[]) {
+        const result = (original as (...a: unknown[]) => unknown).apply(this, args);
+        dispatchEvent(new Event("loupe:locationchange"));
+        return result;
+      } as History[typeof key];
+    }
+    addEventListener("loupe:locationchange", onChange);
+  }
+
+  private async reloadComments() {
+    try {
+      this.comments = await this.store.list(this.cfg.projectKey, this.url);
+      this.renderPins();
+      this.renderPanel();
+    } catch { /* keep the current view on transient errors */ }
   }
 
   // ---- DOM construction -----------------------------------------------------
@@ -99,27 +133,39 @@ export class LoupeApp {
 
   private buildToolbar(): HTMLElement {
     const bar = el("div", "toolbar");
-    // The brand doubles as a collapse/expand toggle: click it to shrink the bar
-    // to just the logo, click again to restore.
-    const brand = el("span", "brand", "◎ Loupe");
+    // Every item shares the same "<icon><label>" structure so they line up
+    // consistently (and the label can be hidden on mobile to go icon-only).
+    // The brand doubles as a collapse/expand toggle.
+    const brand = el("span", "brand");
+    brand.innerHTML = `<span class="ico">◎</span><span class="label">Loupe</span>`;
     brand.title = "Collapse / expand the Loupe bar";
     brand.setAttribute("role", "button");
     brand.onclick = () => this.toggleCollapsed();
-    const inspectBtn = el("button", "", "✛ Inspect & comment") as HTMLButtonElement;
-    inspectBtn.dataset.role = "inspect";
+
+    const inspectBtn = this.toolBtn("✛", "Inspect & comment", "inspect");
     inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
-    const regionBtn = el("button") as HTMLButtonElement;
-    // Inline SVG (not a font glyph) so the icon renders on every system.
-    regionBtn.innerHTML = `${REGION_ICON}<span>Region shot</span>`;
-    regionBtn.dataset.role = "region";
+
+    const regionBtn = this.toolBtn(REGION_ICON, "Region shot", "region");
     regionBtn.title = "Drag a free-size box, screenshot it, and comment";
     regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
-    const listBtn = el("button", "", "☰ Comments") as HTMLButtonElement;
+
+    const listBtn = this.toolBtn("☰", "Comments", "comments");
     this.countEl = el("span", "count", "0");
     listBtn.appendChild(this.countEl);
     listBtn.onclick = () => this.togglePanel();
+
     bar.append(brand, sep(), inspectBtn, regionBtn, listBtn);
     return bar;
+  }
+
+  /** A toolbar button with a uniform icon + label layout. `icon` may be an SVG string. */
+  private toolBtn(icon: string, label: string, role: string): HTMLButtonElement {
+    const b = el("button") as HTMLButtonElement;
+    b.dataset.role = role;
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.innerHTML = `<span class="ico">${icon}</span><span class="label">${label}</span>`;
+    return b;
   }
 
   // ---- inspector ------------------------------------------------------------
@@ -349,6 +395,8 @@ export class LoupeApp {
       offset,
       region,
       screenshot,
+      // Record the screen the feedback was captured on (desktop / tablet / mobile).
+      viewport: { w: window.innerWidth, h: window.innerHeight },
       createdAt: new Date().toISOString(),
     };
     await this.store.save(comment);
@@ -479,10 +527,14 @@ export class LoupeApp {
     this.collapsed = !this.collapsed;
     this.toolbar.classList.toggle("collapsed", this.collapsed);
     if (this.collapsed) {
-      // Leave any active mode and close the panel/composer when shrinking.
+      // Leave any active mode, close the panel/composer, and hide the pins.
       this.setMode("off");
       this.panel.classList.remove("open");
       this.closeComposer();
+      this.overlay.style.display = "none";
+    } else {
+      this.overlay.style.display = "";
+      this.renderPins();
     }
   }
 
@@ -511,6 +563,12 @@ export class LoupeApp {
     const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
     const who = el("span", "who", c.author.name);
     top.append(num, who);
+    const vw = c.viewport?.w;
+    if (vw) {
+      const kind = vw < 768 ? "mobile" : vw < 1024 ? "tablet" : "desktop";
+      const icon = vw < 768 ? "📱" : vw < 1024 ? "▦" : "🖥";
+      top.appendChild(el("span", "device", `${icon} ${kind}`));
+    }
     if (c.status === "done") top.appendChild(el("span", "badge done", "done"));
     else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
     item.appendChild(top);
