@@ -11,6 +11,21 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.4.1] — 2026-07-12
+
+### Fixed
+- **Captures no longer hang the widget.** `await document.fonts.ready` (added in 0.3.4)
+  could stall indefinitely on SPAs that keep loading fonts, making **Inspect** feel
+  stuck ("loads too hard") and **Region shot** never open its composer. The font wait
+  is now capped (~0.8s), the capture timeout lowered to 6s, and every capture is
+  wrapped in a hard outer timeout so it can never block the UI.
+- **Region shot opens instantly.** The composer now appears immediately and the
+  screenshot is captured in the background (attached on submit), instead of blocking on
+  the capture first. Fixes the region "Attach screenshot" checkbox being disabled
+  because the shot hadn't been captured yet.
+
+_SDK fix — applies to the SDK, the browser extension, and the `loupekit/laravel` widget._
+
 ## [0.4.0] — 2026-07-12
 
 ### Added
@@ -170,7 +185,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.2...v0.3.3

@@ -38,6 +38,8 @@ export class LoupeApp {
   private mode: Mode = "off";
   private collapsed = false;
   private lastUrl = "";
+  /** In-flight region screenshot, captured in the background while the composer is open. */
+  private pendingShot?: Promise<string | undefined>;
   private targetOffset = { x: 0.5, y: 0.5 };
   private pending: ComposeTarget | null = null;
   private dragStart: { x: number; y: number } | null = null;
@@ -264,12 +266,18 @@ export class LoupeApp {
         };
       }
     }
-    const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
-    const screenshot = await capture(vp);
     this.selbox.style.display = "none";
     // Document coords are the fallback; `rel` (element-relative) is preferred.
     const region: RegionRect = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
-    this.openComposer({ kind: "region", region, element: centerEl, screenshot }, vp.x + vp.w, vp.y);
+    const target: ComposeTarget = { kind: "region", region, element: centerEl };
+    // Open the composer immediately; capture the screenshot in the background so a
+    // slow capture never blocks the UI. It attaches to the comment on submit.
+    this.openComposer(target, vp.x + vp.w, vp.y);
+    const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
+    this.pendingShot = capture(vp);
+    void this.pendingShot.then((shot) => {
+      if (shot && this.pending === target) target.screenshot = shot;
+    }).catch(() => undefined);
   }
 
   /** elementFromPoint, ignoring our own UI. */
@@ -321,9 +329,9 @@ export class LoupeApp {
     const row = el("div", "row");
     const chk = el("label", "chk") as HTMLLabelElement;
     const box = document.createElement("input"); box.type = "checkbox";
-    // Region shots already captured the pixels; only offer to attach if we got them.
-    box.checked = target.kind === "region" ? !!target.screenshot : true;
-    if (target.kind === "region" && !target.screenshot) box.disabled = true;
+    // Default to attaching. Element shots are captured on submit; region shots are
+    // captured in the background and awaited on submit (see pendingShot).
+    box.checked = true;
     chk.append(box, document.createTextNode("Attach screenshot"));
     const btns = el("div", "btns");
     const cancel = el("button", "ghost", "Cancel") as HTMLButtonElement;
@@ -347,6 +355,7 @@ export class LoupeApp {
   private closeComposer() {
     this.composer.style.display = "none";
     this.pending = null;
+    this.pendingShot = undefined;
   }
 
   private async submit(target: ComposeTarget, body: string, withShot: boolean) {
@@ -367,7 +376,8 @@ export class LoupeApp {
       offset = this.targetOffset;
       anchoredEl = target.element;
     } else {
-      screenshot = withShot ? target.screenshot : undefined;
+      // Use the background capture; await it only if it hasn't attached yet.
+      screenshot = withShot ? (target.screenshot ?? await this.pendingShot) : undefined;
       region = target.region;
       offset = { x: 0, y: 0 };
       // Prefer the real center-element anchor (survives reflow + gives Claude a

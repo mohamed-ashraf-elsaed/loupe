@@ -1962,10 +1962,18 @@ var Loupe = (() => {
     }
     return { html, styles };
   }
+  var CAPTURE_TIMEOUT = 6e3;
+  function withTimeout(p, ms) {
+    return Promise.race([p, new Promise((resolve) => setTimeout(() => resolve(void 0), ms))]);
+  }
   async function fontsReady() {
     try {
       const fonts = document.fonts;
-      if (fonts?.ready) await fonts.ready;
+      if (!fonts?.ready) return;
+      await Promise.race([
+        fonts.ready,
+        new Promise((resolve) => setTimeout(resolve, 800))
+      ]);
     } catch {
     }
   }
@@ -1978,14 +1986,15 @@ var Loupe = (() => {
   async function captureScreenshot(el2) {
     try {
       await fontsReady();
-      return await domToPng(el2, {
-        scale: Math.min(window.devicePixelRatio || 1, 2),
-        backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-        // Give cross-origin font/asset fetches time to embed (default is short) so
-        // the capture matches the page instead of falling back to system fonts.
-        timeout: 3e4,
-        filter: captureFilter
-      });
+      return await withTimeout(
+        domToPng(el2, {
+          scale: Math.min(window.devicePixelRatio || 1, 2),
+          backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
+          timeout: CAPTURE_TIMEOUT,
+          filter: captureFilter
+        }),
+        CAPTURE_TIMEOUT + 2e3
+      );
     } catch (err) {
       console.warn("[loupe] screenshot capture failed", err);
       return void 0;
@@ -1997,12 +2006,16 @@ var Loupe = (() => {
       const scale = Math.min(window.devicePixelRatio || 1, 2);
       const container = regionContainer(rect);
       const origin = container.getBoundingClientRect();
-      const full = await domToPng(container, {
-        scale,
-        backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-        timeout: 3e4,
-        filter: captureFilter
-      });
+      const full = await withTimeout(
+        domToPng(container, {
+          scale,
+          backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
+          timeout: CAPTURE_TIMEOUT,
+          filter: captureFilter
+        }),
+        CAPTURE_TIMEOUT + 2e3
+      );
+      if (!full) return void 0;
       const redact = Array.from(document.querySelectorAll("[data-loupe-redact]")).map(
         (n) => n.getBoundingClientRect()
       );
@@ -2432,11 +2445,15 @@ var Loupe = (() => {
           };
         }
       }
-      const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
-      const screenshot = await capture(vp);
       this.selbox.style.display = "none";
       const region = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
-      this.openComposer({ kind: "region", region, element: centerEl, screenshot }, vp.x + vp.w, vp.y);
+      const target = { kind: "region", region, element: centerEl };
+      this.openComposer(target, vp.x + vp.w, vp.y);
+      const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
+      this.pendingShot = capture(vp);
+      void this.pendingShot.then((shot) => {
+        if (shot && this.pending === target) target.screenshot = shot;
+      }).catch(() => void 0);
     }
     /** elementFromPoint, ignoring our own UI. */
     pick(x, y) {
@@ -2485,8 +2502,7 @@ var Loupe = (() => {
       const chk = el("label", "chk");
       const box = document.createElement("input");
       box.type = "checkbox";
-      box.checked = target.kind === "region" ? !!target.screenshot : true;
-      if (target.kind === "region" && !target.screenshot) box.disabled = true;
+      box.checked = true;
       chk.append(box, document.createTextNode("Attach screenshot"));
       const btns = el("div", "btns");
       const cancel = el("button", "ghost", "Cancel");
@@ -2509,6 +2525,7 @@ var Loupe = (() => {
     closeComposer() {
       this.composer.style.display = "none";
       this.pending = null;
+      this.pendingShot = void 0;
     }
     async submit(target, body, withShot) {
       if (!body) return;
@@ -2529,7 +2546,7 @@ var Loupe = (() => {
         offset = this.targetOffset;
         anchoredEl = target.element;
       } else {
-        screenshot = withShot ? target.screenshot : void 0;
+        screenshot = withShot ? target.screenshot ?? await this.pendingShot : void 0;
         region = target.region;
         offset = { x: 0, y: 0 };
         if (target.element) {

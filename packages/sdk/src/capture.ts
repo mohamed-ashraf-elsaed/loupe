@@ -20,12 +20,28 @@ export function captureElementContext(el: Element): ElementContext {
   return { html, styles };
 }
 
-/** Wait for the page's web fonts to finish loading so they get embedded, not
- * substituted with a fallback (which reflows the capture). Best-effort. */
+/** Max time (ms) any single capture may spend fetching/embedding assets. */
+const CAPTURE_TIMEOUT = 6000;
+
+/** Resolve `undefined` if `p` doesn't settle within `ms` — so a capture can never hang the UI. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  return Promise.race([p, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))]);
+}
+
+/**
+ * Give web fonts a brief chance to finish loading so they embed instead of
+ * falling back — but NEVER block on it. On some SPAs `document.fonts.ready`
+ * settles slowly (or keeps loading), which would otherwise hang the capture,
+ * so we race it against a short cap.
+ */
 async function fontsReady(): Promise<void> {
   try {
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-    if (fonts?.ready) await fonts.ready;
+    if (!fonts?.ready) return;
+    await Promise.race([
+      fonts.ready,
+      new Promise<void>((resolve) => setTimeout(resolve, 800)),
+    ]);
   } catch {
     /* FontFaceSet unsupported — carry on */
   }
@@ -46,14 +62,15 @@ function captureFilter(node: Node): boolean {
 export async function captureScreenshot(el: Element): Promise<string | undefined> {
   try {
     await fontsReady();
-    return await domToPng(el as HTMLElement, {
-      scale: Math.min(window.devicePixelRatio || 1, 2),
-      backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-      // Give cross-origin font/asset fetches time to embed (default is short) so
-      // the capture matches the page instead of falling back to system fonts.
-      timeout: 30000,
-      filter: captureFilter,
-    });
+    return await withTimeout(
+      domToPng(el as HTMLElement, {
+        scale: Math.min(window.devicePixelRatio || 1, 2),
+        backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
+        timeout: CAPTURE_TIMEOUT,
+        filter: captureFilter,
+      }),
+      CAPTURE_TIMEOUT + 2000,
+    );
   } catch (err) {
     console.warn("[loupe] screenshot capture failed", err);
     return undefined;
@@ -76,12 +93,16 @@ export async function captureRegionScreenshot(rect: RegionRect): Promise<string 
     // the reliable element capture.
     const container = regionContainer(rect);
     const origin = container.getBoundingClientRect();
-    const full = await domToPng(container, {
-      scale,
-      backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-      timeout: 30000,
-      filter: captureFilter,
-    });
+    const full = await withTimeout(
+      domToPng(container, {
+        scale,
+        backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
+        timeout: CAPTURE_TIMEOUT,
+        filter: captureFilter,
+      }),
+      CAPTURE_TIMEOUT + 2000,
+    );
+    if (!full) return undefined;
     const redact = Array.from(document.querySelectorAll("[data-loupe-redact]")).map((n) =>
       (n as Element).getBoundingClientRect(),
     );
