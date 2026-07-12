@@ -65,6 +65,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frictionless local access
+    |--------------------------------------------------------------------------
+    | When true (default), any authenticated user may use Loupe and open the
+    | dashboard in the `local` environment — so a fresh install "just works" in
+    | development without configuring gates. In every other environment access
+    | is governed by the closures above / the loupe:use & loupe:admin gates.
+    | An explicit `authorize` closure (above) always takes precedence, in all
+    | environments. Set false to require authorization even locally.
+    */
+    'allow_in_local' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     | The Eloquent model used to persist comments (swap for your own subclass

@@ -47,6 +47,32 @@ class LoupeManagerTest extends TestCase
         $this->assertTrue($this->loupe->authorizedToUse($this->makeUser()));
     }
 
+    public function test_local_environment_is_frictionless_by_default(): void
+    {
+        $this->app['env'] = 'local';
+
+        // No config closure, no gate access — but local is open by default.
+        $this->assertTrue($this->loupe->authorizedToUse($this->makeUser()));
+        $this->assertTrue($this->loupe->authorizedForDashboard($this->makeUser()));
+    }
+
+    public function test_allow_in_local_can_be_disabled(): void
+    {
+        $this->app['env'] = 'local';
+        config()->set('loupe.allow_in_local', false);
+        Gate::define('loupe:use', fn ($user) => false);
+
+        $this->assertFalse($this->loupe->authorizedToUse($this->makeUser()));
+    }
+
+    public function test_explicit_config_closure_overrides_local(): void
+    {
+        $this->app['env'] = 'local';
+        config()->set('loupe.authorize.use', fn () => false);
+
+        $this->assertFalse($this->loupe->authorizedToUse($this->makeUser()));
+    }
+
     public function test_describe_user_uses_id_name_email_by_default(): void
     {
         $user = $this->makeUser(['name' => 'Sara', 'email' => 'sara@example.com']);

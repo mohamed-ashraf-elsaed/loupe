@@ -11,6 +11,27 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.3.3] — 2026-07-12
+
+### Added
+- **Collapsible toolbar (all SDK surfaces).** Clicking the "◎ Loupe" logo now
+  collapses the toolbar to just the logo and expands it again — so the bar can be
+  tucked away while browsing. This lives in `@loupekit/sdk`, so it applies
+  everywhere the SDK renders: the standalone SDK, the browser extension, and the
+  `loupekit/laravel` widget.
+
+### Fixed
+- **`loupekit/laravel` — "You are not authorized to use Loupe" on a fresh install.**
+  Loupe is now frictionless for any authenticated user in the `local` environment
+  (governed by the new `config('loupe.allow_in_local')`, default `true`); the
+  `loupe:use` / `loupe:admin` gates and `authorize` closures govern other
+  environments. Baseline gates now deny by default (secure in production). An
+  explicit `authorize` closure still wins in every environment.
+
+### Changed
+- All publishable packages released together at 0.3.3 (`@loupekit/shared`,
+  `@loupekit/sdk`, `@loupekit/mcp`, and `loupekit/laravel`).
+
 ## [0.3.2] — 2026-07-12
 
 ### Fixed
@@ -113,7 +134,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.2.1...v0.3.0

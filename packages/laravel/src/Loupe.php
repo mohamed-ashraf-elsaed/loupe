@@ -65,6 +65,7 @@ class Loupe
             return false;
         }
 
+        // Explicit host configuration wins, in every environment.
         $configured = config("loupe.authorize.$configKey");
         if ($configured instanceof Closure) {
             return (bool) $configured($user);
@@ -72,6 +73,11 @@ class Loupe
 
         if ($registered instanceof Closure) {
             return (bool) $registered($user);
+        }
+
+        // Frictionless in local/dev so a fresh install works without config.
+        if (config('loupe.allow_in_local', true) && app()->environment('local')) {
+            return true;
         }
 
         return Gate::forUser($user)->allows($ability);

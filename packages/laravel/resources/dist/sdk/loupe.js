@@ -105,7 +105,14 @@ var Loupe = (() => {
 .toolbar button .ico { flex: none; display: block; }
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
-.toolbar .brand { font-weight: 700; padding-left: 8px; padding-right: 4px; letter-spacing: -.01em; }
+.toolbar .brand {
+  font-weight: 700; padding: 8px; border-radius: 8px; letter-spacing: -.01em;
+  cursor: pointer; user-select: none;
+}
+.toolbar .brand:hover { background: #2b2f3b; }
+/* collapsed \u2192 show only the brand/logo; click it again to expand */
+.toolbar.collapsed { gap: 0; }
+.toolbar.collapsed > *:not(.brand) { display: none; }
 .toolbar .count {
   background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; margin-left: 2px;
@@ -2132,6 +2139,7 @@ var Loupe = (() => {
       /** comment.id → pin element. */
       this.pins = /* @__PURE__ */ new Map();
       this.mode = "off";
+      this.collapsed = false;
       this.targetOffset = { x: 0.5, y: 0.5 };
       this.pending = null;
       this.dragStart = null;
@@ -2300,6 +2308,9 @@ var Loupe = (() => {
     buildToolbar() {
       const bar = el("div", "toolbar");
       const brand = el("span", "brand", "\u25CE Loupe");
+      brand.title = "Collapse / expand the Loupe bar";
+      brand.setAttribute("role", "button");
+      brand.onclick = () => this.toggleCollapsed();
       const inspectBtn = el("button", "", "\u271B Inspect & comment");
       inspectBtn.dataset.role = "inspect";
       inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
@@ -2544,6 +2555,16 @@ var Loupe = (() => {
     togglePanel() {
       this.panel.classList.toggle("open");
       this.renderPanel();
+    }
+    /** Collapse the toolbar to just the logo (or expand it back). */
+    toggleCollapsed() {
+      this.collapsed = !this.collapsed;
+      this.toolbar.classList.toggle("collapsed", this.collapsed);
+      if (this.collapsed) {
+        this.setMode("off");
+        this.panel.classList.remove("open");
+        this.closeComposer();
+      }
     }
     renderPanel() {
       const p = this.panel;

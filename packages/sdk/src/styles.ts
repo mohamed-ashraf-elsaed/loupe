@@ -76,7 +76,14 @@ export const STYLES = /* css */ `
 .toolbar button .ico { flex: none; display: block; }
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
-.toolbar .brand { font-weight: 700; padding-left: 8px; padding-right: 4px; letter-spacing: -.01em; }
+.toolbar .brand {
+  font-weight: 700; padding: 8px; border-radius: 8px; letter-spacing: -.01em;
+  cursor: pointer; user-select: none;
+}
+.toolbar .brand:hover { background: #2b2f3b; }
+/* collapsed → show only the brand/logo; click it again to expand */
+.toolbar.collapsed { gap: 0; }
+.toolbar.collapsed > *:not(.brand) { display: none; }
 .toolbar .count {
   background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; margin-left: 2px;

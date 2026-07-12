@@ -44,17 +44,18 @@ class LoupeServiceProvider extends ServiceProvider
     }
 
     /**
-     * Baseline gates so a fresh install is safe (usable only in local by
-     * default). A published App\Providers\LoupeServiceProvider — which boots
-     * after this package — redefines these for production.
+     * Baseline gates: deny by default. Local access is granted by the Loupe
+     * manager (see config('loupe.allow_in_local')), so these only govern
+     * non-local environments — a published App\Providers\LoupeServiceProvider,
+     * which boots after this package, redefines them to grant production access.
      */
     private function registerGates(): void
     {
         if (! Gate::has('loupe:use')) {
-            Gate::define('loupe:use', fn (?Authenticatable $user) => $this->app->environment('local'));
+            Gate::define('loupe:use', fn (?Authenticatable $user) => false);
         }
         if (! Gate::has('loupe:admin')) {
-            Gate::define('loupe:admin', fn (?Authenticatable $user) => $this->app->environment('local'));
+            Gate::define('loupe:admin', fn (?Authenticatable $user) => false);
         }
     }
 

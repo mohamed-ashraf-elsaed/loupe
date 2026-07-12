@@ -27,6 +27,9 @@ class LoupeServiceProvider extends ServiceProvider
      */
     protected function gate(): void
     {
+        // Loupe is open to any authenticated user in the `local` environment
+        // (see config('loupe.allow_in_local')). These gates decide access in
+        // every OTHER environment — list the people who may use it in production.
         Gate::define('loupe:use', function ($user) {
             return in_array($user->email, [
                 // 'teammate@example.com',

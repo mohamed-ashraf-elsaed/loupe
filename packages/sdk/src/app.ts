@@ -36,6 +36,7 @@ export class LoupeApp {
   private pins = new Map<string, HTMLElement>();
 
   private mode: Mode = "off";
+  private collapsed = false;
   private targetOffset = { x: 0.5, y: 0.5 };
   private pending: ComposeTarget | null = null;
   private dragStart: { x: number; y: number } | null = null;
@@ -98,7 +99,12 @@ export class LoupeApp {
 
   private buildToolbar(): HTMLElement {
     const bar = el("div", "toolbar");
+    // The brand doubles as a collapse/expand toggle: click it to shrink the bar
+    // to just the logo, click again to restore.
     const brand = el("span", "brand", "◎ Loupe");
+    brand.title = "Collapse / expand the Loupe bar";
+    brand.setAttribute("role", "button");
+    brand.onclick = () => this.toggleCollapsed();
     const inspectBtn = el("button", "", "✛ Inspect & comment") as HTMLButtonElement;
     inspectBtn.dataset.role = "inspect";
     inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
@@ -467,6 +473,18 @@ export class LoupeApp {
 
   private openPanel() { this.panel.classList.add("open"); this.renderPanel(); }
   private togglePanel() { this.panel.classList.toggle("open"); this.renderPanel(); }
+
+  /** Collapse the toolbar to just the logo (or expand it back). */
+  private toggleCollapsed() {
+    this.collapsed = !this.collapsed;
+    this.toolbar.classList.toggle("collapsed", this.collapsed);
+    if (this.collapsed) {
+      // Leave any active mode and close the panel/composer when shrinking.
+      this.setMode("off");
+      this.panel.classList.remove("open");
+      this.closeComposer();
+    }
+  }
 
   private renderPanel() {
     const p = this.panel;

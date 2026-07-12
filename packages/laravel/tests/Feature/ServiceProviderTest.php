@@ -29,17 +29,17 @@ class ServiceProviderTest extends TestCase
         $this->assertTrue(Gate::has('loupe:admin'));
     }
 
-    public function test_baseline_gates_deny_outside_local_and_allow_in_local(): void
+    public function test_baseline_gates_deny_by_default(): void
     {
         $user = $this->makeUser();
 
-        // Default test env is "testing" → denied.
+        // Baseline gates deny everywhere; local access is granted by the manager
+        // (see LoupeManagerTest), and production is granted by the published provider.
         $this->assertFalse(Gate::forUser($user)->allows('loupe:use'));
+        $this->assertFalse(Gate::forUser($user)->allows('loupe:admin'));
 
-        // Flip the environment → allowed (the default local-only rule).
         $this->app['env'] = 'local';
-        $this->assertTrue(Gate::forUser($user)->allows('loupe:use'));
-        $this->assertTrue(Gate::forUser($user)->allows('loupe:admin'));
+        $this->assertFalse(Gate::forUser($user)->allows('loupe:use'));
     }
 
     public function test_the_routes_are_registered(): void

@@ -1,7 +1,7 @@
 {
   "name": "@loupekit/dashboard",
   "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Loupe feedback triage board (Kanban).",
   "type": "module",
   "private": true,
