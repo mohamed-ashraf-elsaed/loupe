@@ -32,6 +32,18 @@ class GetComment extends Tool
             return Response::error('Comment not found.');
         }
 
+        // Free notes aren't tied to an element — return a compact, element-free package.
+        if (($comment->kind ?? 'element') === 'free') {
+            return Response::text(implode("\n", [
+                '# Product feedback from '.data_get($comment->author, 'name', 'a user'),
+                '',
+                '**Note:** '.$comment->body,
+                '**Status:** '.$comment->status,
+                '**Page:** '.$comment->url,
+                '**Type:** Free note — a page-level comment, not tied to a specific element (no screenshot).',
+            ]));
+        }
+
         $context = $comment->context ?? [];
         $styles = $context['styles'] ?? [];
 

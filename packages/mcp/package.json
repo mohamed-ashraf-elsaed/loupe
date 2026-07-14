@@ -1,16 +1,39 @@
 {
   "name": "@loupekit/mcp",
-  "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
-  "version": "0.4.3",
+  "author": {
+    "name": "Mohamed Ashraf Elsaed",
+    "email": "m.ashraf.saed@gmail.com",
+    "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
+  },
+  "version": "0.5.0",
   "description": "MCP server that exposes Loupe comments to Claude Code as an actionable, fully-contextualized backlog.",
-  "keywords": ["loupe", "mcp", "model-context-protocol", "claude", "claude-code", "visual-feedback", "product-management", "ai"],
+  "keywords": [
+    "loupe",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "visual-feedback",
+    "product-management",
+    "ai"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git", "directory": "packages/mcp" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git",
+    "directory": "packages/mcp"
+  },
   "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
-  "files": ["index.ts"],
-  "bin": { "loupe-mcp": "./index.ts" },
+  "files": [
+    "index.ts"
+  ],
+  "bin": {
+    "loupe-mcp": "./index.ts"
+  },
   "scripts": {
     "start": "node index.ts",
     "test:client": "node test-client.ts"

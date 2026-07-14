@@ -182,10 +182,13 @@ erDiagram
     text url "normalized"
     text status "open|in_progress|done"
     text body
+    text kind "element|region|free"
     jsonb author
     jsonb anchor
     jsonb context
     jsonb offset
+    jsonb region "nullable"
+    jsonb viewport "nullable"
     text screenshot_url
     timestamptz created_at
   }

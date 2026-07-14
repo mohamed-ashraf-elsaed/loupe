@@ -304,7 +304,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.4.3</span>
+    <span class="ver">v0.5.0</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -313,7 +313,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.4.3</a>
+    <a class="icon-btn" href="#changelog">v0.5.0</a>
   </div>
 </header>
 
@@ -369,7 +369,7 @@
 
       <!-- INTRODUCTION -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Documentation · v0.4.3</p>
+        <p class="eyebrow">Documentation · v0.5.0</p>
         <h1>Loupe</h1>
         <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
           screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
@@ -382,7 +382,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.4.3</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.5.0</div></div>
           <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.4+</div></div>
@@ -527,11 +527,12 @@ npm start</code></pre>
           <code>dist</code>) and must be built before the others. Keep changes behind the seams
           (<code>StorageAdapter</code>, <code>db.ts</code>, <code>blobs.ts</code>, the
           <code>captureScreenshot</code> hook) — change implementations, not contracts.</p>
-        <div class="callout warn"><span class="cl">Version drift</span>
-          The release is <strong>0.4.3</strong> across the publishable packages, but a few files still carry
-          their own numbers: <code>@loupekit/server</code> and the extension <code>manifest.json</code> say
-          <code>0.2.0</code>, the MCP <code>McpServer</code> is hardcoded <code>0.2.0</code>, and Laravel's
-          <code>LoupeServer</code> is <code>1.0.0</code>. Worth reconciling on the next release.</div>
+        <div class="callout note"><span class="cl">Versioning</span>
+          As of <strong>0.5.0</strong> every package is aligned on one version — the previously stale
+          <code>@loupekit/server</code>, the extension <code>manifest.json</code>, and the Node
+          <code>McpServer</code> (all <code>0.2.0</code>) are now <code>0.5.0</code>. The Laravel
+          <code>LoupeServer</code> reports its own <code>1.0.0</code> — an independent MCP-server identity,
+          not the package version.</div>
       </section>
 
       <hr class="hr">
@@ -656,7 +657,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-shared">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.4.3</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.0</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
         <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
           Node packages import the compiled JS.</p>
 
@@ -666,7 +667,7 @@ npm start</code></pre>
             <thead><tr><th>Type</th><th>Shape</th></tr></thead>
             <tbody>
               <tr><td><code>CommentStatus</code></td><td><code>"open" | "in_progress" | "done"</code></td></tr>
-              <tr><td><code>CommentKind</code></td><td><code>"element" | "region"</code></td></tr>
+              <tr><td><code>CommentKind</code></td><td><code>"element" | "region" | "free"</code></td></tr>
               <tr><td><code>DeviceType</code></td><td><code>"mobile" | "tablet" | "desktop"</code></td></tr>
               <tr><td><code>LoupeUser</code></td><td><code>{ id, name, email? }</code></td></tr>
               <tr><td><code>Anchor</code></td><td>fingerprint: <code>tag, cssPath, xpath, testid, text, attrs, nthOfType, rect, viewport</code></td></tr>
@@ -691,7 +692,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-sdk">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.4.3</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.0</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
         <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
           (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
 
@@ -702,8 +703,11 @@ npm start</code></pre>
             <code>HttpAdapter</code>; omitted → <code>LocalStorageAdapter</code> (offline mode).</li>
           <li><code>destroy(): void</code> — tears down the toolbar and all listeners.</li>
         </ul>
-        <p>Toolbar modes: <strong>Inspect &amp; comment</strong>, <strong>Region shot</strong>,
-          <strong>Comments</strong>. Click the <code>◎ Loupe</code> logo to collapse the bar.</p>
+        <p>Toolbar modes: <strong>Inspect &amp; comment</strong>, <strong>Note</strong> (a free page-level
+          comment), <strong>Region shot</strong>, <strong>Comments</strong>. <strong>Drag</strong> the
+          <code>◎ Loupe</code> logo to move the whole bar anywhere on screen; <strong>click</strong> it to
+          collapse. A moved bar expands edge-aware so it's always on-screen — vertical against a left/right
+          edge, horizontal along the top/bottom.</p>
 
         <h3>LoupeConfig</h3>
         <div class="tablewrap">
@@ -749,7 +753,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-server">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge w">file says v0.2.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
         <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
           <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
           listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
@@ -798,7 +802,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-dashboard">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.4.3</span><span class="badge">tsup bundle</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.0</span><span class="badge">tsup bundle</span></div>
         <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
           (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
           <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
@@ -819,7 +823,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-mcp">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.4.3</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.0</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
         <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
           Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
           Claude Code at the source entry directly.</p>
@@ -861,7 +865,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-extension">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge w">manifest says v0.2.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
         <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
           target. The only difference from the SDK is the screenshot source:
           <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
@@ -1044,6 +1048,8 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
           <table>
             <thead><tr><th>Feature</th><th>What it does</th><th>Since</th></tr></thead>
             <tbody>
+              <tr><td>Free comments</td><td>Drop a page-level note anywhere via the <strong>Note</strong> mode — no element, no screenshot (<code>kind: "free"</code>).</td><td class="tabular">0.5.0</td></tr>
+              <tr><td>Draggable toolbar</td><td>Drag the <code>◎</code> logo anywhere; position persists and the bar expands edge-aware (vertical on a side, horizontal on top/bottom).</td><td class="tabular">0.5.0</td></tr>
               <tr><td>Re-anchoring</td><td>Multi-signal fingerprint survives redeploys; detaches rather than mis-pin.</td><td class="tabular">0.1.0</td></tr>
               <tr><td>Region shot</td><td>Drag a free box (no element); anchored to element under center as fractional coords — tracks reflow, viewport &amp; scroll.</td><td class="tabular">0.2.0</td></tr>
               <tr><td>Offline mode</td><td>Omit <code>apiBase</code> → localStorage adapter.</td><td class="tabular">0.1.0</td></tr>
@@ -1155,9 +1161,24 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.4.3</strong> (2026-07-13).</p>
+          release: <strong>0.5.0</strong> (2026-07-14).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.5.0</span><span class="cl-date">2026-07-14</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Free comments.</strong> A new <strong>Note</strong> toolbar mode drops a page-level
+              comment anywhere — no element, no screenshot. New <code>kind: "free"</code>, positioned via the
+              existing <code>offset</code> field as a document fraction, so <strong>no DB migration</strong>.
+              Renders as a page-level item in the panel, dashboard, and both MCP servers.</li>
+            <li><strong>Draggable, edge-aware toolbar.</strong> Drag the <code>◎</code> logo anywhere; the
+              position persists and the bar expands <em>inward</em> so it's always on-screen — vertical on a
+              left/right edge, horizontal along the top/bottom.</li>
+            <li>All packages aligned to <code>0.5.0</code> — <code>@loupekit/server</code>, the extension
+              <code>manifest.json</code>, and the Node <code>McpServer</code> were stale at <code>0.2.0</code>.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.4.3</span><span class="cl-date">2026-07-13</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>Laravel: multi-guard identity resolution.</strong> Multi-guard apps no longer 403 with
@@ -1269,7 +1290,7 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.4.3 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.5.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
           <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,

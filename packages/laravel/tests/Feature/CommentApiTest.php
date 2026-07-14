@@ -85,6 +85,24 @@ class CommentApiTest extends TestCase
             ->assertJsonPath('region.w', 3);
     }
 
+    public function test_it_stores_a_free_comment(): void
+    {
+        $user = $this->actingAsAllowed();
+
+        $this->postJson('/loupe/v1/comments', $this->payload('f1', $user->id, [
+            'kind' => 'free',
+            'anchor' => ['tag' => 'page', 'cssPath' => 'page', 'testid' => null],
+            'context' => ['html' => '', 'styles' => []],
+            'offset' => ['x' => 0.25, 'y' => 0.75],
+            'screenshot' => null,
+        ]))->assertCreated()
+            ->assertJsonPath('kind', 'free')
+            ->assertJsonPath('screenshot', null)
+            ->assertJsonPath('offset.x', 0.25);
+
+        $this->assertDatabaseHas('loupe_comments', ['id' => 'f1', 'kind' => 'free', 'screenshot_url' => null]);
+    }
+
     public function test_it_rejects_a_missing_id(): void
     {
         $user = $this->actingAsAllowed();

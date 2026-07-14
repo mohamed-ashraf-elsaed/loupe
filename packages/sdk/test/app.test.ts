@@ -110,6 +110,36 @@ describe("LoupeApp", () => {
     expect(stored[0].anchor.testid).toBe("save");
   });
 
+  it("free note → click drops a page-level comment with no element or screenshot", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('[data-role="free"]')!.click();
+    // Click anywhere on the page — no element selection needed.
+    fire(document.body, "click", { clientX: 40, clientY: 60 });
+    const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
+    expect(ta).toBeTruthy();
+    // Free notes never offer a screenshot checkbox.
+    expect(sr().querySelector(".composer .chk")).toBeNull();
+    ta.value = "the whole page needs more spacing";
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>(".composer .primary")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelectorAll(".pin.free").length).toBe(1);
+    const stored = JSON.parse(localStorage.getItem(`loupe:pk:${location.pathname}${location.search}`)!);
+    expect(stored[0].kind).toBe("free");
+    expect(stored[0].screenshot).toBeUndefined();
+    expect(stored[0].anchor.tag).toBe("page");
+  });
+
+  it("collapses and expands when the brand logo is clicked", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const brand = sr().querySelector<HTMLElement>(".toolbar .brand")!;
+    brand.click();
+    expect(sr().querySelector(".toolbar")!.classList.contains("collapsed")).toBe(true);
+    brand.click();
+    expect(sr().querySelector(".toolbar")!.classList.contains("collapsed")).toBe(false);
+  });
+
   it("Escape cancels the inspector", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();

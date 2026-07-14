@@ -65,6 +65,32 @@ class McpToolsTest extends TestCase
         $this->assertSame('#main > div', $out['comments'][0]['target']);
     }
 
+    public function test_list_comments_reports_the_free_target(): void
+    {
+        $this->seedComment('f', ['kind' => 'free', 'anchor' => [], 'context' => ['html' => '', 'styles' => []]]);
+
+        $out = json_decode((string) (new ListComments)->handle(new Request)->content(), true);
+
+        $this->assertSame('page-level note', $out['comments'][0]['target']);
+    }
+
+    public function test_get_comment_renders_a_free_note_without_element_sections(): void
+    {
+        $this->seedComment('f', [
+            'kind' => 'free',
+            'body' => 'The whole page feels cramped',
+            'anchor' => [],
+            'context' => ['html' => '', 'styles' => []],
+        ]);
+
+        $text = (string) (new GetComment)->handle(new Request(['id' => 'f']))->content();
+
+        $this->assertStringContainsString('The whole page feels cramped', $text);
+        $this->assertStringContainsString('Free note', $text);
+        $this->assertStringNotContainsString('## Target element HTML', $text);
+        $this->assertStringNotContainsString('## Computed styles', $text);
+    }
+
     public function test_get_comment_builds_the_claude_ready_package(): void
     {
         $this->seedComment('a', [

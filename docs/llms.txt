@@ -4,7 +4,8 @@
 
 ## What it does
 - Embeds a Shadow-DOM widget in any web product (npm package or script tag).
-- Lets authorized users inspect a DOM element and attach a comment + screenshot.
+- Lets authorized users inspect a DOM element and attach a comment + screenshot, drag a free-size region to screenshot, or drop a "free" page-level note anywhere (no element, no screenshot).
+- The floating toolbar can be dragged anywhere on screen and expands edge-aware; its position persists.
 - Stores comments in Postgres and screenshots in object storage.
 - Re-anchors each pin to its element after redeploys using a multi-signal fingerprint.
 - Exposes an MCP server (tools: list_comments, get_comment, update_status) so Claude Code reads feedback with full element context and resolves it.

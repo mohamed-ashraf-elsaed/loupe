@@ -11,6 +11,31 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.5.0] — 2026-07-14
+
+### Added
+
+- **Free comments — drop a note anywhere, no element or screenshot.** A new **"Note"**
+  toolbar mode lets you click any spot on the page and leave a page-level comment that
+  isn't tied to a DOM element and carries no screenshot — the lightest way to say "this
+  whole area feels off." New `kind: "free"` in `@loupekit/shared`; the drop point is
+  stored in the existing `offset` field as a fraction of the document, so **no database
+  migration is needed** on the Node server or in `loupekit/laravel`. Free notes render as
+  page-level items in the SDK panel, the dashboard, and both MCP servers (Node + Laravel),
+  which omit the element-HTML/styles sections for them. _Ships to the SDK, the browser
+  extension, and the Laravel widget together (shared `@loupekit/sdk` core)._
+- **Draggable, edge-aware toolbar.** Grab the `◎ Loupe` logo and drop the bar anywhere on
+  screen; its position persists across reloads (`localStorage`). When expanded it grows
+  **inward** so it's always fully visible — docked to a left/right edge it opens as a
+  vertical column, along the top/bottom or in a corner it opens as a horizontal row.
+  Clicking the logo still collapses/expands; a drag no longer triggers a toggle.
+
+### Changed
+
+- **Version alignment.** All publishable packages move to `0.5.0`. The previously stale
+  `@loupekit/server` (`0.2.0`), the extension `manifest.json` (`0.2.0`), and the Node MCP
+  server (`McpServer` `0.2.0`) are now `0.5.0` in lockstep with the rest.
+
 ## [0.4.3] — 2026-07-13
 
 ### Fixed
@@ -208,7 +233,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.0...v0.4.1

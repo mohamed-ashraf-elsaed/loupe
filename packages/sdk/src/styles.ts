@@ -57,6 +57,8 @@ export const STYLES = /* css */ `
 .pin:hover { transform: translate(-4px, -4px) scale(1.12); }
 .pin.detached { background: #9aa0af; }
 .pin.done { background: #10935a; }
+.pin.free { background: var(--accent); border-radius: 50% 50% 2px 50%; }
+.pin.free.done { background: #10935a; }
 .pin.active { outline: 3px solid rgba(74,85,214,.4); }
 
 /* toolbar */
@@ -83,11 +85,24 @@ export const STYLES = /* css */ `
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
 .toolbar .brand {
-  font-weight: 700; letter-spacing: -.01em; cursor: pointer; user-select: none;
+  font-weight: 700; letter-spacing: -.01em; cursor: grab; user-select: none; touch-action: none;
 }
+.toolbar.dragging { transition: none; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.toolbar.dragging .brand { cursor: grabbing; }
 /* collapsed → show only the brand/logo; click it again to expand */
 .toolbar.collapsed { gap: 0; }
 .toolbar.collapsed > *:not(.brand) { display: none; }
+
+/* free-move: the bar is fixed-positioned by JS and expands *inward* from its
+   docked edge — vertical (a column) against a left/right edge, horizontal
+   otherwise — so it's always fully on-screen. */
+.toolbar.floating { transform: none; }
+.toolbar.orient-h.flow-rev { flex-direction: row-reverse; }
+.toolbar.orient-v { flex-direction: column; align-items: stretch; }
+.toolbar.orient-v.flow-rev { flex-direction: column-reverse; }
+.toolbar.orient-v button, .toolbar.orient-v .brand { justify-content: flex-start; }
+.toolbar.orient-v .sep { width: 22px; height: 1px; margin: 2px auto; }
+.toolbar.orient-v .count { margin-left: auto; }
 .toolbar .count {
   background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; margin-left: 2px;

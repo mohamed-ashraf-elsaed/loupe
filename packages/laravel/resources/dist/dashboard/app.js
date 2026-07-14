@@ -80,7 +80,7 @@ function card(c) {
   const el = document.createElement("article");
   el.className = "card";
   el.dataset.id = c.id;
-  const target = c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "\u2014";
+  const target = c.kind === "free" ? "Free note \xB7 page-level" : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "\u2014";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const device = deviceBadge(c);
   const body = document.createElement("div");
@@ -159,13 +159,18 @@ async function remove(c) {
   await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "DELETE" });
 }
 async function copyForClaude(c) {
-  const target = c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
-  const prompt = [
+  const lines = c.kind === "free" ? [
+    `# Product feedback from ${c.author.name}`,
+    ``,
+    `**Note:** ${c.body}`,
+    `**Page:** ${c.url}`,
+    `**Type:** Free note \u2014 a page-level comment not tied to a specific element.`
+  ] : [
     `# Product feedback from ${c.author.name}`,
     ``,
     `**Request:** ${c.body}`,
     `**Page:** ${c.url}`,
-    `**Target element:** \`${target}\``,
+    `**Target element:** \`${c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath}\``,
     ``,
     `## Target element HTML`,
     "```html",
@@ -176,7 +181,8 @@ async function copyForClaude(c) {
     "```json",
     JSON.stringify(c.context.styles, null, 2),
     "```"
-  ].join("\n");
+  ];
+  const prompt = lines.join("\n");
   try {
     await navigator.clipboard.writeText(prompt);
   } catch {

@@ -12,6 +12,10 @@ const C2 = {
   id: "c2", url: "/q", status: "done", body: "other", author: { name: "Bob" },
   anchor: { cssPath: ".foo", testid: null }, context: { html: "<i/>", styles: {} }, createdAt: "t",
 };
+const C3 = {
+  id: "c3", url: "/r", status: "open", body: "page is cramped", author: { name: "Zoe" },
+  kind: "free", anchor: { cssPath: "page", testid: null, tag: "page" }, context: { html: "", styles: {} }, createdAt: "t",
+};
 
 let api: Server;
 let patched: unknown = null;
@@ -22,9 +26,10 @@ beforeAll(async () => {
     if (req.headers["x-loupe-admin"] !== "sek") { res.writeHead(401); return res.end("{}"); }
     const url = new URL(req.url!, "http://x");
     const json = (o: unknown) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
-    if (url.pathname === "/v1/comments" && req.method === "GET") return json([C1, C2]);
+    if (url.pathname === "/v1/comments" && req.method === "GET") return json([C1, C2, C3]);
     if (url.pathname === "/v1/comments/c1") { if (req.method === "PATCH") { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { patched = JSON.parse(b); json({ ...C1, ...(patched as object) }); }); return; } return json(C1); }
     if (url.pathname === "/v1/comments/c2") return json(C2);
+    if (url.pathname === "/v1/comments/c3") return json(C3);
     res.writeHead(404); res.end("{}");
   });
   await new Promise<void>((r) => api.listen(0, () => r()));
@@ -67,6 +72,17 @@ describe("mcp handlers", () => {
     expect(out).toContain("<i/>");
     expect(out).not.toContain("Screenshot:");
     expect(out).toContain("`.foo`");
+  });
+
+  it("list_comments labels a free note as a page-level note", async () => {
+    expect(text(await mod.listComments({}))).toContain("page-level note");
+  });
+
+  it("get_comment: free note omits the element sections", async () => {
+    const out = text(await mod.getComment({ id: "c3" }));
+    expect(out).toContain("Free note");
+    expect(out).not.toContain("Target element HTML");
+    expect(out).not.toContain("Computed styles");
   });
 
   it("update_status patches through", async () => {

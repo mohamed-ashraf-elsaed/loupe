@@ -200,12 +200,12 @@ Migration `create_loupe_comments_table` → `loupe_comments`:
 | `url` | text | normalized (utm/click ids stripped) |
 | `status` | string, indexed | `open` \| `in_progress` \| `done` |
 | `body` | text | the comment |
-| `kind` | string | `element` \| `region` |
+| `kind` | string | `element` \| `region` \| `free` (page-level note) |
 | `author` | json | `{ id, name, email? }` |
 | `author_id` | string, indexed | denormalized for cheap checks |
 | `anchor` | json | element fingerprint (for re-anchoring) |
 | `context` | json | element HTML + computed styles |
-| `offset` | json | pin position within the element |
+| `offset` | json | pin position — within the element, or a document fraction for `free` notes |
 | `region` | json, nullable | rectangle for region comments |
 | `screenshot_url` | text, nullable | URL of the stored screenshot |
 | `created_at` / `updated_at` | timestamps | |

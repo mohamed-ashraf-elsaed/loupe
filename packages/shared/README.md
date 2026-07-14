@@ -49,7 +49,7 @@ npm i @loupekit/shared
 
 | Type | Purpose |
 | --- | --- |
-| **`Comment`** | A piece of visual feedback: body, author, status, element `anchor`, captured `context` (HTML + styles), screenshot URL, and — for free-region comments — `kind: "region"` + a `region` rectangle. |
+| **`Comment`** | A piece of visual feedback: body, author, status, element `anchor`, captured `context` (HTML + styles), screenshot URL. `kind` is `"element"`, `"region"` (+ a `region` rectangle), or `"free"` — a page-level note with no element and no screenshot, positioned via `offset`. |
 | **`Anchor`** | The multi-signal element fingerprint (tag, CSS path, XPath, testid, text, attributes, nth-of-type, rect, viewport) used to re-locate an element after a redeploy. |
 | **`ElementContext`** | The target's `outerHTML` + a curated slice of computed styles. |
 | **`RegionRect`** | A free-region rectangle in document coordinates, with optional element-relative fractions (`rel`) so regions track responsive reflow. |

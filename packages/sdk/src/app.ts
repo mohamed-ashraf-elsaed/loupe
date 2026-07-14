@@ -5,11 +5,12 @@ import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
 import type { Anchor, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
 
-type Mode = "off" | "inspect" | "region";
+type Mode = "off" | "inspect" | "region" | "free";
 /** What the composer is about to attach a comment to. */
 type ComposeTarget =
   | { kind: "element"; element: Element }
-  | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string };
+  | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string }
+  | { kind: "free"; offset: { x: number; y: number }; point: { x: number; y: number } };
 
 const uid = () =>
   (crypto as any).randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
@@ -47,6 +48,13 @@ export class LoupeApp {
   private activeRegionId: string | null = null;
   private regionTimer?: number;
 
+  /** Free-move toolbar position as viewport fractions, or null → default (bottom-center). */
+  private barPos: { fx: number; fy: number } | null = null;
+  /** In-flight drag of the toolbar by its ◎ handle. */
+  private barDrag: { px: number; py: number; ix: number; iy: number } | null = null;
+  /** True right after a drag so the trailing click doesn't also toggle collapse. */
+  private justDragged = false;
+
   private raf = 0;
   private mo?: MutationObserver;
   private tick?: number;
@@ -62,7 +70,9 @@ export class LoupeApp {
   private get url() { return location.pathname + location.search; }
 
   async start() {
+    this.loadBarPos();
     this.buildDom();
+    this.layoutBar();
     this.lastUrl = this.url;
     this.comments = await this.store.list(this.cfg.projectKey, this.url);
     this.renderPins();
@@ -140,12 +150,19 @@ export class LoupeApp {
     // The brand doubles as a collapse/expand toggle.
     const brand = el("span", "brand");
     brand.innerHTML = `<span class="ico">◎</span><span class="label">Loupe</span>`;
-    brand.title = "Collapse / expand the Loupe bar";
+    brand.title = "Drag to move · click to collapse / expand";
     brand.setAttribute("role", "button");
-    brand.onclick = () => this.toggleCollapsed();
+    // Click collapses/expands; a press-and-drag moves the whole bar (see the
+    // pointer handlers). The justDragged guard stops a drag ending in a toggle.
+    brand.onclick = () => { if (this.justDragged) { this.justDragged = false; return; } this.toggleCollapsed(); };
+    brand.addEventListener("pointerdown", this.onBarPointerDown);
 
     const inspectBtn = this.toolBtn("✛", "Inspect & comment", "inspect");
     inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
+
+    const freeBtn = this.toolBtn(NOTE_ICON, "Note", "free");
+    freeBtn.title = "Drop a note anywhere on the page — no element, no screenshot";
+    freeBtn.onclick = () => this.setMode(this.mode === "free" ? "off" : "free");
 
     const regionBtn = this.toolBtn(REGION_ICON, "Region shot", "region");
     regionBtn.title = "Drag a free-size box, screenshot it, and comment";
@@ -156,7 +173,7 @@ export class LoupeApp {
     listBtn.appendChild(this.countEl);
     listBtn.onclick = () => this.togglePanel();
 
-    bar.append(brand, sep(), inspectBtn, regionBtn, listBtn);
+    bar.append(brand, sep(), inspectBtn, freeBtn, regionBtn, listBtn);
     return bar;
   }
 
@@ -298,10 +315,12 @@ export class LoupeApp {
     this.cancelDrag();
     document.body.style.cursor = mode === "off" ? "" : "crosshair";
     (this.toolbar.querySelector('[data-role="inspect"]') as HTMLElement)?.classList.toggle("on", mode === "inspect");
+    (this.toolbar.querySelector('[data-role="free"]') as HTMLElement)?.classList.toggle("on", mode === "free");
     (this.toolbar.querySelector('[data-role="region"]') as HTMLElement)?.classList.toggle("on", mode === "region");
 
     document.removeEventListener("mousemove", this.onMove, true);
     document.removeEventListener("click", this.onClick, true);
+    document.removeEventListener("click", this.onFreeClick, true);
     document.removeEventListener("mousedown", this.onRegionDown, true);
 
     if (mode === "off") return;
@@ -310,10 +329,31 @@ export class LoupeApp {
     if (mode === "inspect") {
       document.addEventListener("mousemove", this.onMove, true);
       document.addEventListener("click", this.onClick, true);
+    } else if (mode === "free") {
+      document.addEventListener("click", this.onFreeClick, true);
     } else if (mode === "region") {
       document.addEventListener("mousedown", this.onRegionDown, true);
     }
   }
+
+  // ---- free note (drop a comment anywhere, no element / no screenshot) -------
+
+  private onFreeClick = (e: MouseEvent) => {
+    if (this.mode !== "free") return;
+    const t = e.target as Element | null;
+    if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return; // ignore our own UI
+    e.preventDefault();
+    e.stopPropagation();
+    const docX = e.clientX + window.scrollX;
+    const docY = e.clientY + window.scrollY;
+    const docW = Math.max(1, document.documentElement.scrollWidth);
+    const docH = Math.max(1, document.documentElement.scrollHeight);
+    // Store the drop point as a fraction of the document so it survives reloads
+    // and reasonable reflow without needing any element anchor.
+    const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
+    this.setMode("off");
+    this.openComposer({ kind: "free", offset, point: { x: docX, y: docY } }, e.clientX, e.clientY);
+  };
 
   // ---- composer -------------------------------------------------------------
 
@@ -323,25 +363,35 @@ export class LoupeApp {
     c.innerHTML = "";
     const label = el("div", "target",
       target.kind === "element" ? describe(target.element)
-        : `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`);
+        : target.kind === "region" ? `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`
+          : "Free note · anywhere on the page");
     const ta = el("textarea") as HTMLTextAreaElement;
-    ta.placeholder = target.kind === "region" ? "What's the issue in this area?" : "What should change here?";
+    ta.placeholder = target.kind === "region" ? "What's the issue in this area?"
+      : target.kind === "free" ? "Leave a note about this page…"
+        : "What should change here?";
     const row = el("div", "row");
-    const chk = el("label", "chk") as HTMLLabelElement;
-    const box = document.createElement("input"); box.type = "checkbox";
-    // Default to attaching. Element shots are captured on submit; region shots are
-    // captured in the background and awaited on submit (see pendingShot).
-    box.checked = true;
-    chk.append(box, document.createTextNode("Attach screenshot"));
+    // Free notes never carry a screenshot, so they skip the attach checkbox.
+    let box: HTMLInputElement | null = null;
+    if (target.kind !== "free") {
+      const chk = el("label", "chk") as HTMLLabelElement;
+      box = document.createElement("input"); box.type = "checkbox";
+      // Default to attaching. Element shots are captured on submit; region shots are
+      // captured in the background and awaited on submit (see pendingShot).
+      box.checked = true;
+      chk.append(box, document.createTextNode("Attach screenshot"));
+      row.append(chk);
+    } else {
+      row.style.justifyContent = "flex-end";
+    }
     const btns = el("div", "btns");
     const cancel = el("button", "ghost", "Cancel") as HTMLButtonElement;
     cancel.onclick = () => this.closeComposer();
     const save = el("button", "primary", "Comment") as HTMLButtonElement;
     save.disabled = true;
     ta.oninput = () => { save.disabled = !ta.value.trim(); };
-    save.onclick = () => this.submit(target, ta.value.trim(), box.checked);
+    save.onclick = () => this.submit(target, ta.value.trim(), box ? box.checked : false);
     btns.append(cancel, save);
-    row.append(chk, btns);
+    row.append(btns);
     c.append(label, ta, row);
 
     // Position near the click, clamped to the viewport.
@@ -375,6 +425,13 @@ export class LoupeApp {
       context = captureElementContext(target.element);
       offset = this.targetOffset;
       anchoredEl = target.element;
+    } else if (target.kind === "free") {
+      // A page-level note: no element, no screenshot. Its position lives in
+      // `offset` as a fraction of the document (see onFreeClick + position()).
+      screenshot = undefined;
+      anchor = pageAnchor(target.point);
+      context = { html: "", styles: {} };
+      offset = target.offset;
     } else {
       // Use the background capture; await it only if it hasn't attached yet.
       screenshot = withShot ? (target.screenshot ?? await this.pendingShot) : undefined;
@@ -435,6 +492,7 @@ export class LoupeApp {
       }
       pin.textContent = String(i + 1);
       pin.classList.toggle("done", c.status === "done");
+      pin.classList.toggle("free", c.kind === "free");
     });
     this.countEl.textContent = String(this.comments.length);
     this.position();
@@ -445,6 +503,18 @@ export class LoupeApp {
     for (const c of this.comments) {
       const pin = this.pins.get(c.id);
       if (!pin) continue;
+
+      if (c.kind === "free") {
+        // Page-level note: position from the stored document-fraction offset.
+        const docW = Math.max(1, document.documentElement.scrollWidth);
+        const docH = Math.max(1, document.documentElement.scrollHeight);
+        const px = c.offset.x * docW - window.scrollX;
+        const py = c.offset.y * docH - window.scrollY;
+        const onScreen = px > -24 && px < window.innerWidth + 24 && py > -24 && py < window.innerHeight + 24;
+        Object.assign(pin.style, { left: px + "px", top: py + "px", display: onScreen ? "grid" : "none" });
+        pin.classList.remove("detached");
+        continue;
+      }
 
       let elx = this.resolved.get(c.id) ?? null;
       if (!elx || !elx.isConnected) {
@@ -517,6 +587,7 @@ export class LoupeApp {
     };
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
+    window.addEventListener("resize", this.onResizeBar);
     let debounce = 0;
     this.mo = new MutationObserver(() => {
       clearTimeout(debounce);
@@ -546,6 +617,115 @@ export class LoupeApp {
       this.overlay.style.display = "";
       this.renderPins();
     }
+    this.layoutBar();
+  }
+
+  // ---- draggable, edge-aware floating toolbar --------------------------------
+
+  private onResizeBar = () => this.layoutBar();
+
+  private loadBarPos() {
+    try {
+      const s = localStorage.getItem("loupe:bar");
+      if (s) { const p = JSON.parse(s); if (typeof p?.fx === "number" && typeof p?.fy === "number") this.barPos = p; }
+    } catch { /* storage unavailable → default position */ }
+  }
+  private saveBarPos() {
+    try { if (this.barPos) localStorage.setItem("loupe:bar", JSON.stringify(this.barPos)); } catch { /* ignore */ }
+  }
+
+  private onBarPointerDown = (e: PointerEvent) => {
+    if (typeof e.button === "number" && e.button !== 0) return;
+    const brand = this.brandEl();
+    const r = brand.getBoundingClientRect();
+    this.barDrag = { px: e.clientX, py: e.clientY, ix: r.left, iy: r.top };
+    this.justDragged = false;
+    try { brand.setPointerCapture(e.pointerId); } catch { /* not supported */ }
+    brand.addEventListener("pointermove", this.onBarPointerMove);
+    brand.addEventListener("pointerup", this.onBarPointerUp);
+    brand.addEventListener("pointercancel", this.onBarPointerUp);
+  };
+
+  private onBarPointerMove = (e: PointerEvent) => {
+    if (!this.barDrag) return;
+    const dx = e.clientX - this.barDrag.px;
+    const dy = e.clientY - this.barDrag.py;
+    if (!this.justDragged && Math.hypot(dx, dy) < 5) return; // ignore tiny jitters (it's a click)
+    this.justDragged = true;
+    e.preventDefault();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const bar = this.toolbar;
+    const brand = this.brandEl();
+    const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
+    const ix = clampPx(this.barDrag.ix + dx, 6, vw - iw - 6);
+    const iy = clampPx(this.barDrag.iy + dy, 6, vh - ih - 6);
+    // While dragging, anchor by the top-left for smooth motion; orientation is
+    // resolved on drop by layoutBar().
+    bar.classList.add("floating", "dragging");
+    bar.classList.remove("orient-v", "flow-rev");
+    bar.classList.add("orient-h");
+    Object.assign(bar.style, { transform: "none", left: ix + "px", top: iy + "px", right: "auto", bottom: "auto" });
+    this.barPos = { fx: ix / vw, fy: iy / vh };
+  };
+
+  private onBarPointerUp = (e: PointerEvent) => {
+    const brand = this.brandEl();
+    brand.removeEventListener("pointermove", this.onBarPointerMove);
+    brand.removeEventListener("pointerup", this.onBarPointerUp);
+    brand.removeEventListener("pointercancel", this.onBarPointerUp);
+    try { brand.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    const dragged = this.justDragged;
+    this.barDrag = null;
+    this.toolbar.classList.remove("dragging");
+    if (dragged) { this.saveBarPos(); this.layoutBar(); } // justDragged stays true so the trailing click is swallowed
+  };
+
+  private brandEl(): HTMLElement { return this.toolbar.querySelector(".brand") as HTMLElement; }
+
+  /**
+   * Position the toolbar for its stored spot and make it expand *inward* so it's
+   * always fully on-screen: docked to a left/right edge → vertical; to a
+   * top/bottom edge or a corner → horizontal. No stored spot → default
+   * (bottom-center, governed by CSS).
+   */
+  private layoutBar() {
+    const bar = this.toolbar;
+    if (!this.barPos) {
+      bar.classList.remove("floating", "orient-h", "orient-v", "flow-rev");
+      for (const p of ["left", "top", "right", "bottom", "transform"] as const) bar.style[p] = "";
+      return;
+    }
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const brand = this.brandEl();
+    const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
+    const ix = clampPx(this.barPos.fx * vw, 6, Math.max(6, vw - iw - 6));
+    const iy = clampPx(this.barPos.fy * vh, 6, Math.max(6, vh - ih - 6));
+    const cx = ix + iw / 2, cy = iy + ih / 2;
+    const horizontalSide = cx < vw / 2 ? "left" : "right";
+    const verticalSide = cy < vh / 2 ? "top" : "bottom";
+    // Nearest edge decides orientation. Ties (corners) fall to horizontal.
+    const vertical = Math.min(cx, vw - cx) < Math.min(cy, vh - cy);
+
+    bar.classList.add("floating");
+    bar.classList.remove("dragging");
+    bar.classList.toggle("orient-v", vertical);
+    bar.classList.toggle("orient-h", !vertical);
+    bar.classList.toggle("flow-rev", vertical ? verticalSide === "bottom" : horizontalSide === "right");
+    bar.style.transform = "none";
+
+    // Anchor by the icon's nearest corner so the ◎ stays put and items grow inward.
+    if (horizontalSide === "left") { bar.style.left = ix + "px"; bar.style.right = "auto"; }
+    else { bar.style.right = (vw - (ix + iw)) + "px"; bar.style.left = "auto"; }
+    if (verticalSide === "top") { bar.style.top = iy + "px"; bar.style.bottom = "auto"; }
+    else { bar.style.bottom = (vh - (iy + ih)) + "px"; bar.style.top = "auto"; }
+
+    // Extreme case (icon dropped near center): the expanded bar could overflow the
+    // far edge — snap it back so it's never clipped.
+    const r = bar.getBoundingClientRect();
+    if (r.right > vw - 6 && bar.style.left !== "auto") { bar.style.left = "auto"; bar.style.right = "6px"; }
+    if (r.left < 6 && bar.style.right !== "auto") { bar.style.right = "auto"; bar.style.left = "6px"; }
+    if (r.bottom > vh - 6 && bar.style.top !== "auto") { bar.style.top = "auto"; bar.style.bottom = "6px"; }
+    if (r.top < 6 && bar.style.bottom !== "auto") { bar.style.bottom = "auto"; bar.style.top = "6px"; }
   }
 
   private renderPanel() {
@@ -560,7 +740,7 @@ export class LoupeApp {
 
     const list = el("div", "list");
     if (!this.comments.length) {
-      list.appendChild(el("div", "empty", "No comments yet. Click “Inspect & comment”, then click any element."));
+      list.appendChild(el("div", "empty", "No comments yet. Click “Inspect & comment” and pick an element, or “Note” to drop a comment anywhere."));
     }
     this.comments.forEach((c, i) => list.appendChild(this.itemView(c, i)));
     p.appendChild(list);
@@ -618,30 +798,53 @@ export class LoupeApp {
   }
 
   private async copyForClaude(c: Comment) {
-    const prompt = [
-      `# Product feedback from ${c.author.name}`,
-      ``,
-      `**Comment:** ${c.body}`,
-      `**Page:** ${c.url}`,
-      `**Element:** \`${c.anchor.cssPath}\``,
-      c.anchor.testid ? `**Stable id:** \`${c.anchor.testid}\`` : ``,
-      ``,
-      `## Target element`,
-      "```html",
-      c.context.html,
-      "```",
-      ``,
-      `## Computed styles`,
-      "```json",
-      JSON.stringify(c.context.styles, null, 2),
-      "```",
-    ].filter(Boolean).join("\n");
+    const lines = c.kind === "free"
+      ? [
+        `# Product feedback from ${c.author.name}`,
+        ``,
+        `**Note:** ${c.body}`,
+        `**Page:** ${c.url}`,
+        `**Type:** Free note — a page-level comment not tied to a specific element.`,
+      ]
+      : [
+        `# Product feedback from ${c.author.name}`,
+        ``,
+        `**Comment:** ${c.body}`,
+        `**Page:** ${c.url}`,
+        `**Element:** \`${c.anchor.cssPath}\``,
+        c.anchor.testid ? `**Stable id:** \`${c.anchor.testid}\`` : ``,
+        ``,
+        `## Target element`,
+        "```html",
+        c.context.html,
+        "```",
+        ``,
+        `## Computed styles`,
+        "```json",
+        JSON.stringify(c.context.styles, null, 2),
+        "```",
+      ];
+    const prompt = lines.filter(Boolean).join("\n");
     try { await navigator.clipboard.writeText(prompt); } catch { console.log("[loupe] copy failed; prompt:\n" + prompt); }
   }
 
   private flash(id: string) {
     const c = this.comments.find((x) => x.id === id);
     const pin = this.pins.get(id);
+
+    if (c?.kind === "free") {
+      for (const p of this.pins.values()) p.classList.remove("active");
+      pin?.classList.add("active");
+      const docW = Math.max(1, document.documentElement.scrollWidth);
+      const docH = Math.max(1, document.documentElement.scrollHeight);
+      window.scrollTo({
+        top: Math.max(0, c.offset.y * docH - window.innerHeight / 2),
+        left: Math.max(0, c.offset.x * docW - window.innerWidth / 2),
+        behavior: "smooth",
+      });
+      this.position();
+      return;
+    }
 
     if (c?.kind === "region" && c.region) {
       for (const p of this.pins.values()) p.classList.remove("active");
@@ -674,6 +877,7 @@ export class LoupeApp {
     this.mo?.disconnect();
     if (this.tick) clearInterval(this.tick);
     window.clearTimeout(this.regionTimer);
+    window.removeEventListener("resize", this.onResizeBar);
     document.removeEventListener("keydown", this.onKey, true);
     this.root?.remove();
   }
@@ -689,12 +893,34 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 function sep() { return el("span", "sep"); }
 function clamp(n: number) { return Math.max(0, Math.min(1, n)); }
+function clampPx(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
 
 /** Dashed marquee icon for the "Region shot" button — inline SVG so it never depends on a font. */
 const REGION_ICON =
   `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
   `<rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/>` +
   `</svg>`;
+
+/** Speech-bubble icon for the free-"Note" button. */
+const NOTE_ICON =
+  `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
+  `<path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `</svg>`;
+
+/** Synthesize an Anchor for a free page-level note so downstream (dashboard/MCP) stays happy. */
+function pageAnchor(point: { x: number; y: number }): Anchor {
+  return {
+    tag: "page",
+    cssPath: "page",
+    xpath: "",
+    testid: null,
+    text: "",
+    attrs: {},
+    nthOfType: 1,
+    rect: { x: Math.round(point.x), y: Math.round(point.y), w: 0, h: 0 },
+    viewport: { w: window.innerWidth, h: window.innerHeight },
+  };
+}
 
 /** Synthesize an Anchor for a free region so downstream (dashboard/MCP) stays happy. */
 function regionAnchor(region: RegionRect): Anchor {
@@ -723,5 +949,6 @@ function describe(elx: Element): string {
   return txt ? `${tag} · “${txt}”` : tag;
 }
 function describeAnchor(c: Comment): string {
+  if (c.kind === "free") return "Free note · page-level";
   return c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
 }

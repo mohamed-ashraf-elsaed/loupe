@@ -111,7 +111,9 @@ function card(c: Comment): HTMLElement {
   el.className = "card";
   el.dataset.id = c.id;
 
-  const target = c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "—";
+  const target = c.kind === "free"
+    ? "Free note · page-level"
+    : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "—";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const device = deviceBadge(c);
 
@@ -199,24 +201,32 @@ async function remove(c: Comment) {
 }
 
 async function copyForClaude(c: Comment) {
-  const target = c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
-  const prompt = [
-    `# Product feedback from ${c.author.name}`,
-    ``,
-    `**Request:** ${c.body}`,
-    `**Page:** ${c.url}`,
-    `**Target element:** \`${target}\``,
-    ``,
-    `## Target element HTML`,
-    "```html",
-    c.context.html,
-    "```",
-    ``,
-    `## Computed styles`,
-    "```json",
-    JSON.stringify(c.context.styles, null, 2),
-    "```",
-  ].join("\n");
+  const lines = c.kind === "free"
+    ? [
+      `# Product feedback from ${c.author.name}`,
+      ``,
+      `**Note:** ${c.body}`,
+      `**Page:** ${c.url}`,
+      `**Type:** Free note — a page-level comment not tied to a specific element.`,
+    ]
+    : [
+      `# Product feedback from ${c.author.name}`,
+      ``,
+      `**Request:** ${c.body}`,
+      `**Page:** ${c.url}`,
+      `**Target element:** \`${c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath}\``,
+      ``,
+      `## Target element HTML`,
+      "```html",
+      c.context.html,
+      "```",
+      ``,
+      `## Computed styles`,
+      "```json",
+      JSON.stringify(c.context.styles, null, 2),
+      "```",
+    ];
+  const prompt = lines.join("\n");
   try { await navigator.clipboard.writeText(prompt); } catch { console.log(prompt); }
 }
 

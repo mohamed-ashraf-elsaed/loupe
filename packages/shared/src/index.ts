@@ -44,8 +44,11 @@ export interface RegionRect {
  * How a comment is pinned to the page:
  * - "element" (default) → anchored to a DOM element via its fingerprint.
  * - "region"  → a free-form rectangle the user dragged out; carries `region`.
+ * - "free"    → a page-level note dropped at a point, tied to no element and
+ *               carrying no screenshot. Its drop point lives in `offset`,
+ *               stored as a fraction of the document (x,y ∈ [0,1]).
  */
-export type CommentKind = "element" | "region";
+export type CommentKind = "element" | "region" | "free";
 
 /** Device class the feedback was captured on, derived from the viewport width. */
 export type DeviceType = "mobile" | "tablet" | "desktop";

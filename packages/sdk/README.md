@@ -57,7 +57,9 @@ the moment of the comment, so the feedback stays actionable even after the UI ch
 | | |
 | --- | --- |
 | 🎯 **Click-to-comment inspector** | Hover-highlight any element, click to pin a comment. |
+| 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
 | ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. The region anchors to the element under its center, so it tracks responsive reflow and scrolling. |
+| 🧲 **Draggable toolbar** | Drag the `◎` logo anywhere; the position persists and the bar expands edge-aware (vertical on a side, horizontal on top/bottom). |
 | 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint (stable id/testid, CSS path, XPath, text, attributes, position) re-locates the element on the current page; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
 | 📸 **Screenshot capture** | `[data-loupe-redact]` regions are painted over **before any pixels leave the browser**. |
 | 🧩 **Shadow-DOM isolation** | The widget's CSS never leaks into your page and vice-versa. |
@@ -87,8 +89,9 @@ init({
 });
 ```
 
-A floating toolbar appears with **Inspect & comment**, **Region shot**, and **Comments**.
-Call `destroy()` to tear it down. `init()` is idempotent — safe to call more than once.
+A floating toolbar appears with **Inspect & comment**, **Note** (a free page-level comment),
+**Region shot**, and **Comments**. Drag the `◎` logo to move the bar anywhere; click it to
+collapse. Call `destroy()` to tear it down. `init()` is idempotent — safe to call more than once.
 
 ### Offline mode (no backend)
 

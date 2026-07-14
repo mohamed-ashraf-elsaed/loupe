@@ -48,6 +48,24 @@ class CommentModelTest extends TestCase
         $this->assertSame('http://x/y', $array['screenshot']);
     }
 
+    public function test_to_loupe_array_handles_a_free_comment(): void
+    {
+        $comment = Comment::query()->create(array_merge($this->attributes(), [
+            'id' => 'cf',
+            'kind' => 'free',
+            'anchor' => ['tag' => 'page', 'cssPath' => 'page', 'testid' => null],
+            'context' => ['html' => '', 'styles' => []],
+            'offset' => ['x' => 0.2, 'y' => 0.8],
+        ]));
+
+        $array = $comment->fresh()->toLoupeArray();
+
+        $this->assertSame('free', $array['kind']);
+        $this->assertNull($array['screenshot']);
+        $this->assertArrayNotHasKey('region', $array);
+        $this->assertSame(['x' => 0.2, 'y' => 0.8], $array['offset']);
+    }
+
     public function test_to_loupe_array_includes_viewport_when_set(): void
     {
         $comment = Comment::query()->create(array_merge($this->attributes(), [

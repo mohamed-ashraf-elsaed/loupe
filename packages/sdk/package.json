@@ -1,7 +1,11 @@
 {
   "name": "@loupekit/sdk",
-  "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
-  "version": "0.4.3",
+  "author": {
+    "name": "Mohamed Ashraf Elsaed",
+    "email": "m.ashraf.saed@gmail.com",
+    "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
+  },
+  "version": "0.5.0",
   "description": "Embeddable visual-feedback layer: pin comments to the live UI and hand them to Claude.",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,17 +17,32 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["feedback", "annotation", "visual-feedback", "product-management", "claude", "mcp"],
+  "keywords": [
+    "feedback",
+    "annotation",
+    "visual-feedback",
+    "product-management",
+    "claude",
+    "mcp"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git", "directory": "packages/sdk" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git",
+    "directory": "packages/sdk"
+  },
   "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@loupekit/shared": "*",
     "modern-screenshot": "^4.6.6"

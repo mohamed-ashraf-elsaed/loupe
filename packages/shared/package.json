@@ -1,20 +1,43 @@
 {
   "name": "@loupekit/shared",
-  "author": { "name": "Mohamed Ashraf Elsaed", "email": "m.ashraf.saed@gmail.com", "url": "https://www.linkedin.com/in/mohamedashrafelsaed/" },
-  "version": "0.4.3",
+  "author": {
+    "name": "Mohamed Ashraf Elsaed",
+    "email": "m.ashraf.saed@gmail.com",
+    "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
+  },
+  "version": "0.5.0",
   "description": "Canonical TypeScript types + helpers (normalizeUrl) shared across the Loupe visual-feedback platform.",
-  "keywords": ["loupe", "types", "shared", "visual-feedback", "annotation", "normalize-url", "typescript"],
+  "keywords": [
+    "loupe",
+    "types",
+    "shared",
+    "visual-feedback",
+    "annotation",
+    "normalize-url",
+    "typescript"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git", "directory": "packages/shared" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git",
+    "directory": "packages/shared"
+  },
   "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
   }

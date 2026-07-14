@@ -86,6 +86,8 @@ var Loupe = (() => {
 .pin:hover { transform: translate(-4px, -4px) scale(1.12); }
 .pin.detached { background: #9aa0af; }
 .pin.done { background: #10935a; }
+.pin.free { background: var(--accent); border-radius: 50% 50% 2px 50%; }
+.pin.free.done { background: #10935a; }
 .pin.active { outline: 3px solid rgba(74,85,214,.4); }
 
 /* toolbar */
@@ -112,11 +114,24 @@ var Loupe = (() => {
 .toolbar button.on { background: var(--accent); color: #fff; }
 .toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
 .toolbar .brand {
-  font-weight: 700; letter-spacing: -.01em; cursor: pointer; user-select: none;
+  font-weight: 700; letter-spacing: -.01em; cursor: grab; user-select: none; touch-action: none;
 }
+.toolbar.dragging { transition: none; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.toolbar.dragging .brand { cursor: grabbing; }
 /* collapsed \u2192 show only the brand/logo; click it again to expand */
 .toolbar.collapsed { gap: 0; }
 .toolbar.collapsed > *:not(.brand) { display: none; }
+
+/* free-move: the bar is fixed-positioned by JS and expands *inward* from its
+   docked edge \u2014 vertical (a column) against a left/right edge, horizontal
+   otherwise \u2014 so it's always fully on-screen. */
+.toolbar.floating { transform: none; }
+.toolbar.orient-h.flow-rev { flex-direction: row-reverse; }
+.toolbar.orient-v { flex-direction: column; align-items: stretch; }
+.toolbar.orient-v.flow-rev { flex-direction: column-reverse; }
+.toolbar.orient-v button, .toolbar.orient-v .brand { justify-content: flex-start; }
+.toolbar.orient-v .sep { width: 22px; height: 1px; margin: 2px auto; }
+.toolbar.orient-v .count { margin-left: auto; }
 .toolbar .count {
   background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
   border-radius: 999px; padding: 1px 7px; margin-left: 2px;
@@ -2196,6 +2211,12 @@ var Loupe = (() => {
       this.dragStart = null;
       /** region comment whose outline is currently highlighted (tracks scroll). */
       this.activeRegionId = null;
+      /** Free-move toolbar position as viewport fractions, or null → default (bottom-center). */
+      this.barPos = null;
+      /** In-flight drag of the toolbar by its ◎ handle. */
+      this.barDrag = null;
+      /** True right after a drag so the trailing click doesn't also toggle collapse. */
+      this.justDragged = false;
       this.raf = 0;
       // ---- inspector ------------------------------------------------------------
       this.onMove = (e) => {
@@ -2270,11 +2291,36 @@ var Loupe = (() => {
         this.setMode("off");
         this.finishRegion(vp);
       };
+      // ---- free note (drop a comment anywhere, no element / no screenshot) -------
+      this.onFreeClick = (e) => {
+        if (this.mode !== "free") return;
+        const t = e.target;
+        if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const docX = e.clientX + window.scrollX;
+        const docY = e.clientY + window.scrollY;
+        const docW = Math.max(1, document.documentElement.scrollWidth);
+        const docH = Math.max(1, document.documentElement.scrollHeight);
+        const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
+        this.setMode("off");
+        this.openComposer({ kind: "free", offset, point: { x: docX, y: docY } }, e.clientX, e.clientY);
+      };
       /** Reposition every pin, re-resolving anchors whose element has gone. */
       this.position = () => {
         for (const c of this.comments) {
           const pin = this.pins.get(c.id);
           if (!pin) continue;
+          if (c.kind === "free") {
+            const docW = Math.max(1, document.documentElement.scrollWidth);
+            const docH = Math.max(1, document.documentElement.scrollHeight);
+            const px = c.offset.x * docW - window.scrollX;
+            const py = c.offset.y * docH - window.scrollY;
+            const onScreen = px > -24 && px < window.innerWidth + 24 && py > -24 && py < window.innerHeight + 24;
+            Object.assign(pin.style, { left: px + "px", top: py + "px", display: onScreen ? "grid" : "none" });
+            pin.classList.remove("detached");
+            continue;
+          }
           let elx = this.resolved.get(c.id) ?? null;
           if (!elx || !elx.isConnected) {
             const r = resolveAnchor(c.anchor);
@@ -2319,6 +2365,58 @@ var Loupe = (() => {
           }
         }
       };
+      // ---- draggable, edge-aware floating toolbar --------------------------------
+      this.onResizeBar = () => this.layoutBar();
+      this.onBarPointerDown = (e) => {
+        if (typeof e.button === "number" && e.button !== 0) return;
+        const brand = this.brandEl();
+        const r = brand.getBoundingClientRect();
+        this.barDrag = { px: e.clientX, py: e.clientY, ix: r.left, iy: r.top };
+        this.justDragged = false;
+        try {
+          brand.setPointerCapture(e.pointerId);
+        } catch {
+        }
+        brand.addEventListener("pointermove", this.onBarPointerMove);
+        brand.addEventListener("pointerup", this.onBarPointerUp);
+        brand.addEventListener("pointercancel", this.onBarPointerUp);
+      };
+      this.onBarPointerMove = (e) => {
+        if (!this.barDrag) return;
+        const dx = e.clientX - this.barDrag.px;
+        const dy = e.clientY - this.barDrag.py;
+        if (!this.justDragged && Math.hypot(dx, dy) < 5) return;
+        this.justDragged = true;
+        e.preventDefault();
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const bar = this.toolbar;
+        const brand = this.brandEl();
+        const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
+        const ix = clampPx(this.barDrag.ix + dx, 6, vw - iw - 6);
+        const iy = clampPx(this.barDrag.iy + dy, 6, vh - ih - 6);
+        bar.classList.add("floating", "dragging");
+        bar.classList.remove("orient-v", "flow-rev");
+        bar.classList.add("orient-h");
+        Object.assign(bar.style, { transform: "none", left: ix + "px", top: iy + "px", right: "auto", bottom: "auto" });
+        this.barPos = { fx: ix / vw, fy: iy / vh };
+      };
+      this.onBarPointerUp = (e) => {
+        const brand = this.brandEl();
+        brand.removeEventListener("pointermove", this.onBarPointerMove);
+        brand.removeEventListener("pointerup", this.onBarPointerUp);
+        brand.removeEventListener("pointercancel", this.onBarPointerUp);
+        try {
+          brand.releasePointerCapture(e.pointerId);
+        } catch {
+        }
+        const dragged = this.justDragged;
+        this.barDrag = null;
+        this.toolbar.classList.remove("dragging");
+        if (dragged) {
+          this.saveBarPos();
+          this.layoutBar();
+        }
+      };
       this.cfg = cfg;
       this.store = cfg.apiBase ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac, cfg.headers, cfg.credentials) : new LocalStorageAdapter();
     }
@@ -2326,7 +2424,9 @@ var Loupe = (() => {
       return location.pathname + location.search;
     }
     async start() {
+      this.loadBarPos();
       this.buildDom();
+      this.layoutBar();
       this.lastUrl = this.url;
       this.comments = await this.store.list(this.cfg.projectKey, this.url);
       this.renderPins();
@@ -2391,11 +2491,21 @@ var Loupe = (() => {
       const bar = el("div", "toolbar");
       const brand = el("span", "brand");
       brand.innerHTML = `<span class="ico">\u25CE</span><span class="label">Loupe</span>`;
-      brand.title = "Collapse / expand the Loupe bar";
+      brand.title = "Drag to move \xB7 click to collapse / expand";
       brand.setAttribute("role", "button");
-      brand.onclick = () => this.toggleCollapsed();
+      brand.onclick = () => {
+        if (this.justDragged) {
+          this.justDragged = false;
+          return;
+        }
+        this.toggleCollapsed();
+      };
+      brand.addEventListener("pointerdown", this.onBarPointerDown);
       const inspectBtn = this.toolBtn("\u271B", "Inspect & comment", "inspect");
       inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
+      const freeBtn = this.toolBtn(NOTE_ICON, "Note", "free");
+      freeBtn.title = "Drop a note anywhere on the page \u2014 no element, no screenshot";
+      freeBtn.onclick = () => this.setMode(this.mode === "free" ? "off" : "free");
       const regionBtn = this.toolBtn(REGION_ICON, "Region shot", "region");
       regionBtn.title = "Drag a free-size box, screenshot it, and comment";
       regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
@@ -2403,7 +2513,7 @@ var Loupe = (() => {
       this.countEl = el("span", "count", "0");
       listBtn.appendChild(this.countEl);
       listBtn.onclick = () => this.togglePanel();
-      bar.append(brand, sep(), inspectBtn, regionBtn, listBtn);
+      bar.append(brand, sep(), inspectBtn, freeBtn, regionBtn, listBtn);
       return bar;
     }
     /** A toolbar button with a uniform icon + label layout. `icon` may be an SVG string. */
@@ -2472,9 +2582,11 @@ var Loupe = (() => {
       this.cancelDrag();
       document.body.style.cursor = mode === "off" ? "" : "crosshair";
       this.toolbar.querySelector('[data-role="inspect"]')?.classList.toggle("on", mode === "inspect");
+      this.toolbar.querySelector('[data-role="free"]')?.classList.toggle("on", mode === "free");
       this.toolbar.querySelector('[data-role="region"]')?.classList.toggle("on", mode === "region");
       document.removeEventListener("mousemove", this.onMove, true);
       document.removeEventListener("click", this.onClick, true);
+      document.removeEventListener("click", this.onFreeClick, true);
       document.removeEventListener("mousedown", this.onRegionDown, true);
       if (mode === "off") return;
       document.addEventListener("keydown", this.onKey, true);
@@ -2482,6 +2594,8 @@ var Loupe = (() => {
       if (mode === "inspect") {
         document.addEventListener("mousemove", this.onMove, true);
         document.addEventListener("click", this.onClick, true);
+      } else if (mode === "free") {
+        document.addEventListener("click", this.onFreeClick, true);
       } else if (mode === "region") {
         document.addEventListener("mousedown", this.onRegionDown, true);
       }
@@ -2494,16 +2608,22 @@ var Loupe = (() => {
       const label = el(
         "div",
         "target",
-        target.kind === "element" ? describe(target.element) : `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px`
+        target.kind === "element" ? describe(target.element) : target.kind === "region" ? `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : "Free note \xB7 anywhere on the page"
       );
       const ta = el("textarea");
-      ta.placeholder = target.kind === "region" ? "What's the issue in this area?" : "What should change here?";
+      ta.placeholder = target.kind === "region" ? "What's the issue in this area?" : target.kind === "free" ? "Leave a note about this page\u2026" : "What should change here?";
       const row = el("div", "row");
-      const chk = el("label", "chk");
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.checked = true;
-      chk.append(box, document.createTextNode("Attach screenshot"));
+      let box = null;
+      if (target.kind !== "free") {
+        const chk = el("label", "chk");
+        box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = true;
+        chk.append(box, document.createTextNode("Attach screenshot"));
+        row.append(chk);
+      } else {
+        row.style.justifyContent = "flex-end";
+      }
       const btns = el("div", "btns");
       const cancel = el("button", "ghost", "Cancel");
       cancel.onclick = () => this.closeComposer();
@@ -2512,9 +2632,9 @@ var Loupe = (() => {
       ta.oninput = () => {
         save.disabled = !ta.value.trim();
       };
-      save.onclick = () => this.submit(target, ta.value.trim(), box.checked);
+      save.onclick = () => this.submit(target, ta.value.trim(), box ? box.checked : false);
       btns.append(cancel, save);
-      row.append(chk, btns);
+      row.append(btns);
       c.append(label, ta, row);
       const w = 300, h = 190;
       const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
@@ -2545,6 +2665,11 @@ var Loupe = (() => {
         context = captureElementContext(target.element);
         offset = this.targetOffset;
         anchoredEl = target.element;
+      } else if (target.kind === "free") {
+        screenshot = void 0;
+        anchor = pageAnchor(target.point);
+        context = { html: "", styles: {} };
+        offset = target.offset;
       } else {
         screenshot = withShot ? target.screenshot ?? await this.pendingShot : void 0;
         region = target.region;
@@ -2604,6 +2729,7 @@ var Loupe = (() => {
         }
         pin.textContent = String(i + 1);
         pin.classList.toggle("done", c.status === "done");
+        pin.classList.toggle("free", c.kind === "free");
       });
       this.countEl.textContent = String(this.comments.length);
       this.position();
@@ -2631,6 +2757,7 @@ var Loupe = (() => {
       };
       window.addEventListener("scroll", reposition, true);
       window.addEventListener("resize", reposition);
+      window.addEventListener("resize", this.onResizeBar);
       let debounce = 0;
       this.mo = new MutationObserver(() => {
         clearTimeout(debounce);
@@ -2664,6 +2791,86 @@ var Loupe = (() => {
         this.overlay.style.display = "";
         this.renderPins();
       }
+      this.layoutBar();
+    }
+    loadBarPos() {
+      try {
+        const s = localStorage.getItem("loupe:bar");
+        if (s) {
+          const p = JSON.parse(s);
+          if (typeof p?.fx === "number" && typeof p?.fy === "number") this.barPos = p;
+        }
+      } catch {
+      }
+    }
+    saveBarPos() {
+      try {
+        if (this.barPos) localStorage.setItem("loupe:bar", JSON.stringify(this.barPos));
+      } catch {
+      }
+    }
+    brandEl() {
+      return this.toolbar.querySelector(".brand");
+    }
+    /**
+     * Position the toolbar for its stored spot and make it expand *inward* so it's
+     * always fully on-screen: docked to a left/right edge → vertical; to a
+     * top/bottom edge or a corner → horizontal. No stored spot → default
+     * (bottom-center, governed by CSS).
+     */
+    layoutBar() {
+      const bar = this.toolbar;
+      if (!this.barPos) {
+        bar.classList.remove("floating", "orient-h", "orient-v", "flow-rev");
+        for (const p of ["left", "top", "right", "bottom", "transform"]) bar.style[p] = "";
+        return;
+      }
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const brand = this.brandEl();
+      const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
+      const ix = clampPx(this.barPos.fx * vw, 6, Math.max(6, vw - iw - 6));
+      const iy = clampPx(this.barPos.fy * vh, 6, Math.max(6, vh - ih - 6));
+      const cx = ix + iw / 2, cy = iy + ih / 2;
+      const horizontalSide = cx < vw / 2 ? "left" : "right";
+      const verticalSide = cy < vh / 2 ? "top" : "bottom";
+      const vertical = Math.min(cx, vw - cx) < Math.min(cy, vh - cy);
+      bar.classList.add("floating");
+      bar.classList.remove("dragging");
+      bar.classList.toggle("orient-v", vertical);
+      bar.classList.toggle("orient-h", !vertical);
+      bar.classList.toggle("flow-rev", vertical ? verticalSide === "bottom" : horizontalSide === "right");
+      bar.style.transform = "none";
+      if (horizontalSide === "left") {
+        bar.style.left = ix + "px";
+        bar.style.right = "auto";
+      } else {
+        bar.style.right = vw - (ix + iw) + "px";
+        bar.style.left = "auto";
+      }
+      if (verticalSide === "top") {
+        bar.style.top = iy + "px";
+        bar.style.bottom = "auto";
+      } else {
+        bar.style.bottom = vh - (iy + ih) + "px";
+        bar.style.top = "auto";
+      }
+      const r = bar.getBoundingClientRect();
+      if (r.right > vw - 6 && bar.style.left !== "auto") {
+        bar.style.left = "auto";
+        bar.style.right = "6px";
+      }
+      if (r.left < 6 && bar.style.right !== "auto") {
+        bar.style.right = "auto";
+        bar.style.left = "6px";
+      }
+      if (r.bottom > vh - 6 && bar.style.top !== "auto") {
+        bar.style.top = "auto";
+        bar.style.bottom = "6px";
+      }
+      if (r.top < 6 && bar.style.bottom !== "auto") {
+        bar.style.bottom = "auto";
+        bar.style.top = "6px";
+      }
     }
     renderPanel() {
       const p = this.panel;
@@ -2676,7 +2883,7 @@ var Loupe = (() => {
       p.appendChild(head);
       const list = el("div", "list");
       if (!this.comments.length) {
-        list.appendChild(el("div", "empty", "No comments yet. Click \u201CInspect & comment\u201D, then click any element."));
+        list.appendChild(el("div", "empty", "No comments yet. Click \u201CInspect & comment\u201D and pick an element, or \u201CNote\u201D to drop a comment anywhere."));
       }
       this.comments.forEach((c, i) => list.appendChild(this.itemView(c, i)));
       p.appendChild(list);
@@ -2735,7 +2942,13 @@ var Loupe = (() => {
       return item;
     }
     async copyForClaude(c) {
-      const prompt = [
+      const lines = c.kind === "free" ? [
+        `# Product feedback from ${c.author.name}`,
+        ``,
+        `**Note:** ${c.body}`,
+        `**Page:** ${c.url}`,
+        `**Type:** Free note \u2014 a page-level comment not tied to a specific element.`
+      ] : [
         `# Product feedback from ${c.author.name}`,
         ``,
         `**Comment:** ${c.body}`,
@@ -2752,7 +2965,8 @@ var Loupe = (() => {
         "```json",
         JSON.stringify(c.context.styles, null, 2),
         "```"
-      ].filter(Boolean).join("\n");
+      ];
+      const prompt = lines.filter(Boolean).join("\n");
       try {
         await navigator.clipboard.writeText(prompt);
       } catch {
@@ -2762,6 +2976,19 @@ var Loupe = (() => {
     flash(id) {
       const c = this.comments.find((x) => x.id === id);
       const pin = this.pins.get(id);
+      if (c?.kind === "free") {
+        for (const p of this.pins.values()) p.classList.remove("active");
+        pin?.classList.add("active");
+        const docW = Math.max(1, document.documentElement.scrollWidth);
+        const docH = Math.max(1, document.documentElement.scrollHeight);
+        window.scrollTo({
+          top: Math.max(0, c.offset.y * docH - window.innerHeight / 2),
+          left: Math.max(0, c.offset.x * docW - window.innerWidth / 2),
+          behavior: "smooth"
+        });
+        this.position();
+        return;
+      }
       if (c?.kind === "region" && c.region) {
         for (const p of this.pins.values()) p.classList.remove("active");
         pin?.classList.add("active");
@@ -2788,6 +3015,7 @@ var Loupe = (() => {
       this.mo?.disconnect();
       if (this.tick) clearInterval(this.tick);
       window.clearTimeout(this.regionTimer);
+      window.removeEventListener("resize", this.onResizeBar);
       document.removeEventListener("keydown", this.onKey, true);
       this.root?.remove();
     }
@@ -2804,7 +3032,24 @@ var Loupe = (() => {
   function clamp(n) {
     return Math.max(0, Math.min(1, n));
   }
+  function clampPx(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
   var REGION_ICON = `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
+  var NOTE_ICON = `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  function pageAnchor(point) {
+    return {
+      tag: "page",
+      cssPath: "page",
+      xpath: "",
+      testid: null,
+      text: "",
+      attrs: {},
+      nthOfType: 1,
+      rect: { x: Math.round(point.x), y: Math.round(point.y), w: 0, h: 0 },
+      viewport: { w: window.innerWidth, h: window.innerHeight }
+    };
+  }
   function regionAnchor(region) {
     return {
       tag: "region",
@@ -2830,6 +3075,7 @@ var Loupe = (() => {
     return txt ? `${tag} \xB7 \u201C${txt}\u201D` : tag;
   }
   function describeAnchor(c) {
+    if (c.kind === "free") return "Free note \xB7 page-level";
     return c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
   }
 

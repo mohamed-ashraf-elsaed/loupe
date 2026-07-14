@@ -41,6 +41,12 @@ async function api(path: string, init?: RequestInit): Promise<any> {
 
 const wrap = (text: string) => ({ content: [{ type: "text" as const, text }] });
 
+/** How to name a comment's target in a one-liner. Free notes have no element. */
+const targetOf = (c: Comment) =>
+  c.kind === "free"
+    ? "page-level note"
+    : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
+
 // Tool handlers are exported so they can be unit-tested in-process (the stdio
 // transport below only runs when this file is the entrypoint).
 
@@ -52,13 +58,25 @@ export async function listComments({ status, url }: { status?: string; url?: str
   if (!comments.length) return wrap("No comments match.");
   const lines = comments.map(
     (c) =>
-      `- [${c.status}] #${c.id} — ${c.body}\n    ↳ ${c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath} on ${c.url} (by ${c.author.name})`,
+      `- [${c.status}] #${c.id} — ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
   );
   return wrap(`${comments.length} comment(s):\n\n${lines.join("\n")}\n\nUse get_comment(id) for the full element context.`);
 }
 
 export async function getComment({ id }: { id: string }) {
   const c = (await api(`/v1/comments/${encodeURIComponent(id)}`)) as Comment;
+  // Free notes aren't tied to an element — skip the element HTML/styles sections.
+  if (c.kind === "free") {
+    return wrap(
+      [
+        `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
+        ``,
+        `**Note:** ${c.body}`,
+        `**Page:** ${c.url}`,
+        `**Type:** Free note — a page-level comment, not tied to a specific element (no screenshot).`,
+      ].join("\n"),
+    );
+  }
   return wrap(
     [
       `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
@@ -86,7 +104,7 @@ export async function updateStatus({ id, status }: { id: string; status: string 
   return wrap(`#${id} → ${status}`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.2.0" });
+const server = new McpServer({ name: "loupe", version: "0.5.0" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Use this to see what a PM has flagged, then work through the items.",

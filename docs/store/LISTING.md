@@ -25,6 +25,7 @@ Built for product managers, designers, QA, and the developers who ship their fee
 
 WHAT YOU CAN DO
 • Inspect & pin — click an element and attach a comment anchored to it, not to a vague screenshot.
+• Free notes — drop a page-level comment anywhere with the Note mode, no element or screenshot required.
 • Capture — pixel-perfect screenshots of the page, cropped to what matters (sensitive fields can be redacted).
 • Survive redeploys — pins re-anchor to their element even after the markup changes, using a multi-signal fingerprint.
 • Triage — every comment lands on a Kanban board: open, in progress, done.
@@ -38,7 +39,7 @@ WHY LOUPE
 HOW IT WORKS
 1. Click the Loupe icon, set your project key and (optionally) your API endpoint.
 2. Click "Start Loupe on this tab."
-3. Inspect an element, write your comment, capture a screenshot.
+3. Inspect an element (or drop a free note anywhere), write your comment, capture a screenshot.
 4. Review on the board, or let Claude Code work through the backlog via MCP.
 
 Loupe is open source. Docs, the SDK, and the self-hostable backend live at github.com/mohamed-ashraf-elsaed/loupe.
