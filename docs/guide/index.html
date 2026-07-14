@@ -1320,68 +1320,60 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       });
     });
 
-    // ---- Section registry ----
+    // ---- Ensure every heading has an id ----
+    function slug(t){ return t.toLowerCase().replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,''); }
+    var headings = Array.prototype.slice.call(document.querySelectorAll('section.doc h2, section.doc h3'));
+    headings.forEach(function (h) {
+      if (!h.id) {
+        var a = h.querySelector('a[href^="#"]');
+        h.id = a ? a.getAttribute('href').slice(1) : slug(h.textContent);
+      }
+    });
+
+    // ---- Build the full "On this page" outline (whole page, scroll-spied) ----
+    var tocNav = document.getElementById('tocNav');
+    var tocLinks = [];
+    headings.forEach(function (h) {
+      var link = document.createElement('a');
+      link.href = '#' + h.id;
+      link.textContent = h.textContent.replace(/\s*#\s*$/,'').trim();
+      if (h.tagName === 'H3') link.className = 'sub';
+      link.dataset.target = h.id;
+      tocNav.appendChild(link);
+      tocLinks.push(link);
+    });
+
+    // ---- Left nav active state (by section) ----
     var sections = Array.prototype.slice.call(document.querySelectorAll('section.doc'));
     var linkFor = {};
     navLinks.forEach(function (a) {
       var id = a.getAttribute('href'); if (id && id[0] === '#') linkFor[id.slice(1)] = a;
     });
-
-    // ---- Left nav active + right TOC build ----
-    var tocNav = document.getElementById('tocNav');
     function setActiveLeft(id){
       navLinks.forEach(function (l) { l.classList.remove('active'); });
       var a = linkFor[id]; if (a) a.classList.add('active');
     }
-    function buildToc(section){
-      tocNav.innerHTML = '';
-      var heads = section.querySelectorAll('h2, h3');
-      heads.forEach(function (h) {
-        // ensure id
-        if (!h.id) {
-          var anchorA = h.querySelector('a[href^="#"]');
-          if (anchorA) h.id = anchorA.getAttribute('href').slice(1);
-        }
-        if (!h.id) return;
-        var link = document.createElement('a');
-        link.href = '#' + h.id;
-        link.textContent = h.textContent.replace(/\s*#\s*$/,'').trim();
-        if (h.tagName === 'H3') link.className = 'sub';
-        link.dataset.target = h.id;
-        tocNav.appendChild(link);
-      });
-    }
-
-    var currentSection = null;
     var secObserver = new IntersectionObserver(function (entries) {
-      // pick the entry closest to the top that is intersecting
-      var visible = entries.filter(function(e){ return e.isIntersecting; });
-      if (!visible.length) return;
-      visible.sort(function(a,b){ return a.boundingClientRect.top - b.boundingClientRect.top; });
-      var sec = visible[0].target;
-      if (sec === currentSection) return;
-      currentSection = sec;
-      setActiveLeft(sec.id);
-      buildToc(sec);
+      var vis = entries.filter(function(e){ return e.isIntersecting; });
+      if (!vis.length) return;
+      vis.sort(function(a,b){ return a.boundingClientRect.top - b.boundingClientRect.top; });
+      setActiveLeft(vis[0].target.id);
     }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
     sections.forEach(function (s) { secObserver.observe(s); });
 
-    // ---- Right TOC heading scroll-spy ----
-    var headings = Array.prototype.slice.call(document.querySelectorAll('section.doc h2, section.doc h3'));
+    // ---- Right TOC scroll-spy (by heading) ----
     var headObserver = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
         if (!en.isIntersecting) return;
-        var links = tocNav.querySelectorAll('a');
-        links.forEach(function (l) { l.classList.toggle('active', l.dataset.target === en.target.id); });
+        tocLinks.forEach(function (l) { l.classList.toggle('active', l.dataset.target === en.target.id); });
+        var act = tocNav.querySelector('a.active');
+        if (act) act.scrollIntoView({ block: 'nearest' });
       });
     }, { rootMargin: '-10% 0px -80% 0px', threshold: 0 });
-    headings.forEach(function (h) {
-      if (!h.id) { var a = h.querySelector('a[href^="#"]'); if (a) h.id = a.getAttribute('href').slice(1); }
-      if (h.id) headObserver.observe(h);
-    });
+    headings.forEach(function (h) { headObserver.observe(h); });
 
-    // initial
-    if (sections.length) { setActiveLeft(sections[0].id); buildToc(sections[0]); }
+    if (sections.length) setActiveLeft(sections[0].id);
+    if (tocLinks.length) tocLinks[0].classList.add('active');
   })();
 </script>
 
