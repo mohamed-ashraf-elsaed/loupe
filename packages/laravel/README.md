@@ -22,6 +22,7 @@ and handed to <strong>Claude Code</strong> over MCP — no separate backend to r
 
 <p>
   <a href="https://mohamed-ashraf-elsaed.github.io/loupe/"><b>Website</b></a> ·
+  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/#laravel"><b>Docs</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe"><b>GitHub</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md"><b>Full guide</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md"><b>Changelog</b></a> ·

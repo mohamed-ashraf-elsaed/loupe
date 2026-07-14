@@ -7,6 +7,8 @@ it, and capture a screenshot — then hand that feedback straight to Claude Code
 actionable, fully-contextualized backlog. Comments persist and re-anchor across
 redeploys.
 
+📖 **[Read the full documentation →](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)**
+
 This is a monorepo (npm workspaces). Every piece runs locally with **no external
 services** — the database is embedded Postgres (PGlite), so `npm install && npm run
 build && npm run seed && npm start` is the whole setup.

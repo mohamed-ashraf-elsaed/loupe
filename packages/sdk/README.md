@@ -19,6 +19,7 @@ comments re-anchor across redeploys and flow to Claude Code as an actionable bac
 
 <p>
   <a href="https://mohamed-ashraf-elsaed.github.io/loupe/"><b>Website</b></a> ·
+  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/"><b>Docs</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe"><b>GitHub</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md"><b>Changelog</b></a> ·
   <a href="https://www.npmjs.com/package/@loupekit/mcp"><b>MCP server</b></a>

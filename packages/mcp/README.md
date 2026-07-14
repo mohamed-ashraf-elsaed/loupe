@@ -18,6 +18,7 @@ as an actionable, fully-contextualized backlog — request + element HTML + styl
 
 <p>
   <a href="https://mohamed-ashraf-elsaed.github.io/loupe/"><b>Website</b></a> ·
+  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/"><b>Docs</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe"><b>GitHub</b></a> ·
   <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md"><b>Changelog</b></a> ·
   <a href="https://www.npmjs.com/package/@loupekit/sdk"><b>SDK</b></a>

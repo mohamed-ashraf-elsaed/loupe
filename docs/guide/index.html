@@ -1,0 +1,1389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loupe Documentation — SDK, Server, MCP, Extension & Laravel</title>
+<meta name="description" content="Complete documentation for Loupe, the embeddable visual-feedback platform. Covers all seven packages — shared, sdk, server, dashboard, mcp, extension — plus the Laravel package, core concepts, API reference, data model, testing, releasing, and the full changelog.">
+<meta name="keywords" content="Loupe documentation, visual feedback SDK docs, MCP server, Claude Code, Laravel feedback package, in-app feedback API, re-anchoring, developer tools">
+<meta name="author" content="Mohamed Ashraf Elsaed">
+<link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
+<link rel="author" href="https://www.linkedin.com/in/mohamedashrafelsaed/">
+<link rel="me" href="https://github.com/mohamed-ashraf-elsaed">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15171c" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='13' cy='13' r='8.5' fill='none' stroke='%23FF2D20' stroke-width='2.6'/%3E%3Cpath d='M19.3 19.3l7 7' stroke='%23111' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Loupe">
+<meta property="og:title" content="Loupe Documentation">
+<meta property="og:description" content="Complete docs for Loupe — the embeddable visual-feedback platform wired to Claude Code via MCP. All packages, core concepts, API reference, and the full changelog.">
+<meta property="og:url" content="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
+<meta property="og:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Loupe Documentation">
+<meta name="twitter:description" content="Complete docs for Loupe — all packages, core concepts, API reference, and the full changelog.">
+<meta name="twitter:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
+</head>
+<body>
+<style>
+  :root {
+    --bg:        #ffffff;
+    --sidebar:   #fbfbfc;
+    --surface:   #ffffff;
+    --surface-2: #f6f7f9;
+    --ink:       #1b1f24;
+    --ink-soft:  #3a4048;
+    --muted:     #656c76;
+    --faint:     #8b929c;
+    --border:    #e8eaed;
+    --border-2:  #dcdfe4;
+    --accent:    #FF2D20;   /* Laravel red */
+    --accent-ink:#e01c10;
+    --accent-wash:#fff1f0;
+    /* code surface — dark in both themes */
+    --code-bg:   #16181d;
+    --code-head: #1c1f26;
+    --code-ink:  #d6dae0;
+    --code-line: #262a32;
+    --c-com:  #8b949e;
+    --c-key:  #ff7b72;
+    --c-str:  #a5d6ff;
+    --c-fn:   #d2a8ff;
+    --c-prop: #7ee787;
+    --c-num:  #79c0ff;
+    /* callouts */
+    --note-bg:#eff6ff; --note-br:#3b82f6; --note-ink:#1e40af;
+    --warn-bg:#fff7ed; --warn-br:#f59e0b; --warn-ink:#92400e;
+    --tip-bg:#f0fdf4;  --tip-br:#22c55e;  --tip-ink:#166534;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --h: 3.75rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#15171c; --sidebar:#131519; --surface:#1a1d23; --surface-2:#1f232a;
+      --ink:#e7e9ec; --ink-soft:#c4c8ce; --muted:#9aa0a8; --faint:#6f757e;
+      --border:#282c34; --border-2:#333844; --accent:#ff4b3e; --accent-ink:#ff6b5f;
+      --accent-wash:#2a1614;
+      --note-bg:#12233b; --note-br:#3b82f6; --note-ink:#93c5fd;
+      --warn-bg:#2a1f12; --warn-br:#f59e0b; --warn-ink:#fcd34d;
+      --tip-bg:#122a1c; --tip-br:#22c55e; --tip-ink:#86efac;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#fff;--sidebar:#fbfbfc;--surface:#fff;--surface-2:#f6f7f9;--ink:#1b1f24;--ink-soft:#3a4048;
+    --muted:#656c76;--faint:#8b929c;--border:#e8eaed;--border-2:#dcdfe4;--accent:#FF2D20;--accent-ink:#e01c10;
+    --accent-wash:#fff1f0;--note-bg:#eff6ff;--note-ink:#1e40af;--warn-bg:#fff7ed;--warn-ink:#92400e;--tip-bg:#f0fdf4;--tip-ink:#166534;
+  }
+  :root[data-theme="dark"]{
+    --bg:#15171c;--sidebar:#131519;--surface:#1a1d23;--surface-2:#1f232a;--ink:#e7e9ec;--ink-soft:#c4c8ce;
+    --muted:#9aa0a8;--faint:#6f757e;--border:#282c34;--border-2:#333844;--accent:#ff4b3e;--accent-ink:#ff6b5f;
+    --accent-wash:#2a1614;--note-bg:#12233b;--note-ink:#93c5fd;--warn-bg:#2a1f12;--warn-ink:#fcd34d;--tip-bg:#122a1c;--tip-ink:#86efac;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  ::selection{background:var(--accent);color:#fff;}
+  a{color:var(--accent-ink);text-decoration:none;}
+  a:hover{text-decoration:underline;text-underline-offset:2px;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px;}
+
+  /* ---------------- Header ---------------- */
+  header.top{
+    position:sticky;top:0;z-index:50;height:var(--h);
+    display:flex;align-items:center;gap:1rem;padding:0 clamp(1rem,3vw,1.75rem);
+    background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;align-items:center;gap:.55rem;font-weight:700;letter-spacing:-.02em;color:var(--ink);}
+  .brand:hover{text-decoration:none;}
+  .brand .name{font-size:1.15rem;}
+  .brand .ver{font-family:var(--mono);font-size:.66rem;font-weight:600;color:var(--accent);
+    border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border-2));border-radius:999px;
+    padding:.12rem .5rem;letter-spacing:.02em;}
+  .top .search{flex:1;max-width:22rem;position:relative;}
+  .top .search input{
+    width:100%;font-family:var(--sans);font-size:.85rem;color:var(--ink);
+    background:var(--surface-2);border:1px solid var(--border-2);border-radius:9px;
+    padding:.5rem .8rem .5rem 2.1rem;
+  }
+  .top .search input::placeholder{color:var(--faint);}
+  .top .search svg{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--faint);}
+  .top .spacer{flex:1;}
+  .top .tlinks{display:flex;align-items:center;gap:.4rem;}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;height:2.2rem;min-width:2.2rem;
+    padding:0 .55rem;gap:.4rem;border:1px solid var(--border-2);background:var(--surface);color:var(--muted);
+    border-radius:9px;cursor:pointer;font-size:.8rem;font-family:var(--mono);}
+  .icon-btn:hover{color:var(--ink);border-color:var(--faint);text-decoration:none;}
+  .menu-btn{display:none;}
+
+  /* ---------------- Layout ---------------- */
+  .layout{display:grid;grid-template-columns:17rem minmax(0,1fr) 15.5rem;
+    max-width:96rem;margin:0 auto;align-items:start;}
+
+  /* Sidebar */
+  aside.nav{position:sticky;top:var(--h);height:calc(100vh - var(--h));overflow-y:auto;
+    background:var(--sidebar);border-right:1px solid var(--border);padding:1.6rem .75rem 4rem;}
+  .nav-group{margin-bottom:1.5rem;}
+  .nav-group .g-label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);padding:0 .75rem;margin-bottom:.45rem;}
+  aside.nav a{display:block;padding:.34rem .75rem;border-radius:7px;color:var(--muted);
+    font-size:.875rem;line-height:1.4;border-left:2px solid transparent;margin:1px 0;}
+  aside.nav a:hover{color:var(--ink);background:var(--surface-2);text-decoration:none;}
+  aside.nav a.active{color:var(--accent);font-weight:600;background:var(--accent-wash);
+    border-left-color:var(--accent);border-radius:0 7px 7px 0;}
+  .nav-hidden{display:none !important;}
+
+  /* Content */
+  main{min-width:0;padding:2.2rem clamp(1.1rem,4vw,3.5rem) 6rem;}
+  .content{max-width:46rem;}
+  section.doc{scroll-margin-top:var(--h);padding-top:1.4rem;}
+  section.doc:first-of-type{padding-top:.4rem;}
+
+  .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:0 0 .55rem;}
+  h1{font-size:clamp(2rem,4.5vw,2.7rem);line-height:1.08;letter-spacing:-.03em;font-weight:800;margin:0 0 .5rem;text-wrap:balance;}
+  h2{font-size:1.65rem;line-height:1.2;letter-spacing:-.02em;font-weight:750;margin:0 0 .3rem;
+    padding-top:.6rem;text-wrap:balance;scroll-margin-top:var(--h);}
+  h3{font-size:1.18rem;letter-spacing:-.01em;font-weight:700;margin:2rem 0 .5rem;scroll-margin-top:var(--h);}
+  h4{font-size:.95rem;font-weight:700;margin:1.3rem 0 .4rem;color:var(--ink-soft);}
+  p{margin:.75rem 0;color:var(--ink-soft);}
+  .lead{font-size:1.15rem;color:var(--muted);line-height:1.6;max-width:44rem;}
+  strong{color:var(--ink);font-weight:650;}
+  .anchor{color:inherit;}
+  .anchor:hover{text-decoration:none;}
+  .anchor:hover::after{content:" #";color:var(--accent);}
+  .hr{height:1px;background:var(--border);border:0;margin:2.6rem 0;}
+
+  code{font-family:var(--mono);font-size:.86em;}
+  p code,li code,td code,h4 code{background:var(--surface-2);color:var(--accent-ink);
+    border:1px solid var(--border);padding:.06em .38em;border-radius:5px;white-space:nowrap;}
+
+  ul,ol{padding-left:0;margin:.8rem 0;}
+  ul li,ol li{margin:.4rem 0;color:var(--ink-soft);}
+  ul.bul{list-style:none;}
+  ul.bul li{padding-left:1.35rem;position:relative;}
+  ul.bul li::before{content:"";position:absolute;left:.15rem;top:.68em;width:.4rem;height:.4rem;
+    border-radius:50%;background:var(--accent);}
+  ol.steps{list-style:none;counter-reset:s;padding-left:0;}
+  ol.steps > li{counter-increment:s;position:relative;padding-left:2.4rem;margin:1rem 0;}
+  ol.steps > li::before{content:counter(s);position:absolute;left:0;top:0;width:1.7rem;height:1.7rem;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.8rem;font-weight:700;
+    color:#fff;background:var(--accent);border-radius:8px;}
+
+  /* Code blocks */
+  .code{background:var(--code-bg);border:1px solid var(--code-line);border-radius:11px;overflow:hidden;
+    margin:1.1rem 0;}
+  .code .bar{display:flex;align-items:center;gap:.4rem;padding:.5rem .9rem;background:var(--code-head);
+    border-bottom:1px solid var(--code-line);}
+  .code .bar .dot{width:.55rem;height:.55rem;border-radius:50%;background:#3a3f48;}
+  .code .bar .fn{margin-left:auto;font-family:var(--mono);font-size:.7rem;color:#767d88;letter-spacing:.03em;}
+  .code pre{margin:0;padding:1rem 1.1rem;overflow-x:auto;}
+  .code code{font-family:var(--mono);font-size:.82rem;line-height:1.65;color:var(--code-ink);white-space:pre;}
+  .tc{color:var(--c-com);font-style:italic;} .tk{color:var(--c-key);} .ts{color:var(--c-str);}
+  .tf{color:var(--c-fn);} .tp{color:var(--c-prop);} .tn{color:var(--c-num);}
+
+  /* Callouts */
+  .callout{border-radius:10px;padding:.85rem 1.1rem;margin:1.2rem 0;font-size:.92rem;border:1px solid var(--border);
+    border-left-width:4px;}
+  .callout p{margin:.2rem 0;color:inherit;}
+  .callout .cl{font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:.15rem;}
+  .callout.note{background:var(--note-bg);border-left-color:var(--note-br);color:var(--note-ink);}
+  .callout.warn{background:var(--warn-bg);border-left-color:var(--warn-br);color:var(--warn-ink);}
+  .callout.tip{background:var(--tip-bg);border-left-color:var(--tip-br);color:var(--tip-ink);}
+
+  /* Tables */
+  .tablewrap{overflow-x:auto;margin:1.1rem 0;border:1px solid var(--border);border-radius:11px;}
+  table{border-collapse:collapse;width:100%;font-size:.875rem;}
+  th,td{text-align:left;padding:.6rem .85rem;border-bottom:1px solid var(--border);vertical-align:top;color:var(--ink-soft);}
+  thead th{background:var(--surface-2);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td code,th code{white-space:nowrap;}
+  .tabular{font-variant-numeric:tabular-nums;}
+
+  .method{font-family:var(--mono);font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:5px;}
+  .method.get{color:#2563eb;background:color-mix(in srgb,#2563eb 14%,transparent);}
+  .method.post{color:#16a34a;background:color-mix(in srgb,#16a34a 14%,transparent);}
+  .method.patch{color:#d97706;background:color-mix(in srgb,#d97706 16%,transparent);}
+  .method.delete{color:#dc2626;background:color-mix(in srgb,#dc2626 14%,transparent);}
+  .pill{font-family:var(--mono);font-size:.68rem;padding:.1rem .5rem;border-radius:999px;white-space:nowrap;border:1px solid var(--border-2);color:var(--muted);}
+  .pill.pub{color:#16a34a;border-color:color-mix(in srgb,#16a34a 45%,transparent);}
+  .pill.priv{color:var(--faint);}
+  .pill.auth{color:#d97706;border-color:color-mix(in srgb,#d97706 45%,transparent);}
+  .pill.public{color:#16a34a;border-color:color-mix(in srgb,#16a34a 45%,transparent);}
+  .pill.none{color:var(--faint);}
+
+  /* Cards */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.8rem;margin:1.1rem 0;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.15rem;}
+  .card h4{margin:0 0 .3rem;font-size:.95rem;color:var(--ink);}
+  .card p{margin:0;font-size:.88rem;}
+  .card .ktag{font-family:var(--mono);font-size:.7rem;color:var(--accent);font-weight:600;}
+
+  /* Package header */
+  .pkg-id{display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem;margin-top:.2rem;}
+  .pkg-id .nm{font-family:var(--mono);font-size:1rem;color:var(--accent);font-weight:700;}
+  .badges{display:flex;flex-wrap:wrap;gap:.4rem;margin:.6rem 0 0;}
+  .badge{font-family:var(--mono);font-size:.68rem;padding:.16rem .5rem;border-radius:6px;
+    border:1px solid var(--border-2);color:var(--muted);background:var(--surface-2);}
+  .badge.g{color:#16a34a;border-color:color-mix(in srgb,#16a34a 40%,var(--border-2));}
+  .badge.w{color:#d97706;border-color:color-mix(in srgb,#d97706 40%,var(--border-2));}
+
+  .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.35rem;vertical-align:middle;}
+  .dot.open{background:#d97706;} .dot.prog{background:#2563eb;} .dot.done{background:#16a34a;}
+
+  /* Changelog */
+  .cl-entry{border-left:2px solid var(--border);padding:0 0 1.6rem 1.4rem;position:relative;margin-left:.3rem;}
+  .cl-entry::before{content:"";position:absolute;left:-.42rem;top:.35rem;width:.75rem;height:.75rem;border-radius:50%;
+    background:var(--bg);border:2px solid var(--border-2);}
+  .cl-entry.latest::before{border-color:var(--accent);background:var(--accent);}
+  .cl-head{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;}
+  .cl-ver{font-family:var(--mono);font-weight:700;font-size:1.05rem;color:var(--ink);}
+  .cl-date{font-family:var(--mono);font-size:.78rem;color:var(--faint);}
+  .cl-tag{font-size:.66rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:.1rem .45rem;border-radius:5px;}
+  .cl-tag.add{color:#16a34a;background:color-mix(in srgb,#16a34a 14%,transparent);}
+  .cl-tag.chg{color:#d97706;background:color-mix(in srgb,#d97706 16%,transparent);}
+  .cl-tag.fix{color:#2563eb;background:color-mix(in srgb,#2563eb 14%,transparent);}
+  .cl-entry ul{margin:.4rem 0 .3rem;}
+  .cl-entry ul.bul li{font-size:.9rem;}
+
+  /* Right TOC */
+  aside.toc{position:sticky;top:var(--h);height:calc(100vh - var(--h));overflow-y:auto;padding:2.4rem 1rem 4rem .5rem;}
+  aside.toc .t-label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:.7rem;}
+  aside.toc a{display:block;font-size:.82rem;color:var(--muted);padding:.22rem 0 .22rem .8rem;
+    border-left:2px solid var(--border);line-height:1.4;}
+  aside.toc a:hover{color:var(--ink);text-decoration:none;}
+  aside.toc a.active{color:var(--accent);border-left-color:var(--accent);font-weight:600;}
+  aside.toc a.sub{padding-left:1.6rem;font-size:.78rem;}
+
+  /* Hero meta strip */
+  .meta{display:flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:12px;overflow:hidden;
+    background:var(--surface);margin:1.6rem 0;}
+  .meta .c{flex:1 1 7rem;padding:.8rem 1rem;border-right:1px solid var(--border);}
+  .meta .c:last-child{border-right:none;}
+  .meta .k{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);}
+  .meta .v{font-weight:700;font-size:.95rem;margin-top:.1rem;color:var(--ink);}
+
+  .btnrow{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.4rem 0;}
+  .btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.9rem;font-weight:600;padding:.55rem 1.05rem;border-radius:9px;border:1px solid transparent;cursor:pointer;}
+  .btn.primary{background:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-ink);text-decoration:none;}
+  .btn.ghost{background:var(--surface);color:var(--ink);border-color:var(--border-2);}
+  .btn.ghost:hover{border-color:var(--faint);text-decoration:none;}
+
+  footer{border-top:1px solid var(--border);margin-top:3rem;padding-top:1.6rem;color:var(--muted);font-size:.85rem;}
+
+  @media (max-width:1200px){
+    .layout{grid-template-columns:16rem minmax(0,1fr);}
+    aside.toc{display:none;}
+  }
+  @media (max-width:920px){
+    .layout{grid-template-columns:1fr;}
+    aside.nav{position:fixed;top:var(--h);left:0;width:min(20rem,84vw);z-index:40;
+      transform:translateX(-102%);transition:transform .22s ease;}
+    aside.nav.open{transform:translateX(0);box-shadow:0 20px 40px -12px rgba(0,0,0,.4);}
+    .menu-btn{display:inline-flex;}
+    .top .search{display:none;}
+  }
+  @media (prefers-reduced-motion:reduce){aside.nav{transition:none;}}
+</style>
+
+<header class="top">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle navigation">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+  </button>
+  <a class="brand" href="#introduction">
+    <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <circle cx="13" cy="13" r="8.5" stroke="var(--accent)" stroke-width="2.4"/>
+      <path d="M13 8.5v9M8.5 13h9" stroke="var(--accent)" stroke-width="1.2" opacity=".55"/>
+      <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
+    </svg>
+    <span class="name">Loupe</span>
+    <span class="ver">v0.4.3</span>
+  </a>
+  <div class="search">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+    <input id="navSearch" type="text" placeholder="Filter the docs…" aria-label="Filter navigation" autocomplete="off">
+  </div>
+  <span class="spacer"></span>
+  <div class="tlinks">
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
+    <a class="icon-btn" href="#changelog">v0.4.3</a>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ============ LEFT NAV ============ -->
+  <aside class="nav" id="sidebar">
+    <div class="nav-group">
+      <div class="g-label">Getting started</div>
+      <a href="#introduction">Introduction</a>
+      <a href="#quickstart">Quick start</a>
+      <a href="#the-loop">The feedback loop</a>
+      <a href="#workspace">Working in the repo</a>
+    </div>
+    <div class="nav-group">
+      <div class="g-label">Core concepts</div>
+      <a href="#reanchoring">Re-anchoring</a>
+      <a href="#auth">Authentication</a>
+      <a href="#url-normalization">URL normalization</a>
+      <a href="#screenshots">Screenshots &amp; storage</a>
+      <a href="#seams">Seams (extension points)</a>
+    </div>
+    <div class="nav-group">
+      <div class="g-label">Packages</div>
+      <a href="#pkg-shared">@loupekit/shared</a>
+      <a href="#pkg-sdk">@loupekit/sdk</a>
+      <a href="#pkg-server">@loupekit/server</a>
+      <a href="#pkg-dashboard">@loupekit/dashboard</a>
+      <a href="#pkg-mcp">@loupekit/mcp</a>
+      <a href="#pkg-extension">@loupekit/extension</a>
+    </div>
+    <div class="nav-group">
+      <div class="g-label">Loupe for Laravel</div>
+      <a href="#laravel">Overview &amp; install</a>
+      <a href="#laravel-authz">Authorization</a>
+      <a href="#laravel-config">Configuration</a>
+      <a href="#laravel-guards">Multi-guard &amp; CDN</a>
+      <a href="#laravel-mcp">MCP server</a>
+      <a href="#laravel-troubleshoot">Troubleshooting</a>
+    </div>
+    <div class="nav-group">
+      <div class="g-label">Reference</div>
+      <a href="#features">Feature guide</a>
+      <a href="#data-model">Data model</a>
+      <a href="#testing">Testing</a>
+      <a href="#releasing">Releasing &amp; publishing</a>
+      <a href="#changelog">Changelog</a>
+    </div>
+  </aside>
+
+  <!-- ============ CONTENT ============ -->
+  <main>
+    <div class="content">
+
+      <!-- INTRODUCTION -->
+      <section class="doc" id="introduction">
+        <p class="eyebrow">Documentation · v0.4.3</p>
+        <h1>Loupe</h1>
+        <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
+          screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
+          <strong>re-anchor across redeploys</strong>.</p>
+
+        <div class="btnrow">
+          <a class="btn primary" href="#quickstart">Quick start</a>
+          <a class="btn ghost" href="#the-loop">How it works</a>
+          <a class="btn ghost" href="#laravel">Loupe for Laravel</a>
+        </div>
+
+        <div class="meta">
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.4.3</div></div>
+          <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
+          <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
+          <div class="c"><div class="k">Also</div><div class="v">PHP 8.4+</div></div>
+          <div class="c"><div class="k">License</div><div class="v">MIT</div></div>
+        </div>
+
+        <h2><a class="anchor" href="#introduction">What Loupe is</a></h2>
+        <p>An embeddable visual-feedback platform. A product manager inspects any element on a running
+          product, pins a comment to it, and captures a screenshot. Comments persist and re-anchor across
+          redeploys, and are handed to <strong>Claude Code via MCP</strong> as an actionable,
+          fully-contextualized backlog. A browser extension does the same on any site without an SDK
+          install, and a Laravel package embeds the whole loop into a PHP app.</p>
+        <p>It's built like a product, not a prototype: an SDK, a backend, a triage board, an MCP server, and
+          a browser extension — all open source, all TypeScript — plus a first-party Laravel package.
+          Everything runs locally with <strong>no external services</strong> (embedded Postgres via PGlite).</p>
+
+        <h3>The packages</h3>
+        <div class="grid">
+          <div class="card"><div class="ktag">shared</div><h4>Contract layer</h4><p>Canonical types + <code>normalizeUrl()</code>. Zero runtime deps; everyone imports from here.</p></div>
+          <div class="card"><div class="ktag">sdk</div><h4>The widget</h4><p>Embeddable Shadow-DOM widget: inspect, comment, capture, re-anchor.</p></div>
+          <div class="card"><div class="ktag">server</div><h4>The API</h4><p><code>node:http</code> + Postgres + object storage + HMAC auth + static hosting.</p></div>
+          <div class="card"><div class="ktag">dashboard</div><h4>Triage board</h4><p>Kanban board for humans — status columns, filters, Copy for Claude.</p></div>
+          <div class="card"><div class="ktag">mcp</div><h4>For Claude</h4><p>MCP server exposing the backlog to Claude Code as three tools.</p></div>
+          <div class="card"><div class="ktag">extension</div><h4>Any site</h4><p>MV3 extension reusing the SDK core with pixel-perfect capture.</p></div>
+          <div class="card"><div class="ktag">laravel</div><h4>Loupe for Laravel</h4><p>Composer package: widget + your DB + gating + dashboard + MCP.</p></div>
+        </div>
+        <p><strong>Author:</strong> Mohamed Ashraf Elsaed. Published to npm (<code>@loupekit/*</code>),
+          GitHub Packages, and Packagist (<code>loupekit/laravel</code>).</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- QUICK START -->
+      <section class="doc" id="quickstart">
+        <h2><a class="anchor" href="#quickstart">Quick start</a></h2>
+        <p>Everything is orchestrated from the repo root. Build once, seed the demo project, and start the
+          server — a single process hosts the API, dashboard, demo product, and SDK bundle on one port.</p>
+        <div class="code">
+          <div class="bar"><span class="dot" style="background:#3a3f48"></span><span class="dot" style="background:#3a3f48"></span><span class="dot" style="background:#3a3f48"></span><span class="fn">bash</span></div>
+<pre><code><span class="tc"># install workspace deps</span>
+npm install
+
+<span class="tc"># build shared → sdk → dashboard → extension</span>
+npm run build
+
+<span class="tc"># create the demo project; prints its admin key + demo HMAC</span>
+npm run seed
+
+<span class="tc"># one process on http://localhost:8787 → API + dashboard + demo + SDK</span>
+npm start</code></pre>
+        </div>
+
+        <div class="grid">
+          <div class="card"><h4>Open these</h4>
+            <ul class="bul" style="margin:.4rem 0 0;font-size:.86rem">
+              <li>Demo product — <code>/demo/</code></li>
+              <li>Triage board — <code>/dashboard/?key=&lt;admin key&gt;</code></li>
+              <li>Health — <code>GET /v1/health</code></li>
+            </ul></div>
+          <div class="card"><h4>Seeded demo credentials</h4>
+            <ul class="bul" style="margin:.4rem 0 0;font-size:.86rem">
+              <li>Project — <code>pk_demo_acme</code></li>
+              <li>Admin key — <code>sk_demo_acme_0f3b9c</code></li>
+              <li>Demo user — <code>u_92</code></li>
+            </ul></div>
+        </div>
+
+        <h3>Embed the SDK in your product</h3>
+        <div class="code">
+          <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">app.ts</span></div>
+<pre><code><span class="tk">import</span> { init } <span class="tk">from</span> <span class="ts">"@loupekit/sdk"</span>;
+
+<span class="tf">init</span>({
+  projectKey: <span class="ts">"pk_demo_acme"</span>,
+  user: { id: <span class="ts">"u_92"</span>, name: <span class="ts">"Ada Lovelace"</span> },
+  userHmac: <span class="ts">"&lt;HMAC-SHA256(user.id, PROJECT_SECRET)&gt;"</span>, <span class="tc">// from your server</span>
+  apiBase: <span class="ts">"http://localhost:8787"</span>, <span class="tc">// omit → offline localStorage mode</span>
+});</code></pre>
+        </div>
+
+        <h3>Connect Claude Code over MCP</h3>
+        <div class="code">
+          <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">.mcp.json</span></div>
+<pre><code>{
+  <span class="tp">"mcpServers"</span>: {
+    <span class="tp">"loupe"</span>: {
+      <span class="tp">"command"</span>: <span class="ts">"node"</span>,
+      <span class="tp">"args"</span>: [<span class="ts">"/abs/path/to/loupe/packages/mcp/index.ts"</span>],
+      <span class="tp">"env"</span>: {
+        <span class="tp">"LOUPE_API"</span>: <span class="ts">"http://localhost:8787"</span>,
+        <span class="tp">"LOUPE_PROJECT_KEY"</span>: <span class="ts">"pk_demo_acme"</span>,
+        <span class="tp">"LOUPE_ADMIN_KEY"</span>: <span class="ts">"&lt;admin key&gt;"</span>
+      }
+    }
+  }
+}</code></pre>
+        </div>
+        <div class="callout tip"><span class="cl">The loop</span>
+          Claude calls <code>list_comments</code> → <code>get_comment</code> (request + element HTML +
+          computed styles + screenshot URL) → makes the change → <code>update_status(done)</code>.</div>
+        <p>Verify everything with <code>npm test</code> (Vitest) and <code>npm run test:coverage</code>
+          for a v8 coverage report.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- THE LOOP -->
+      <section class="doc" id="the-loop">
+        <h2><a class="anchor" href="#the-loop">The feedback loop</a></h2>
+        <p>SDK (in the product) → backend API → Postgres + object storage → dashboard (human triage)
+          <em>and</em> MCP server (Claude reads it) → status flows back.</p>
+        <ol class="steps">
+          <li><strong>Inspect &amp; comment.</strong> A PM clicks an element or drags a region. The SDK
+            records a multi-signal anchor, the element's HTML and computed styles, and a screenshot.</li>
+          <li><strong>Store.</strong> The screenshot uploads to <code>POST /v1/blobs</code>; the comment
+            (with the returned URL) is written to Postgres against the normalized page URL.</li>
+          <li><strong>Triage.</strong> A human works the Kanban board — <span class="dot open"></span>open →
+            <span class="dot prog"></span>in&nbsp;progress → <span class="dot done"></span>done — with
+            screenshots and the exact selector.</li>
+          <li><strong>Ship with Claude.</strong> Claude Code reads the same backlog over MCP, makes the
+            change, and marks it done. Status flows back either way.</li>
+        </ol>
+        <p>Both capture surfaces (SDK and extension) and both triage surfaces (dashboard and MCP) share the
+          same data and contracts — see <a href="#seams">Seams</a> for the extension points.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- WORKSPACE -->
+      <section class="doc" id="workspace">
+        <h2><a class="anchor" href="#workspace">Working in the repo</a></h2>
+        <p>Loupe is an <strong>npm workspaces monorepo</strong>. Root scripts orchestrate the packages.</p>
+        <div class="grid">
+          <div class="card"><h4>Node-native packages</h4><p><code>server/</code> and <code>mcp/</code> run
+            TypeScript directly on Node 24 (type-stripping) — no build step. Run <code>node index.ts</code>;
+            imports use <code>.ts</code> extensions.</p></div>
+          <div class="card"><h4>Bundled browser packages</h4><p><code>sdk/</code>, <code>dashboard/</code>,
+            and <code>extension/</code> are bundled by <strong>tsup</strong> to <code>dist/</code>; imports
+            use <code>.js</code> (ESM) extensions.</p></div>
+        </div>
+        <p><code>@loupekit/shared</code> is a <strong>built</strong> package (<code>tsc</code> →
+          <code>dist</code>) and must be built before the others. Keep changes behind the seams
+          (<code>StorageAdapter</code>, <code>db.ts</code>, <code>blobs.ts</code>, the
+          <code>captureScreenshot</code> hook) — change implementations, not contracts.</p>
+        <div class="callout warn"><span class="cl">Version drift</span>
+          The release is <strong>0.4.3</strong> across the publishable packages, but a few files still carry
+          their own numbers: <code>@loupekit/server</code> and the extension <code>manifest.json</code> say
+          <code>0.2.0</code>, the MCP <code>McpServer</code> is hardcoded <code>0.2.0</code>, and Laravel's
+          <code>LoupeServer</code> is <code>1.0.0</code>. Worth reconciling on the next release.</div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- ============ CORE CONCEPTS ============ -->
+
+      <!-- RE-ANCHORING -->
+      <section class="doc" id="reanchoring">
+        <h2><a class="anchor" href="#reanchoring">Re-anchoring — the crown jewel</a></h2>
+        <p>The hardest problem Loupe solves: a comment pinned to an element must find that same element
+          again after the product is redeployed and the markup has changed. <code>fingerprint.ts</code>
+          records a multi-signal fingerprint with <code>captureAnchor(el): Anchor</code>, then re-locates it
+          with <code>resolveAnchor(anchor, root?): ResolveResult | null</code> in tiers.</p>
+
+        <h3>What the anchor records</h3>
+        <p>Stable id / testid, a CSS path rooted at the nearest stable ancestor, XPath, normalized text,
+          identifying attributes, <code>nth-of-type</code>, and the bounding rect + viewport.</p>
+
+        <h3>Resolution tiers</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Tier</th><th>Match</th><th>Score</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Unique testid / id</td><td class="tabular"><strong>0.98</strong></td></tr>
+              <tr><td>1.5</td><td>cssPath rooted at a stable id, single match, right tag</td><td class="tabular"><strong>0.90</strong> — survives changed content</td></tr>
+              <tr><td>2</td><td>Weighted similarity scan</td><td class="tabular">accepted at <strong>≥ 0.50</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The similarity scan weights are: <strong>text .34 · attrs .22 · testid .22 · cssPath .20 ·
+          tag .12 · position .10</strong>. If the best candidate scores below <code>0.5</code>, the pin
+          <strong>detaches</strong> rather than anchoring to the wrong element.</p>
+        <div class="callout note"><span class="cl">Why detach</span>
+          A wrong pin is worse than a missing one — it sends Claude or a developer to the wrong place.
+          Loupe would rather show a detached pin than lie about where the feedback belongs.</div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- AUTH -->
+      <section class="doc" id="auth">
+        <h2><a class="anchor" href="#auth">Authentication</a></h2>
+        <p>Every project has a <code>secret</code>. There are two identities, and the browser never sees the
+          secret.</p>
+        <div class="grid">
+          <div class="card"><h4>Writes — user identity (HMAC)</h4><p>Your server computes
+            <code>signUser(userId, secret) = HMAC-SHA256(userId, secret)</code> and injects it into the page.
+            The SDK sends <code>X-Loupe-User</code> + <code>X-Loupe-Hmac</code>; the server verifies with a
+            timing-safe compare. A user may only post as themselves.</p></div>
+          <div class="card"><h4>Read / triage — admin identity</h4><p>The dashboard and MCP authenticate as
+            admin with <code>X-Loupe-Admin</code> = the project secret.
+            <code>authenticate(projectKey, req)</code> resolves to <code>admin</code>, <code>user</code>, or
+            a failure (400 missing key · 401 bad creds · 404 unknown project).</p></div>
+        </div>
+        <p>The Laravel package swaps this whole scheme for Laravel's own <strong>session + CSRF + guard +
+          Gate</strong> authorization — no shared secret. See <a href="#laravel-authz">Authorization</a>.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- URL NORMALIZATION -->
+      <section class="doc" id="url-normalization">
+        <h2><a class="anchor" href="#url-normalization">URL normalization</a></h2>
+        <p>Comments are keyed by <strong>normalized</strong> URL, so tracking params never fragment a page's
+          feedback. <code>normalizeUrl(input)</code> strips <code>utm_*</code>, click ids
+          (<code>gclid</code>, <code>fbclid</code>, <code>msclkid</code>, …), and Loupe dev params
+          (<code>api</code>, <code>key</code>), sorts the remaining query pairs, and drops trailing slashes.
+          It's applied server-side on both write and the list filter.</p>
+        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">example</span></div>
+<pre><code><span class="tf">normalizeUrl</span>(<span class="ts">"/checkout?utm_source=x&amp;gclid=123&amp;step=2"</span>)
+<span class="tc">// → "/checkout?step=2"</span></code></pre></div>
+        <div class="callout tip"><span class="cl">Debugging tip</span>
+          If comments look "missing" across query-string variants, run <code>normalizeUrl</code> on both
+          URLs first — they almost certainly collapse to the same key.</div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- SCREENSHOTS -->
+      <section class="doc" id="screenshots">
+        <h2><a class="anchor" href="#screenshots">Screenshots &amp; storage</a></h2>
+        <p>The SDK uploads a PNG to <code>POST /v1/blobs</code> and stores only the returned URL on the
+          comment. Two things are excluded before pixels ever leave the browser: any
+          <code>[data-loupe-redact]</code> region and Loupe's own UI.</p>
+        <ul class="bul">
+          <li><strong>Capture engine.</strong> The SDK uses <code>modern-screenshot</code> (DOM-based). The
+            extension overrides this with <code>chrome.tabs.captureVisibleTab</code> for real pixels, then
+            crops to the element/region and paints over redacted areas (accounting for
+            <code>devicePixelRatio</code>).</li>
+          <li><strong>Font embedding.</strong> Capture awaits <code>document.fonts.ready</code> (capped at
+            ~0.8s) with a 6s capture timeout and a hard outer timeout, so it renders with the right fonts but
+            can never hang the widget. CORS-less fonts fall back to the pixel-perfect extension.</li>
+          <li><strong>Blobs seam.</strong> <code>blobs.ts</code> stores to local disk today (public by
+            unguessable id); production swaps in S3/R2 with signed URLs.</li>
+        </ul>
+      </section>
+
+      <hr class="hr">
+
+      <!-- SEAMS -->
+      <section class="doc" id="seams">
+        <h2><a class="anchor" href="#seams">Seams (extension points)</a></h2>
+        <p>Four seams isolate the swappable parts. Change what's behind them, not their contracts.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Seam</th><th>Where</th><th>Local</th><th>Production</th></tr></thead>
+            <tbody>
+              <tr><td>Storage adapter</td><td>SDK <code>store.ts</code> / <code>http-adapter.ts</code></td><td>localStorage / HTTP</td><td>HTTP</td></tr>
+              <tr><td>Database</td><td>server <code>db.ts</code></td><td>PGlite</td><td>hosted Postgres via <code>DATABASE_URL</code></td></tr>
+              <tr><td>Object storage</td><td>server <code>blobs.ts</code></td><td>local disk</td><td>S3/R2 + signed URLs</td></tr>
+              <tr><td>Screenshot capture</td><td>SDK <code>captureScreenshot</code> config</td><td>modern-screenshot</td><td>extension <code>captureVisibleTab</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- ============ PACKAGES ============ -->
+
+      <!-- shared -->
+      <section class="doc" id="pkg-shared">
+        <p class="eyebrow">Package</p>
+        <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.4.3</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
+        <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
+          Node packages import the compiled JS.</p>
+
+        <h3>Exported types</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Type</th><th>Shape</th></tr></thead>
+            <tbody>
+              <tr><td><code>CommentStatus</code></td><td><code>"open" | "in_progress" | "done"</code></td></tr>
+              <tr><td><code>CommentKind</code></td><td><code>"element" | "region"</code></td></tr>
+              <tr><td><code>DeviceType</code></td><td><code>"mobile" | "tablet" | "desktop"</code></td></tr>
+              <tr><td><code>LoupeUser</code></td><td><code>{ id, name, email? }</code></td></tr>
+              <tr><td><code>Anchor</code></td><td>fingerprint: <code>tag, cssPath, xpath, testid, text, attrs, nthOfType, rect, viewport</code></td></tr>
+              <tr><td><code>ElementContext</code></td><td><code>{ html, styles }</code> — outerHTML + curated computed styles</td></tr>
+              <tr><td><code>RegionRect</code></td><td><code>{ x, y, w, h, rel? }</code> — document coords; <code>rel</code> = element-relative fractions</td></tr>
+              <tr><td><code>Comment</code></td><td>the canonical record — see the <a href="#data-model">data model</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Helpers</h3>
+        <ul class="bul">
+          <li><code>deviceType(width): DeviceType</code> — mobile <code>&lt;768</code>, tablet
+            <code>768–1023</code>, desktop <code>≥1024</code>.</li>
+          <li><code>normalizeUrl(input): string</code> — see <a href="#url-normalization">URL normalization</a>.</li>
+        </ul>
+      </section>
+
+      <hr class="hr">
+
+      <!-- sdk -->
+      <section class="doc" id="pkg-sdk">
+        <p class="eyebrow">Package</p>
+        <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.4.3</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
+        <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
+          (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
+
+        <h3>Public API</h3>
+        <ul class="bul">
+          <li><code>init(config: LoupeConfig): void</code> — idempotent; requires <code>projectKey</code> and
+            <code>user.id</code>. Starts on <code>DOMContentLoaded</code>. <code>apiBase</code> set →
+            <code>HttpAdapter</code>; omitted → <code>LocalStorageAdapter</code> (offline mode).</li>
+          <li><code>destroy(): void</code> — tears down the toolbar and all listeners.</li>
+        </ul>
+        <p>Toolbar modes: <strong>Inspect &amp; comment</strong>, <strong>Region shot</strong>,
+          <strong>Comments</strong>. Click the <code>◎ Loupe</code> logo to collapse the bar.</p>
+
+        <h3>LoupeConfig</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>projectKey</code></td><td>string</td><td><strong>Required.</strong> Project identifier.</td></tr>
+              <tr><td><code>user</code></td><td>LoupeUser</td><td><strong>Required.</strong> Who is commenting.</td></tr>
+              <tr><td><code>userHmac</code></td><td>string?</td><td>HMAC-SHA256(user.id, secret), computed server-side.</td></tr>
+              <tr><td><code>apiBase</code></td><td>string?</td><td>Set → HTTP mode; omitted → offline localStorage.</td></tr>
+              <tr><td><code>autoOpen</code></td><td>boolean?</td><td>Open the toolbar immediately.</td></tr>
+              <tr><td><code>captureScreenshot</code></td><td>fn?</td><td>Override <code>(el) =&gt; Promise&lt;string?&gt;</code> (the extension uses this).</td></tr>
+              <tr><td><code>captureRegion</code></td><td>fn?</td><td>Region-shot override <code>(rect) =&gt; Promise&lt;string?&gt;</code>.</td></tr>
+              <tr><td><code>headers</code></td><td>object?</td><td>Extra request headers (e.g. a CSRF token).</td></tr>
+              <tr><td><code>credentials</code></td><td>RequestCredentials?</td><td>Fetch credentials mode (<code>include</code> for cross-origin cookies).</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Internal modules</h3>
+        <div class="grid">
+          <div class="card"><h4><code>fingerprint.ts</code></h4><p><code>captureAnchor</code> /
+            <code>resolveAnchor</code> — the <a href="#reanchoring">re-anchoring</a> engine.</p></div>
+          <div class="card"><h4><code>capture.ts</code></h4><p><code>captureElementContext</code> +
+            <code>captureScreenshot</code> / <code>captureRegionScreenshot</code>.</p></div>
+          <div class="card"><h4><code>http-adapter.ts</code></h4><p><code>HttpAdapter</code> — uploads the
+            blob first, stores only the URL.</p></div>
+          <div class="card"><h4><code>store.ts</code></h4><p><code>LocalStorageAdapter</code> — the offline
+            fallback.</p></div>
+          <div class="card"><h4><code>app.ts</code></h4><p><code>LoupeApp</code> — Shadow-DOM host: toolbar,
+            inspector, composer, pins, panel; repositions on scroll/resize + MutationObserver.</p></div>
+          <div class="card"><h4><code>styles.ts</code></h4><p>The Shadow-DOM stylesheet (theme vars on
+            <code>:host</code> so they inherit through the shadow tree).</p></div>
+        </div>
+        <p>The <code>StorageAdapter</code> contract: <code>list(projectKey, url)</code>,
+          <code>save(comment)</code>, <code>update(id, patch)</code>, <code>remove(id)</code>. A demo
+          product ("Acme Analytics") lives in <code>demo/</code>, served at <code>/demo/</code>.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- server -->
+      <section class="doc" id="pkg-server">
+        <p class="eyebrow">Package</p>
+        <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge w">file says v0.2.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
+        <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
+          <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
+          listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
+
+        <h3>HTTP routes</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td><span class="method get">GET</span></td><td><code>/</code></td><td><span class="pill none">none</span></td><td>302 → <code>/dashboard/</code></td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/v1/health</code></td><td><span class="pill none">none</span></td><td><code>{ ok: true }</code></td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/v1/blobs/:id</code></td><td><span class="pill public">public</span></td><td>PNG, immutable cache</td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>/v1/blobs</code></td><td><span class="pill auth">authed</span></td><td><code>{ projectKey, data }</code> → <code>{ url }</code></td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/v1/comments</code></td><td><span class="pill auth">authed</span></td><td><code>?projectKey=&amp;url=</code></td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>/v1/comments</code></td><td><span class="pill auth">authed</span></td><td>upsert; user may post only as self (else 403)</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/v1/comments/:id</code></td><td><span class="pill auth">authed</span></td><td>auth from the comment's project</td></tr>
+              <tr><td><span class="method patch">PATCH</span></td><td><code>/v1/comments/:id</code></td><td><span class="pill auth">authed</span></td><td>patch <code>status</code> / <code>body</code></td></tr>
+              <tr><td><span class="method delete">DELETE</span></td><td><code>/v1/comments/:id</code></td><td><span class="pill auth">authed</span></td><td>204</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/dashboard/*</code> · <code>/demo/*</code> · <code>/sdk/*</code></td><td><span class="pill none">static</span></td><td>served from disk</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:.86rem;color:var(--muted)">CORS echoes the request <code>Origin</code>; allows
+          <code>GET, POST, PATCH, DELETE, OPTIONS</code> and headers <code>Content-Type, X-Loupe-User,
+          X-Loupe-Hmac, X-Loupe-Admin, X-Loupe-Project</code>. Body limit 12&nbsp;MB.</p>
+
+        <h3>Environment variables</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
+            <tbody>
+              <tr><td><code>PORT</code></td><td class="tabular">8787</td><td>Listen port.</td></tr>
+              <tr><td><code>DATABASE_URL</code></td><td>—</td><td>Set → node-<code>pg</code>; unset → embedded PGlite.</td></tr>
+              <tr><td><code>LOUPE_PG_DIR</code></td><td><code>./data/pg</code></td><td>PGlite dir; <code>memory://</code> → in-memory (tests).</td></tr>
+              <tr><td><code>LOUPE_BLOB_DIR</code></td><td><code>./data/blobs</code></td><td>Screenshot disk directory.</td></tr>
+              <tr><td><code>LOUPE_PUBLIC_URL</code></td><td><code>localhost:8787</code></td><td>Public base for blob URLs.</td></tr>
+              <tr><td><code>LOUPE_DEMO_SECRET</code></td><td><code>sk_demo_acme_0f3b9c</code></td><td>Seed secret.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- dashboard -->
+      <section class="doc" id="pkg-dashboard">
+        <p class="eyebrow">Package</p>
+        <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.4.3</span><span class="badge">tsup bundle</span></div>
+        <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
+          (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
+          <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
+          (PATCH), two-step delete, <strong>Copy for Claude</strong>, and a ~4s live refresh.</p>
+        <div class="grid">
+          <div class="card"><h4>Admin mode</h4><p>Query params <code>?api</code> / <code>?project</code> /
+            <code>?key</code>. The key is sent as <code>X-Loupe-Admin</code> and persisted to
+            <code>localStorage["loupe_admin"]</code>.</p></div>
+          <div class="card"><h4>Session mode</h4><p>Reads injected <code>window.__LOUPE__ { api, project,
+            csrf }</code> (used by the Laravel package) and sends <code>X-CSRF-TOKEN</code> instead of an
+            admin key.</p></div>
+        </div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- mcp -->
+      <section class="doc" id="pkg-mcp">
+        <p class="eyebrow">Package</p>
+        <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.4.3</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
+        <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
+          Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
+          Claude Code at the source entry directly.</p>
+
+        <h3>What Claude gets</h3>
+        <p>The natural-language request, the page URL, the target element (stable id or CSS path), its
+          <code>outerHTML</code>, a curated slice of computed styles, and the screenshot URL.</p>
+
+        <h3>Tools</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Tool</th><th>Parameters</th><th>Returns</th></tr></thead>
+            <tbody>
+              <tr><td><code>list_comments</code></td><td><code>status?</code>, <code>url?</code></td><td>The backlog as a bulleted list.</td></tr>
+              <tr><td><code>get_comment</code></td><td><code>id</code></td><td>The Claude-ready package (request + HTML + styles + screenshot URL).</td></tr>
+              <tr><td><code>update_status</code></td><td><code>id</code>, <code>status</code></td><td>Moves the comment (PATCH).</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Environment</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Variable</th><th>Default</th></tr></thead>
+            <tbody>
+              <tr><td><code>LOUPE_API</code></td><td><code>http://localhost:8787</code></td></tr>
+              <tr><td><code>LOUPE_PROJECT_KEY</code></td><td><code>pk_demo_acme</code></td></tr>
+              <tr><td><code>LOUPE_ADMIN_KEY</code></td><td><code>""</code> — sent as <code>X-Loupe-Admin</code>; required vs a real backend</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Transport is stdio via <code>@modelcontextprotocol/sdk</code>. Node 24+ runs the TypeScript entry
+          directly — no build. See <a href="#quickstart">Quick start</a> for the <code>.mcp.json</code>.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- extension -->
+      <section class="doc" id="pkg-extension">
+        <p class="eyebrow">Package</p>
+        <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge w">manifest says v0.2.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
+        <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
+          target. The only difference from the SDK is the screenshot source:
+          <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
+          redaction, via the SDK's <code>captureScreenshot</code> override.</p>
+        <div class="grid">
+          <div class="card"><h4>Parts</h4><ul class="bul" style="margin:.3rem 0 0;font-size:.86rem">
+            <li><code>content.js</code> — the injected widget (IIFE build artifact, gitignored)</li>
+            <li><code>background.js</code> — the capture worker</li>
+            <li><code>popup.html / popup.js</code> — config + "Start Loupe on this tab"</li>
+          </ul></div>
+          <div class="card"><h4>Load it</h4><ul class="bul" style="margin:.3rem 0 0;font-size:.86rem">
+            <li>Permissions: <code>activeTab</code>, <code>scripting</code>, <code>storage</code></li>
+            <li>Build: <code>npm run build:extension</code></li>
+            <li>Load unpacked at <code>chrome://extensions</code> (Developer mode)</li>
+          </ul></div>
+        </div>
+        <div class="callout note"><span class="cl">Privacy</span>
+          The extension only runs after you click its icon and "Start Loupe on this tab" — no background
+          collection, no browsing tracking, no third-party analytics. Feedback goes only to your configured
+          backend; with none set, it stays in local storage.</div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- ============ LARAVEL ============ -->
+      <section class="doc" id="laravel">
+        <p class="eyebrow">Loupe for Laravel</p>
+        <h1 style="font-size:2rem">loupekit/laravel</h1>
+        <div class="badges"><span class="badge g">Packagist</span><span class="badge">PHP ^8.4</span><span class="badge">Laravel 11 · 12 · 13</span><span class="badge w">LoupeServer v1.0.0</span><span class="badge g">100% coverage</span></div>
+        <p class="lead" style="margin-top:.8rem">A Composer package that installs the entire loop into any
+          Laravel app: an in-app widget, comments in <em>your</em> database, per-user access control, a
+          Laravel-served triage dashboard, and a first-party MCP server — session-authenticated, no HMAC
+          wiring, no secrets in the browser.</p>
+
+        <h3>Requirements</h3>
+        <ul class="bul">
+          <li>PHP <strong>8.4+</strong>; Laravel <strong>11 / 12 / 13</strong> (9/10 intentionally unsupported).</li>
+          <li>Any Eloquent-supported database — MySQL, PostgreSQL, SQLite, SQL Server.</li>
+          <li>MCP is optional (<code>laravel/mcp ^0.8</code>), guarded by <code>class_exists</code>.</li>
+        </ul>
+
+        <h3>Install</h3>
+        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code>composer require loupekit/laravel
+php artisan loupe:install   <span class="tc"># config, migration, assets, provider stub</span>
+php artisan migrate
+<span class="tc"># add @loupeWidget before &lt;/body&gt;, then open /loupe/dashboard</span>
+php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (optional)</span></code></pre></div>
+        <p><code>loupe:install</code> publishes the config, the migration, the browser assets to
+          <code>public/vendor/loupe</code>, and <code>app/Providers/LoupeServiceProvider.php</code>
+          (auto-registered in <code>bootstrap/providers.php</code>). The <code>@loupeWidget</code> directive
+          injects the SDK <code>&lt;script&gt;</code> + <code>Loupe.init({...})</code> — but only for users who
+          pass <code>loupe:use</code>.</p>
+        <p>Publish individual pieces with the <code>vendor:publish</code> tags:
+          <code>loupe-config</code>, <code>loupe-migrations</code>, <code>loupe-assets</code>,
+          <code>loupe-provider</code>, <code>loupe-views</code>.</p>
+
+        <h3>Routes</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Method</th><th>Path (under <code>/{path}</code>)</th><th>Authorize</th><th>Name</th></tr></thead>
+            <tbody>
+              <tr><td><span class="method get">GET</span></td><td><code>v1/blobs/{id}</code></td><td><span class="pill public">public</span></td><td><code>loupe.blobs.show</code></td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>v1/comments</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.index</code></td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>v1/comments</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.store</code></td></tr>
+              <tr><td><span class="method patch">PATCH</span></td><td><code>v1/comments/{id}</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.update</code></td></tr>
+              <tr><td><span class="method delete">DELETE</span></td><td><code>v1/comments/{id}</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.destroy</code></td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>v1/blobs</code></td><td><span class="pill auth">use</span></td><td><code>loupe.blobs.store</code></td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>dashboard</code></td><td><span class="pill auth">admin</span></td><td><code>loupe.dashboard</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="doc" id="laravel-authz">
+        <h2><a class="anchor" href="#laravel-authz">Authorization</a></h2>
+        <p>Two abilities gate everything: <code>loupe:use</code> (see the widget, create/update comments) and
+          <code>loupe:admin</code> (open the dashboard). Denied users never receive widget markup;
+          API/dashboard return 403.</p>
+        <p>Authorization is decided in this order:</p>
+        <ol class="steps">
+          <li><code>Loupe::useWhen()</code> / <code>Loupe::adminWhen()</code> closures (registered in code).</li>
+          <li>Config closures <code>authorize.use</code> / <code>authorize.dashboard</code>.</li>
+          <li>Frictionless access in the <code>local</code> environment, if <code>allow_in_local</code> (default true).</li>
+          <li>Gate abilities <code>loupe:use</code> / <code>loupe:admin</code> — <strong>deny by default</strong> (secure in production).</li>
+        </ol>
+        <div class="callout warn"><span class="cl">config:cache</span>
+          Config closures can't be used with <code>config:cache</code>. If you cache config in production,
+          grant access via Gate abilities instead.</div>
+      </section>
+
+      <section class="doc" id="laravel-config">
+        <h2><a class="anchor" href="#laravel-config">Configuration</a></h2>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Config · env</th><th>Default</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>enabled</code> · <code>LOUPE_ENABLED</code></td><td>true</td><td>Master switch.</td></tr>
+              <tr><td><code>path</code> · <code>LOUPE_PATH</code></td><td><code>loupe</code></td><td>Route prefix.</td></tr>
+              <tr><td><code>domain</code> · <code>LOUPE_DOMAIN</code></td><td>—</td><td>Route domain.</td></tr>
+              <tr><td><code>project_key</code> · <code>LOUPE_PROJECT_KEY</code></td><td><code>app</code></td><td>Project identifier.</td></tr>
+              <tr><td><code>middleware.api</code> / <code>.dashboard</code></td><td><code>['web','loupe.auth']</code></td><td>Route middleware stacks.</td></tr>
+              <tr><td><code>guards</code> · <code>LOUPE_GUARDS</code></td><td>default guard</td><td>Ordered CSV of auth guards to try (e.g. <code>web,admin</code>).</td></tr>
+              <tr><td><code>authorize.use</code> / <code>.dashboard</code></td><td>Gate abilities</td><td>Closures; null → the Gate abilities.</td></tr>
+              <tr><td><code>allow_in_local</code></td><td>true</td><td>Frictionless auth in <code>local</code>.</td></tr>
+              <tr><td><code>comment_model</code></td><td><code>Comment::class</code></td><td>Bring your own Eloquent model.</td></tr>
+              <tr><td><code>user_resolver</code></td><td>—</td><td>Closure → <code>{id, name, email?}</code>.</td></tr>
+              <tr><td><code>asset_url</code> · <code>LOUPE_ASSET_URL</code></td><td>app URL</td><td>Origin for bundled assets (bypasses <code>ASSET_URL</code>/CDN).</td></tr>
+              <tr><td><code>disk</code> · <code>LOUPE_DISK</code></td><td><code>public</code></td><td>Filesystem disk for screenshots (<code>loupe/screenshots</code>).</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The dashboard is the exact <code>@loupekit/dashboard</code> bundle, vendored and configured via an
+          injected <code>window.__LOUPE__</code> (API base, project key, CSRF) — no secret in the browser.
+          The data lands in a <code>loupe_comments</code> table (see the <a href="#data-model">data model</a>).</p>
+      </section>
+
+      <section class="doc" id="laravel-guards">
+        <h2><a class="anchor" href="#laravel-guards">Multi-guard &amp; CDN</a></h2>
+        <h3>Multiple auth guards</h3>
+        <p>Apps using separate guards (e.g. <code>web</code> for users, <code>admin</code> for admins) could
+          render the widget under one guard and authenticate the API under another, mismatching ids and
+          producing a 403 "cannot post as another user". Set an ordered guard list and Loupe resolves
+          identity the same way everywhere — widget author, gates, API middleware
+          (<code>loupe.auth</code>), and the anti-spoof check.</p>
+        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">.env</span></div>
+<pre><code><span class="tp">LOUPE_GUARDS</span>=web,admin   <span class="tc"># unset = the app's default guard (backward compatible)</span></code></pre></div>
+
+        <h3>Behind a CDN / ASSET_URL</h3>
+        <p>Loupe resolves its published assets from the <strong>app URL</strong> via
+          <code>Url::asset()</code>, bypassing <code>ASSET_URL</code> — so apps pointing <code>ASSET_URL</code>
+          at a CDN (with only their Vite build uploaded) don't get 404s and a silently missing widget. Serve
+          <code>public/vendor/loupe</code> elsewhere? Point <code>LOUPE_ASSET_URL</code> at it and re-run
+          <code>vendor:publish --tag=loupe-assets --force</code>.</p>
+      </section>
+
+      <section class="doc" id="laravel-mcp">
+        <h2><a class="anchor" href="#laravel-mcp">MCP server (Laravel)</a></h2>
+        <p>With <code>laravel/mcp</code> installed, a server named <code>loupe</code> is registered
+          automatically. Start it with <code>php artisan mcp:start loupe</code>. Unlike the Node MCP server,
+          the tools read the app's own database <strong>directly</strong> — no HTTP hop, no admin key.</p>
+        <ul class="bul">
+          <li><code>list_comments(status?, url?)</code> — the backlog, newest first.</li>
+          <li><code>get_comment(id)</code> — request + element HTML + computed styles + screenshot URL (or region rect).</li>
+          <li><code>update_status(id, status)</code> — validates <code>open</code> / <code>in_progress</code> / <code>done</code>.</li>
+        </ul>
+        <p>For different-subdomain SPA frontends (Sanctum), add
+          <code>EnsureFrontendRequestsAreStateful</code> + <code>auth:sanctum</code> to
+          <code>middleware.api</code> and use <code>credentials: 'include'</code>.</p>
+      </section>
+
+      <section class="doc" id="laravel-troubleshoot">
+        <h2><a class="anchor" href="#laravel-troubleshoot">Troubleshooting</a></h2>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Symptom</th><th>Cause &amp; fix</th></tr></thead>
+            <tbody>
+              <tr><td>Widget missing</td><td>User fails <code>loupe:use</code>, <code>@loupeWidget</code> not in layout, or <code>LOUPE_ENABLED=false</code>.</td></tr>
+              <tr><td>419 on save</td><td>CSRF token missing — ensure the widget view sends <code>X-CSRF-TOKEN</code>.</td></tr>
+              <tr><td>403 on dashboard</td><td>User fails <code>loupe:admin</code>.</td></tr>
+              <tr><td>Screenshots 404</td><td>Disk not public — run <code>php artisan storage:link</code>.</td></tr>
+              <tr><td>403 "cannot post as another user"</td><td>Multi-guard app — set <code>LOUPE_GUARDS=web,admin</code>.</td></tr>
+              <tr><td>Widget missing only behind a CDN</td><td>Set <code>LOUPE_ASSET_URL</code>; re-publish assets with <code>--force</code>.</td></tr>
+              <tr><td><code>mcp:start</code> unknown</td><td>Install <code>laravel/mcp:^0.8</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- ============ REFERENCE ============ -->
+
+      <!-- FEATURES -->
+      <section class="doc" id="features">
+        <h2><a class="anchor" href="#features">Feature guide</a></h2>
+        <p>Cross-cutting SDK features ship simultaneously to the standalone SDK, the browser extension, and
+          the Laravel widget — all three share the <code>@loupekit/sdk</code> core.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Feature</th><th>What it does</th><th>Since</th></tr></thead>
+            <tbody>
+              <tr><td>Re-anchoring</td><td>Multi-signal fingerprint survives redeploys; detaches rather than mis-pin.</td><td class="tabular">0.1.0</td></tr>
+              <tr><td>Region shot</td><td>Drag a free box (no element); anchored to element under center as fractional coords — tracks reflow, viewport &amp; scroll.</td><td class="tabular">0.2.0</td></tr>
+              <tr><td>Offline mode</td><td>Omit <code>apiBase</code> → localStorage adapter.</td><td class="tabular">0.1.0</td></tr>
+              <tr><td>Session auth (SDK)</td><td><code>headers</code> + <code>credentials</code> config for CSRF / cookie auth.</td><td class="tabular">0.3.0</td></tr>
+              <tr><td>Collapsible toolbar</td><td>Click <code>◎ Loupe</code> to collapse to just the logo.</td><td class="tabular">0.3.3</td></tr>
+              <tr><td>Font embedding</td><td>Awaits <code>document.fonts.ready</code> (capped) so screenshots use the right fonts, never hanging.</td><td class="tabular">0.3.4 / 0.4.1</td></tr>
+              <tr><td>Device / viewport</td><td>Desktop/tablet/mobile badge end-to-end; <code>deviceType()</code> helper + DB column.</td><td class="tabular">0.4.0</td></tr>
+              <tr><td>SPA per-page comments</td><td>Patches <code>pushState</code>/<code>replaceState</code> + <code>popstate</code> to reload comments on client-side navigation.</td><td class="tabular">0.4.0</td></tr>
+              <tr><td>Mobile toolbar</td><td>Compact, icon-only, pinned left; consistent icon+label layout.</td><td class="tabular">0.4.0</td></tr>
+              <tr><td>Instant region open</td><td>Composer opens immediately; capture runs in background, attached on submit.</td><td class="tabular">0.4.1</td></tr>
+              <tr><td>Copy for Claude</td><td>Dashboard action copies a comment's full context to paste into Claude.</td><td class="tabular">—</td></tr>
+              <tr><td>Redaction</td><td><code>[data-loupe-redact]</code> regions painted over before pixels leave the browser.</td><td class="tabular">0.1.0</td></tr>
+              <tr><td>Canary channel</td><td>Install prereleases with <code>npm i @loupekit/sdk@next</code>.</td><td class="tabular">0.2.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- DATA MODEL -->
+      <section class="doc" id="data-model">
+        <h2><a class="anchor" href="#data-model">Data model</a></h2>
+        <p>Two tables in Postgres. Comments are keyed by <a href="#url-normalization">normalized</a> URL.</p>
+        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">schema.sql</span></div>
+<pre><code><span class="tk">CREATE TABLE</span> projects (
+  project_key     <span class="tf">TEXT</span> <span class="tk">PRIMARY KEY</span>,
+  name            <span class="tf">TEXT</span>,
+  secret          <span class="tf">TEXT</span>,
+  allowed_origins <span class="tf">TEXT[]</span> <span class="tk">DEFAULT</span> <span class="ts">'{}'</span>,
+  created_at      <span class="tf">TIMESTAMPTZ</span> <span class="tk">DEFAULT</span> now()
+);
+
+<span class="tk">CREATE TABLE</span> comments (
+  id             <span class="tf">TEXT</span> <span class="tk">PRIMARY KEY</span>,
+  project_key    <span class="tf">TEXT</span> <span class="tk">REFERENCES</span> projects <span class="tk">ON DELETE CASCADE</span>,
+  url            <span class="tf">TEXT</span>,
+  status         <span class="tf">TEXT</span> <span class="tk">DEFAULT</span> <span class="ts">'open'</span>,
+  body           <span class="tf">TEXT</span>,
+  author  <span class="tf">JSONB</span>,  anchor  <span class="tf">JSONB</span>,  context <span class="tf">JSONB</span>,  <span class="tp">"offset"</span> <span class="tf">JSONB</span>,
+  kind    <span class="tf">TEXT</span> <span class="tk">DEFAULT</span> <span class="ts">'element'</span>,           <span class="tc">-- additive</span>
+  region  <span class="tf">JSONB</span>,  viewport <span class="tf">JSONB</span>,             <span class="tc">-- additive</span>
+  screenshot_url <span class="tf">TEXT</span>,
+  created_at     <span class="tf">TIMESTAMPTZ</span> <span class="tk">DEFAULT</span> now()
+);
+<span class="tk">CREATE INDEX</span> comments_project_url <span class="tk">ON</span> comments (project_key, url);</code></pre></div>
+        <div class="callout note"><span class="cl">Laravel table</span>
+          The Laravel package mirrors this as <code>loupe_comments</code> with a UUID <code>id</code>, a
+          <code>timestamps</code> pair, and an indexed denormalized <code>author_id</code> for ownership
+          checks. <code>url</code> is <code>VARCHAR(500)</code> and <code>project_key</code>
+          <code>VARCHAR(191)</code> so the composite index fits MySQL's key-length limit.</div>
+      </section>
+
+      <hr class="hr">
+
+      <!-- TESTING -->
+      <section class="doc" id="testing">
+        <h2><a class="anchor" href="#testing">Testing</a></h2>
+        <p>Runner is <strong>Vitest + v8 coverage</strong>. DOM code runs under <strong>happy-dom</strong>
+          (opt-in per file); the rest runs in Node.</p>
+        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code>npm test              <span class="tc"># run the suite once</span>
+npm run test:watch    <span class="tc"># watch mode</span>
+npm run test:coverage <span class="tc"># text + HTML report in coverage/</span></code></pre></div>
+        <p>Coverage is ~91% lines / ~85% statements. Pure-logic modules sit at or near 100%
+          (<code>server/store</code>, <code>server/blobs</code>). Deliberately under-covered:
+          <code>db.ts</code>'s <code>pg</code> branch (needs a live Postgres), the
+          <code>modern-screenshot</code> redaction filter, and the rAF/MutationObserver-driven app code that
+          needs a real layout engine. The extension's <code>content.src.ts</code> is validated by the
+          manifest test + build rather than executed (it needs Chrome APIs + canvas).</p>
+        <p>The Laravel package runs an Orchestra Testbench suite across every PHP × Laravel combination in
+          CI, under a <strong>100% line-coverage</strong> gate
+          (<code>composer test:coverage-100</code>).</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- RELEASING -->
+      <section class="doc" id="releasing">
+        <h2><a class="anchor" href="#releasing">Releasing &amp; publishing</a></h2>
+        <p>Loupe uses <strong>Semantic Versioning</strong> and ships through <strong>GitHub Releases</strong>
+          backed by annotated tags (<code>vX.Y.Z</code>). MAJOR = breaking change to a public contract (SDK
+          <code>init</code>, HTTP routes, MCP tool shapes, DB schema); MINOR = compatible features;
+          PATCH = compatible fixes.</p>
+        <div class="callout warn"><span class="cl">The release rule</span>
+          A release <strong>must</strong> update the docs: (1) <code>CHANGELOG.md</code>, (2) the landing-page
+          version, (3) the wiki, (4) each published package's <code>version</code>. CI fails the release if
+          <code>CHANGELOG.md</code> has no entry for the tag.</div>
+
+        <h3>Two channels, two registries</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Channel</th><th>Trigger</th><th>dist-tag</th><th>npm</th><th>GitHub Packages</th></tr></thead>
+            <tbody>
+              <tr><td>Canary</td><td>every push to <code>main</code></td><td><code>next</code></td><td><code>@loupekit/*</code></td><td><code>@mohamed-ashraf-elsaed/*</code></td></tr>
+              <tr><td>Stable</td><td>tag <code>vX.Y.Z</code></td><td><code>latest</code></td><td><code>@loupekit/*</code></td><td><code>@mohamed-ashraf-elsaed/*</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Publishable to npm: <code>@loupekit/shared</code>, <code>@loupekit/sdk</code>,
+          <code>@loupekit/mcp</code>. Publish <code>shared</code> first — <code>mcp</code> imports it at
+          runtime. The Laravel package is split to its own repo by CI and picked up by Packagist; one
+          <code>vX.Y.Z</code> tag ships npm + Packagist together. The extension ships to the Chrome Web Store.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- CHANGELOG -->
+      <section class="doc" id="changelog">
+        <h2><a class="anchor" href="#changelog">Changelog</a></h2>
+        <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
+          release: <strong>0.4.3</strong> (2026-07-13).</p>
+
+        <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.4.3</span><span class="cl-date">2026-07-13</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Laravel: multi-guard identity resolution.</strong> Multi-guard apps no longer 403 with
+              "cannot post as another user". Identity resolves through an ordered guard list
+              (<code>LOUPE_GUARDS</code>) used everywhere — widget author, gates, API middleware
+              (<code>loupe.auth</code>), anti-spoof. Backward compatible.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.4.2</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Laravel: assets load behind a CDN.</strong> Loupe resolves published assets from the
+              app URL via <code>Url::asset()</code>, bypassing <code>ASSET_URL</code>. New
+              <code>LOUPE_ASSET_URL</code> override.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.4.1</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Captures never hang.</strong> Font wait capped (~0.8s), capture timeout lowered to 6s,
+              every capture wrapped in a hard outer timeout.</li>
+            <li><strong>Region shot opens instantly.</strong> Composer appears immediately; screenshot captured
+              in the background and attached on submit.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.4.0</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Device / viewport tracking (end to end)</strong> — desktop/tablet/mobile badge in the
+              panel, dashboard, and MCP payload; <code>deviceType(width)</code> helper + DB column.</li>
+            <li><strong>Per-page comments on SPA navigation</strong> — reloads comments on client-side route
+              changes.</li>
+            <li><strong>Mobile toolbar</strong> — compact, icon-only, pinned left.</li>
+            <li>Region-shot renders the smallest covering element (faster, reliable font embedding).</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.3.4</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Screenshots no longer fall back to system fonts.</strong> Capture awaits
+              <code>document.fonts.ready</code> (30s timeout) before rasterizing.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.3.3</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Collapsible toolbar</strong> across all SDK surfaces.</li>
+            <li><strong>Laravel: frictionless in <code>local</code></strong> (<code>allow_in_local</code>,
+              default true); baseline gates now deny by default.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.3.2</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Laravel migration on MySQL.</strong> <code>url</code> → <code>VARCHAR(500)</code>,
+              <code>project_key</code> → <code>VARCHAR(191)</code> so the composite index fits MySQL's
+              key-length limit.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.3.1</span><span class="cl-date">2026-07-12</span><span class="cl-tag chg">Changed</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li>SEO / GEO — schema.org author &amp; entity metadata, AI-crawler allow-list, <code>llms.txt</code>.</li>
+            <li>Release/CI — synced <code>package-lock.json</code> so <code>npm ci</code> passes on tags.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.3.0</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Loupe for Laravel (<code>loupekit/laravel</code>)</strong> — the whole loop as a
+              Composer package; PHP 8.4+, Laravel 11/12/13, 100% line-coverage gate.</li>
+            <li>SDK gained <code>headers</code> + <code>credentials</code> config; dashboard reads
+              <code>window.__LOUPE__</code> for session auth.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.2.1</span><span class="cl-date">2026-07-12</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul"><li>Professional npm READMEs for <code>sdk</code>, <code>mcp</code>, <code>shared</code>. No code changes.</li></ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.2.0</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Free-region screenshots ("Region shot")</strong> — anchored to the element under its
+              center as fractional coords; tracks reflow, a different viewport, and scrolling. New
+              <code>captureRegion</code> hook.</li>
+            <li>Automated dual-registry publishing (<code>next</code> canary + <code>latest</code> stable).</li>
+            <li>Fixed SDK Shadow-DOM theming — vars moved to <code>:host</code> so they inherit.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.1.0</span><span class="cl-date">2026-07-09</span><span class="cl-tag add">Added</span></div>
+          <ul class="bul">
+            <li>The first release — the full loop, end to end: <code>sdk</code>, <code>server</code>,
+              <code>dashboard</code>, <code>mcp</code>, <code>extension</code>, <code>shared</code>. Vitest
+              suite (~91%), Mermaid architecture docs, a GitHub Wiki, and an SEO/GEO landing page.</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        <p><strong>Loupe</strong> v0.4.3 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+          to Claude.</p>
+        <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
+          <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,
+          <code>docs/TESTING.md</code>, <code>docs/LARAVEL.md</code>, <code>RELEASING.md</code>, and each
+          package's README.</p>
+      </footer>
+
+    </div>
+  </main>
+
+  <!-- ============ RIGHT TOC ============ -->
+  <aside class="toc" id="toc">
+    <div class="t-label">On this page</div>
+    <nav id="tocNav"></nav>
+  </aside>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+
+    // ---- Theme toggle ----
+    var themeBtn = document.getElementById('themeBtn');
+    function current(){ return root.dataset.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    themeBtn.addEventListener('click', function () {
+      root.dataset.theme = current() === 'dark' ? 'light' : 'dark';
+    });
+
+    // ---- Mobile nav ----
+    var menuBtn = document.getElementById('menuBtn');
+    var sidebar = document.getElementById('sidebar');
+    menuBtn.addEventListener('click', function(){ sidebar.classList.toggle('open'); });
+    sidebar.addEventListener('click', function(e){ if (e.target.tagName === 'A') sidebar.classList.remove('open'); });
+
+    // ---- Nav filter (search) ----
+    var search = document.getElementById('navSearch');
+    var navLinks = Array.prototype.slice.call(sidebar.querySelectorAll('a'));
+    var groups = Array.prototype.slice.call(sidebar.querySelectorAll('.nav-group'));
+    search.addEventListener('input', function () {
+      var q = search.value.trim().toLowerCase();
+      navLinks.forEach(function (a) {
+        var hit = !q || a.textContent.toLowerCase().indexOf(q) !== -1;
+        a.classList.toggle('nav-hidden', !hit);
+      });
+      groups.forEach(function (g) {
+        var anyVisible = g.querySelector('a:not(.nav-hidden)');
+        g.classList.toggle('nav-hidden', !anyVisible);
+      });
+    });
+
+    // ---- Section registry ----
+    var sections = Array.prototype.slice.call(document.querySelectorAll('section.doc'));
+    var linkFor = {};
+    navLinks.forEach(function (a) {
+      var id = a.getAttribute('href'); if (id && id[0] === '#') linkFor[id.slice(1)] = a;
+    });
+
+    // ---- Left nav active + right TOC build ----
+    var tocNav = document.getElementById('tocNav');
+    function setActiveLeft(id){
+      navLinks.forEach(function (l) { l.classList.remove('active'); });
+      var a = linkFor[id]; if (a) a.classList.add('active');
+    }
+    function buildToc(section){
+      tocNav.innerHTML = '';
+      var heads = section.querySelectorAll('h2, h3');
+      heads.forEach(function (h) {
+        // ensure id
+        if (!h.id) {
+          var anchorA = h.querySelector('a[href^="#"]');
+          if (anchorA) h.id = anchorA.getAttribute('href').slice(1);
+        }
+        if (!h.id) return;
+        var link = document.createElement('a');
+        link.href = '#' + h.id;
+        link.textContent = h.textContent.replace(/\s*#\s*$/,'').trim();
+        if (h.tagName === 'H3') link.className = 'sub';
+        link.dataset.target = h.id;
+        tocNav.appendChild(link);
+      });
+    }
+
+    var currentSection = null;
+    var secObserver = new IntersectionObserver(function (entries) {
+      // pick the entry closest to the top that is intersecting
+      var visible = entries.filter(function(e){ return e.isIntersecting; });
+      if (!visible.length) return;
+      visible.sort(function(a,b){ return a.boundingClientRect.top - b.boundingClientRect.top; });
+      var sec = visible[0].target;
+      if (sec === currentSection) return;
+      currentSection = sec;
+      setActiveLeft(sec.id);
+      buildToc(sec);
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    sections.forEach(function (s) { secObserver.observe(s); });
+
+    // ---- Right TOC heading scroll-spy ----
+    var headings = Array.prototype.slice.call(document.querySelectorAll('section.doc h2, section.doc h3'));
+    var headObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var links = tocNav.querySelectorAll('a');
+        links.forEach(function (l) { l.classList.toggle('active', l.dataset.target === en.target.id); });
+      });
+    }, { rootMargin: '-10% 0px -80% 0px', threshold: 0 });
+    headings.forEach(function (h) {
+      if (!h.id) { var a = h.querySelector('a[href^="#"]'); if (a) h.id = a.getAttribute('href').slice(1); }
+      if (h.id) headObserver.observe(h);
+    });
+
+    // initial
+    if (sections.length) { setActiveLeft(sections[0].id); buildToc(sections[0]); }
+  })();
+</script>
+
+</body>
+</html>
