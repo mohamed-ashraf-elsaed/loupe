@@ -11,6 +11,19 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.5.2] — 2026-07-15
+
+### Fixed
+
+- **`loupe-mcp` binary now actually starts.** After 0.5.1 shipped compiled JS, launching the
+  installed `loupe-mcp` binary still did nothing — it started and exited without serving.
+  The entrypoint guard compared `import.meta.url` to `argv[1]`, but the npm `bin` is a
+  **symlink** into `node_modules/.bin`: Node resolves the symlink for `import.meta.url` while
+  `argv[1]` stays the symlink path, so the two never matched and the stdio transport never
+  connected. The check now resolves symlinks (`realpathSync`) before comparing, so
+  `loupe-mcp` (and MCP-directory introspection like Glama) works. Verified by running the
+  published binary through its `node_modules/.bin` symlink.
+
 ## [0.5.1] — 2026-07-15
 
 ### Fixed
@@ -248,7 +261,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.2...v0.4.3

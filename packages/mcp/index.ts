@@ -2,6 +2,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
 import { argv } from "node:process";
 import { z } from "zod";
 
@@ -104,7 +105,7 @@ export async function updateStatus({ id, status }: { id: string; status: string 
   return wrap(`#${id} → ${status}`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.5.1" });
+const server = new McpServer({ name: "loupe", version: "0.5.2" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Use this to see what a PM has flagged, then work through the items.",
@@ -128,7 +129,16 @@ server.tool(
 );
 
 // Connect the stdio transport only when run directly (not when imported by tests).
-if (import.meta.url === pathToFileURL(argv[1] ?? "").href) {
+// Resolve symlinks: when launched via the `loupe-mcp` bin, argv[1] is a symlink into
+// node_modules/.bin while import.meta.url is the real path — compare their realpaths.
+function isEntrypoint(): boolean {
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(argv[1] ?? "")).href;
+  } catch {
+    return false;
+  }
+}
+if (isEntrypoint()) {
   await server.connect(new StdioServerTransport());
   console.error(`[loupe-mcp] connected · project=${PROJECT_KEY} · api=${API}`);
 }
