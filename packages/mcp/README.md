@@ -14,6 +14,7 @@ as an actionable, fully-contextualized backlog — request + element HTML + styl
   <a href="https://www.npmjs.com/package/@loupekit/mcp"><img src="https://img.shields.io/npm/dm/@loupekit/mcp?color=4a55d6" alt="npm downloads" /></a>
   <img src="https://img.shields.io/npm/l/@loupekit/mcp?color=4a55d6" alt="MIT license" />
   <img src="https://img.shields.io/badge/MCP-stdio-4a55d6" alt="MCP stdio server" />
+  <a href="https://glama.ai/mcp/servers/mohamed-ashraf-elsaed/loupe"><img src="https://glama.ai/mcp/servers/mohamed-ashraf-elsaed/loupe/badges/score.svg" alt="Loupe MCP server on Glama" /></a>
 </p>
 
 <p>
