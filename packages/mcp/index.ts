@@ -104,7 +104,7 @@ export async function updateStatus({ id, status }: { id: string; status: string 
   return wrap(`#${id} → ${status}`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.5.0" });
+const server = new McpServer({ name: "loupe", version: "0.5.1" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Use this to see what a PM has flagged, then work through the items.",

@@ -104,7 +104,9 @@ The dashboard is the human side of the same backlog Claude reads:
 
 Runs over **stdio** using the official
 [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk).
-Node 24+ runs the TypeScript entry directly (native type-stripping) — no build step.
+The published package ships compiled JS (`dist/index.js`), so `npm i -g @loupekit/mcp`
+exposes a working `loupe-mcp` binary. From a source checkout it also runs directly with
+`node index.ts` (Node 24+ native type-stripping).
 
 ## Related packages
 

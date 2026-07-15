@@ -82,19 +82,23 @@ npm i @mohamed-ashraf-elsaed/sdk
 
 ### Manual publish (fallback)
 
-In dependency order — `shared` first, since `mcp` imports it at runtime:
+Publish `shared` first (it's a sibling dependency of nothing at runtime now, but the
+order keeps registry metadata tidy). `npm run build` compiles every package first:
 
 ```bash
 npm run build
 npm publish ./packages/shared --access public
-npm publish ./packages/mcp    --access public
+npm publish ./packages/mcp    --access public   # ships dist/index.js (tsup)
 npm publish ./packages/sdk    --access public   # bundles shared + modern-screenshot
 ```
 
 Notes:
 - `@loupekit/sdk` bundles its dependencies (tsup), so the published tarball has no runtime
   deps; `@loupekit/shared` and `modern-screenshot` are dev-only for it.
-- `@loupekit/mcp` imports `@loupekit/shared` at runtime, so publish `shared` first.
+- `@loupekit/mcp` compiles to `dist/index.js` (tsup; built by `npm run build` and again by a
+  `prepublishOnly` safety net). Its only runtime deps are `@modelcontextprotocol/sdk` + `zod`;
+  the `@loupekit/shared` import is type-only (dev). It must ship compiled JS — Node refuses to
+  strip TypeScript types under `node_modules`.
 
 ### Chrome Web Store (extension)
 

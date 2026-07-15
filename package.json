@@ -5,7 +5,7 @@
     "email": "m.ashraf.saed@gmail.com",
     "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
   },
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Pin feedback to the live UI. Hand it to Claude.",
   "workspaces": [
@@ -17,8 +17,9 @@
     "packages/extension"
   ],
   "scripts": {
-    "build": "npm run build -w @loupekit/shared && npm run build -w @loupekit/sdk && npm run build -w @loupekit/dashboard && npm run build -w @loupekit/extension",
+    "build": "npm run build -w @loupekit/shared && npm run build -w @loupekit/sdk && npm run build -w @loupekit/mcp && npm run build -w @loupekit/dashboard && npm run build -w @loupekit/extension",
     "build:shared": "npm run build -w @loupekit/shared",
+    "build:mcp": "npm run build -w @loupekit/mcp",
     "build:extension": "npm run build -w @loupekit/extension",
     "start": "npm run start -w @loupekit/server",
     "seed": "npm run seed -w @loupekit/server",

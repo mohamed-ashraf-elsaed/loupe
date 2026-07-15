@@ -304,7 +304,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.5.0</span>
+    <span class="ver">v0.5.1</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -313,7 +313,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.5.0</a>
+    <a class="icon-btn" href="#changelog">v0.5.1</a>
   </div>
 </header>
 
@@ -369,7 +369,7 @@
 
       <!-- INTRODUCTION -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Documentation · v0.5.0</p>
+        <p class="eyebrow">Documentation · v0.5.1</p>
         <h1>Loupe</h1>
         <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
           screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
@@ -382,7 +382,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.5.0</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.5.1</div></div>
           <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.4+</div></div>
@@ -517,8 +517,9 @@ npm start</code></pre>
         <p>Loupe is an <strong>npm workspaces monorepo</strong>. Root scripts orchestrate the packages.</p>
         <div class="grid">
           <div class="card"><h4>Node-native packages</h4><p><code>server/</code> and <code>mcp/</code> run
-            TypeScript directly on Node 24 (type-stripping) — no build step. Run <code>node index.ts</code>;
-            imports use <code>.ts</code> extensions.</p></div>
+            TypeScript directly on Node 24 (type-stripping) in dev — <code>node index.ts</code>, <code>.ts</code>
+            imports. <code>mcp</code> is additionally bundled (tsup → <code>dist</code>) for <em>publishing</em>,
+            since Node won't strip types under <code>node_modules</code>.</p></div>
           <div class="card"><h4>Bundled browser packages</h4><p><code>sdk/</code>, <code>dashboard/</code>,
             and <code>extension/</code> are bundled by <strong>tsup</strong> to <code>dist/</code>; imports
             use <code>.js</code> (ESM) extensions.</p></div>
@@ -528,7 +529,7 @@ npm start</code></pre>
           (<code>StorageAdapter</code>, <code>db.ts</code>, <code>blobs.ts</code>, the
           <code>captureScreenshot</code> hook) — change implementations, not contracts.</p>
         <div class="callout note"><span class="cl">Versioning</span>
-          As of <strong>0.5.0</strong> every package is aligned on one version — the previously stale
+          As of <strong>0.5.1</strong> every package is aligned on one version — the previously stale
           <code>@loupekit/server</code>, the extension <code>manifest.json</code>, and the Node
           <code>McpServer</code> (all <code>0.2.0</code>) are now <code>0.5.0</code>. The Laravel
           <code>LoupeServer</code> reports its own <code>1.0.0</code> — an independent MCP-server identity,
@@ -657,7 +658,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-shared">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.0</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.1</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
         <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
           Node packages import the compiled JS.</p>
 
@@ -692,7 +693,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-sdk">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.0</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.1</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
         <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
           (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
 
@@ -753,7 +754,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-server">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.1</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
         <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
           <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
           listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
@@ -802,7 +803,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-dashboard">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.0</span><span class="badge">tsup bundle</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.1</span><span class="badge">tsup bundle</span></div>
         <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
           (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
           <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
@@ -823,7 +824,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-mcp">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.0</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.1</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
         <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
           Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
           Claude Code at the source entry directly.</p>
@@ -855,8 +856,10 @@ npm start</code></pre>
             </tbody>
           </table>
         </div>
-        <p>Transport is stdio via <code>@modelcontextprotocol/sdk</code>. Node 24+ runs the TypeScript entry
-          directly — no build. See <a href="#quickstart">Quick start</a> for the <code>.mcp.json</code>.</p>
+        <p>Transport is stdio via <code>@modelcontextprotocol/sdk</code>. The published package ships compiled
+          JS (<code>dist/index.js</code> via tsup), so <code>npm i -g @loupekit/mcp</code> gives a working
+          <code>loupe-mcp</code> binary; from a source checkout it runs directly with <code>node index.ts</code>.
+          See <a href="#quickstart">Quick start</a> for the <code>.mcp.json</code>.</p>
       </section>
 
       <hr class="hr">
@@ -865,7 +868,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-extension">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.1</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
         <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
           target. The only difference from the SDK is the screenshot source:
           <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
@@ -1161,9 +1164,21 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.5.0</strong> (2026-07-14).</p>
+          release: <strong>0.5.1</strong> (2026-07-15).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.5.1</span><span class="cl-date">2026-07-15</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong><code>@loupekit/mcp</code> now installs and runs from npm.</strong> It shipped its raw
+              <code>index.ts</code> and relied on runtime type-stripping, but Node won't strip types under
+              <code>node_modules</code> — so <code>npm i -g @loupekit/mcp</code> + <code>loupe-mcp</code> failed
+              for every consumer (and blocked containerized introspection on directories like Glama). It now
+              compiles to <code>dist/index.js</code> (tsup) with <code>bin</code>/<code>main</code> pointing
+              there. Running from a checkout (<code>node packages/mcp/index.ts</code>) is unchanged.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.5.0</span><span class="cl-date">2026-07-14</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
           <ul class="bul">
             <li><strong>Free comments.</strong> A new <strong>Note</strong> toolbar mode drops a page-level
@@ -1290,7 +1305,7 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.5.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.5.1 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
           <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,

@@ -11,6 +11,21 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.5.1] — 2026-07-15
+
+### Fixed
+
+- **`@loupekit/mcp` now installs and runs from npm.** The package shipped its raw
+  TypeScript entry (`index.ts`) and relied on Node stripping types at runtime — but
+  Node refuses to strip types for files under `node_modules`
+  (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so `npm i -g @loupekit/mcp` followed
+  by `loupe-mcp` failed for every consumer (and blocked containerized introspection on
+  MCP directories like Glama). The package now compiles to `dist/index.js` (tsup, bundled
+  in the root build with a `prepublishOnly` safety net) and points `bin`/`main` there.
+  Running the server from a source checkout (`node packages/mcp/index.ts`) is unchanged.
+  Its type-only dependency on `@loupekit/shared` moved to `devDependencies`, so a fresh
+  install no longer pulls an unrelated `shared` version.
+
 ## [0.5.0] — 2026-07-14
 
 ### Added
@@ -233,7 +248,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.1...v0.4.2

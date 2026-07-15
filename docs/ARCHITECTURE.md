@@ -104,7 +104,7 @@ flowchart TD
 | `@loupekit/sdk` | browser | tsup (ESM + IIFE) | Inspect, comment, capture, re-anchor |
 | `@loupekit/server` | Node (native TS) | none | API, Postgres, blobs, auth, static |
 | `@loupekit/dashboard` | browser | tsup (ESM) | Kanban triage board |
-| `@loupekit/mcp` | Node (native TS) | none | MCP server for Claude Code |
+| `@loupekit/mcp` | Node | tsup → dist (publish); native TS from source | MCP server for Claude Code |
 | `@loupekit/extension` | browser | tsup (IIFE) | MV3 extension, pixel-perfect capture |
 | `loupekit/laravel` | PHP / Laravel | Composer | Drop-in backend + dashboard + MCP for Laravel apps |
 

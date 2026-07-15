@@ -5,7 +5,7 @@
     "email": "m.ashraf.saed@gmail.com",
     "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
   },
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Loupe MV3 browser extension — inspect and comment on any site.",
   "type": "module",
   "private": true,

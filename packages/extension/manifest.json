@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Loupe — visual feedback",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Inspect any page, pin comments to elements, and hand them to Claude — no SDK install required.",
   "permissions": [
     "activeTab",
