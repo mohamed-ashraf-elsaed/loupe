@@ -32,27 +32,38 @@ var Loupe = (() => {
 :host { all: initial; }
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
 
-/* Custom properties must live on :host \u2014 inside the Shadow DOM, :root matches
-   nothing and no element carries a .loupe class, so they'd never resolve. */
+/* Theme tokens live on :host (inside the Shadow DOM :root matches nothing).
+   Dark is the default; the host element gets .theme-light to flip to light. */
 :host {
+  --accent: #6b73e6;
+  --pin: #ff5842;
+  --bg: #14161d;
+  --bg-2: #1b1e27;
+  --bg-3: #262a36;
+  --ink: #e7e9f0;
+  --muted: #9aa0af;
+  --line: #2b2f3b;
+  --shadow: 0 12px 48px rgba(0,0,0,.42);
+}
+:host(.theme-light) {
   --accent: #4a55d6;
   --pin: #ff5842;
+  --bg: #ffffff;
+  --bg-2: #f6f7fb;
+  --bg-3: #eceef4;
   --ink: #16181f;
-  --panel: #ffffff;
-  --panel-2: #f4f5f9;
-  --line: #e2e5ee;
   --muted: #6b7180;
+  --line: #e2e5ee;
+  --shadow: 0 12px 40px rgba(0,0,0,.22);
 }
 
-.overlay {
-  position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
-}
+.overlay { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; }
 
 /* inspector highlight */
 .hl {
   position: fixed; pointer-events: none; z-index: 2147483001;
   border: 2px solid var(--accent);
-  background: rgba(74, 85, 214, 0.10);
+  background: rgba(107, 115, 230, 0.12);
   border-radius: 4px; display: none;
   transition: all 60ms linear;
 }
@@ -65,7 +76,7 @@ var Loupe = (() => {
 /* region selection (during drag) + active-comment outline */
 .selbox {
   position: fixed; pointer-events: none; z-index: 2147483001; display: none;
-  border: 2px dashed var(--accent); background: rgba(74, 85, 214, 0.12); border-radius: 4px;
+  border: 2px dashed var(--accent); background: rgba(107, 115, 230, 0.14); border-radius: 4px;
 }
 .region-box {
   position: fixed; pointer-events: none; z-index: 2147483001; display: none;
@@ -88,121 +99,158 @@ var Loupe = (() => {
 .pin.done { background: #10935a; }
 .pin.free { background: var(--accent); border-radius: 50% 50% 2px 50%; }
 .pin.free.done { background: #10935a; }
-.pin.active { outline: 3px solid rgba(74,85,214,.4); }
+.pin.active { outline: 3px solid rgba(107,115,230,.45); }
 
-/* toolbar */
-.toolbar {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  z-index: 2147483003; pointer-events: auto;
-  display: flex; align-items: center; gap: 4px;
-  background: #1b1e27; color: #fff; padding: 6px; border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0,0,0,.4); border: 1px solid #2b2f3b;
+/* ------------------------------------------------------------------ launcher */
+/* The collapsed state: a small floating button that reopens the panel. */
+.launcher {
+  position: fixed; z-index: 2147483003; bottom: 20px; right: 20px;
+  width: 46px; height: 46px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
+  cursor: pointer; display: none; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
 }
-/* every toolbar item (brand + buttons) shares one icon+label layout so they align */
-.toolbar button, .toolbar .brand {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; border-radius: 8px;
-  font-size: 13px; font-weight: 500; line-height: 1;
+.launcher.show { display: inline-flex; }
+.launcher:hover { border-color: var(--accent); }
+.launcher .logo { font-size: 24px; line-height: 1; color: var(--accent); }
+.launcher .lcount {
+  position: absolute; top: -5px; right: -5px; background: var(--pin); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 6px;
+  border: 2px solid var(--bg);
 }
-.toolbar button {
-  background: transparent; color: #cfd3de; border: 0; cursor: pointer;
-}
-.toolbar button:hover, .toolbar .brand:hover { background: #2b2f3b; color: #fff; }
-.toolbar .ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
-.toolbar .ico svg { width: 16px; height: 16px; display: block; }
-.toolbar .label { white-space: nowrap; }
-.toolbar button.on { background: var(--accent); color: #fff; }
-.toolbar .sep { width: 1px; height: 20px; background: #333846; margin: 0 2px; }
-.toolbar .brand {
-  font-weight: 700; letter-spacing: -.01em; cursor: grab; user-select: none; touch-action: none;
-}
-.toolbar.dragging { transition: none; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
-.toolbar.dragging .brand { cursor: grabbing; }
-/* collapsed \u2192 show only the brand/logo; click it again to expand */
-.toolbar.collapsed { gap: 0; }
-.toolbar.collapsed > *:not(.brand) { display: none; }
+.launcher .lcount:empty { display: none; }
 
-/* free-move: the bar is fixed-positioned by JS and expands *inward* from its
-   docked edge \u2014 vertical (a column) against a left/right edge, horizontal
-   otherwise \u2014 so it's always fully on-screen. */
-.toolbar.floating { transform: none; }
-.toolbar.orient-h.flow-rev { flex-direction: row-reverse; }
-.toolbar.orient-v { flex-direction: column; align-items: stretch; }
-.toolbar.orient-v.flow-rev { flex-direction: column-reverse; }
-.toolbar.orient-v button, .toolbar.orient-v .brand { justify-content: flex-start; }
-.toolbar.orient-v .sep { width: 22px; height: 1px; margin: 2px auto; }
-.toolbar.orient-v .count { margin-left: auto; }
-.toolbar .count {
-  background: var(--pin); color: #fff; font-size: 11px; font-weight: 700;
-  border-radius: 999px; padding: 1px 7px; margin-left: 2px;
+/* --------------------------------------------------------------------- dock */
+/* The control panel. One container, four dock modes (left/right/bottom/float),
+   overlaying the host page (never reflows it). */
+.dock {
+  position: fixed; z-index: 2147483003; pointer-events: auto;
+  display: none; flex-direction: column;
+  background: var(--bg); color: var(--ink);
+  border: 1px solid var(--line); box-shadow: var(--shadow);
+  overflow: hidden; font-size: 13px;
 }
+.dock.open { display: flex; }
+.dock.mode-right  { top: 0; right: 0; bottom: 0; width: 360px; border-width: 0 0 0 1px; }
+.dock.mode-left   { top: 0; left: 0;  bottom: 0; width: 360px; border-width: 0 1px 0 0; }
+.dock.mode-bottom { left: 0; right: 0; bottom: 0; height: 320px; border-width: 1px 0 0 0; }
+.dock.mode-float  { border-radius: 14px; /* left/top/width/height set inline */ }
 
-/* mobile \u2192 compact, icon-only, pinned to the left */
-@media (max-width: 640px) {
-  .toolbar { left: 12px; right: auto; transform: none; bottom: 12px; padding: 4px; gap: 2px; }
-  .toolbar .label { display: none; }
-  .toolbar button, .toolbar .brand { padding: 10px; }
-  .toolbar .sep { display: none; }
-  .toolbar .count { position: absolute; top: -4px; right: -4px; margin: 0; }
-  .toolbar [data-role="comments"] { position: relative; }
+/* header: brand + dock controls */
+.dhead {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--bg-2);
+}
+.dock.mode-float .dhead { cursor: grab; }
+.dock.mode-float.dragging .dhead { cursor: grabbing; }
+.dock.dragging { user-select: none; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -.01em; }
+.brand .logo { font-size: 16px; line-height: 1; color: var(--accent); flex: none; }
+.brand .title { font-size: 13px; }
+.dctl { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.dctl button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.dctl button:hover { background: var(--bg-3); color: var(--ink); }
+.dctl button.on { background: var(--bg-3); color: var(--accent); }
+.dctl svg { display: block; }
+.dctl .gap { width: 1px; height: 16px; background: var(--line); margin: 0 4px; flex: none; }
+
+/* tools row */
+.tools { display: flex; gap: 6px; flex: none; padding: 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tools button {
+  display: flex; align-items: center; gap: 6px; padding: 7px 10px; line-height: 1;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--ink);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.tools button:hover { background: var(--bg-3); }
+.tools button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tools .ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; }
+.tools .ico svg { width: 15px; height: 15px; display: block; }
+
+/* list */
+.listhead {
+  display: flex; align-items: center; gap: 8px; flex: none; padding: 12px 12px 6px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700;
+}
+.count { background: var(--pin); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 7px; }
+.list { flex: 1; overflow-y: auto; padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 12px; text-align: center; line-height: 1.5; }
+/* bottom dock lays the list out in flowing columns so it isn't a tall single strip */
+.dock.mode-bottom .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-content: start; }
+
+.item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--bg-2); }
+.item:hover { border-color: var(--accent); }
+.item .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.item .num { background: var(--pin); color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.item .num.detached { background: #9aa0af; }
+.item .num.done { background: #10935a; }
+.item .who { font-size: 12px; font-weight: 600; }
+.item .device { font-size: 10px; color: var(--muted); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.item .body { font-size: 13px; line-height: 1.4; }
+.item .meta { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+.item .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; margin-left: auto; white-space: nowrap; }
+.badge.detached { background: var(--bg-3); color: var(--muted); }
+.badge.done { background: #d8f0e4; color: #10935a; }
+.item .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.item .actions button { font-size: 11px; border: 1px solid var(--line); background: var(--bg-3); border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--ink); }
+.item .actions button:hover { border-color: var(--accent); }
+.item img.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
+
+/* float resize grip (bottom-right corner) */
+.resize { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 1; }
+.dock.mode-float .resize { display: block; }
+.resize::after {
+  content: ""; position: absolute; right: 3px; bottom: 3px; width: 7px; height: 7px;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); opacity: .7;
 }
 
 /* composer popover */
 .composer {
   position: fixed; z-index: 2147483004; pointer-events: auto; width: 300px;
-  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
-  border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.22); padding: 12px; display: none;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: var(--shadow); padding: 12px; display: none;
 }
 .composer .target {
   font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--accent);
-  background: var(--panel-2); border-radius: 6px; padding: 5px 8px; margin-bottom: 8px;
+  background: var(--bg-2); border-radius: 6px; padding: 5px 8px; margin-bottom: 8px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .composer textarea {
   width: 100%; min-height: 68px; resize: vertical; border: 1px solid var(--line);
-  border-radius: 8px; padding: 8px; font-size: 13px; color: var(--ink); outline: none;
+  border-radius: 8px; padding: 8px; font-size: 13px; color: var(--ink); background: var(--bg-2); outline: none;
 }
 .composer textarea:focus { border-color: var(--accent); }
 .composer .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px; }
 .composer label.chk { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .composer .btns { display: flex; gap: 6px; }
-.composer button {
-  border: 0; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 7px 12px; cursor: pointer;
-}
+.composer button { border: 0; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 7px 12px; cursor: pointer; }
 .composer .primary { background: var(--accent); color: #fff; }
 .composer .primary:disabled { opacity: .5; cursor: default; }
-.composer .ghost { background: var(--panel-2); color: var(--ink); }
+.composer .ghost { background: var(--bg-3); color: var(--ink); }
 
-/* panel (comment list) */
-.panel {
-  position: fixed; right: 16px; bottom: 80px; top: 16px; width: 340px;
-  z-index: 2147483003; pointer-events: auto; display: none; flex-direction: column;
-  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
-  border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.22); overflow: hidden;
+/* Mobile: left/right/float docking is a desktop affordance. On small screens the
+   panel collapses to a bottom sheet that OVERLAYS the page (pushing a side dock
+   here would squeeze the page to a useless sliver), regardless of the chosen dock
+   mode. !important overrides the inline geometry JS applies for float mode. */
+@media (max-width: 640px) {
+  .dock.open {
+    top: auto !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: auto !important; height: 76vh !important;
+    border-width: 1px 0 0 0 !important; border-radius: 16px 16px 0 0 !important;
+  }
+  .dctl [data-dock], .dctl .gap { display: none; } /* dock positions don't apply on mobile */
+  .resize { display: none !important; }
+  .tools button { flex: 1; justify-content: center; } /* full-width tap targets */
+  .dock.mode-bottom .list { grid-template-columns: 1fr; }
+  .launcher { bottom: 16px; right: 16px; }
+  /* While a tool is active, shrink the sheet to just header + tools so most of the
+     page stays visible and tappable; the list returns when the tool closes. */
+  .dock.inspecting { height: auto !important; }
+  .dock.inspecting .listhead, .dock.inspecting .list { display: none; }
 }
-.panel.open { display: flex; }
-.panel .phead { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 700; display:flex; justify-content:space-between; align-items:center; }
-.panel .phead .x { cursor:pointer; color: var(--muted); background:none; border:0; font-size:18px; }
-.panel .list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-.panel .empty { color: var(--muted); font-size: 13px; padding: 24px 12px; text-align: center; }
-.item {
-  border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--panel);
-}
-.item:hover { border-color: var(--accent); }
-.item .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.item .num { background: var(--pin); color:#fff; width:20px; height:20px; border-radius:50%; font-size:11px; font-weight:700; display:grid; place-items:center; }
-.item .num.detached { background:#9aa0af; }
-.item .num.done { background:#10935a; }
-.item .who { font-size: 12px; font-weight: 600; }
-.item .device { font-size: 10px; color: var(--muted); background: var(--panel-2); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
-.item .body { font-size: 13px; line-height: 1.4; }
-.item .meta { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: ui-monospace, Menlo, monospace; }
-.item .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; margin-left: auto; }
-.badge.detached { background: #eceef2; color: #6b7180; }
-.badge.done { background: #d8f0e4; color: #10935a; }
-.item .actions { display: flex; gap: 6px; margin-top: 8px; }
-.item .actions button { font-size: 11px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--ink); }
-.item img.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
 `
   );
 
@@ -554,14 +602,14 @@ var Loupe = (() => {
   }
   var XMLNS = "http://www.w3.org/2000/svg";
   function createSvg(width, height, ownerDocument) {
-    const svg = getDocument(ownerDocument).createElementNS(XMLNS, "svg");
-    svg.setAttributeNS(null, "width", width.toString());
-    svg.setAttributeNS(null, "height", height.toString());
-    svg.setAttributeNS(null, "viewBox", `0 0 ${width} ${height}`);
-    return svg;
+    const svg2 = getDocument(ownerDocument).createElementNS(XMLNS, "svg");
+    svg2.setAttributeNS(null, "width", width.toString());
+    svg2.setAttributeNS(null, "height", height.toString());
+    svg2.setAttributeNS(null, "viewBox", `0 0 ${width} ${height}`);
+    return svg2;
   }
-  function svgToDataUrl(svg, removeControlCharacter) {
-    let xhtml = new XMLSerializer().serializeToString(svg);
+  function svgToDataUrl(svg2, removeControlCharacter) {
+    let xhtml = new XMLSerializer().serializeToString(svg2);
     if (removeControlCharacter) {
       xhtml = xhtml.replace(/[\u0000-\u0008\v\f\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/gu, "");
     }
@@ -1812,8 +1860,8 @@ var Loupe = (() => {
     return out;
   }
   var SVG_EXTERNAL_RESOURCE_REGEX = /\bx?link:?href\s*=\s*["'](?!data:)[^"']+["']/i;
-  function svgHasExternalResources(svg) {
-    return SVG_EXTERNAL_RESOURCE_REGEX.test(svg.innerHTML);
+  function svgHasExternalResources(svg2) {
+    return SVG_EXTERNAL_RESOURCE_REGEX.test(svg2.innerHTML);
   }
   async function domToForeignObjectSvg(node, options) {
     const context = await orCreateContext(node, options);
@@ -1873,35 +1921,35 @@ var Loupe = (() => {
     await Promise.all([...Array.from({ length: 4 })].map(runTask));
     log.timeEnd("embed node");
     await onEmbedNode?.(clone);
-    const svg = createForeignObjectSvg(clone, context);
-    svgDefsElement && svg.insertBefore(svgDefsElement, svg.children[0]);
-    svgStyleElement && svg.insertBefore(svgStyleElement, svg.children[0]);
+    const svg2 = createForeignObjectSvg(clone, context);
+    svgDefsElement && svg2.insertBefore(svgDefsElement, svg2.children[0]);
+    svgStyleElement && svg2.insertBefore(svgStyleElement, svg2.children[0]);
     autoDestruct && destroyContext(context);
-    await onCreateForeignObjectSvg?.(svg);
-    return svg;
+    await onCreateForeignObjectSvg?.(svg2);
+    return svg2;
   }
   function createForeignObjectSvg(clone, context) {
     const { width, height } = context;
-    const svg = createSvg(width, height, clone.ownerDocument);
-    const foreignObject = svg.ownerDocument.createElementNS(svg.namespaceURI, "foreignObject");
+    const svg2 = createSvg(width, height, clone.ownerDocument);
+    const foreignObject = svg2.ownerDocument.createElementNS(svg2.namespaceURI, "foreignObject");
     foreignObject.setAttributeNS(null, "x", "0%");
     foreignObject.setAttributeNS(null, "y", "0%");
     foreignObject.setAttributeNS(null, "width", "100%");
     foreignObject.setAttributeNS(null, "height", "100%");
     foreignObject.append(clone);
-    svg.appendChild(foreignObject);
-    return svg;
+    svg2.appendChild(foreignObject);
+    return svg2;
   }
   async function domToCanvas(node, options) {
     const context = await orCreateContext(node, options);
-    const svg = await domToForeignObjectSvg(context);
-    const dataUrl = svgToDataUrl(svg, context.isEnable("removeControlCharacter"));
+    const svg2 = await domToForeignObjectSvg(context);
+    const dataUrl = svgToDataUrl(svg2, context.isEnable("removeControlCharacter"));
     if (!context.autoDestruct) {
       context.svgStyleElement = createStyleElement(context.ownerDocument);
       context.svgDefsElement = context.ownerDocument?.createElementNS(XMLNS, "defs");
       context.svgStyles.clear();
     }
-    const image = createImage(dataUrl, svg.ownerDocument);
+    const image = createImage(dataUrl, svg2.ownerDocument);
     return await imageToCanvas(image, context);
   }
   async function domToDataUrl(node, options) {
@@ -2190,6 +2238,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
+  var DOCK_MODES = ["left", "right", "bottom", "float"];
   var uid2 = () => crypto.randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
   function hash(s) {
     let h = 0;
@@ -2204,19 +2253,20 @@ var Loupe = (() => {
       /** comment.id → pin element. */
       this.pins = /* @__PURE__ */ new Map();
       this.mode = "off";
-      this.collapsed = false;
       this.lastUrl = "";
       this.targetOffset = { x: 0.5, y: 0.5 };
       this.pending = null;
       this.dragStart = null;
       /** region comment whose outline is currently highlighted (tracks scroll). */
       this.activeRegionId = null;
-      /** Free-move toolbar position as viewport fractions, or null → default (bottom-center). */
-      this.barPos = null;
-      /** In-flight drag of the toolbar by its ◎ handle. */
-      this.barDrag = null;
-      /** True right after a drag so the trailing click doesn't also toggle collapse. */
-      this.justDragged = false;
+      // ---- control-panel state (persisted in localStorage `loupe:dock`) ----------
+      this.dockMode = "right";
+      this.open = true;
+      this.theme = "dark";
+      /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
+      this.floatRect = { x: 0, y: 0, w: 380, h: 540 };
+      this.floatDrag = null;
+      this.floatResize = null;
       this.raf = 0;
       // ---- inspector ------------------------------------------------------------
       this.onMove = (e) => {
@@ -2260,6 +2310,8 @@ var Loupe = (() => {
       // ---- region ("free-size screenshot") selection ----------------------------
       this.onRegionDown = (e) => {
         if (this.mode !== "region" || e.button !== 0) return;
+        const t = e.target;
+        if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
         e.preventDefault();
         e.stopPropagation();
         this.dragStart = { x: e.clientX, y: e.clientY };
@@ -2365,57 +2417,52 @@ var Loupe = (() => {
           }
         }
       };
-      // ---- draggable, edge-aware floating toolbar --------------------------------
-      this.onResizeBar = () => this.layoutBar();
-      this.onBarPointerDown = (e) => {
-        if (typeof e.button === "number" && e.button !== 0) return;
-        const brand = this.brandEl();
-        const r = brand.getBoundingClientRect();
-        this.barDrag = { px: e.clientX, py: e.clientY, ix: r.left, iy: r.top };
-        this.justDragged = false;
-        try {
-          brand.setPointerCapture(e.pointerId);
-        } catch {
-        }
-        brand.addEventListener("pointermove", this.onBarPointerMove);
-        brand.addEventListener("pointerup", this.onBarPointerUp);
-        brand.addEventListener("pointercancel", this.onBarPointerUp);
+      this.onWinResize = () => this.applyDockLayout();
+      // ---- float-mode drag + resize ---------------------------------------------
+      this.onHeadPointerDown = (e) => {
+        if (this.dockMode !== "float" || e.button !== 0 || this.isMobile()) return;
+        if (e.target?.closest(".dctl")) return;
+        this.floatDrag = { px: e.clientX, py: e.clientY, ox: this.floatRect.x, oy: this.floatRect.y };
+        this.dock.classList.add("dragging");
+        window.addEventListener("pointermove", this.onHeadPointerMove);
+        window.addEventListener("pointerup", this.onHeadPointerUp);
       };
-      this.onBarPointerMove = (e) => {
-        if (!this.barDrag) return;
-        const dx = e.clientX - this.barDrag.px;
-        const dy = e.clientY - this.barDrag.py;
-        if (!this.justDragged && Math.hypot(dx, dy) < 5) return;
-        this.justDragged = true;
+      this.onHeadPointerMove = (e) => {
+        if (!this.floatDrag) return;
         e.preventDefault();
-        const vw = window.innerWidth, vh = window.innerHeight;
-        const bar = this.toolbar;
-        const brand = this.brandEl();
-        const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
-        const ix = clampPx(this.barDrag.ix + dx, 6, vw - iw - 6);
-        const iy = clampPx(this.barDrag.iy + dy, 6, vh - ih - 6);
-        bar.classList.add("floating", "dragging");
-        bar.classList.remove("orient-v", "flow-rev");
-        bar.classList.add("orient-h");
-        Object.assign(bar.style, { transform: "none", left: ix + "px", top: iy + "px", right: "auto", bottom: "auto" });
-        this.barPos = { fx: ix / vw, fy: iy / vh };
+        this.floatRect.x = this.floatDrag.ox + (e.clientX - this.floatDrag.px);
+        this.floatRect.y = this.floatDrag.oy + (e.clientY - this.floatDrag.py);
+        this.applyDockLayout();
       };
-      this.onBarPointerUp = (e) => {
-        const brand = this.brandEl();
-        brand.removeEventListener("pointermove", this.onBarPointerMove);
-        brand.removeEventListener("pointerup", this.onBarPointerUp);
-        brand.removeEventListener("pointercancel", this.onBarPointerUp);
-        try {
-          brand.releasePointerCapture(e.pointerId);
-        } catch {
-        }
-        const dragged = this.justDragged;
-        this.barDrag = null;
-        this.toolbar.classList.remove("dragging");
-        if (dragged) {
-          this.saveBarPos();
-          this.layoutBar();
-        }
+      this.onHeadPointerUp = () => {
+        if (!this.floatDrag) return;
+        this.floatDrag = null;
+        this.dock.classList.remove("dragging");
+        window.removeEventListener("pointermove", this.onHeadPointerMove);
+        window.removeEventListener("pointerup", this.onHeadPointerUp);
+        this.saveState();
+      };
+      this.onResizeDown = (e) => {
+        if (this.dockMode !== "float") return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.floatResize = { px: e.clientX, py: e.clientY, ow: this.floatRect.w, oh: this.floatRect.h };
+        window.addEventListener("pointermove", this.onResizeMove);
+        window.addEventListener("pointerup", this.onResizeUp);
+      };
+      this.onResizeMove = (e) => {
+        if (!this.floatResize) return;
+        e.preventDefault();
+        this.floatRect.w = this.floatResize.ow + (e.clientX - this.floatResize.px);
+        this.floatRect.h = this.floatResize.oh + (e.clientY - this.floatResize.py);
+        this.applyDockLayout();
+      };
+      this.onResizeUp = () => {
+        if (!this.floatResize) return;
+        this.floatResize = null;
+        window.removeEventListener("pointermove", this.onResizeMove);
+        window.removeEventListener("pointerup", this.onResizeUp);
+        this.saveState();
       };
       this.cfg = cfg;
       this.store = cfg.apiBase ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac, cfg.headers, cfg.credentials) : new LocalStorageAdapter();
@@ -2424,13 +2471,14 @@ var Loupe = (() => {
       return location.pathname + location.search;
     }
     async start() {
-      this.loadBarPos();
+      this.loadState();
       this.buildDom();
-      this.layoutBar();
+      if (this.cfg.autoOpen) this.open = true;
+      this.applyDockLayout();
       this.lastUrl = this.url;
       this.comments = await this.store.list(this.cfg.projectKey, this.url);
       this.renderPins();
-      this.renderPanel();
+      this.renderList();
       this.observe();
       this.watchNavigation();
       if (this.cfg.autoOpen) this.setMode("inspect");
@@ -2460,7 +2508,7 @@ var Loupe = (() => {
       try {
         this.comments = await this.store.list(this.cfg.projectKey, this.url);
         this.renderPins();
-        this.renderPanel();
+        this.renderList();
       } catch {
       }
     }
@@ -2482,45 +2530,80 @@ var Loupe = (() => {
       this.shadow.appendChild(this.overlay);
       this.composer = el("div", "composer");
       this.shadow.appendChild(this.composer);
-      this.panel = el("div", "panel");
-      this.shadow.appendChild(this.panel);
-      this.toolbar = this.buildToolbar();
-      this.shadow.appendChild(this.toolbar);
+      this.dock = this.buildDock();
+      this.launcher = this.buildLauncher();
+      this.shadow.append(this.dock, this.launcher);
     }
-    buildToolbar() {
-      const bar = el("div", "toolbar");
-      const brand = el("span", "brand");
-      brand.innerHTML = `<span class="ico">\u25CE</span><span class="label">Loupe</span>`;
-      brand.title = "Drag to move \xB7 click to collapse / expand";
-      brand.setAttribute("role", "button");
-      brand.onclick = () => {
-        if (this.justDragged) {
-          this.justDragged = false;
-          return;
-        }
-        this.toggleCollapsed();
+    /** The dockable control panel: header (brand + dock controls) → tools → list. */
+    buildDock() {
+      const dock = el("div", "dock");
+      const head = el("div", "dhead");
+      const brand = el("div", "brand");
+      brand.innerHTML = `<span class="logo">\u25CE</span><span class="title"></span>`;
+      brand.querySelector(".title").textContent = this.cfg.label ?? "Loupe";
+      head.addEventListener("pointerdown", this.onHeadPointerDown);
+      const ctl = el("div", "dctl");
+      const dockBtn = (mode, icon, title) => {
+        const b = el("button");
+        b.dataset.dock = mode;
+        b.title = title;
+        b.setAttribute("aria-label", title);
+        b.innerHTML = icon;
+        b.onclick = () => this.setDock(mode);
+        return b;
       };
-      brand.addEventListener("pointerdown", this.onBarPointerDown);
-      const inspectBtn = this.toolBtn("\u271B", "Inspect & comment", "inspect");
+      ctl.append(
+        dockBtn("left", I_DOCK_LEFT, "Dock to left"),
+        dockBtn("bottom", I_DOCK_BOTTOM, "Dock to bottom"),
+        dockBtn("right", I_DOCK_RIGHT, "Dock to right"),
+        dockBtn("float", I_FLOAT, "Float"),
+        el("span", "gap")
+      );
+      this.themeBtn = el("button");
+      this.themeBtn.dataset.role = "theme";
+      this.themeBtn.onclick = () => this.toggleTheme();
+      const closeBtn = el("button");
+      closeBtn.dataset.role = "close";
+      closeBtn.title = "Close";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.innerHTML = I_CLOSE;
+      closeBtn.onclick = () => this.closeDock();
+      ctl.append(this.themeBtn, closeBtn);
+      head.append(brand, ctl);
+      const tools = el("div", "tools");
+      const inspectBtn = this.toolBtn("\u271B", "Inspect", "inspect");
+      inspectBtn.title = "Inspect an element and comment on it";
       inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
       const freeBtn = this.toolBtn(NOTE_ICON, "Note", "free");
       freeBtn.title = "Drop a note anywhere on the page \u2014 no element, no screenshot";
       freeBtn.onclick = () => this.setMode(this.mode === "free" ? "off" : "free");
-      const regionBtn = this.toolBtn(REGION_ICON, "Region shot", "region");
+      const regionBtn = this.toolBtn(REGION_ICON, "Region", "region");
       regionBtn.title = "Drag a free-size box, screenshot it, and comment";
       regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
-      const listBtn = this.toolBtn("\u2630", "Comments", "comments");
+      tools.append(inspectBtn, freeBtn, regionBtn);
+      const listHead = el("div", "listhead");
+      listHead.append(document.createTextNode("Comments"));
       this.countEl = el("span", "count", "0");
-      listBtn.appendChild(this.countEl);
-      listBtn.onclick = () => this.togglePanel();
-      bar.append(brand, sep(), inspectBtn, freeBtn, regionBtn, listBtn);
-      return bar;
+      listHead.appendChild(this.countEl);
+      this.listEl = el("div", "list");
+      const resize = el("div", "resize");
+      resize.addEventListener("pointerdown", this.onResizeDown);
+      dock.append(head, tools, listHead, this.listEl, resize);
+      return dock;
     }
-    /** A toolbar button with a uniform icon + label layout. `icon` may be an SVG string. */
+    buildLauncher() {
+      const b = el("button", "launcher");
+      b.title = `Open ${this.cfg.label ?? "Loupe"}`;
+      b.setAttribute("aria-label", "Open Loupe");
+      b.innerHTML = `<span class="logo">\u25CE</span><span class="lcount"></span>`;
+      this.launchCount = b.querySelector(".lcount");
+      b.onclick = () => this.openDock();
+      return b;
+    }
+    /** A tool button with a uniform icon + label layout. `icon` may be an SVG string. */
     toolBtn(icon, label, role) {
       const b = el("button");
       b.dataset.role = role;
-      b.title = label;
       b.setAttribute("aria-label", label);
       b.innerHTML = `<span class="ico">${icon}</span><span class="label">${label}</span>`;
       return b;
@@ -2576,14 +2659,19 @@ var Loupe = (() => {
       return elAt;
     }
     setMode(mode) {
+      if (mode !== "off" && !this.open) {
+        this.open = true;
+        this.applyDockLayout();
+      }
       this.mode = mode;
       this.hl.style.display = "none";
       this.selbox.style.display = "none";
       this.cancelDrag();
       document.body.style.cursor = mode === "off" ? "" : "crosshair";
-      this.toolbar.querySelector('[data-role="inspect"]')?.classList.toggle("on", mode === "inspect");
-      this.toolbar.querySelector('[data-role="free"]')?.classList.toggle("on", mode === "free");
-      this.toolbar.querySelector('[data-role="region"]')?.classList.toggle("on", mode === "region");
+      this.dock.querySelector('[data-role="inspect"]')?.classList.toggle("on", mode === "inspect");
+      this.dock.querySelector('[data-role="free"]')?.classList.toggle("on", mode === "free");
+      this.dock.querySelector('[data-role="region"]')?.classList.toggle("on", mode === "region");
+      this.dock.classList.toggle("inspecting", mode !== "off");
       document.removeEventListener("mousemove", this.onMove, true);
       document.removeEventListener("click", this.onClick, true);
       document.removeEventListener("click", this.onFreeClick, true);
@@ -2705,7 +2793,7 @@ var Loupe = (() => {
       this.resolved.set(comment.id, anchoredEl);
       this.closeComposer();
       this.renderPins();
-      this.renderPanel();
+      this.renderList();
       this.flash(comment.id);
     }
     // ---- pins + re-anchoring --------------------------------------------------
@@ -2721,7 +2809,7 @@ var Loupe = (() => {
         if (!pin) {
           pin = el("button", "pin");
           pin.onclick = () => {
-            this.openPanel();
+            this.openDock();
             this.flash(c.id);
           };
           this.overlay.appendChild(pin);
@@ -2731,8 +2819,13 @@ var Loupe = (() => {
         pin.classList.toggle("done", c.status === "done");
         pin.classList.toggle("free", c.kind === "free");
       });
-      this.countEl.textContent = String(this.comments.length);
+      this.updateCount();
       this.position();
+    }
+    updateCount() {
+      const n = this.comments.length;
+      this.countEl.textContent = String(n);
+      this.launchCount.textContent = n ? String(n) : "";
     }
     /**
      * The current viewport rect for a region comment. Prefers the element-relative
@@ -2757,136 +2850,129 @@ var Loupe = (() => {
       };
       window.addEventListener("scroll", reposition, true);
       window.addEventListener("resize", reposition);
-      window.addEventListener("resize", this.onResizeBar);
+      window.addEventListener("resize", this.onWinResize);
       let debounce = 0;
       this.mo = new MutationObserver(() => {
         clearTimeout(debounce);
         debounce = window.setTimeout(() => {
           this.position();
-          this.renderPanel();
+          this.renderList();
         }, 120);
       });
       this.mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
       this.tick = window.setInterval(this.position, 800);
     }
-    // ---- panel ----------------------------------------------------------------
-    openPanel() {
-      this.panel.classList.add("open");
-      this.renderPanel();
+    // ---- dock: open / close / mode / theme ------------------------------------
+    openDock() {
+      this.open = true;
+      this.saveState();
+      this.applyDockLayout();
+      this.renderList();
     }
-    togglePanel() {
-      this.panel.classList.toggle("open");
-      this.renderPanel();
+    closeDock() {
+      this.open = false;
+      this.setMode("off");
+      this.closeComposer();
+      this.saveState();
+      this.applyDockLayout();
     }
-    /** Collapse the toolbar to just the logo (or expand it back). */
-    toggleCollapsed() {
-      this.collapsed = !this.collapsed;
-      this.toolbar.classList.toggle("collapsed", this.collapsed);
-      if (this.collapsed) {
-        this.setMode("off");
-        this.panel.classList.remove("open");
-        this.closeComposer();
-        this.overlay.style.display = "none";
-      } else {
-        this.overlay.style.display = "";
-        this.renderPins();
-      }
-      this.layoutBar();
+    setDock(mode) {
+      this.dockMode = mode;
+      this.open = true;
+      this.saveState();
+      this.applyDockLayout();
     }
-    loadBarPos() {
+    toggleTheme() {
+      this.theme = this.theme === "dark" ? "light" : "dark";
+      this.saveState();
+      this.applyDockLayout();
+    }
+    /** Narrow viewports render the panel as a bottom sheet, not a side/float dock. */
+    isMobile() {
+      return window.innerWidth <= 640;
+    }
+    loadState() {
       try {
-        const s = localStorage.getItem("loupe:bar");
-        if (s) {
-          const p = JSON.parse(s);
-          if (typeof p?.fx === "number" && typeof p?.fy === "number") this.barPos = p;
+        const s = localStorage.getItem("loupe:dock");
+        if (!s) return;
+        const p = JSON.parse(s);
+        if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
+        if (typeof p?.open === "boolean") this.open = p.open;
+        if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
+        if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
+      } catch {
+      }
+    }
+    saveState() {
+      try {
+        localStorage.setItem("loupe:dock", JSON.stringify({
+          mode: this.dockMode,
+          open: this.open,
+          theme: this.theme,
+          float: this.floatRect
+        }));
+      } catch {
+      }
+    }
+    /** Reflect all control-panel state (theme, dock mode, geometry, launcher) into the DOM. */
+    applyDockLayout() {
+      this.root.classList.toggle("theme-light", this.theme === "light");
+      this.themeBtn.title = this.theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
+      this.themeBtn.innerHTML = this.theme === "dark" ? I_SUN : I_MOON;
+      const d = this.dock;
+      d.classList.toggle("open", this.open);
+      for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
+      if (this.dockMode === "float") {
+        const vw = window.innerWidth, vh = window.innerHeight;
+        let { x, y, w, h } = this.floatRect;
+        w = clampPx(w, 280, Math.min(760, vw - 24));
+        h = clampPx(h, 220, vh - 24);
+        if (x <= 0 && y <= 0) {
+          x = Math.max(12, vw - w - 24);
+          y = 64;
         }
-      } catch {
+        x = clampPx(x, 8, Math.max(8, vw - w - 8));
+        y = clampPx(y, 8, Math.max(8, vh - h - 8));
+        this.floatRect = { x, y, w, h };
+        Object.assign(d.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px", right: "auto", bottom: "auto" });
+      } else {
+        for (const p of ["left", "top", "right", "bottom", "width", "height"]) d.style[p] = "";
       }
-    }
-    saveBarPos() {
-      try {
-        if (this.barPos) localStorage.setItem("loupe:bar", JSON.stringify(this.barPos));
-      } catch {
-      }
-    }
-    brandEl() {
-      return this.toolbar.querySelector(".brand");
+      d.querySelectorAll(".dctl [data-dock]").forEach((b) => b.classList.toggle("on", b.dataset.dock === this.dockMode));
+      this.launcher.classList.toggle("show", !this.open);
+      const leftSide = this.dockMode === "left";
+      this.launcher.style.left = leftSide ? "20px" : "auto";
+      this.launcher.style.right = leftSide ? "auto" : "20px";
+      this.pushPage();
     }
     /**
-     * Position the toolbar for its stored spot and make it expand *inward* so it's
-     * always fully on-screen: docked to a left/right edge → vertical; to a
-     * top/bottom edge or a corner → horizontal. No stored spot → default
-     * (bottom-center, governed by CSS).
+     * Push the host page over so the docked panel never covers content (like real
+     * DevTools). We shrink the <html> box with a margin on the docked edge — the
+     * panel is `position: fixed` (relative to the viewport), so it sits in the
+     * gutter the margin frees up. Float mode and the closed state reserve nothing.
+     * Only inline styles are touched, so clearing them restores the host exactly.
      */
-    layoutBar() {
-      const bar = this.toolbar;
-      if (!this.barPos) {
-        bar.classList.remove("floating", "orient-h", "orient-v", "flow-rev");
-        for (const p of ["left", "top", "right", "bottom", "transform"]) bar.style[p] = "";
-        return;
-      }
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const brand = this.brandEl();
-      const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
-      const ix = clampPx(this.barPos.fx * vw, 6, Math.max(6, vw - iw - 6));
-      const iy = clampPx(this.barPos.fy * vh, 6, Math.max(6, vh - ih - 6));
-      const cx = ix + iw / 2, cy = iy + ih / 2;
-      const horizontalSide = cx < vw / 2 ? "left" : "right";
-      const verticalSide = cy < vh / 2 ? "top" : "bottom";
-      const vertical = Math.min(cx, vw - cx) < Math.min(cy, vh - cy);
-      bar.classList.add("floating");
-      bar.classList.remove("dragging");
-      bar.classList.toggle("orient-v", vertical);
-      bar.classList.toggle("orient-h", !vertical);
-      bar.classList.toggle("flow-rev", vertical ? verticalSide === "bottom" : horizontalSide === "right");
-      bar.style.transform = "none";
-      if (horizontalSide === "left") {
-        bar.style.left = ix + "px";
-        bar.style.right = "auto";
-      } else {
-        bar.style.right = vw - (ix + iw) + "px";
-        bar.style.left = "auto";
-      }
-      if (verticalSide === "top") {
-        bar.style.top = iy + "px";
-        bar.style.bottom = "auto";
-      } else {
-        bar.style.bottom = vh - (iy + ih) + "px";
-        bar.style.top = "auto";
-      }
-      const r = bar.getBoundingClientRect();
-      if (r.right > vw - 6 && bar.style.left !== "auto") {
-        bar.style.left = "auto";
-        bar.style.right = "6px";
-      }
-      if (r.left < 6 && bar.style.right !== "auto") {
-        bar.style.right = "auto";
-        bar.style.left = "6px";
-      }
-      if (r.bottom > vh - 6 && bar.style.top !== "auto") {
-        bar.style.top = "auto";
-        bar.style.bottom = "6px";
-      }
-      if (r.top < 6 && bar.style.bottom !== "auto") {
-        bar.style.bottom = "auto";
-        bar.style.top = "6px";
-      }
+    pushPage() {
+      const de = document.documentElement;
+      de.style.marginLeft = de.style.marginRight = de.style.marginBottom = "";
+      if (!this.open || this.dockMode === "float" || this.isMobile()) return;
+      const r = this.dock.getBoundingClientRect();
+      if (this.dockMode === "left") de.style.marginLeft = r.width + "px";
+      else if (this.dockMode === "right") de.style.marginRight = r.width + "px";
+      else if (this.dockMode === "bottom") de.style.marginBottom = r.height + "px";
     }
-    renderPanel() {
-      const p = this.panel;
-      p.innerHTML = "";
-      const head = el("div", "phead");
-      head.append(document.createTextNode(`Comments \xB7 ${this.comments.length}`));
-      const x = el("button", "x", "\xD7");
-      x.onclick = () => p.classList.remove("open");
-      head.appendChild(x);
-      p.appendChild(head);
-      const list = el("div", "list");
+    // ---- comment list ---------------------------------------------------------
+    renderList() {
+      this.listEl.innerHTML = "";
       if (!this.comments.length) {
-        list.appendChild(el("div", "empty", "No comments yet. Click \u201CInspect & comment\u201D and pick an element, or \u201CNote\u201D to drop a comment anywhere."));
+        this.listEl.appendChild(el(
+          "div",
+          "empty",
+          "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
+        ));
       }
-      this.comments.forEach((c, i) => list.appendChild(this.itemView(c, i)));
-      p.appendChild(list);
+      this.comments.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
+      this.updateCount();
     }
     itemView(c, i) {
       const detached = this.pins.get(c.id)?.classList.contains("detached") && c.status !== "done";
@@ -2919,7 +3005,7 @@ var Loupe = (() => {
         c.status = status;
         await this.store.update(c.id, { status });
         this.renderPins();
-        this.renderPanel();
+        this.renderList();
       };
       const claudeBtn = el("button", "", "Copy for Claude");
       claudeBtn.onclick = async (e) => {
@@ -2934,7 +3020,7 @@ var Loupe = (() => {
         this.comments = this.comments.filter((x) => x.id !== c.id);
         this.resolved.delete(c.id);
         this.renderPins();
-        this.renderPanel();
+        this.renderList();
       };
       actions.append(doneBtn, claudeBtn, del);
       item.appendChild(actions);
@@ -3015,8 +3101,14 @@ var Loupe = (() => {
       this.mo?.disconnect();
       if (this.tick) clearInterval(this.tick);
       window.clearTimeout(this.regionTimer);
-      window.removeEventListener("resize", this.onResizeBar);
+      window.removeEventListener("resize", this.onWinResize);
+      window.removeEventListener("pointermove", this.onHeadPointerMove);
+      window.removeEventListener("pointerup", this.onHeadPointerUp);
+      window.removeEventListener("pointermove", this.onResizeMove);
+      window.removeEventListener("pointerup", this.onResizeUp);
       document.removeEventListener("keydown", this.onKey, true);
+      const de = document.documentElement;
+      de.style.marginLeft = de.style.marginRight = de.style.marginBottom = "";
       this.root?.remove();
     }
   };
@@ -3026,17 +3118,31 @@ var Loupe = (() => {
     if (text) n.textContent = text;
     return n;
   }
-  function sep() {
-    return el("span", "sep");
-  }
   function clamp(n) {
     return Math.max(0, Math.min(1, n));
   }
   function clampPx(n, min, max) {
     return Math.max(min, Math.min(max, n));
   }
-  var REGION_ICON = `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
-  var NOTE_ICON = `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  var svg = (inner) => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">${inner}</svg>`;
+  var DOCK_FRAME = `<rect x="1.5" y="2.5" width="13" height="11" rx="1.6" stroke="currentColor" stroke-width="1.3"/>`;
+  var I_DOCK_LEFT = svg(`${DOCK_FRAME}<rect x="2.2" y="3.2" width="4" height="9.6" rx="1" fill="currentColor"/>`);
+  var I_DOCK_RIGHT = svg(`${DOCK_FRAME}<rect x="9.8" y="3.2" width="4" height="9.6" rx="1" fill="currentColor"/>`);
+  var I_DOCK_BOTTOM = svg(`${DOCK_FRAME}<rect x="2.2" y="9" width="11.6" height="3.8" rx="1" fill="currentColor"/>`);
+  var I_FLOAT = svg(
+    `<rect x="2.5" y="3.5" width="11" height="9" rx="1.6" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.1h11" stroke="currentColor" stroke-width="1.3"/>`
+  );
+  var I_SUN = svg(
+    `<circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><g stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M8 1.4v1.7"/><path d="M8 12.9v1.7"/><path d="M1.4 8h1.7"/><path d="M12.9 8h1.7"/><path d="M3.3 3.3l1.2 1.2"/><path d="M11.5 11.5l1.2 1.2"/><path d="M12.7 3.3l-1.2 1.2"/><path d="M4.5 11.5l-1.2 1.2"/></g>`
+  );
+  var I_MOON = svg(
+    `<path d="M13 9.4A5.3 5.3 0 1 1 6.6 3 4.3 4.3 0 0 0 13 9.4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>`
+  );
+  var I_CLOSE = svg(
+    `<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`
+  );
+  var REGION_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
+  var NOTE_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
   function pageAnchor(point) {
     return {
       tag: "page",

@@ -68,6 +68,9 @@
   .toolbar .lg{width:18px;height:18px}
   .toolbar .btn{font-size:13px;color:#cfd3de;padding:7px 12px;border-radius:8px}
   .toolbar .btn.on{background:var(--indigo);color:#fff}
+  .toolbar .dock{display:flex;gap:4px;margin-left:8px;padding-left:10px;border-left:1px solid #2b2f3b}
+  .toolbar .dock i{width:13px;height:11px;border:1.4px solid #565c6e;border-radius:2px}
+  .toolbar .dock i.on{background:var(--indigo);border-color:var(--indigo)}
 
   /* claude code card */
   .code{padding:26px 30px;font-family:"JetBrains Mono",monospace;font-size:15px;line-height:1.85;color:#dfe2f0;height:100%;overflow:hidden}
@@ -106,7 +109,7 @@
           <div class="card"></div>
         </div>
         <div class="row" style="width:90%"></div><div class="row" style="width:82%"></div><div class="row" style="width:68%"></div>
-        <div class="toolbar"><span class="brand"><span class="logo lg"></span>Loupe</span><span class="btn on">✛ Inspect</span><span class="btn">☰ Comments</span></div>
+        <div class="toolbar"><span class="brand"><span class="logo lg"></span>Loupe</span><span class="btn on">✛ Inspect</span><span class="btn">✎ Note</span><span class="btn">◱ Region</span><span class="dock"><i></i><i></i><i class="on"></i></span></div>
       </div></div>
     </div>
   </section>

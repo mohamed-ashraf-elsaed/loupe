@@ -18,7 +18,7 @@ build && npm run seed && npm start` is the whole setup.
 ```
 packages/
   shared/      canonical types + normalizeUrl() (built to dist, consumed by all)
-  sdk/         embeddable browser SDK — inspect, comment (element / region / free note), capture, re-anchor; draggable toolbar
+  sdk/         embeddable browser SDK — inspect, comment (element / region / free note), capture, re-anchor; dockable control panel
     demo/      a fake product ("Acme Analytics") to try it on
   server/      comment API — node:http, Postgres, object storage, HMAC auth, static hosting
   dashboard/   Kanban triage board (reads the API)

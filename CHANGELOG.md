@@ -11,6 +11,29 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.6.0] — 2026-07-17
+
+### Added
+
+- **Dockable, DevTools-style control.** The widget is now a single dockable panel —
+  header (`◎ Loupe` + dock controls) → tools (Inspect / Note / Region) → comment list —
+  that you dock to the **left**, **right**, or **bottom** edge, or **float** as a movable,
+  resizable window. Docked edges **push the host page over** (reflow the `<html>` margin) so
+  the panel never hides content; float overlays. The chosen position, open/closed state, and
+  float geometry all persist in `localStorage`.
+- **Light / dark theme toggle** in the panel header (dark by default); persists.
+- **Mobile bottom sheet.** On viewports ≤ 640px the panel becomes a full-width bottom sheet
+  (docking is a desktop affordance), and shrinks to a compact header-plus-tools bar while a
+  tool is active so most of the page stays visible and tappable.
+- **`label` config** — sets the brand name shown in the control header (defaults to `"Loupe"`).
+
+### Changed
+
+- The floating pill toolbar and the separate comment panel are unified into the single
+  dockable panel; when closed it collapses to a small `◎` launcher button. Comments render
+  inline in the panel. **UI-only** — no DB migration and no change to the SDK `init` config
+  (additive `label` only), HTTP API, or MCP tools, so upgrading is drop-in.
+
 ## [0.5.2] — 2026-07-15
 
 ### Fixed

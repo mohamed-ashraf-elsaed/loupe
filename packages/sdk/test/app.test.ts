@@ -29,11 +29,12 @@ beforeEach(() => {
 afterEach(() => destroy());
 
 describe("LoupeApp", () => {
-  it("mounts a Shadow-DOM toolbar for the identified user", () => {
+  it("mounts a Shadow-DOM control panel for the identified user", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     expect(document.getElementById("loupe-root")).toBeTruthy();
     expect(sr().querySelector('[data-role="inspect"]')).toBeTruthy();
-    expect(sr().querySelector(".toolbar .count")!.textContent).toBe("0");
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelector(".count")!.textContent).toBe("0");
   });
 
   it("is idempotent — init twice mounts one root", () => {
@@ -59,16 +60,14 @@ describe("LoupeApp", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     await new Promise((r) => setTimeout(r, 10)); // start() loads from storage async
     expect(sr().querySelectorAll(".pin").length).toBe(1);
-    expect(sr().querySelector(".toolbar .count")!.textContent).toBe("1");
+    expect(sr().querySelector(".count")!.textContent).toBe("1");
   });
 
-  it("shows the comment in the panel and can mark it done then delete it", async () => {
+  it("lists the comment in the panel and can mark it done then delete it", async () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
     await leaveComment("triage me");
-    const commentsBtn = [...sr().querySelectorAll<HTMLElement>(".toolbar button")]
-      .find((b) => /Comments/.test(b.textContent || ""))!;
-    commentsBtn.click(); // "Comments" opens the panel
-    expect(sr().querySelector(".panel")!.classList.contains("open")).toBe(true);
+    // The panel is a single always-open dock; the comment list renders inline.
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
     expect(sr().querySelector(".item .body")!.textContent).toBe("triage me");
 
     sr().querySelector<HTMLElement>(".item .actions button")!.click(); // Mark done
@@ -131,13 +130,89 @@ describe("LoupeApp", () => {
     expect(stored[0].anchor.tag).toBe("page");
   });
 
-  it("collapses and expands when the brand logo is clicked", () => {
+  it("closes to a launcher and reopens", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
-    const brand = sr().querySelector<HTMLElement>(".toolbar .brand")!;
-    brand.click();
-    expect(sr().querySelector(".toolbar")!.classList.contains("collapsed")).toBe(true);
-    brand.click();
-    expect(sr().querySelector(".toolbar")!.classList.contains("collapsed")).toBe(false);
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
+    expect(sr().querySelector(".launcher")!.classList.contains("show")).toBe(true);
+    sr().querySelector<HTMLElement>(".launcher")!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelector(".launcher")!.classList.contains("show")).toBe(false);
+  });
+
+  it("switches dock position and persists the choice", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    // Default is docked right.
+    expect(sr().querySelector(".dock")!.classList.contains("mode-right")).toBe(true);
+    sr().querySelector<HTMLElement>('.dctl [data-dock="bottom"]')!.click();
+    const dock = sr().querySelector(".dock")!;
+    expect(dock.classList.contains("mode-bottom")).toBe(true);
+    expect(dock.classList.contains("mode-right")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).mode).toBe("bottom");
+
+    sr().querySelector<HTMLElement>('.dctl [data-dock="float"]')!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("mode-float")).toBe(true);
+    // Float mode gets explicit geometry so it renders as a movable window.
+    expect((sr().querySelector<HTMLElement>(".dock")!).style.width).toMatch(/px$/);
+  });
+
+  it("toggles between dark and light themes and persists it", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const root = document.getElementById("loupe-root")!;
+    expect(root.classList.contains("theme-light")).toBe(false); // dark by default
+    sr().querySelector<HTMLElement>('.dctl [data-role="theme"]')!.click();
+    expect(root.classList.contains("theme-light")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).theme).toBe("light");
+  });
+
+  it("pushes the host page for docked modes and releases it when floating or closed", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const de = document.documentElement;
+    // Default is docked right → the page is pushed in from the right edge.
+    expect(de.style.marginRight).not.toBe("");
+    expect(de.style.marginLeft).toBe("");
+
+    sr().querySelector<HTMLElement>('.dctl [data-dock="left"]')!.click();
+    expect(de.style.marginLeft).not.toBe("");
+    expect(de.style.marginRight).toBe("");
+
+    sr().querySelector<HTMLElement>('.dctl [data-dock="bottom"]')!.click();
+    expect(de.style.marginBottom).not.toBe("");
+    expect(de.style.marginLeft).toBe("");
+
+    // Float is a movable window — it reserves no page space.
+    sr().querySelector<HTMLElement>('.dctl [data-dock="float"]')!.click();
+    expect(de.style.marginLeft).toBe("");
+    expect(de.style.marginRight).toBe("");
+    expect(de.style.marginBottom).toBe("");
+
+    // Closing releases the page too.
+    sr().querySelector<HTMLElement>('.dctl [data-dock="right"]')!.click();
+    expect(de.style.marginRight).not.toBe("");
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(de.style.marginRight).toBe("");
+  });
+
+  it("marks the panel 'inspecting' while a tool is active (mobile shrinks the sheet)", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const dock = () => sr().querySelector(".dock")!;
+    expect(dock().classList.contains("inspecting")).toBe(false);
+    sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
+    expect(dock().classList.contains("inspecting")).toBe(true);
+    // Leaving the tool restores the full sheet.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(dock().classList.contains("inspecting")).toBe(false);
+  });
+
+  it("restores the persisted dock mode, open state and theme on init", async () => {
+    localStorage.setItem("loupe:dock", JSON.stringify({ mode: "left", open: false, theme: "light" }));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector(".dock")!.classList.contains("mode-left")).toBe(true);
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
+    expect(sr().querySelector(".launcher")!.classList.contains("show")).toBe(true);
+    expect(document.getElementById("loupe-root")!.classList.contains("theme-light")).toBe(true);
   });
 
   it("Escape cancels the inspector", () => {

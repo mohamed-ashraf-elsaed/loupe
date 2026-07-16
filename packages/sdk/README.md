@@ -59,7 +59,7 @@ the moment of the comment, so the feedback stays actionable even after the UI ch
 | 🎯 **Click-to-comment inspector** | Hover-highlight any element, click to pin a comment. |
 | 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
 | ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. The region anchors to the element under its center, so it tracks responsive reflow and scrolling. |
-| 🧲 **Draggable toolbar** | Drag the `◎` logo anywhere; the position persists and the bar expands edge-aware (vertical on a side, horizontal on top/bottom). |
+| 🧲 **Dockable control** | A DevTools-style panel: dock it to the left / right / bottom edge (which pushes your page over so it's never covered) or float it as a movable, resizable window. Light/dark theme, collapses to a small `◎` launcher, and becomes a bottom sheet on mobile. Position & theme persist. |
 | 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint (stable id/testid, CSS path, XPath, text, attributes, position) re-locates the element on the current page; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
 | 📸 **Screenshot capture** | `[data-loupe-redact]` regions are painted over **before any pixels leave the browser**. |
 | 🧩 **Shadow-DOM isolation** | The widget's CSS never leaks into your page and vice-versa. |
@@ -89,9 +89,11 @@ init({
 });
 ```
 
-A floating toolbar appears with **Inspect & comment**, **Note** (a free page-level comment),
-**Region shot**, and **Comments**. Drag the `◎` logo to move the bar anywhere; click it to
-collapse. Call `destroy()` to tear it down. `init()` is idempotent — safe to call more than once.
+A dockable control panel appears with **Inspect**, **Note** (a free page-level comment),
+**Region**, and the comment list. Use the header's dock controls to dock it left / right /
+bottom (which pushes your page over) or float it, toggle light/dark, or close it to a small
+`◎` launcher. Call `destroy()` to tear it down. `init()` is idempotent — safe to call more
+than once. Pass `label` to change the brand name shown in the header.
 
 ### Offline mode (no backend)
 

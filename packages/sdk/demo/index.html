@@ -30,7 +30,7 @@
     label { font-size: 13px; font-weight: 600; }
     input, select { width: 100%; padding: 9px 11px; border: 1px solid #d7dbe6; border-radius: 9px; font-size: 14px; margin-top: 4px; }
     .redact { background: #fff8e6; border: 1px dashed #e0a92c; border-radius: 9px; padding: 10px 12px; font-size: 12px; color: #8a6a12; margin-top: 6px; }
-    .toolbar-note { position: fixed; top: 12px; right: 12px; background: #1b1e27; color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 8px; opacity: .85; }
+    .toolbar-note { position: fixed; top: 12px; left: 12px; background: #1b1e27; color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 8px; opacity: .85; z-index: 10; }
     footer { text-align: center; color: #9aa0af; font-size: 12px; padding: 40px; }
   </style>
 </head>
@@ -107,7 +107,7 @@
 
   <footer>Acme Analytics — a fake product for demoing the Loupe SDK</footer>
 
-  <div class="toolbar-note">Loupe toolbar is at the bottom ↓</div>
+  <div class="toolbar-note">Loupe is docked on the right — drag it left / bottom / float →</div>
 
   <!-- The one line a dev adds. In prod: <script src="https://cdn.loupe.dev/v1.js"></script> -->
   <script src="/sdk/index.global.js"></script>

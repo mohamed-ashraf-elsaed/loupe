@@ -16,8 +16,10 @@ export interface LoupeConfig {
   userHmac?: string;
   /** Backend base URL. Omitted → comments persist to localStorage (offline mode). */
   apiBase?: string;
-  /** Start with the toolbar already active. */
+  /** Start with the inspect tool already active (opens the control panel). */
   autoOpen?: boolean;
+  /** Brand label shown in the control-panel header. Defaults to "Loupe". */
+  label?: string;
   /**
    * Override screenshot capture. The browser extension passes a function backed
    * by chrome.tabs.captureVisibleTab for pixel-perfect captures; the default is

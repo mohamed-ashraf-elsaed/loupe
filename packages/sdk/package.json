@@ -5,7 +5,7 @@
     "email": "m.ashraf.saed@gmail.com",
     "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
   },
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Embeddable visual-feedback layer: pin comments to the live UI and hand them to Claude.",
   "type": "module",
   "main": "./dist/index.js",
@@ -44,7 +44,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "@loupekit/shared": "*",
+    "@loupekit/shared": "0.6.0",
     "modern-screenshot": "^4.6.6"
   }
 }

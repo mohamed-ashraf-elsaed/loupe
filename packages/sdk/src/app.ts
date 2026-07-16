@@ -6,11 +6,15 @@ import { HttpAdapter } from "./http-adapter.js";
 import type { Anchor, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
 
 type Mode = "off" | "inspect" | "region" | "free";
+/** Where the control panel is anchored. */
+type DockMode = "left" | "right" | "bottom" | "float";
 /** What the composer is about to attach a comment to. */
 type ComposeTarget =
   | { kind: "element"; element: Element }
   | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string }
   | { kind: "free"; offset: { x: number; y: number }; point: { x: number; y: number } };
+
+const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
 
 const uid = () =>
   (crypto as any).randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
@@ -25,10 +29,16 @@ export class LoupeApp {
   private hl!: HTMLElement;
   private selbox!: HTMLElement;
   private regionBox!: HTMLElement;
-  private toolbar!: HTMLElement;
   private composer!: HTMLElement;
-  private panel!: HTMLElement;
+
+  /** The dockable control panel (header + tools + comment list). */
+  private dock!: HTMLElement;
+  /** The collapsed launcher button shown when the panel is closed. */
+  private launcher!: HTMLElement;
+  private themeBtn!: HTMLButtonElement;
+  private listEl!: HTMLElement;
   private countEl!: HTMLElement;
+  private launchCount!: HTMLElement;
 
   private comments: Comment[] = [];
   /** comment.id → currently resolved element (or null when detached). */
@@ -37,7 +47,6 @@ export class LoupeApp {
   private pins = new Map<string, HTMLElement>();
 
   private mode: Mode = "off";
-  private collapsed = false;
   private lastUrl = "";
   /** In-flight region screenshot, captured in the background while the composer is open. */
   private pendingShot?: Promise<string | undefined>;
@@ -48,12 +57,14 @@ export class LoupeApp {
   private activeRegionId: string | null = null;
   private regionTimer?: number;
 
-  /** Free-move toolbar position as viewport fractions, or null → default (bottom-center). */
-  private barPos: { fx: number; fy: number } | null = null;
-  /** In-flight drag of the toolbar by its ◎ handle. */
-  private barDrag: { px: number; py: number; ix: number; iy: number } | null = null;
-  /** True right after a drag so the trailing click doesn't also toggle collapse. */
-  private justDragged = false;
+  // ---- control-panel state (persisted in localStorage `loupe:dock`) ----------
+  private dockMode: DockMode = "right";
+  private open = true;
+  private theme: "dark" | "light" = "dark";
+  /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
+  private floatRect = { x: 0, y: 0, w: 380, h: 540 };
+  private floatDrag: { px: number; py: number; ox: number; oy: number } | null = null;
+  private floatResize: { px: number; py: number; ow: number; oh: number } | null = null;
 
   private raf = 0;
   private mo?: MutationObserver;
@@ -70,13 +81,14 @@ export class LoupeApp {
   private get url() { return location.pathname + location.search; }
 
   async start() {
-    this.loadBarPos();
+    this.loadState();
     this.buildDom();
-    this.layoutBar();
+    if (this.cfg.autoOpen) this.open = true;
+    this.applyDockLayout();
     this.lastUrl = this.url;
     this.comments = await this.store.list(this.cfg.projectKey, this.url);
     this.renderPins();
-    this.renderPanel();
+    this.renderList();
     this.observe();
     this.watchNavigation();
     if (this.cfg.autoOpen) this.setMode("inspect");
@@ -109,7 +121,7 @@ export class LoupeApp {
     try {
       this.comments = await this.store.list(this.cfg.projectKey, this.url);
       this.renderPins();
-      this.renderPanel();
+      this.renderList();
     } catch { /* keep the current view on transient errors */ }
   }
 
@@ -136,52 +148,94 @@ export class LoupeApp {
     this.composer = el("div", "composer");
     this.shadow.appendChild(this.composer);
 
-    this.panel = el("div", "panel");
-    this.shadow.appendChild(this.panel);
-
-    this.toolbar = this.buildToolbar();
-    this.shadow.appendChild(this.toolbar);
+    this.dock = this.buildDock();
+    this.launcher = this.buildLauncher();
+    this.shadow.append(this.dock, this.launcher);
   }
 
-  private buildToolbar(): HTMLElement {
-    const bar = el("div", "toolbar");
-    // Every item shares the same "<icon><label>" structure so they line up
-    // consistently (and the label can be hidden on mobile to go icon-only).
-    // The brand doubles as a collapse/expand toggle.
-    const brand = el("span", "brand");
-    brand.innerHTML = `<span class="ico">◎</span><span class="label">Loupe</span>`;
-    brand.title = "Drag to move · click to collapse / expand";
-    brand.setAttribute("role", "button");
-    // Click collapses/expands; a press-and-drag moves the whole bar (see the
-    // pointer handlers). The justDragged guard stops a drag ending in a toggle.
-    brand.onclick = () => { if (this.justDragged) { this.justDragged = false; return; } this.toggleCollapsed(); };
-    brand.addEventListener("pointerdown", this.onBarPointerDown);
+  /** The dockable control panel: header (brand + dock controls) → tools → list. */
+  private buildDock(): HTMLElement {
+    const dock = el("div", "dock");
 
-    const inspectBtn = this.toolBtn("✛", "Inspect & comment", "inspect");
+    // header ------------------------------------------------------------------
+    const head = el("div", "dhead");
+    const brand = el("div", "brand");
+    brand.innerHTML = `<span class="logo">◎</span><span class="title"></span>`;
+    (brand.querySelector(".title") as HTMLElement).textContent = this.cfg.label ?? "Loupe";
+    head.addEventListener("pointerdown", this.onHeadPointerDown); // drag in float mode
+
+    const ctl = el("div", "dctl");
+    const dockBtn = (mode: DockMode, icon: string, title: string) => {
+      const b = el("button") as HTMLButtonElement;
+      b.dataset.dock = mode;
+      b.title = title;
+      b.setAttribute("aria-label", title);
+      b.innerHTML = icon;
+      b.onclick = () => this.setDock(mode);
+      return b;
+    };
+    // Order mirrors DevTools: dock-left, dock-bottom, dock-right, undock/float.
+    ctl.append(
+      dockBtn("left", I_DOCK_LEFT, "Dock to left"),
+      dockBtn("bottom", I_DOCK_BOTTOM, "Dock to bottom"),
+      dockBtn("right", I_DOCK_RIGHT, "Dock to right"),
+      dockBtn("float", I_FLOAT, "Float"),
+      el("span", "gap"),
+    );
+    this.themeBtn = el("button") as HTMLButtonElement;
+    this.themeBtn.dataset.role = "theme";
+    this.themeBtn.onclick = () => this.toggleTheme();
+    const closeBtn = el("button") as HTMLButtonElement;
+    closeBtn.dataset.role = "close";
+    closeBtn.title = "Close";
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.innerHTML = I_CLOSE;
+    closeBtn.onclick = () => this.closeDock();
+    ctl.append(this.themeBtn, closeBtn);
+
+    head.append(brand, ctl);
+
+    // tools -------------------------------------------------------------------
+    const tools = el("div", "tools");
+    const inspectBtn = this.toolBtn("✛", "Inspect", "inspect");
+    inspectBtn.title = "Inspect an element and comment on it";
     inspectBtn.onclick = () => this.setMode(this.mode === "inspect" ? "off" : "inspect");
-
     const freeBtn = this.toolBtn(NOTE_ICON, "Note", "free");
     freeBtn.title = "Drop a note anywhere on the page — no element, no screenshot";
     freeBtn.onclick = () => this.setMode(this.mode === "free" ? "off" : "free");
-
-    const regionBtn = this.toolBtn(REGION_ICON, "Region shot", "region");
+    const regionBtn = this.toolBtn(REGION_ICON, "Region", "region");
     regionBtn.title = "Drag a free-size box, screenshot it, and comment";
     regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
+    tools.append(inspectBtn, freeBtn, regionBtn);
 
-    const listBtn = this.toolBtn("☰", "Comments", "comments");
+    // list --------------------------------------------------------------------
+    const listHead = el("div", "listhead");
+    listHead.append(document.createTextNode("Comments"));
     this.countEl = el("span", "count", "0");
-    listBtn.appendChild(this.countEl);
-    listBtn.onclick = () => this.togglePanel();
+    listHead.appendChild(this.countEl);
+    this.listEl = el("div", "list");
 
-    bar.append(brand, sep(), inspectBtn, freeBtn, regionBtn, listBtn);
-    return bar;
+    const resize = el("div", "resize");
+    resize.addEventListener("pointerdown", this.onResizeDown);
+
+    dock.append(head, tools, listHead, this.listEl, resize);
+    return dock;
   }
 
-  /** A toolbar button with a uniform icon + label layout. `icon` may be an SVG string. */
+  private buildLauncher(): HTMLElement {
+    const b = el("button", "launcher") as HTMLButtonElement;
+    b.title = `Open ${this.cfg.label ?? "Loupe"}`;
+    b.setAttribute("aria-label", "Open Loupe");
+    b.innerHTML = `<span class="logo">◎</span><span class="lcount"></span>`;
+    this.launchCount = b.querySelector(".lcount") as HTMLElement;
+    b.onclick = () => this.openDock();
+    return b;
+  }
+
+  /** A tool button with a uniform icon + label layout. `icon` may be an SVG string. */
   private toolBtn(icon: string, label: string, role: string): HTMLButtonElement {
     const b = el("button") as HTMLButtonElement;
     b.dataset.role = role;
-    b.title = label;
     b.setAttribute("aria-label", label);
     b.innerHTML = `<span class="ico">${icon}</span><span class="label">${label}</span>`;
     return b;
@@ -225,6 +279,9 @@ export class LoupeApp {
 
   private onRegionDown = (e: MouseEvent) => {
     if (this.mode !== "region" || e.button !== 0) return;
+    // Ignore drags that start on our own UI (the panel overlays the page).
+    const t = e.target as Element | null;
+    if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
     e.preventDefault();
     e.stopPropagation();
     this.dragStart = { x: e.clientX, y: e.clientY };
@@ -309,14 +366,19 @@ export class LoupeApp {
   }
 
   private setMode(mode: Mode) {
+    // Tools live inside the panel — entering a mode implies the panel is open.
+    if (mode !== "off" && !this.open) { this.open = true; this.applyDockLayout(); }
     this.mode = mode;
     this.hl.style.display = "none";
     this.selbox.style.display = "none";
     this.cancelDrag();
     document.body.style.cursor = mode === "off" ? "" : "crosshair";
-    (this.toolbar.querySelector('[data-role="inspect"]') as HTMLElement)?.classList.toggle("on", mode === "inspect");
-    (this.toolbar.querySelector('[data-role="free"]') as HTMLElement)?.classList.toggle("on", mode === "free");
-    (this.toolbar.querySelector('[data-role="region"]') as HTMLElement)?.classList.toggle("on", mode === "region");
+    (this.dock.querySelector('[data-role="inspect"]') as HTMLElement)?.classList.toggle("on", mode === "inspect");
+    (this.dock.querySelector('[data-role="free"]') as HTMLElement)?.classList.toggle("on", mode === "free");
+    (this.dock.querySelector('[data-role="region"]') as HTMLElement)?.classList.toggle("on", mode === "region");
+    // On mobile this shrinks the bottom sheet to just header + tools (see styles)
+    // so most of the page stays visible while picking an element/region.
+    this.dock.classList.toggle("inspecting", mode !== "off");
 
     document.removeEventListener("mousemove", this.onMove, true);
     document.removeEventListener("click", this.onClick, true);
@@ -471,7 +533,7 @@ export class LoupeApp {
     this.resolved.set(comment.id, anchoredEl);
     this.closeComposer();
     this.renderPins();
-    this.renderPanel();
+    this.renderList();
     this.flash(comment.id);
   }
 
@@ -486,7 +548,7 @@ export class LoupeApp {
       let pin = this.pins.get(c.id);
       if (!pin) {
         pin = el("button", "pin") as HTMLButtonElement;
-        pin.onclick = () => { this.openPanel(); this.flash(c.id); };
+        pin.onclick = () => { this.openDock(); this.flash(c.id); };
         this.overlay.appendChild(pin);
         this.pins.set(c.id, pin);
       }
@@ -494,8 +556,14 @@ export class LoupeApp {
       pin.classList.toggle("done", c.status === "done");
       pin.classList.toggle("free", c.kind === "free");
     });
-    this.countEl.textContent = String(this.comments.length);
+    this.updateCount();
     this.position();
+  }
+
+  private updateCount() {
+    const n = this.comments.length;
+    this.countEl.textContent = String(n);
+    this.launchCount.textContent = n ? String(n) : "";
   }
 
   /** Reposition every pin, re-resolving anchors whose element has gone. */
@@ -587,163 +655,180 @@ export class LoupeApp {
     };
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
-    window.addEventListener("resize", this.onResizeBar);
+    window.addEventListener("resize", this.onWinResize);
     let debounce = 0;
     this.mo = new MutationObserver(() => {
       clearTimeout(debounce);
-      debounce = window.setTimeout(() => { this.position(); this.renderPanel(); }, 120);
+      debounce = window.setTimeout(() => { this.position(); this.renderList(); }, 120);
     });
     this.mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
     // Safety net for animated / late-loading layouts.
     this.tick = window.setInterval(this.position, 800);
   }
 
-  // ---- panel ----------------------------------------------------------------
+  // ---- dock: open / close / mode / theme ------------------------------------
 
-  private openPanel() { this.panel.classList.add("open"); this.renderPanel(); }
-  private togglePanel() { this.panel.classList.toggle("open"); this.renderPanel(); }
+  private openDock() { this.open = true; this.saveState(); this.applyDockLayout(); this.renderList(); }
 
-  /** Collapse the toolbar to just the logo (or expand it back). */
-  private toggleCollapsed() {
-    this.collapsed = !this.collapsed;
-    this.toolbar.classList.toggle("collapsed", this.collapsed);
-    if (this.collapsed) {
-      // Leave any active mode, close the panel/composer, and hide the pins.
-      this.setMode("off");
-      this.panel.classList.remove("open");
-      this.closeComposer();
-      this.overlay.style.display = "none";
-    } else {
-      this.overlay.style.display = "";
-      this.renderPins();
-    }
-    this.layoutBar();
+  private closeDock() {
+    this.open = false;
+    this.setMode("off");
+    this.closeComposer();
+    this.saveState();
+    this.applyDockLayout();
   }
 
-  // ---- draggable, edge-aware floating toolbar --------------------------------
+  private setDock(mode: DockMode) {
+    this.dockMode = mode;
+    this.open = true;
+    this.saveState();
+    this.applyDockLayout();
+  }
 
-  private onResizeBar = () => this.layoutBar();
+  private toggleTheme() {
+    this.theme = this.theme === "dark" ? "light" : "dark";
+    this.saveState();
+    this.applyDockLayout();
+  }
 
-  private loadBarPos() {
+  private onWinResize = () => this.applyDockLayout();
+
+  /** Narrow viewports render the panel as a bottom sheet, not a side/float dock. */
+  private isMobile() { return window.innerWidth <= 640; }
+
+  private loadState() {
     try {
-      const s = localStorage.getItem("loupe:bar");
-      if (s) { const p = JSON.parse(s); if (typeof p?.fx === "number" && typeof p?.fy === "number") this.barPos = p; }
-    } catch { /* storage unavailable → default position */ }
+      const s = localStorage.getItem("loupe:dock");
+      if (!s) return;
+      const p = JSON.parse(s);
+      if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
+      if (typeof p?.open === "boolean") this.open = p.open;
+      if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
+      if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
+    } catch { /* storage unavailable → defaults */ }
   }
-  private saveBarPos() {
-    try { if (this.barPos) localStorage.setItem("loupe:bar", JSON.stringify(this.barPos)); } catch { /* ignore */ }
+
+  private saveState() {
+    try {
+      localStorage.setItem("loupe:dock", JSON.stringify({
+        mode: this.dockMode, open: this.open, theme: this.theme, float: this.floatRect,
+      }));
+    } catch { /* ignore */ }
   }
 
-  private onBarPointerDown = (e: PointerEvent) => {
-    if (typeof e.button === "number" && e.button !== 0) return;
-    const brand = this.brandEl();
-    const r = brand.getBoundingClientRect();
-    this.barDrag = { px: e.clientX, py: e.clientY, ix: r.left, iy: r.top };
-    this.justDragged = false;
-    try { brand.setPointerCapture(e.pointerId); } catch { /* not supported */ }
-    brand.addEventListener("pointermove", this.onBarPointerMove);
-    brand.addEventListener("pointerup", this.onBarPointerUp);
-    brand.addEventListener("pointercancel", this.onBarPointerUp);
-  };
+  /** Reflect all control-panel state (theme, dock mode, geometry, launcher) into the DOM. */
+  private applyDockLayout() {
+    this.root.classList.toggle("theme-light", this.theme === "light");
+    this.themeBtn.title = this.theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
+    this.themeBtn.innerHTML = this.theme === "dark" ? I_SUN : I_MOON;
 
-  private onBarPointerMove = (e: PointerEvent) => {
-    if (!this.barDrag) return;
-    const dx = e.clientX - this.barDrag.px;
-    const dy = e.clientY - this.barDrag.py;
-    if (!this.justDragged && Math.hypot(dx, dy) < 5) return; // ignore tiny jitters (it's a click)
-    this.justDragged = true;
-    e.preventDefault();
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const bar = this.toolbar;
-    const brand = this.brandEl();
-    const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
-    const ix = clampPx(this.barDrag.ix + dx, 6, vw - iw - 6);
-    const iy = clampPx(this.barDrag.iy + dy, 6, vh - ih - 6);
-    // While dragging, anchor by the top-left for smooth motion; orientation is
-    // resolved on drop by layoutBar().
-    bar.classList.add("floating", "dragging");
-    bar.classList.remove("orient-v", "flow-rev");
-    bar.classList.add("orient-h");
-    Object.assign(bar.style, { transform: "none", left: ix + "px", top: iy + "px", right: "auto", bottom: "auto" });
-    this.barPos = { fx: ix / vw, fy: iy / vh };
-  };
+    const d = this.dock;
+    d.classList.toggle("open", this.open);
+    for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
 
-  private onBarPointerUp = (e: PointerEvent) => {
-    const brand = this.brandEl();
-    brand.removeEventListener("pointermove", this.onBarPointerMove);
-    brand.removeEventListener("pointerup", this.onBarPointerUp);
-    brand.removeEventListener("pointercancel", this.onBarPointerUp);
-    try { brand.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    const dragged = this.justDragged;
-    this.barDrag = null;
-    this.toolbar.classList.remove("dragging");
-    if (dragged) { this.saveBarPos(); this.layoutBar(); } // justDragged stays true so the trailing click is swallowed
-  };
+    if (this.dockMode === "float") {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      let { x, y, w, h } = this.floatRect;
+      w = clampPx(w, 280, Math.min(760, vw - 24));
+      h = clampPx(h, 220, vh - 24);
+      if (x <= 0 && y <= 0) { x = Math.max(12, vw - w - 24); y = 64; } // first placement
+      x = clampPx(x, 8, Math.max(8, vw - w - 8));
+      y = clampPx(y, 8, Math.max(8, vh - h - 8));
+      this.floatRect = { x, y, w, h };
+      Object.assign(d.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px", right: "auto", bottom: "auto" });
+    } else {
+      for (const p of ["left", "top", "right", "bottom", "width", "height"] as const) d.style[p] = "";
+    }
 
-  private brandEl(): HTMLElement { return this.toolbar.querySelector(".brand") as HTMLElement; }
+    d.querySelectorAll<HTMLElement>(".dctl [data-dock]").forEach((b) =>
+      b.classList.toggle("on", b.dataset.dock === this.dockMode));
+
+    // Launcher: visible only when closed; sits on the same side as the dock edge.
+    this.launcher.classList.toggle("show", !this.open);
+    const leftSide = this.dockMode === "left";
+    this.launcher.style.left = leftSide ? "20px" : "auto";
+    this.launcher.style.right = leftSide ? "auto" : "20px";
+
+    this.pushPage();
+  }
 
   /**
-   * Position the toolbar for its stored spot and make it expand *inward* so it's
-   * always fully on-screen: docked to a left/right edge → vertical; to a
-   * top/bottom edge or a corner → horizontal. No stored spot → default
-   * (bottom-center, governed by CSS).
+   * Push the host page over so the docked panel never covers content (like real
+   * DevTools). We shrink the <html> box with a margin on the docked edge — the
+   * panel is `position: fixed` (relative to the viewport), so it sits in the
+   * gutter the margin frees up. Float mode and the closed state reserve nothing.
+   * Only inline styles are touched, so clearing them restores the host exactly.
    */
-  private layoutBar() {
-    const bar = this.toolbar;
-    if (!this.barPos) {
-      bar.classList.remove("floating", "orient-h", "orient-v", "flow-rev");
-      for (const p of ["left", "top", "right", "bottom", "transform"] as const) bar.style[p] = "";
-      return;
-    }
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const brand = this.brandEl();
-    const iw = brand.offsetWidth || 44, ih = brand.offsetHeight || 44;
-    const ix = clampPx(this.barPos.fx * vw, 6, Math.max(6, vw - iw - 6));
-    const iy = clampPx(this.barPos.fy * vh, 6, Math.max(6, vh - ih - 6));
-    const cx = ix + iw / 2, cy = iy + ih / 2;
-    const horizontalSide = cx < vw / 2 ? "left" : "right";
-    const verticalSide = cy < vh / 2 ? "top" : "bottom";
-    // Nearest edge decides orientation. Ties (corners) fall to horizontal.
-    const vertical = Math.min(cx, vw - cx) < Math.min(cy, vh - cy);
-
-    bar.classList.add("floating");
-    bar.classList.remove("dragging");
-    bar.classList.toggle("orient-v", vertical);
-    bar.classList.toggle("orient-h", !vertical);
-    bar.classList.toggle("flow-rev", vertical ? verticalSide === "bottom" : horizontalSide === "right");
-    bar.style.transform = "none";
-
-    // Anchor by the icon's nearest corner so the ◎ stays put and items grow inward.
-    if (horizontalSide === "left") { bar.style.left = ix + "px"; bar.style.right = "auto"; }
-    else { bar.style.right = (vw - (ix + iw)) + "px"; bar.style.left = "auto"; }
-    if (verticalSide === "top") { bar.style.top = iy + "px"; bar.style.bottom = "auto"; }
-    else { bar.style.bottom = (vh - (iy + ih)) + "px"; bar.style.top = "auto"; }
-
-    // Extreme case (icon dropped near center): the expanded bar could overflow the
-    // far edge — snap it back so it's never clipped.
-    const r = bar.getBoundingClientRect();
-    if (r.right > vw - 6 && bar.style.left !== "auto") { bar.style.left = "auto"; bar.style.right = "6px"; }
-    if (r.left < 6 && bar.style.right !== "auto") { bar.style.right = "auto"; bar.style.left = "6px"; }
-    if (r.bottom > vh - 6 && bar.style.top !== "auto") { bar.style.top = "auto"; bar.style.bottom = "6px"; }
-    if (r.top < 6 && bar.style.bottom !== "auto") { bar.style.bottom = "auto"; bar.style.top = "6px"; }
+  private pushPage() {
+    const de = document.documentElement;
+    de.style.marginLeft = de.style.marginRight = de.style.marginBottom = "";
+    // On mobile the panel is a bottom-sheet overlay (see styles) — reserving page
+    // space would squeeze content to a sliver, so we never push there.
+    if (!this.open || this.dockMode === "float" || this.isMobile()) return;
+    const r = this.dock.getBoundingClientRect();
+    if (this.dockMode === "left") de.style.marginLeft = r.width + "px";
+    else if (this.dockMode === "right") de.style.marginRight = r.width + "px";
+    else if (this.dockMode === "bottom") de.style.marginBottom = r.height + "px";
   }
 
-  private renderPanel() {
-    const p = this.panel;
-    p.innerHTML = "";
-    const head = el("div", "phead");
-    head.append(document.createTextNode(`Comments · ${this.comments.length}`));
-    const x = el("button", "x", "×") as HTMLButtonElement;
-    x.onclick = () => p.classList.remove("open");
-    head.appendChild(x);
-    p.appendChild(head);
+  // ---- float-mode drag + resize ---------------------------------------------
 
-    const list = el("div", "list");
+  private onHeadPointerDown = (e: PointerEvent) => {
+    if (this.dockMode !== "float" || e.button !== 0 || this.isMobile()) return;
+    if ((e.target as HTMLElement)?.closest(".dctl")) return; // let control buttons work
+    this.floatDrag = { px: e.clientX, py: e.clientY, ox: this.floatRect.x, oy: this.floatRect.y };
+    this.dock.classList.add("dragging");
+    window.addEventListener("pointermove", this.onHeadPointerMove);
+    window.addEventListener("pointerup", this.onHeadPointerUp);
+  };
+  private onHeadPointerMove = (e: PointerEvent) => {
+    if (!this.floatDrag) return;
+    e.preventDefault();
+    this.floatRect.x = this.floatDrag.ox + (e.clientX - this.floatDrag.px);
+    this.floatRect.y = this.floatDrag.oy + (e.clientY - this.floatDrag.py);
+    this.applyDockLayout();
+  };
+  private onHeadPointerUp = () => {
+    if (!this.floatDrag) return;
+    this.floatDrag = null;
+    this.dock.classList.remove("dragging");
+    window.removeEventListener("pointermove", this.onHeadPointerMove);
+    window.removeEventListener("pointerup", this.onHeadPointerUp);
+    this.saveState();
+  };
+
+  private onResizeDown = (e: PointerEvent) => {
+    if (this.dockMode !== "float") return;
+    e.preventDefault(); e.stopPropagation();
+    this.floatResize = { px: e.clientX, py: e.clientY, ow: this.floatRect.w, oh: this.floatRect.h };
+    window.addEventListener("pointermove", this.onResizeMove);
+    window.addEventListener("pointerup", this.onResizeUp);
+  };
+  private onResizeMove = (e: PointerEvent) => {
+    if (!this.floatResize) return;
+    e.preventDefault();
+    this.floatRect.w = this.floatResize.ow + (e.clientX - this.floatResize.px);
+    this.floatRect.h = this.floatResize.oh + (e.clientY - this.floatResize.py);
+    this.applyDockLayout();
+  };
+  private onResizeUp = () => {
+    if (!this.floatResize) return;
+    this.floatResize = null;
+    window.removeEventListener("pointermove", this.onResizeMove);
+    window.removeEventListener("pointerup", this.onResizeUp);
+    this.saveState();
+  };
+
+  // ---- comment list ---------------------------------------------------------
+
+  private renderList() {
+    this.listEl.innerHTML = "";
     if (!this.comments.length) {
-      list.appendChild(el("div", "empty", "No comments yet. Click “Inspect & comment” and pick an element, or “Note” to drop a comment anywhere."));
+      this.listEl.appendChild(el("div", "empty",
+        "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."));
     }
-    this.comments.forEach((c, i) => list.appendChild(this.itemView(c, i)));
-    p.appendChild(list);
+    this.comments.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
+    this.updateCount();
   }
 
   private itemView(c: Comment, i: number): HTMLElement {
@@ -778,7 +863,7 @@ export class LoupeApp {
       e.stopPropagation();
       const status = c.status === "done" ? "open" : "done";
       c.status = status; await this.store.update(c.id, { status });
-      this.renderPins(); this.renderPanel();
+      this.renderPins(); this.renderList();
     };
     const claudeBtn = el("button", "", "Copy for Claude") as HTMLButtonElement;
     claudeBtn.onclick = async (e) => { e.stopPropagation(); await this.copyForClaude(c); claudeBtn.textContent = "Copied ✓"; };
@@ -788,7 +873,7 @@ export class LoupeApp {
       await this.store.remove(c.id);
       this.comments = this.comments.filter((x) => x.id !== c.id);
       this.resolved.delete(c.id);
-      this.renderPins(); this.renderPanel();
+      this.renderPins(); this.renderList();
     };
     actions.append(doneBtn, claudeBtn, del);
     item.appendChild(actions);
@@ -877,8 +962,15 @@ export class LoupeApp {
     this.mo?.disconnect();
     if (this.tick) clearInterval(this.tick);
     window.clearTimeout(this.regionTimer);
-    window.removeEventListener("resize", this.onResizeBar);
+    window.removeEventListener("resize", this.onWinResize);
+    window.removeEventListener("pointermove", this.onHeadPointerMove);
+    window.removeEventListener("pointerup", this.onHeadPointerUp);
+    window.removeEventListener("pointermove", this.onResizeMove);
+    window.removeEventListener("pointerup", this.onResizeUp);
     document.removeEventListener("keydown", this.onKey, true);
+    // Release the page-push margins we set for docked modes.
+    const de = document.documentElement;
+    de.style.marginLeft = de.style.marginRight = de.style.marginBottom = "";
     this.root?.remove();
   }
 }
@@ -891,19 +983,39 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
   if (text) n.textContent = text;
   return n;
 }
-function sep() { return el("span", "sep"); }
 function clamp(n: number) { return Math.max(0, Math.min(1, n)); }
 function clampPx(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
 
-/** Dashed marquee icon for the "Region shot" button — inline SVG so it never depends on a font. */
+// ---- inline icons (font-independent, currentColor) --------------------------
+
+const svg = (inner: string) =>
+  `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">${inner}</svg>`;
+const DOCK_FRAME = `<rect x="1.5" y="2.5" width="13" height="11" rx="1.6" stroke="currentColor" stroke-width="1.3"/>`;
+const I_DOCK_LEFT = svg(`${DOCK_FRAME}<rect x="2.2" y="3.2" width="4" height="9.6" rx="1" fill="currentColor"/>`);
+const I_DOCK_RIGHT = svg(`${DOCK_FRAME}<rect x="9.8" y="3.2" width="4" height="9.6" rx="1" fill="currentColor"/>`);
+const I_DOCK_BOTTOM = svg(`${DOCK_FRAME}<rect x="2.2" y="9" width="11.6" height="3.8" rx="1" fill="currentColor"/>`);
+const I_FLOAT = svg(
+  `<rect x="2.5" y="3.5" width="11" height="9" rx="1.6" stroke="currentColor" stroke-width="1.3"/>` +
+  `<path d="M2.5 6.1h11" stroke="currentColor" stroke-width="1.3"/>`);
+const I_SUN = svg(
+  `<circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/>` +
+  `<g stroke="currentColor" stroke-width="1.2" stroke-linecap="round">` +
+  `<path d="M8 1.4v1.7"/><path d="M8 12.9v1.7"/><path d="M1.4 8h1.7"/><path d="M12.9 8h1.7"/>` +
+  `<path d="M3.3 3.3l1.2 1.2"/><path d="M11.5 11.5l1.2 1.2"/><path d="M12.7 3.3l-1.2 1.2"/><path d="M4.5 11.5l-1.2 1.2"/></g>`);
+const I_MOON = svg(
+  `<path d="M13 9.4A5.3 5.3 0 1 1 6.6 3 4.3 4.3 0 0 0 13 9.4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>`);
+const I_CLOSE = svg(
+  `<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`);
+
+/** Dashed marquee icon for the "Region" button — inline SVG so it never depends on a font. */
 const REGION_ICON =
-  `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
+  `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
   `<rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/>` +
   `</svg>`;
 
 /** Speech-bubble icon for the free-"Note" button. */
 const NOTE_ICON =
-  `<svg class="ico" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
+  `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
   `<path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
   `</svg>`;
 

@@ -304,7 +304,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.5.2</span>
+    <span class="ver">v0.6.0</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -313,7 +313,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.5.2</a>
+    <a class="icon-btn" href="#changelog">v0.6.0</a>
   </div>
 </header>
 
@@ -369,7 +369,7 @@
 
       <!-- INTRODUCTION -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Documentation · v0.5.2</p>
+        <p class="eyebrow">Documentation · v0.6.0</p>
         <h1>Loupe</h1>
         <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
           screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
@@ -382,7 +382,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.5.2</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.6.0</div></div>
           <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.4+</div></div>
@@ -529,7 +529,7 @@ npm start</code></pre>
           (<code>StorageAdapter</code>, <code>db.ts</code>, <code>blobs.ts</code>, the
           <code>captureScreenshot</code> hook) — change implementations, not contracts.</p>
         <div class="callout note"><span class="cl">Versioning</span>
-          As of <strong>0.5.2</strong> every package is aligned on one version — the previously stale
+          As of <strong>0.6.0</strong> every package is aligned on one version — the previously stale
           <code>@loupekit/server</code>, the extension <code>manifest.json</code>, and the Node
           <code>McpServer</code> (all <code>0.2.0</code>) are now <code>0.5.0</code>. The Laravel
           <code>LoupeServer</code> reports its own <code>1.0.0</code> — an independent MCP-server identity,
@@ -658,7 +658,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-shared">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.2</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.6.0</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
         <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
           Node packages import the compiled JS.</p>
 
@@ -693,7 +693,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-sdk">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.2</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.6.0</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
         <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
           (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
 
@@ -702,13 +702,16 @@ npm start</code></pre>
           <li><code>init(config: LoupeConfig): void</code> — idempotent; requires <code>projectKey</code> and
             <code>user.id</code>. Starts on <code>DOMContentLoaded</code>. <code>apiBase</code> set →
             <code>HttpAdapter</code>; omitted → <code>LocalStorageAdapter</code> (offline mode).</li>
-          <li><code>destroy(): void</code> — tears down the toolbar and all listeners.</li>
+          <li><code>destroy(): void</code> — tears down the control panel and all listeners.</li>
         </ul>
-        <p>Toolbar modes: <strong>Inspect &amp; comment</strong>, <strong>Note</strong> (a free page-level
-          comment), <strong>Region shot</strong>, <strong>Comments</strong>. <strong>Drag</strong> the
-          <code>◎ Loupe</code> logo to move the whole bar anywhere on screen; <strong>click</strong> it to
-          collapse. A moved bar expands edge-aware so it's always on-screen — vertical against a left/right
-          edge, horizontal along the top/bottom.</p>
+        <p>The control is a single DevTools-style dockable panel: a header
+          (<code>◎ Loupe</code> + dock controls) → tools (<strong>Inspect</strong>, <strong>Note</strong>,
+          a free page-level comment, <strong>Region</strong>) → the comment list. Dock it to the
+          <strong>left</strong>, <strong>right</strong>, or <strong>bottom</strong> edge — docked edges push
+          the host page over so the panel never covers content — or <strong>float</strong> it as a movable,
+          resizable window. A <strong>theme toggle</strong> switches light/dark, and <strong>close</strong>
+          collapses it to a small <code>◎</code> launcher. Position, theme, and open state persist. On
+          viewports ≤ 640px it becomes a bottom sheet.</p>
 
         <h3>LoupeConfig</h3>
         <div class="tablewrap">
@@ -719,7 +722,8 @@ npm start</code></pre>
               <tr><td><code>user</code></td><td>LoupeUser</td><td><strong>Required.</strong> Who is commenting.</td></tr>
               <tr><td><code>userHmac</code></td><td>string?</td><td>HMAC-SHA256(user.id, secret), computed server-side.</td></tr>
               <tr><td><code>apiBase</code></td><td>string?</td><td>Set → HTTP mode; omitted → offline localStorage.</td></tr>
-              <tr><td><code>autoOpen</code></td><td>boolean?</td><td>Open the toolbar immediately.</td></tr>
+              <tr><td><code>autoOpen</code></td><td>boolean?</td><td>Open the control panel with the inspector active immediately.</td></tr>
+              <tr><td><code>label</code></td><td>string?</td><td>Brand name shown in the control header (defaults to <code>"Loupe"</code>).</td></tr>
               <tr><td><code>captureScreenshot</code></td><td>fn?</td><td>Override <code>(el) =&gt; Promise&lt;string?&gt;</code> (the extension uses this).</td></tr>
               <tr><td><code>captureRegion</code></td><td>fn?</td><td>Region-shot override <code>(rect) =&gt; Promise&lt;string?&gt;</code>.</td></tr>
               <tr><td><code>headers</code></td><td>object?</td><td>Extra request headers (e.g. a CSRF token).</td></tr>
@@ -738,8 +742,8 @@ npm start</code></pre>
             blob first, stores only the URL.</p></div>
           <div class="card"><h4><code>store.ts</code></h4><p><code>LocalStorageAdapter</code> — the offline
             fallback.</p></div>
-          <div class="card"><h4><code>app.ts</code></h4><p><code>LoupeApp</code> — Shadow-DOM host: toolbar,
-            inspector, composer, pins, panel; repositions on scroll/resize + MutationObserver.</p></div>
+          <div class="card"><h4><code>app.ts</code></h4><p><code>LoupeApp</code> — Shadow-DOM host: the
+            dockable control panel, inspector, composer, pins; repositions on scroll/resize + MutationObserver.</p></div>
           <div class="card"><h4><code>styles.ts</code></h4><p>The Shadow-DOM stylesheet (theme vars on
             <code>:host</code> so they inherit through the shadow tree).</p></div>
         </div>
@@ -754,7 +758,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-server">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.2</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.6.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
         <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
           <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
           listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
@@ -803,7 +807,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-dashboard">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.2</span><span class="badge">tsup bundle</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.6.0</span><span class="badge">tsup bundle</span></div>
         <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
           (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
           <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
@@ -824,7 +828,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-mcp">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.5.2</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.6.0</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
         <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
           Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
           Claude Code at the source entry directly.</p>
@@ -868,7 +872,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-extension">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.5.2</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.6.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
         <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
           target. The only difference from the SDK is the screenshot source:
           <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
@@ -1052,16 +1056,17 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
             <thead><tr><th>Feature</th><th>What it does</th><th>Since</th></tr></thead>
             <tbody>
               <tr><td>Free comments</td><td>Drop a page-level note anywhere via the <strong>Note</strong> mode — no element, no screenshot (<code>kind: "free"</code>).</td><td class="tabular">0.5.0</td></tr>
-              <tr><td>Draggable toolbar</td><td>Drag the <code>◎</code> logo anywhere; position persists and the bar expands edge-aware (vertical on a side, horizontal on top/bottom).</td><td class="tabular">0.5.0</td></tr>
+              <tr><td>Dockable control</td><td>DevTools-style panel: dock to left / right / bottom (pushes the host page over) or float as a movable, resizable window. Position persists.</td><td class="tabular">0.6.0</td></tr>
+              <tr><td>Light / dark theme</td><td>Theme toggle in the panel header; dark by default, persists.</td><td class="tabular">0.6.0</td></tr>
               <tr><td>Re-anchoring</td><td>Multi-signal fingerprint survives redeploys; detaches rather than mis-pin.</td><td class="tabular">0.1.0</td></tr>
               <tr><td>Region shot</td><td>Drag a free box (no element); anchored to element under center as fractional coords — tracks reflow, viewport &amp; scroll.</td><td class="tabular">0.2.0</td></tr>
               <tr><td>Offline mode</td><td>Omit <code>apiBase</code> → localStorage adapter.</td><td class="tabular">0.1.0</td></tr>
               <tr><td>Session auth (SDK)</td><td><code>headers</code> + <code>credentials</code> config for CSRF / cookie auth.</td><td class="tabular">0.3.0</td></tr>
-              <tr><td>Collapsible toolbar</td><td>Click <code>◎ Loupe</code> to collapse to just the logo.</td><td class="tabular">0.3.3</td></tr>
+              <tr><td>Collapsible control</td><td>Close collapses the panel to a small <code>◎</code> launcher button; click it to reopen. (Pre-0.6.0: collapsed the pill toolbar to its logo.)</td><td class="tabular">0.3.3 / 0.6.0</td></tr>
               <tr><td>Font embedding</td><td>Awaits <code>document.fonts.ready</code> (capped) so screenshots use the right fonts, never hanging.</td><td class="tabular">0.3.4 / 0.4.1</td></tr>
               <tr><td>Device / viewport</td><td>Desktop/tablet/mobile badge end-to-end; <code>deviceType()</code> helper + DB column.</td><td class="tabular">0.4.0</td></tr>
               <tr><td>SPA per-page comments</td><td>Patches <code>pushState</code>/<code>replaceState</code> + <code>popstate</code> to reload comments on client-side navigation.</td><td class="tabular">0.4.0</td></tr>
-              <tr><td>Mobile toolbar</td><td>Compact, icon-only, pinned left; consistent icon+label layout.</td><td class="tabular">0.4.0</td></tr>
+              <tr><td>Mobile bottom sheet</td><td>On viewports ≤ 640px the panel is a full-width bottom sheet; it shrinks to a header+tools bar while inspecting so the page stays tappable.</td><td class="tabular">0.6.0</td></tr>
               <tr><td>Instant region open</td><td>Composer opens immediately; capture runs in background, attached on submit.</td><td class="tabular">0.4.1</td></tr>
               <tr><td>Copy for Claude</td><td>Dashboard action copies a comment's full context to paste into Claude.</td><td class="tabular">—</td></tr>
               <tr><td>Redaction</td><td><code>[data-loupe-redact]</code> regions painted over before pixels leave the browser.</td><td class="tabular">0.1.0</td></tr>
@@ -1164,9 +1169,27 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.5.2</strong> (2026-07-15).</p>
+          release: <strong>0.6.0</strong> (2026-07-17).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.6.0</span><span class="cl-date">2026-07-17</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Dockable, DevTools-style control.</strong> The widget is now one dockable panel —
+              header (<code>◎ Loupe</code> + dock controls) → tools → comment list — that docks to the
+              <strong>left</strong>, <strong>right</strong>, or <strong>bottom</strong> edge, or
+              <strong>floats</strong> as a movable, resizable window. Docked edges <em>push the host page
+              over</em> so the panel never covers content; float overlays. Position, theme, and open state
+              persist.</li>
+            <li><strong>Light / dark theme toggle</strong> in the panel header (dark by default).</li>
+            <li><strong>Mobile bottom sheet.</strong> On viewports ≤ 640px the panel becomes a full-width
+              bottom sheet, shrinking to a compact header+tools bar while a tool is active so the page stays
+              tappable.</li>
+            <li>New <code>label</code> config sets the brand name in the header. <strong>UI-only</strong> — no
+              DB migration and no change to <code>init</code> (additive), the HTTP API, or MCP tools.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.5.2</span><span class="cl-date">2026-07-15</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong><code>loupe-mcp</code> binary now actually starts.</strong> After 0.5.1 shipped
@@ -1317,7 +1340,7 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.5.2 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.6.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
           <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,
