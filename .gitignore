@@ -6,10 +6,15 @@ packages/extension/content.js
 *.log
 .DS_Store
 
-# Claude Code setup — kept local, not tracked (per project preference).
-# To share with teammates, remove the two lines below and commit them.
+# Claude Code setup — ALWAYS local, NEVER tracked (hard project rule).
+# Covers the root and any nested package (patterns without a leading slash
+# match at every depth), plus local memory files.
 .claude/
+**/.claude/
 CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
+**/CLAUDE.local.md
 coverage/
 loupe-extension.zip
 
