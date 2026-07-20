@@ -4,11 +4,11 @@
 
 ## What it does
 - Embeds a Shadow-DOM widget in any web product (npm package or script tag).
-- Lets authorized users inspect a DOM element and attach a comment + screenshot, drag a free-size region to screenshot, or drop a "free" page-level note anywhere (no element, no screenshot).
-- The control is a dockable DevTools-style panel: dock it to the left/right/bottom edge (which pushes the host page over) or float it as a movable, resizable window; it has a light/dark theme toggle, collapses to a small launcher, and becomes a bottom sheet on mobile. Position, theme, and open state persist.
-- Stores comments in Postgres and screenshots in object storage.
+- Lets authorized users inspect a DOM element and attach a comment + screenshot, drag a free-size region to screenshot, screen-record a region to video (webm, via getDisplayMedia), or drop a "free" page-level note anywhere (no element, no screenshot).
+- The control is a dockable DevTools-style panel with a two-page sidebar (Comments + Connect Claude): dock it to the left/right/bottom edge (which pushes the host page over) or float it as a movable, resizable window; it has a light/dark theme toggle, collapses to a small launcher, and becomes a bottom sheet on mobile. Position, theme, and open state persist.
+- Stores comments in Postgres and screenshots/recordings in object storage.
 - Re-anchors each pin to its element after redeploys using a multi-signal fingerprint.
-- Exposes an MCP server (tools: list_comments, get_comment, update_status) so Claude Code reads feedback with full element context and resolves it.
+- Exposes an MCP server (tools: list_comments, get_comment, propose_change, update_status) so Claude Code reads feedback with full element context — the screenshot is delivered as an image — and writes its modified HTML/CSS back via propose_change, which the dashboard renders as code plus a live before/after preview for the dev team.
 - Ships a Kanban triage dashboard and an MV3 browser extension (pixel-perfect capture on any site).
 
 ## Docs

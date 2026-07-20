@@ -25,6 +25,24 @@ export interface ElementContext {
   styles: Record<string, string>;
 }
 
+/**
+ * A UI change Claude proposes for a comment, written back through the MCP
+ * `propose_change` tool (or the API). Rendered for the dev team in the dashboard
+ * as copyable code plus a live preview. This is what closes the feedback loop:
+ * the PM's request goes to Claude, and Claude's modified markup comes back here.
+ */
+export interface Proposal {
+  /** The modified element markup. */
+  html: string;
+  /** Accompanying CSS. May be empty when the styling is inlined in `html`. */
+  css?: string;
+  /** Claude's explanation of what changed and why. */
+  notes?: string;
+  /** Who produced it, e.g. "Claude Code via MCP". */
+  author?: string;
+  createdAt: string;
+}
+
 /** A rectangle in **document** coordinates (page px, scroll included). */
 export interface RegionRect {
   x: number;
@@ -78,6 +96,13 @@ export interface Comment {
   viewport?: { w: number; h: number };
   /** A URL (object storage) in server mode, or an inline data URL in offline mode. */
   screenshot?: string;
+  /**
+   * A screen recording of the selected region (webm). A URL in server mode, or an
+   * inline data URL offline. Present for "region" comments made with the Record tool.
+   */
+  recording?: string;
+  /** Claude's proposed UI change, written back via MCP. Shown to devs in the dashboard. */
+  proposal?: Proposal;
   createdAt: string;
 }
 

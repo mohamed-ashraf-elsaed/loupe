@@ -100,23 +100,123 @@
 
     .loading, .error { padding: 40px; text-align: center; color: var(--ink-3); }
     .error { color: var(--pin); }
+
+    /* ---- app shell: sidebar + content ---- */
+    .shell { display: flex; align-items: stretch; min-height: 100vh; }
+    .sidebar {
+      width: 216px; flex: none; background: var(--surface); border-right: 1px solid var(--line);
+      padding: 16px 12px; position: sticky; top: 0; height: 100vh;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .sidebar .brand { padding: 6px 8px 14px; }
+    .nav { display: flex; flex-direction: column; gap: 4px; }
+    .navitem {
+      display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; border: 0;
+      background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 600;
+      padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    }
+    .navitem:hover { background: var(--surface-2); color: var(--ink); }
+    .navitem.on { background: var(--surface-2); color: var(--accent-ink); }
+    .navitem .ni { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+    .sidebar .sidefoot { margin-top: auto; padding: 12px 8px 4px; }
+    .sidefoot .ilabel { font-size: 10px; letter-spacing: .12em; color: var(--ink-3); font-weight: 700; margin-bottom: 8px; }
+    .sidefoot .irow { display: flex; gap: 12px; color: var(--ink-3); }
+    .sidefoot .irow svg { display: block; }
+    .content { flex: 1; min-width: 0; }
+    .page[hidden] { display: none; }
+
+    /* ---- connect-claude page ---- */
+    .connect { max-width: 760px; margin: 0 auto; padding: 32px 24px 60px; }
+    .connect .chero { text-align: center; margin-bottom: 28px; }
+    .connect .chero .mark { width: 40px; height: 40px; margin: 0 auto 12px; }
+    .connect h1 { font-size: 24px; letter-spacing: -.02em; margin: 0 0 8px; }
+    .connect .sub { color: var(--ink-2); font-size: 14px; line-height: 1.5; margin: 0 auto; max-width: 520px; }
+    .steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
+    .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; }
+    .steps li::before {
+      counter-increment: s; content: counter(s); width: 26px; height: 26px; border-radius: 50%;
+      background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center;
+    }
+    .steps .st { font-size: 14px; font-weight: 700; }
+    .steps .sd { font-size: 13px; color: var(--ink-2); line-height: 1.5; margin-top: 3px; }
+    .codeblock {
+      position: relative; margin-top: 10px; background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.5;
+      color: var(--ink); white-space: pre; overflow-x: auto;
+    }
+    .copychip {
+      position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2);
+      border-radius: 6px; padding: 3px 8px;
+    }
+    .copychip:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+    /* ---- recording video + proposal in a card ---- */
+    .card video.rec { display: block; width: 100%; max-height: 220px; background: #000; border-top: 1px solid var(--line); }
+    .proposal { border-top: 1px solid var(--line); }
+    .proposal > summary {
+      list-style: none; cursor: pointer; padding: 9px 13px; font-size: 12.5px; font-weight: 700;
+      color: var(--accent-ink); display: flex; align-items: center; gap: 6px;
+    }
+    .proposal > summary::-webkit-details-marker { display: none; }
+    .proposal > summary::after { content: "▸"; margin-left: auto; font-size: 10px; color: var(--ink-3); }
+    .proposal[open] > summary::after { content: "▾"; }
+    .proposal .pbody { padding: 0 13px 13px; }
+    .pnotes { font-size: 12.5px; color: var(--ink-2); line-height: 1.45; margin: 0 0 10px; }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    @media (max-width: 520px) { .compare { grid-template-columns: 1fr; } }
+    .compare .cap { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 700; margin-bottom: 4px; }
+    .compare .frame { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); height: 150px; }
+    .compare .frame img, .compare .frame iframe { width: 100%; height: 100%; border: 0; object-fit: cover; object-position: top; background: #fff; }
+    .compare .frame.empty { display: grid; place-items: center; color: var(--ink-3); font-size: 11px; }
+    .codehead { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 700; margin: 8px 0 4px; display: flex; align-items: center; gap: 8px; }
+    .propcode { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--ink); white-space: pre; overflow-x: auto; margin: 0; max-height: 200px; overflow-y: auto; }
+
+    @media (max-width: 720px) {
+      .shell { flex-direction: column; }
+      .sidebar { width: auto; height: auto; position: static; flex-direction: row; align-items: center; gap: 8px; overflow-x: auto; }
+      .sidebar .brand { padding: 6px 8px; }
+      .nav { flex-direction: row; }
+      .sidebar .sidefoot { display: none; }
+    }
   </style>
 </head>
 <body>
-  <header class="top">
-    <div class="brand"><span class="mark"></span> Loupe</div>
-    <span class="project" id="project">—</span>
-    <span class="spacer"></span>
-    <label class="control">Page
-      <select id="pageFilter"><option value="">All pages</option></select>
-    </label>
-    <span class="live"><span class="dot"></span><span id="liveText">live</span></span>
-    <button class="btn" id="refresh">Refresh</button>
-  </header>
-  <main>
-    <div id="board" class="board"></div>
-    <div id="status" class="loading">Loading feedback…</div>
-  </main>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="mark"></span> Loupe</div>
+      <nav class="nav">
+        <button class="navitem on" data-page="comments"><span class="ni">▤</span> Comments</button>
+        <button class="navitem" data-page="connect"><span class="ni">◎</span> Connect Claude</button>
+      </nav>
+      <div class="sidefoot">
+        <div class="ilabel">INTEGRATES WITH</div>
+        <div class="irow" id="integrations"></div>
+      </div>
+    </aside>
+
+    <div class="content">
+      <section class="page" id="page-comments">
+        <header class="top">
+          <span class="project" id="project">—</span>
+          <span class="spacer"></span>
+          <label class="control">Page
+            <select id="pageFilter"><option value="">All pages</option></select>
+          </label>
+          <span class="live"><span class="dot"></span><span id="liveText">live</span></span>
+          <button class="btn" id="refresh">Refresh</button>
+        </header>
+        <main>
+          <div id="board" class="board"></div>
+          <div id="status" class="loading">Loading feedback…</div>
+        </main>
+      </section>
+
+      <section class="page" id="page-connect" hidden>
+        <div class="connect" id="connect"></div>
+      </section>
+    </div>
+  </div>
 
   <script type="module" src="./dist/app.js"></script>
 </body>

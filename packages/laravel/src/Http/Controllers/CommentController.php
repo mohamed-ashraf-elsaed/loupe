@@ -63,6 +63,8 @@ class CommentController extends Controller
             'region' => $data['region'] ?? null,
             'viewport' => $data['viewport'] ?? null,
             'screenshot_url' => $data['screenshot'] ?? null,
+            'recording_url' => $data['recording'] ?? null,
+            'proposal' => $data['proposal'] ?? null,
         ];
 
         $comment = $this->model()->newQuery()->find($data['id']);
@@ -81,7 +83,7 @@ class CommentController extends Controller
         return response()->json($comment->fresh()->toLoupeArray(), 201);
     }
 
-    /** PATCH /{path}/v1/comments/{id} — status/body only. */
+    /** PATCH /{path}/v1/comments/{id} — status, body, or proposal (Claude's modified UI). */
     public function update(Request $request, string $id): JsonResponse
     {
         $comment = $this->model()->newQuery()
@@ -93,7 +95,7 @@ class CommentController extends Controller
         }
 
         $patch = [];
-        foreach (['status', 'body'] as $field) {
+        foreach (['status', 'body', 'proposal'] as $field) {
             if ($request->has($field)) {
                 $patch[$field] = $request->input($field);
             }

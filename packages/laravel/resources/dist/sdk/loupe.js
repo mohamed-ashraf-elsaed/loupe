@@ -231,6 +231,62 @@ var Loupe = (() => {
 .composer .primary:disabled { opacity: .5; cursor: default; }
 .composer .ghost { background: var(--bg-3); color: var(--ink); }
 
+/* ------------------------------------------------------------ sidebar tabs */
+.tabs { display: flex; gap: 4px; flex: none; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
+.tabs .tab {
+  flex: 1; padding: 8px 10px; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer;
+  border-radius: 6px 6px 0 0;
+}
+.tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
+.tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Two sidebar pages: only the active one shows. */
+.view { display: none; }
+.dock.tab-comments .comments-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.dock.tab-connect .connect-view { display: block; flex: 1; overflow-y: auto; }
+
+/* recording marker + video in the list */
+.item .rectag { font-size: 10px; font-weight: 700; color: var(--pin); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.item video.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); background: #000; display: block; }
+
+/* ------------------------------------------------ "integrates with" footer */
+.integrations { flex: none; padding: 12px 12px 14px; border-top: 1px solid var(--line); text-align: center; }
+.integrations .ilabel { font-size: 10px; letter-spacing: .12em; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+.integrations .irow { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.integrations .ibtn { color: var(--muted); display: inline-flex; opacity: .8; cursor: default; }
+.integrations .ibtn:hover { color: var(--accent); opacity: 1; }
+.integrations .ibtn svg { display: block; }
+
+/* ------------------------------------------------------- Connect Claude page */
+.connect-view { padding: 16px 14px 20px; }
+.connect-hero { text-align: center; margin-bottom: 18px; }
+.connect-hero .chero-logo { font-size: 34px; line-height: 1; color: var(--accent); }
+.connect-hero .chero-title { font-size: 18px; font-weight: 800; letter-spacing: -.02em; margin-top: 8px; }
+.connect-hero .chero-sub { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-top: 6px; }
+.accentink { color: var(--accent); }
+.connect-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.connect-steps .cstep-t { font-size: 13px; font-weight: 700; }
+.connect-steps .cstep-d { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 3px; }
+.connect-steps .cstep-code {
+  margin: 8px 0 0; padding: 10px; background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 8px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 1.4;
+  color: var(--ink); white-space: pre; overflow-x: auto;
+}
+
+/* ------------------------------------------------------- recording indicator */
+.recbar {
+  position: fixed; z-index: 2147483005; top: 16px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--pin);
+  box-shadow: var(--shadow); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.recbar.show { display: inline-flex; }
+.recbar b { color: var(--pin); }
+.recbar .recdot { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); animation: loupe-recpulse 1.1s infinite; }
+@keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
+
 /* Mobile: left/right/float docking is a desktop affordance. On small screens the
    panel collapses to a bottom sheet that OVERLAYS the page (pushing a side dock
    here would squeeze the page to a useless sliver), regardless of the chosen dock
@@ -2100,6 +2156,91 @@ var Loupe = (() => {
     }
     return document.body;
   }
+  function pickRecordingMime() {
+    const MR = window.MediaRecorder;
+    if (!MR?.isTypeSupported) return "";
+    for (const t of ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]) {
+      if (MR.isTypeSupported(t)) return t;
+    }
+    return "";
+  }
+  function blobToDataUrl2(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(blob);
+    });
+  }
+  async function captureRegionRecording(rect, opts) {
+    const md = navigator.mediaDevices;
+    if (!md?.getDisplayMedia || !window.MediaRecorder) return void 0;
+    let stream;
+    try {
+      stream = await md.getDisplayMedia({ video: { frameRate: 30 }, audio: false, preferCurrentTab: true });
+    } catch {
+      return void 0;
+    }
+    try {
+      return await recordCropped(stream, rect, opts);
+    } catch (err) {
+      console.warn("[loupe] screen recording failed", err);
+      return void 0;
+    } finally {
+      stream.getTracks().forEach((t) => t.stop());
+    }
+  }
+  async function recordCropped(stream, rect, opts) {
+    const maxMs = opts?.maxMs ?? 2e4;
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play().catch(() => void 0);
+    const track = stream.getVideoTracks()[0];
+    const s = track?.getSettings?.() ?? {};
+    const vw = s.width || video.videoWidth || window.innerWidth;
+    const vh = s.height || video.videoHeight || window.innerHeight;
+    const sx = vw / window.innerWidth;
+    const sy = vh / window.innerHeight;
+    const cw = Math.max(2, Math.round(rect.w * sx));
+    const ch = Math.max(2, Math.round(rect.h * sy));
+    const canvas = document.createElement("canvas");
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext("2d");
+    let raf = 0;
+    const draw = () => {
+      try {
+        ctx.drawImage(video, rect.x * sx, rect.y * sy, cw, ch, 0, 0, cw, ch);
+      } catch {
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    const out = canvas.captureStream(30);
+    const mime = pickRecordingMime();
+    const rec = new MediaRecorder(out, mime ? { mimeType: mime } : void 0);
+    const chunks = [];
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size) chunks.push(e.data);
+    };
+    const stop = () => {
+      if (rec.state !== "inactive") rec.stop();
+    };
+    opts?.register?.(stop);
+    const timer = window.setTimeout(stop, maxMs);
+    track?.addEventListener("ended", stop);
+    const done = new Promise((resolve) => {
+      rec.onstop = () => resolve();
+    });
+    rec.start();
+    await done;
+    window.clearTimeout(timer);
+    cancelAnimationFrame(raf);
+    if (!chunks.length) return void 0;
+    return blobToDataUrl2(new Blob(chunks, { type: mime || "video/webm" }));
+  }
   function cropRegion(dataUrl, rect, ox, oy, scale, redact) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -2200,17 +2341,25 @@ var Loupe = (() => {
       if (!res.ok) throw new Error(`list failed: ${res.status}`);
       return await res.json();
     }
+    /** Upload an inline data-URL asset to object storage; return its URL (or the data URL on failure). */
+    async uploadBlob(projectKey, data) {
+      try {
+        const up = await fetch(`${this.base}/v1/blobs`, this.opts({
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({ projectKey, data })
+        }));
+        if (up.ok) return (await up.json()).url;
+      } catch {
+      }
+      return data;
+    }
     async save(comment) {
       if (comment.screenshot?.startsWith("data:")) {
-        try {
-          const up = await fetch(`${this.base}/v1/blobs`, this.opts({
-            method: "POST",
-            headers: this.headers(),
-            body: JSON.stringify({ projectKey: comment.projectKey, data: comment.screenshot })
-          }));
-          if (up.ok) comment = { ...comment, screenshot: (await up.json()).url };
-        } catch {
-        }
+        comment = { ...comment, screenshot: await this.uploadBlob(comment.projectKey, comment.screenshot) };
+      }
+      if (comment.recording?.startsWith("data:")) {
+        comment = { ...comment, recording: await this.uploadBlob(comment.projectKey, comment.recording) };
       }
       const res = await fetch(`${this.base}/v1/comments`, this.opts({
         method: "POST",
@@ -2239,6 +2388,7 @@ var Loupe = (() => {
 
   // src/app.ts
   var DOCK_MODES = ["left", "right", "bottom", "float"];
+  var RECORD_MAX_MS = 2e4;
   var uid2 = () => crypto.randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
   function hash(s) {
     let h = 0;
@@ -2263,6 +2413,7 @@ var Loupe = (() => {
       this.dockMode = "right";
       this.open = true;
       this.theme = "dark";
+      this.tab = "comments";
       /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
       this.floatRect = { x: 0, y: 0, w: 380, h: 540 };
       this.floatDrag = null;
@@ -2309,7 +2460,7 @@ var Loupe = (() => {
       };
       // ---- region ("free-size screenshot") selection ----------------------------
       this.onRegionDown = (e) => {
-        if (this.mode !== "region" || e.button !== 0) return;
+        if (this.mode !== "region" && this.mode !== "record" || e.button !== 0) return;
         const t = e.target;
         if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
         e.preventDefault();
@@ -2329,6 +2480,7 @@ var Loupe = (() => {
         e.preventDefault();
         e.stopPropagation();
         const start = this.dragStart;
+        const wasRecord = this.mode === "record";
         this.cancelDrag();
         const vp = {
           x: Math.min(start.x, e.clientX),
@@ -2341,7 +2493,8 @@ var Loupe = (() => {
           return;
         }
         this.setMode("off");
-        this.finishRegion(vp);
+        if (wasRecord) void this.finishRecording(vp);
+        else this.finishRegion(vp);
       };
       // ---- free note (drop a comment anywhere, no element / no screenshot) -------
       this.onFreeClick = (e) => {
@@ -2532,9 +2685,14 @@ var Loupe = (() => {
       this.shadow.appendChild(this.composer);
       this.dock = this.buildDock();
       this.launcher = this.buildLauncher();
-      this.shadow.append(this.dock, this.launcher);
+      this.recBar = this.buildRecBar();
+      this.shadow.append(this.dock, this.launcher, this.recBar);
     }
-    /** The dockable control panel: header (brand + dock controls) → tools → list. */
+    /**
+     * The dockable control panel:
+     * header (brand + dock controls) → tabs → [Comments view: tools + list + integrations]
+     * and a [Connect view] with the Claude/MCP onboarding steps.
+     */
     buildDock() {
       const dock = el("div", "dock");
       const head = el("div", "dhead");
@@ -2570,6 +2728,14 @@ var Loupe = (() => {
       closeBtn.onclick = () => this.closeDock();
       ctl.append(this.themeBtn, closeBtn);
       head.append(brand, ctl);
+      const tabs = el("div", "tabs");
+      const commentsTab = el("button", "tab", "Comments");
+      commentsTab.dataset.tab = "comments";
+      commentsTab.onclick = () => this.setTab("comments");
+      const connectTab = el("button", "tab", "Connect Claude");
+      connectTab.dataset.tab = "connect";
+      connectTab.onclick = () => this.setTab("connect");
+      tabs.append(commentsTab, connectTab);
       const tools = el("div", "tools");
       const inspectBtn = this.toolBtn("\u271B", "Inspect", "inspect");
       inspectBtn.title = "Inspect an element and comment on it";
@@ -2580,16 +2746,91 @@ var Loupe = (() => {
       const regionBtn = this.toolBtn(REGION_ICON, "Region", "region");
       regionBtn.title = "Drag a free-size box, screenshot it, and comment";
       regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
-      tools.append(inspectBtn, freeBtn, regionBtn);
+      const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
+      recordBtn.title = "Drag a box, record a screen video of it, and comment";
+      recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
+      tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
       const listHead = el("div", "listhead");
       listHead.append(document.createTextNode("Comments"));
       this.countEl = el("span", "count", "0");
       listHead.appendChild(this.countEl);
       this.listEl = el("div", "list");
+      const commentsView = el("div", "view comments-view");
+      commentsView.append(tools, listHead, this.listEl, this.buildIntegrations());
+      const connectView = this.buildConnectPanel();
       const resize = el("div", "resize");
       resize.addEventListener("pointerdown", this.onResizeDown);
-      dock.append(head, tools, listHead, this.listEl, resize);
+      dock.append(head, tabs, commentsView, connectView, resize);
       return dock;
+    }
+    /** The "INTEGRATES WITH" footer on the Comments page (visual only for now). */
+    buildIntegrations() {
+      const wrap = el("div", "integrations");
+      wrap.append(el("div", "ilabel", "INTEGRATES WITH"));
+      const row = el("div", "irow");
+      const icons = [
+        ["GitHub", I_GITHUB],
+        ["Slack", I_SLACK],
+        ["Telegram", I_TELEGRAM],
+        ["Linear", I_LINEAR]
+      ];
+      for (const [name, icon] of icons) {
+        const b = el("span", "ibtn");
+        b.title = `${name} \u2014 connect (coming soon)`;
+        b.setAttribute("aria-label", name);
+        b.innerHTML = icon;
+        row.appendChild(b);
+      }
+      wrap.appendChild(row);
+      return wrap;
+    }
+    /** The "Connect Claude" onboarding page: how to wire the MCP server to this project. */
+    buildConnectPanel() {
+      const view = el("div", "view connect-view");
+      const key = this.cfg.projectKey;
+      const apiHint = this.cfg.apiBase ?? "http://localhost:8787";
+      const config = JSON.stringify(
+        {
+          mcpServers: {
+            loupe: {
+              command: "npx",
+              args: ["-y", "@loupekit/mcp"],
+              env: { LOUPE_API: apiHint, LOUPE_PROJECT_KEY: key, LOUPE_ADMIN_KEY: "<your project secret>" }
+            }
+          }
+        },
+        null,
+        2
+      );
+      const steps = [
+        ["Pin your feedback", "Use Inspect, Region, Record, or Note to leave comments right on the live app."],
+        ["Add the Loupe MCP server", "Drop this into your Claude Code config so Claude can read this project's backlog:"],
+        ["Let Claude fix it", "Claude reads each comment (with the screenshot, HTML & CSS), rewrites the UI, and calls propose_change \u2014 the modified HTML/CSS then shows up for your dev team in the dashboard."]
+      ];
+      const hero = el("div", "connect-hero");
+      hero.innerHTML = `<div class="chero-logo">\u25CE</div><div class="chero-title">Hand your feedback to <span class="accentink">Claude</span></div><div class="chero-sub">Every pinned comment becomes an actionable, fully-contextualized task Claude Code can act on.</div>`;
+      view.appendChild(hero);
+      const list = el("ol", "connect-steps");
+      steps.forEach(([t, d], i) => {
+        const li = el("li");
+        li.innerHTML = `<div class="cstep-t">${i + 1}. ${escapeHtml(t)}</div><div class="cstep-d">${escapeHtml(d)}</div>`;
+        if (i === 1) {
+          const pre = el("pre", "cstep-code");
+          pre.textContent = config;
+          li.appendChild(pre);
+        }
+        list.appendChild(li);
+      });
+      view.appendChild(list);
+      return view;
+    }
+    /** The floating "recording…" pill with a Stop button (shown only while recording). */
+    buildRecBar() {
+      const bar = el("button", "recbar");
+      bar.title = "Stop recording";
+      bar.setAttribute("aria-label", "Stop recording");
+      bar.onclick = () => this.stopRecording?.();
+      return bar;
     }
     buildLauncher() {
       const b = el("button", "launcher");
@@ -2623,8 +2864,12 @@ var Loupe = (() => {
       document.removeEventListener("mousemove", this.onRegionMove, true);
       document.removeEventListener("mouseup", this.onRegionUp, true);
     }
-    /** Capture the selected viewport rect, then open the composer for a region comment. */
-    async finishRegion(vp) {
+    /**
+     * Anchor a dragged viewport rect to the element under its center so it survives
+     * reflow. `rel` (element-relative fractions) is preferred; document coords are the
+     * fallback. Shared by both the Region (screenshot) and Record (video) tools.
+     */
+    regionFromViewport(vp) {
       const centerEl = this.pick(vp.x + vp.w / 2, vp.y + vp.h / 2);
       let rel;
       if (centerEl) {
@@ -2638,15 +2883,57 @@ var Loupe = (() => {
           };
         }
       }
-      this.selbox.style.display = "none";
       const region = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
-      const target = { kind: "region", region, element: centerEl };
+      return { region, element: centerEl };
+    }
+    /** Capture the selected viewport rect, then open the composer for a region comment. */
+    async finishRegion(vp) {
+      this.selbox.style.display = "none";
+      const { region, element } = this.regionFromViewport(vp);
+      const target = { kind: "region", region, element };
       this.openComposer(target, vp.x + vp.w, vp.y);
       const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
       this.pendingShot = capture(vp);
       void this.pendingShot.then((shot) => {
         if (shot && this.pending === target) target.screenshot = shot;
       }).catch(() => void 0);
+    }
+    /**
+     * Record a screen video of the selected rect (same drag-select as Region), then
+     * open the composer with the recording attached. Unlike the screenshot flow this
+     * is interactive — the browser share prompt and a Stop button drive it — so the
+     * composer opens only once recording has finished.
+     */
+    async finishRecording(vp) {
+      this.selbox.style.display = "none";
+      const { region, element } = this.regionFromViewport(vp);
+      const capture = this.cfg.captureRecording ?? captureRegionRecording;
+      this.showRecBar();
+      let recording;
+      try {
+        recording = await capture(vp, {
+          maxMs: RECORD_MAX_MS,
+          register: (stop) => {
+            this.stopRecording = stop;
+          }
+        });
+      } catch {
+        recording = void 0;
+      }
+      this.hideRecBar();
+      if (!recording) return;
+      const target = { kind: "region", region, element, recording };
+      const x = Math.min(vp.x + vp.w, window.innerWidth - 320);
+      this.openComposer(target, x, vp.y);
+    }
+    showRecBar() {
+      this.stopRecording = void 0;
+      this.recBar.innerHTML = `<span class="recdot"></span><span>Recording\u2026 <b>Stop</b></span>`;
+      this.recBar.classList.add("show");
+    }
+    hideRecBar() {
+      this.recBar.classList.remove("show");
+      this.stopRecording = void 0;
     }
     /** elementFromPoint, ignoring our own UI. */
     pick(x, y) {
@@ -2659,8 +2946,12 @@ var Loupe = (() => {
       return elAt;
     }
     setMode(mode) {
-      if (mode !== "off" && !this.open) {
-        this.open = true;
+      if (mode !== "off") {
+        if (!this.open) this.open = true;
+        if (this.tab !== "comments") {
+          this.tab = "comments";
+          this.saveState();
+        }
         this.applyDockLayout();
       }
       this.mode = mode;
@@ -2671,6 +2962,7 @@ var Loupe = (() => {
       this.dock.querySelector('[data-role="inspect"]')?.classList.toggle("on", mode === "inspect");
       this.dock.querySelector('[data-role="free"]')?.classList.toggle("on", mode === "free");
       this.dock.querySelector('[data-role="region"]')?.classList.toggle("on", mode === "region");
+      this.dock.querySelector('[data-role="record"]')?.classList.toggle("on", mode === "record");
       this.dock.classList.toggle("inspecting", mode !== "off");
       document.removeEventListener("mousemove", this.onMove, true);
       document.removeEventListener("click", this.onClick, true);
@@ -2684,25 +2976,26 @@ var Loupe = (() => {
         document.addEventListener("click", this.onClick, true);
       } else if (mode === "free") {
         document.addEventListener("click", this.onFreeClick, true);
-      } else if (mode === "region") {
+      } else if (mode === "region" || mode === "record") {
         document.addEventListener("mousedown", this.onRegionDown, true);
       }
     }
     // ---- composer -------------------------------------------------------------
     openComposer(target, x, y) {
       this.pending = target;
+      const isRecording = target.kind === "region" && !!target.recording;
       const c = this.composer;
       c.innerHTML = "";
       const label = el(
         "div",
         "target",
-        target.kind === "element" ? describe(target.element) : target.kind === "region" ? `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : "Free note \xB7 anywhere on the page"
+        target.kind === "element" ? describe(target.element) : target.kind === "region" ? isRecording ? `\u23FA Recording \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : "Free note \xB7 anywhere on the page"
       );
       const ta = el("textarea");
-      ta.placeholder = target.kind === "region" ? "What's the issue in this area?" : target.kind === "free" ? "Leave a note about this page\u2026" : "What should change here?";
+      ta.placeholder = isRecording ? "What's the issue in this recording?" : target.kind === "region" ? "What's the issue in this area?" : target.kind === "free" ? "Leave a note about this page\u2026" : "What should change here?";
       const row = el("div", "row");
       let box = null;
-      if (target.kind !== "free") {
+      if (target.kind !== "free" && !isRecording) {
         const chk = el("label", "chk");
         box = document.createElement("input");
         box.type = "checkbox";
@@ -2744,6 +3037,7 @@ var Loupe = (() => {
       }
       let anchor, context, offset;
       let screenshot;
+      let recording;
       let region;
       let anchoredEl = null;
       if (target.kind === "element") {
@@ -2759,7 +3053,8 @@ var Loupe = (() => {
         context = { html: "", styles: {} };
         offset = target.offset;
       } else {
-        screenshot = withShot ? target.screenshot ?? await this.pendingShot : void 0;
+        recording = target.recording;
+        screenshot = !recording && withShot ? target.screenshot ?? await this.pendingShot : void 0;
         region = target.region;
         offset = { x: 0, y: 0 };
         if (target.element) {
@@ -2784,6 +3079,7 @@ var Loupe = (() => {
         offset,
         region,
         screenshot,
+        recording,
         // Record the screen the feedback was captured on (desktop / tablet / mobile).
         viewport: { w: window.innerWidth, h: window.innerHeight },
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -2882,6 +3178,15 @@ var Loupe = (() => {
       this.saveState();
       this.applyDockLayout();
     }
+    /** Switch the sidebar page (Comments ↔ Connect Claude). */
+    setTab(tab) {
+      if (this.tab === tab) return;
+      if (tab !== "comments") this.setMode("off");
+      this.tab = tab;
+      this.saveState();
+      this.applyDockLayout();
+      if (tab === "comments") this.renderList();
+    }
     toggleTheme() {
       this.theme = this.theme === "dark" ? "light" : "dark";
       this.saveState();
@@ -2899,6 +3204,7 @@ var Loupe = (() => {
         if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
         if (typeof p?.open === "boolean") this.open = p.open;
         if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
+        if (p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
       } catch {
       }
@@ -2909,6 +3215,7 @@ var Loupe = (() => {
           mode: this.dockMode,
           open: this.open,
           theme: this.theme,
+          tab: this.tab,
           float: this.floatRect
         }));
       } catch {
@@ -2922,6 +3229,9 @@ var Loupe = (() => {
       const d = this.dock;
       d.classList.toggle("open", this.open);
       for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
+      d.classList.toggle("tab-comments", this.tab === "comments");
+      d.classList.toggle("tab-connect", this.tab === "connect");
+      d.querySelectorAll(".tabs .tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === this.tab));
       if (this.dockMode === "float") {
         const vw = window.innerWidth, vh = window.innerHeight;
         let { x, y, w, h } = this.floatRect;
@@ -2979,8 +3289,8 @@ var Loupe = (() => {
       const item = el("div", "item");
       const top = el("div", "top");
       const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
-      const who = el("span", "who", c.author.name);
-      top.append(num, who);
+      top.append(num);
+      if (c.recording) top.appendChild(el("span", "rectag", "\u23FA recording"));
       const vw = c.viewport?.w;
       if (vw) {
         const kind = vw < 768 ? "mobile" : vw < 1024 ? "tablet" : "desktop";
@@ -2992,7 +3302,14 @@ var Loupe = (() => {
       item.appendChild(top);
       item.appendChild(el("div", "body", c.body));
       item.appendChild(el("div", "meta", describeAnchor(c)));
-      if (c.screenshot) {
+      if (c.recording) {
+        const v = el("video", "shot");
+        v.src = c.recording;
+        v.controls = true;
+        v.playsInline = true;
+        if (c.screenshot) v.poster = c.screenshot;
+        item.appendChild(v);
+      } else if (c.screenshot) {
         const img = el("img", "shot");
         img.src = c.screenshot;
         item.appendChild(img);
@@ -3041,6 +3358,7 @@ var Loupe = (() => {
         `**Page:** ${c.url}`,
         `**Element:** \`${c.anchor.cssPath}\``,
         c.anchor.testid ? `**Stable id:** \`${c.anchor.testid}\`` : ``,
+        c.recording ? `**Screen recording (webm):** ${c.recording}` : ``,
         ``,
         `## Target element`,
         "```html",
@@ -3097,6 +3415,7 @@ var Loupe = (() => {
       if (elx) elx.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     destroy() {
+      this.stopRecording?.();
       this.setMode("off");
       this.mo?.disconnect();
       if (this.tick) clearInterval(this.tick);
@@ -3124,6 +3443,9 @@ var Loupe = (() => {
   function clampPx(n, min, max) {
     return Math.max(min, Math.min(max, n));
   }
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
+  }
   var svg = (inner) => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">${inner}</svg>`;
   var DOCK_FRAME = `<rect x="1.5" y="2.5" width="13" height="11" rx="1.6" stroke="currentColor" stroke-width="1.3"/>`;
   var I_DOCK_LEFT = svg(`${DOCK_FRAME}<rect x="2.2" y="3.2" width="4" height="9.6" rx="1" fill="currentColor"/>`);
@@ -3143,6 +3465,11 @@ var Loupe = (() => {
   );
   var REGION_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
   var NOTE_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  var RECORD_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/><circle cx="7.5" cy="7.5" r="2.4" fill="currentColor"/></svg>`;
+  var I_GITHUB = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.3c-2.2.48-2.67-1.07-2.67-1.07-.36-.92-.88-1.16-.88-1.16-.72-.5.05-.48.05-.48.8.056 1.22.82 1.22.82.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.76-.2-3.6-.88-3.6-3.9 0-.86.3-1.57.82-2.12-.08-.2-.36-1 .08-2.1 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.02 2.2-.8 2.2-.8.44 1.1.16 1.9.08 2.1.5.55.82 1.26.82 2.12 0 3.03-1.85 3.7-3.61 3.9.28.24.54.72.54 1.46v2.16c0 .21.14.46.55.38A8 8 0 0 0 8 .2z"/></svg>`;
+  var I_SLACK = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.4 10.1a1.6 1.6 0 1 1-1.6-1.6h1.6v1.6zm.8 0a1.6 1.6 0 0 1 3.2 0v4a1.6 1.6 0 1 1-3.2 0v-4zM5.8 3.4a1.6 1.6 0 1 1 1.6-1.6v1.6H5.8zm0 .8a1.6 1.6 0 0 1 0 3.2h-4a1.6 1.6 0 1 1 0-3.2h4zm6.7 1.6a1.6 1.6 0 1 1 1.6 1.6h-1.6V5.8zm-.8 0a1.6 1.6 0 0 1-3.2 0v-4a1.6 1.6 0 1 1 3.2 0v4zm-1.6 6.7a1.6 1.6 0 1 1-1.6 1.6v-1.6h1.6zm0-.8a1.6 1.6 0 0 1 0-3.2h4a1.6 1.6 0 1 1 0 3.2h-4z"/></svg>`;
+  var I_TELEGRAM = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.7 5.4-1.24 5.85c-.09.41-.34.51-.69.32l-1.9-1.4-.92.88c-.1.1-.19.19-.38.19l.14-1.93 3.5-3.17c.15-.13-.03-.2-.24-.07l-4.32 2.72-1.86-.58c-.4-.13-.41-.4.09-.6l7.26-2.8c.34-.12.63.08.52.6z"/></svg>`;
+  var I_LINEAR = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M.6 9.2a7.4 7.4 0 0 0 6.2 6.2c.3.04.44-.33.22-.55L1.15 9a.33.33 0 0 0-.55.22zM.5 6.9c-.01.13.04.25.13.34l8.13 8.13c.09.09.21.14.34.13a7.4 7.4 0 0 0 1.3-.26c.28-.08.36-.43.15-.63L1.4 5.45c-.2-.2-.55-.13-.63.15-.12.42-.21.86-.26 1.3zM2.05 4c-.1.13-.09.32.03.44l9.48 9.48c.12.12.31.13.44.03.3-.23.58-.48.85-.75.15-.15.15-.4 0-.55L3.35 3.15a.39.39 0 0 0-.55 0c-.27.27-.52.55-.75.85zM4.5 1.9a.35.35 0 0 0-.04.53l9.11 9.11c.16.16.42.13.53-.04A7.4 7.4 0 1 0 4.5 1.9z"/></svg>`;
   function pageAnchor(point) {
     return {
       tag: "page",

@@ -74,4 +74,8 @@ export async function migrate(): Promise<void> {
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS region JSONB;`);
   // Viewport the feedback was captured on (→ desktop / tablet / mobile).
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS viewport JSONB;`);
+  // A screen recording of the region (webm object-storage URL).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS recording_url TEXT;`);
+  // Claude's proposed UI change, written back via MCP (see shared Proposal type).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS proposal JSONB;`);
 }

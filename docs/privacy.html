@@ -30,14 +30,15 @@
 <div class="wrap">
   <div class="brand"><span class="logo"></span> Loupe</div>
   <h1>Privacy Policy</h1>
-  <p class="meta">Last updated: July 10, 2026 · Applies to the Loupe browser extension and the Loupe SDK.</p>
+  <p class="meta">Last updated: July 20, 2026 · Applies to the Loupe browser extension and the Loupe SDK.</p>
 
-  <p>Loupe is an open-source visual-feedback tool. It lets you inspect an element on a web page, attach a comment, and capture a screenshot, then send that feedback to a Loupe backend that <strong>you or your organization control</strong>. This policy explains exactly what data Loupe handles and how.</p>
+  <p>Loupe is an open-source visual-feedback tool. It lets you inspect an element on a web page, attach a comment, and capture a screenshot or a short screen recording, then send that feedback to a Loupe backend that <strong>you or your organization control</strong>. This policy explains exactly what data Loupe handles and how.</p>
 
   <h2>What Loupe handles</h2>
   <ul>
     <li><strong>Settings you enter</strong> — your project key, a display name/identifier, and the URL of your Loupe backend. These are stored locally in your browser via <code>chrome.storage</code> and are never sent anywhere except to the backend you configure.</li>
     <li><strong>Feedback you create</strong> — only when you actively leave a comment: the comment text, a screenshot of the visible page, and the selected element's HTML and computed styles. This is sent to the backend URL you configured, so your development team can act on it.</li>
+    <li><strong>Screen recordings you create</strong> — only when you actively use the <strong>Record</strong> tool. Recording is initiated by you and uses your browser's standard screen-share prompt (<code>getDisplayMedia</code>); you choose what to share and can stop at any time. The captured video is cropped to the region you selected, and — like screenshots — is sent only to the backend you configured. Loupe never starts a recording on its own.</li>
   </ul>
 
   <h2>What Loupe does not do</h2>

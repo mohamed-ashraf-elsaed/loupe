@@ -74,6 +74,22 @@ describe("store", () => {
     expect(await store.patchComment("missing", { status: "done" })).toBeNull();
   });
 
+  it("round-trips a screen recording URL", async () => {
+    const c = await store.upsertComment(make({
+      id: "c3", kind: "region", recording: "http://x/rec.webm",
+    }));
+    expect(c.recording).toBe("http://x/rec.webm");
+    expect((await store.getComment("c3"))!.recording).toBe("http://x/rec.webm");
+  });
+
+  it("patches a proposal (Claude's modified UI) back onto a comment", async () => {
+    await store.upsertComment(make());
+    const proposal = { html: "<b>new</b>", css: ".x{color:red}", notes: "tightened", author: "Claude Code via MCP", createdAt: "2026-01-02T00:00:00.000Z" };
+    const p = await store.patchComment("c1", { proposal });
+    expect(p!.proposal).toEqual(proposal);
+    expect((await store.getComment("c1"))!.proposal).toEqual(proposal);
+  });
+
   it("removes a comment", async () => {
     await store.upsertComment(make());
     expect(await store.removeComment("c1")).toBe(true);

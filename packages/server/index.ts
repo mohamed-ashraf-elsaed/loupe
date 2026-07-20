@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { argv } from "node:process";
 import * as store from "./store.ts";
 import { authenticate } from "./auth.ts";
-import { putBlob, getBlob, dataUrlToBuffer } from "./blobs.ts";
+import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } from "./blobs.ts";
 import { migrate } from "./db.ts";
 import type { Comment } from "@loupekit/shared";
 
@@ -33,10 +33,15 @@ function send(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
 }
-function readBody(req: IncomingMessage): Promise<any> {
+// Comments are small JSON; screenshots/recordings ride the blob route, which needs
+// a bigger ceiling (a short webm is a few MB, ~33% larger as base64). Prototype
+// transport — production would stream/multipart uploads to S3 instead.
+const BODY_CAP = 12_000_000;
+const BLOB_BODY_CAP = 60_000_000;
+function readBody(req: IncomingMessage, max = BODY_CAP): Promise<any> {
   return new Promise((resolve, reject) => {
     let raw = "";
-    req.on("data", (c) => { raw += c; if (raw.length > 12_000_000) reject(new Error("payload too large")); });
+    req.on("data", (c) => { raw += c; if (raw.length > max) reject(new Error("payload too large")); });
     req.on("end", () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (e) { reject(e); } });
     req.on("error", reject);
   });
@@ -78,19 +83,20 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
     // Public: serve screenshot blobs (unguessable ids). Prod: signed URLs.
     const blobGet = path.match(/^\/v1\/blobs\/([^/]+)$/);
     if (blobGet && req.method === "GET") {
-      const buf = getBlob(decodeURIComponent(blobGet[1]!));
+      const id = decodeURIComponent(blobGet[1]!);
+      const buf = getBlob(id);
       if (!buf) return send(res, 404, { error: "not found" });
-      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=31536000, immutable" });
+      res.writeHead(200, { "Content-Type": contentTypeForId(id), "Cache-Control": "public, max-age=31536000, immutable" });
       return res.end(buf);
     }
 
-    // Upload a screenshot → returns { url }. Authed.
+    // Upload a screenshot or screen recording → returns { url }. Authed.
     if (path === "/v1/blobs" && req.method === "POST") {
-      const body = await readBody(req);
+      const body = await readBody(req, BLOB_BODY_CAP);
       const auth = await authenticate(body.projectKey || String(req.headers["x-loupe-project"] || "") || null, req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       if (typeof body.data !== "string" || !body.data.startsWith("data:")) return send(res, 400, { error: "data (data URL) required" });
-      const url2 = putBlob(randomUUID(), dataUrlToBuffer(body.data));
+      const url2 = putBlob(randomUUID(), dataUrlToBuffer(body.data), extFromDataUrl(body.data));
       return send(res, 201, { url: url2 });
     }
 

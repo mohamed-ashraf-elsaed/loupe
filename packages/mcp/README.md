@@ -52,7 +52,8 @@ element, its state, and the page.
 | Tool | Description |
 | --- | --- |
 | `list_comments(status?, url?)` | List comments, optionally filtered by status (`open` / `in_progress` / `done`) or page URL. |
-| `get_comment(id)` | The full Claude-ready package for one comment: request + element HTML + computed styles + screenshot URL. |
+| `get_comment(id)` | The full Claude-ready package for one comment: request + element HTML + computed styles + the **screenshot as an image** + any screen-recording URL. |
+| `propose_change(id, html, css?, notes?)` | Write your **modified HTML/CSS** back onto the comment. The dashboard renders it as code plus a live before/after preview for the dev team. |
 | `update_status(id, status)` | Move a comment across the workflow (`open` → `in_progress` → `done`) so triage state stays in sync. |
 
 ## Install

@@ -74,8 +74,10 @@ Point **Claude Code** at the comments:
 ```
 
 Then: *"list the open Loupe comments and work through them."* Claude calls
-`list_comments` → `get_comment` (request + element HTML + computed styles + screenshot
-URL) → makes the change → `update_status`.
+`list_comments` → `get_comment` (request + element HTML + computed styles + the
+**screenshot as an image** + any screen-recording URL) → rewrites the UI →
+`propose_change` (its **modified HTML/CSS**, which the dashboard renders as code + a live
+before/after preview for the dev team) → `update_status`.
 
 ## Architecture notes
 

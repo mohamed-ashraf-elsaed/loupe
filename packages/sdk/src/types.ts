@@ -33,6 +33,16 @@ export interface LoupeConfig {
    */
   captureRegion?: (rect: RegionRect) => Promise<string | undefined>;
   /**
+   * Override screen-recording capture. `rect` is in viewport coordinates; `opts`
+   * carries a duration cap and a `register(stop)` hook to wire a Stop button.
+   * Defaults to a getDisplayMedia + canvas-crop recorder; the extension can back
+   * this with a real tab-capture recorder. Returns a webm data URL (or undefined).
+   */
+  captureRecording?: (
+    rect: RegionRect,
+    opts?: { maxMs?: number; register?: (stop: () => void) => void },
+  ) => Promise<string | undefined>;
+  /**
    * Extra headers merged into every backend request. Use this to pass a CSRF
    * token (e.g. `{ "X-CSRF-TOKEN": "…" }`) when the backend authenticates via a
    * session cookie rather than the HMAC identity headers.

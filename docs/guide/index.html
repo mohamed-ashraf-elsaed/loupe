@@ -304,7 +304,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.6.0</span>
+    <span class="ver">v0.7.0</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -313,7 +313,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.6.0</a>
+    <a class="icon-btn" href="#changelog">v0.7.0</a>
   </div>
 </header>
 
@@ -369,7 +369,7 @@
 
       <!-- INTRODUCTION -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Documentation · v0.6.0</p>
+        <p class="eyebrow">Documentation · v0.7.0</p>
         <h1>Loupe</h1>
         <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
           screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
@@ -382,7 +382,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.6.0</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.7.0</div></div>
           <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.4+</div></div>
@@ -482,7 +482,8 @@ npm start</code></pre>
         </div>
         <div class="callout tip"><span class="cl">The loop</span>
           Claude calls <code>list_comments</code> → <code>get_comment</code> (request + element HTML +
-          computed styles + screenshot URL) → makes the change → <code>update_status(done)</code>.</div>
+          computed styles + the screenshot as an image) → rewrites the UI → <code>propose_change</code>
+          (modified HTML/CSS back to the dashboard) → <code>update_status(done)</code>.</div>
         <p>Verify everything with <code>npm test</code> (Vitest) and <code>npm run test:coverage</code>
           for a v8 coverage report.</p>
       </section>
@@ -658,7 +659,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-shared">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.6.0</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.7.0</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
         <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
           Node packages import the compiled JS.</p>
 
@@ -693,7 +694,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-sdk">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.6.0</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.7.0</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
         <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
           (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
 
@@ -758,7 +759,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-server">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.6.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.7.0</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
         <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
           <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
           listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
@@ -807,7 +808,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-dashboard">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.6.0</span><span class="badge">tsup bundle</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.7.0</span><span class="badge">tsup bundle</span></div>
         <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
           (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
           <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
@@ -828,7 +829,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-mcp">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.6.0</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.7.0</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
         <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
           Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
           Claude Code at the source entry directly.</p>
@@ -843,7 +844,8 @@ npm start</code></pre>
             <thead><tr><th>Tool</th><th>Parameters</th><th>Returns</th></tr></thead>
             <tbody>
               <tr><td><code>list_comments</code></td><td><code>status?</code>, <code>url?</code></td><td>The backlog as a bulleted list.</td></tr>
-              <tr><td><code>get_comment</code></td><td><code>id</code></td><td>The Claude-ready package (request + HTML + styles + screenshot URL).</td></tr>
+              <tr><td><code>get_comment</code></td><td><code>id</code></td><td>The Claude-ready package (request + HTML + styles + the screenshot as an image + any recording URL).</td></tr>
+              <tr><td><code>propose_change</code></td><td><code>id</code>, <code>html</code>, <code>css?</code>, <code>notes?</code></td><td>Writes Claude's modified HTML/CSS onto the comment (shown as code + live preview in the dashboard).</td></tr>
               <tr><td><code>update_status</code></td><td><code>id</code>, <code>status</code></td><td>Moves the comment (PATCH).</td></tr>
             </tbody>
           </table>
@@ -872,7 +874,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-extension">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.6.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.7.0</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
         <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
           target. The only difference from the SDK is the screenshot source:
           <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
@@ -1016,7 +1018,8 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
           the tools read the app's own database <strong>directly</strong> — no HTTP hop, no admin key.</p>
         <ul class="bul">
           <li><code>list_comments(status?, url?)</code> — the backlog, newest first.</li>
-          <li><code>get_comment(id)</code> — request + element HTML + computed styles + screenshot URL (or region rect).</li>
+          <li><code>get_comment(id)</code> — request + element HTML + computed styles + the screenshot <strong>as an image</strong> + any recording URL (or region rect).</li>
+          <li><code>propose_change(id, html, css?, notes?)</code> — stores Claude's modified HTML/CSS on the comment; the dashboard renders it as code + a live before/after preview.</li>
           <li><code>update_status(id, status)</code> — validates <code>open</code> / <code>in_progress</code> / <code>done</code>.</li>
         </ul>
         <p>For different-subdomain SPA frontends (Sanctum), add
@@ -1060,6 +1063,10 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
               <tr><td>Light / dark theme</td><td>Theme toggle in the panel header; dark by default, persists.</td><td class="tabular">0.6.0</td></tr>
               <tr><td>Re-anchoring</td><td>Multi-signal fingerprint survives redeploys; detaches rather than mis-pin.</td><td class="tabular">0.1.0</td></tr>
               <tr><td>Region shot</td><td>Drag a free box (no element); anchored to element under center as fractional coords — tracks reflow, viewport &amp; scroll.</td><td class="tabular">0.2.0</td></tr>
+              <tr><td>Screen recording</td><td><strong>Record</strong> tool: drag a box (same UX as Region), capture a screen video of it via <code>getDisplayMedia</code> + canvas crop, saved as <code>.webm</code> (duration-capped, Stop button). Plays inline in the widget &amp; dashboard.</td><td class="tabular">0.7.0</td></tr>
+              <tr><td>Claude round-trip</td><td>MCP <code>get_comment</code> returns the screenshot <strong>as an image</strong> + HTML/CSS; new <code>propose_change</code> tool writes Claude's modified HTML/CSS back onto the comment.</td><td class="tabular">0.7.0</td></tr>
+              <tr><td>Proposal preview</td><td>Dashboard renders Claude's modified HTML/CSS as copyable code + a <strong>live before/after</strong> preview (sandboxed iframe) for the dev team.</td><td class="tabular">0.7.0</td></tr>
+              <tr><td>Two-page sidebar</td><td>Widget dock &amp; dashboard each get a <strong>Comments</strong> page and a <strong>Connect Claude</strong> page (MCP setup steps), plus an "Integrates with" row.</td><td class="tabular">0.7.0</td></tr>
               <tr><td>Offline mode</td><td>Omit <code>apiBase</code> → localStorage adapter.</td><td class="tabular">0.1.0</td></tr>
               <tr><td>Session auth (SDK)</td><td><code>headers</code> + <code>credentials</code> config for CSRF / cookie auth.</td><td class="tabular">0.3.0</td></tr>
               <tr><td>Collapsible control</td><td>Close collapses the panel to a small <code>◎</code> launcher button; click it to reopen. (Pre-0.6.0: collapsed the pill toolbar to its logo.)</td><td class="tabular">0.3.3 / 0.6.0</td></tr>
@@ -1169,9 +1176,32 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.6.0</strong> (2026-07-17).</p>
+          release: <strong>0.7.0</strong> (2026-07-20).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.7.0</span><span class="cl-date">2026-07-20</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Claude modification loop.</strong> MCP <code>get_comment</code> now returns the
+              <strong>actual screenshot as an image</strong> (not just a URL) with the element HTML &amp;
+              computed styles, and a new <code>propose_change(id, html, css?, notes?)</code> tool writes
+              Claude's <strong>modified HTML/CSS back</strong> onto the comment. The dashboard shows it as
+              copyable code plus a <strong>live before/after preview</strong> (sandboxed iframe). Mirrored in
+              the Laravel MCP server.</li>
+            <li><strong>Screen recording.</strong> A new <strong>Record</strong> tool captures a screen video
+              of a drag-selected region (same UX as Region) via <code>getDisplayMedia</code> + canvas crop,
+              saved as <code>.webm</code> (duration-capped, Stop button). Plays back inline in the widget and
+              dashboard. Overridable via the <code>captureRecording</code> config seam.</li>
+            <li><strong>Two-page sidebar</strong> on both the widget dock and the dashboard —
+              <strong>Comments</strong> + <strong>Connect Claude</strong> (MCP setup steps) — plus an
+              "Integrates with" row (GitHub / Slack / Telegram / Linear). The widget list no longer shows the
+              author's name.</li>
+            <li><strong>Data model (additive).</strong> <code>Comment</code> gains <code>recording</code> and
+              <code>proposal</code>; new nullable columns on both schemas; blobs now carry a content type
+              (serves <code>video/webm</code> as well as <code>image/png</code>). Back-compat — drop-in upgrade.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.6.0</span><span class="cl-date">2026-07-17</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
           <ul class="bul">
             <li><strong>Dockable, DevTools-style control.</strong> The widget is now one dockable panel —
@@ -1340,7 +1370,7 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.6.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.7.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
           <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,

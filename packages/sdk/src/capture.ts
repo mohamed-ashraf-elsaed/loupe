@@ -128,6 +128,115 @@ function regionContainer(rect: RegionRect): HTMLElement {
   return document.body;
 }
 
+/** Options for a screen recording. */
+export interface RecordOptions {
+  /** Auto-stop after this many ms (a safety cap so recordings never run forever). */
+  maxMs?: number;
+  /** Called once with a `stop()` fn so the caller can wire a Stop button to it. */
+  register?: (stop: () => void) => void;
+}
+
+/** Best available webm MIME the browser can record, or "" to let MediaRecorder pick. */
+function pickRecordingMime(): string {
+  const MR: any = (window as any).MediaRecorder;
+  if (!MR?.isTypeSupported) return "";
+  for (const t of ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]) {
+    if (MR.isTypeSupported(t)) return t;
+  }
+  return "";
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Record a screen video cropped to `rect` (viewport coords), mirroring the region
+ * screenshot flow. Uses getDisplayMedia (real pixels) — the browser shows a share
+ * prompt; picking the current tab keeps the crop aligned. Each frame is drawn to a
+ * canvas cropped to the selection, then re-encoded to webm. Returns a data URL, or
+ * undefined if the user cancels the prompt or recording isn't supported. The default
+ * is overridable via LoupeConfig.captureRecording (e.g. the extension).
+ */
+export async function captureRegionRecording(rect: RegionRect, opts?: RecordOptions): Promise<string | undefined> {
+  const md = navigator.mediaDevices as MediaDevices & {
+    getDisplayMedia?: (c?: any) => Promise<MediaStream>;
+  };
+  if (!md?.getDisplayMedia || !(window as any).MediaRecorder) return undefined;
+
+  let stream: MediaStream;
+  try {
+    stream = await md.getDisplayMedia({ video: { frameRate: 30 }, audio: false, preferCurrentTab: true } as any);
+  } catch {
+    return undefined; // user dismissed the picker
+  }
+
+  try {
+    return await recordCropped(stream, rect, opts);
+  } catch (err) {
+    console.warn("[loupe] screen recording failed", err);
+    return undefined;
+  } finally {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+}
+
+async function recordCropped(stream: MediaStream, rect: RegionRect, opts?: RecordOptions): Promise<string | undefined> {
+  const maxMs = opts?.maxMs ?? 20000;
+  const video = document.createElement("video");
+  video.srcObject = stream;
+  video.muted = true;
+  (video as any).playsInline = true;
+  await video.play().catch(() => undefined);
+
+  const track = stream.getVideoTracks()[0];
+  const s = track?.getSettings?.() ?? {};
+  const vw = (s.width as number) || video.videoWidth || window.innerWidth;
+  const vh = (s.height as number) || video.videoHeight || window.innerHeight;
+  // The shared surface (ideally the current tab) maps to the page viewport by scale.
+  const sx = vw / window.innerWidth;
+  const sy = vh / window.innerHeight;
+  const cw = Math.max(2, Math.round(rect.w * sx));
+  const ch = Math.max(2, Math.round(rect.h * sy));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d")!;
+  let raf = 0;
+  const draw = () => {
+    try { ctx.drawImage(video, rect.x * sx, rect.y * sy, cw, ch, 0, 0, cw, ch); } catch { /* not ready yet */ }
+    raf = requestAnimationFrame(draw);
+  };
+  draw();
+
+  const out = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+  const mime = pickRecordingMime();
+  const rec = new MediaRecorder(out, mime ? { mimeType: mime } : undefined);
+  const chunks: BlobPart[] = [];
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+
+  const stop = () => { if (rec.state !== "inactive") rec.stop(); };
+  opts?.register?.(stop);
+  // Auto-stop on the cap, or when the user ends the share via the browser UI.
+  const timer = window.setTimeout(stop, maxMs);
+  track?.addEventListener("ended", stop);
+
+  const done = new Promise<void>((resolve) => { rec.onstop = () => resolve(); });
+  rec.start();
+  await done;
+
+  window.clearTimeout(timer);
+  cancelAnimationFrame(raf);
+  if (!chunks.length) return undefined;
+  return blobToDataUrl(new Blob(chunks, { type: mime || "video/webm" }));
+}
+
 /** Crop `rect` (viewport coords) out of a full-page data URL whose origin sits at (ox, oy). */
 function cropRegion(
   dataUrl: string,

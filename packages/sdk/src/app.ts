@@ -1,20 +1,24 @@
 import { STYLES } from "./styles.js";
 import { captureAnchor, resolveAnchor } from "./fingerprint.js";
-import { captureElementContext, captureScreenshot, captureRegionScreenshot } from "./capture.js";
+import { captureElementContext, captureScreenshot, captureRegionScreenshot, captureRegionRecording } from "./capture.js";
 import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
 import type { Anchor, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
 
-type Mode = "off" | "inspect" | "region" | "free";
+type Mode = "off" | "inspect" | "region" | "free" | "record";
 /** Where the control panel is anchored. */
 type DockMode = "left" | "right" | "bottom" | "float";
+/** Which sidebar page is showing in the dock. */
+type Tab = "comments" | "connect";
 /** What the composer is about to attach a comment to. */
 type ComposeTarget =
   | { kind: "element"; element: Element }
-  | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string }
+  | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string; recording?: string }
   | { kind: "free"; offset: { x: number; y: number }; point: { x: number; y: number } };
 
 const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
+/** How long a single screen recording may run before it auto-stops. */
+const RECORD_MAX_MS = 20000;
 
 const uid = () =>
   (crypto as any).randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
@@ -31,7 +35,7 @@ export class LoupeApp {
   private regionBox!: HTMLElement;
   private composer!: HTMLElement;
 
-  /** The dockable control panel (header + tools + comment list). */
+  /** The dockable control panel (header + tabs + tools + comment list). */
   private dock!: HTMLElement;
   /** The collapsed launcher button shown when the panel is closed. */
   private launcher!: HTMLElement;
@@ -39,6 +43,10 @@ export class LoupeApp {
   private listEl!: HTMLElement;
   private countEl!: HTMLElement;
   private launchCount!: HTMLElement;
+  /** Floating "recording…" indicator + stop button, shown only while recording. */
+  private recBar!: HTMLElement;
+  /** Stops the in-flight screen recording (wired while recording). */
+  private stopRecording?: () => void;
 
   private comments: Comment[] = [];
   /** comment.id → currently resolved element (or null when detached). */
@@ -61,6 +69,7 @@ export class LoupeApp {
   private dockMode: DockMode = "right";
   private open = true;
   private theme: "dark" | "light" = "dark";
+  private tab: Tab = "comments";
   /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
   private floatRect = { x: 0, y: 0, w: 380, h: 540 };
   private floatDrag: { px: number; py: number; ox: number; oy: number } | null = null;
@@ -150,10 +159,15 @@ export class LoupeApp {
 
     this.dock = this.buildDock();
     this.launcher = this.buildLauncher();
-    this.shadow.append(this.dock, this.launcher);
+    this.recBar = this.buildRecBar();
+    this.shadow.append(this.dock, this.launcher, this.recBar);
   }
 
-  /** The dockable control panel: header (brand + dock controls) → tools → list. */
+  /**
+   * The dockable control panel:
+   * header (brand + dock controls) → tabs → [Comments view: tools + list + integrations]
+   * and a [Connect view] with the Claude/MCP onboarding steps.
+   */
   private buildDock(): HTMLElement {
     const dock = el("div", "dock");
 
@@ -195,6 +209,16 @@ export class LoupeApp {
 
     head.append(brand, ctl);
 
+    // tabs (the two sidebar pages) --------------------------------------------
+    const tabs = el("div", "tabs");
+    const commentsTab = el("button", "tab", "Comments") as HTMLButtonElement;
+    commentsTab.dataset.tab = "comments";
+    commentsTab.onclick = () => this.setTab("comments");
+    const connectTab = el("button", "tab", "Connect Claude") as HTMLButtonElement;
+    connectTab.dataset.tab = "connect";
+    connectTab.onclick = () => this.setTab("connect");
+    tabs.append(commentsTab, connectTab);
+
     // tools -------------------------------------------------------------------
     const tools = el("div", "tools");
     const inspectBtn = this.toolBtn("✛", "Inspect", "inspect");
@@ -206,7 +230,10 @@ export class LoupeApp {
     const regionBtn = this.toolBtn(REGION_ICON, "Region", "region");
     regionBtn.title = "Drag a free-size box, screenshot it, and comment";
     regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
-    tools.append(inspectBtn, freeBtn, regionBtn);
+    const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
+    recordBtn.title = "Drag a box, record a screen video of it, and comment";
+    recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
+    tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
 
     // list --------------------------------------------------------------------
     const listHead = el("div", "listhead");
@@ -215,11 +242,93 @@ export class LoupeApp {
     listHead.appendChild(this.countEl);
     this.listEl = el("div", "list");
 
+    // Comments view = tools + list + the "integrates with" footer.
+    const commentsView = el("div", "view comments-view");
+    commentsView.append(tools, listHead, this.listEl, this.buildIntegrations());
+
+    // Connect view = the Claude/MCP onboarding page.
+    const connectView = this.buildConnectPanel();
+
     const resize = el("div", "resize");
     resize.addEventListener("pointerdown", this.onResizeDown);
 
-    dock.append(head, tools, listHead, this.listEl, resize);
+    dock.append(head, tabs, commentsView, connectView, resize);
     return dock;
+  }
+
+  /** The "INTEGRATES WITH" footer on the Comments page (visual only for now). */
+  private buildIntegrations(): HTMLElement {
+    const wrap = el("div", "integrations");
+    wrap.append(el("div", "ilabel", "INTEGRATES WITH"));
+    const row = el("div", "irow");
+    const icons: [string, string][] = [
+      ["GitHub", I_GITHUB],
+      ["Slack", I_SLACK],
+      ["Telegram", I_TELEGRAM],
+      ["Linear", I_LINEAR],
+    ];
+    for (const [name, icon] of icons) {
+      const b = el("span", "ibtn");
+      b.title = `${name} — connect (coming soon)`;
+      b.setAttribute("aria-label", name);
+      b.innerHTML = icon;
+      row.appendChild(b);
+    }
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  /** The "Connect Claude" onboarding page: how to wire the MCP server to this project. */
+  private buildConnectPanel(): HTMLElement {
+    const view = el("div", "view connect-view");
+    const key = this.cfg.projectKey;
+    const apiHint = this.cfg.apiBase ?? "http://localhost:8787";
+    const config = JSON.stringify(
+      {
+        mcpServers: {
+          loupe: {
+            command: "npx",
+            args: ["-y", "@loupekit/mcp"],
+            env: { LOUPE_API: apiHint, LOUPE_PROJECT_KEY: key, LOUPE_ADMIN_KEY: "<your project secret>" },
+          },
+        },
+      },
+      null,
+      2,
+    );
+    const steps: [string, string][] = [
+      ["Pin your feedback", "Use Inspect, Region, Record, or Note to leave comments right on the live app."],
+      ["Add the Loupe MCP server", "Drop this into your Claude Code config so Claude can read this project's backlog:"],
+      ["Let Claude fix it", "Claude reads each comment (with the screenshot, HTML & CSS), rewrites the UI, and calls propose_change — the modified HTML/CSS then shows up for your dev team in the dashboard."],
+    ];
+    const hero = el("div", "connect-hero");
+    hero.innerHTML =
+      `<div class="chero-logo">◎</div>` +
+      `<div class="chero-title">Hand your feedback to <span class="accentink">Claude</span></div>` +
+      `<div class="chero-sub">Every pinned comment becomes an actionable, fully-contextualized task Claude Code can act on.</div>`;
+    view.appendChild(hero);
+    const list = el("ol", "connect-steps");
+    steps.forEach(([t, d], i) => {
+      const li = el("li");
+      li.innerHTML = `<div class="cstep-t">${i + 1}. ${escapeHtml(t)}</div><div class="cstep-d">${escapeHtml(d)}</div>`;
+      if (i === 1) {
+        const pre = el("pre", "cstep-code");
+        pre.textContent = config;
+        li.appendChild(pre);
+      }
+      list.appendChild(li);
+    });
+    view.appendChild(list);
+    return view;
+  }
+
+  /** The floating "recording…" pill with a Stop button (shown only while recording). */
+  private buildRecBar(): HTMLElement {
+    const bar = el("button", "recbar") as HTMLButtonElement;
+    bar.title = "Stop recording";
+    bar.setAttribute("aria-label", "Stop recording");
+    bar.onclick = () => this.stopRecording?.();
+    return bar;
   }
 
   private buildLauncher(): HTMLElement {
@@ -278,7 +387,7 @@ export class LoupeApp {
   // ---- region ("free-size screenshot") selection ----------------------------
 
   private onRegionDown = (e: MouseEvent) => {
-    if (this.mode !== "region" || e.button !== 0) return;
+    if ((this.mode !== "region" && this.mode !== "record") || e.button !== 0) return;
     // Ignore drags that start on our own UI (the panel overlays the page).
     const t = e.target as Element | null;
     if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
@@ -301,6 +410,7 @@ export class LoupeApp {
     e.preventDefault();
     e.stopPropagation();
     const start = this.dragStart;
+    const wasRecord = this.mode === "record";
     this.cancelDrag();
     const vp: RegionRect = {
       x: Math.min(start.x, e.clientX), y: Math.min(start.y, e.clientY),
@@ -308,7 +418,8 @@ export class LoupeApp {
     };
     if (vp.w < 8 || vp.h < 8) { this.selbox.style.display = "none"; return; } // stray click
     this.setMode("off");
-    this.finishRegion(vp);
+    if (wasRecord) void this.finishRecording(vp);
+    else this.finishRegion(vp);
   };
 
   private drawSelection(curX: number, curY: number) {
@@ -326,9 +437,12 @@ export class LoupeApp {
     document.removeEventListener("mouseup", this.onRegionUp, true);
   }
 
-  /** Capture the selected viewport rect, then open the composer for a region comment. */
-  private async finishRegion(vp: RegionRect) {
-    // Anchor the region to the element under its center so it survives reflow.
+  /**
+   * Anchor a dragged viewport rect to the element under its center so it survives
+   * reflow. `rel` (element-relative fractions) is preferred; document coords are the
+   * fallback. Shared by both the Region (screenshot) and Record (video) tools.
+   */
+  private regionFromViewport(vp: RegionRect): { region: RegionRect; element: Element | null } {
     const centerEl = this.pick(vp.x + vp.w / 2, vp.y + vp.h / 2);
     let rel: RegionRect["rel"];
     if (centerEl) {
@@ -340,10 +454,15 @@ export class LoupeApp {
         };
       }
     }
-    this.selbox.style.display = "none";
-    // Document coords are the fallback; `rel` (element-relative) is preferred.
     const region: RegionRect = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
-    const target: ComposeTarget = { kind: "region", region, element: centerEl };
+    return { region, element: centerEl };
+  }
+
+  /** Capture the selected viewport rect, then open the composer for a region comment. */
+  private async finishRegion(vp: RegionRect) {
+    this.selbox.style.display = "none";
+    const { region, element } = this.regionFromViewport(vp);
+    const target: ComposeTarget = { kind: "region", region, element };
     // Open the composer immediately; capture the screenshot in the background so a
     // slow capture never blocks the UI. It attaches to the comment on submit.
     this.openComposer(target, vp.x + vp.w, vp.y);
@@ -352,6 +471,44 @@ export class LoupeApp {
     void this.pendingShot.then((shot) => {
       if (shot && this.pending === target) target.screenshot = shot;
     }).catch(() => undefined);
+  }
+
+  /**
+   * Record a screen video of the selected rect (same drag-select as Region), then
+   * open the composer with the recording attached. Unlike the screenshot flow this
+   * is interactive — the browser share prompt and a Stop button drive it — so the
+   * composer opens only once recording has finished.
+   */
+  private async finishRecording(vp: RegionRect) {
+    this.selbox.style.display = "none";
+    const { region, element } = this.regionFromViewport(vp);
+    const capture = this.cfg.captureRecording ?? captureRegionRecording;
+    this.showRecBar();
+    let recording: string | undefined;
+    try {
+      // Call the capture synchronously (getDisplayMedia needs the click gesture).
+      recording = await capture(vp, {
+        maxMs: RECORD_MAX_MS,
+        register: (stop) => { this.stopRecording = stop; },
+      });
+    } catch {
+      recording = undefined;
+    }
+    this.hideRecBar();
+    if (!recording) return; // user cancelled the share prompt or capture failed
+    const target: ComposeTarget = { kind: "region", region, element, recording };
+    const x = Math.min(vp.x + vp.w, window.innerWidth - 320);
+    this.openComposer(target, x, vp.y);
+  }
+
+  private showRecBar() {
+    this.stopRecording = undefined;
+    this.recBar.innerHTML = `<span class="recdot"></span><span>Recording… <b>Stop</b></span>`;
+    this.recBar.classList.add("show");
+  }
+  private hideRecBar() {
+    this.recBar.classList.remove("show");
+    this.stopRecording = undefined;
   }
 
   /** elementFromPoint, ignoring our own UI. */
@@ -366,8 +523,12 @@ export class LoupeApp {
   }
 
   private setMode(mode: Mode) {
-    // Tools live inside the panel — entering a mode implies the panel is open.
-    if (mode !== "off" && !this.open) { this.open = true; this.applyDockLayout(); }
+    // Tools live on the Comments page — entering a mode implies the panel is open there.
+    if (mode !== "off") {
+      if (!this.open) this.open = true;
+      if (this.tab !== "comments") { this.tab = "comments"; this.saveState(); }
+      this.applyDockLayout();
+    }
     this.mode = mode;
     this.hl.style.display = "none";
     this.selbox.style.display = "none";
@@ -376,6 +537,7 @@ export class LoupeApp {
     (this.dock.querySelector('[data-role="inspect"]') as HTMLElement)?.classList.toggle("on", mode === "inspect");
     (this.dock.querySelector('[data-role="free"]') as HTMLElement)?.classList.toggle("on", mode === "free");
     (this.dock.querySelector('[data-role="region"]') as HTMLElement)?.classList.toggle("on", mode === "region");
+    (this.dock.querySelector('[data-role="record"]') as HTMLElement)?.classList.toggle("on", mode === "record");
     // On mobile this shrinks the bottom sheet to just header + tools (see styles)
     // so most of the page stays visible while picking an element/region.
     this.dock.classList.toggle("inspecting", mode !== "off");
@@ -393,7 +555,7 @@ export class LoupeApp {
       document.addEventListener("click", this.onClick, true);
     } else if (mode === "free") {
       document.addEventListener("click", this.onFreeClick, true);
-    } else if (mode === "region") {
+    } else if (mode === "region" || mode === "record") {
       document.addEventListener("mousedown", this.onRegionDown, true);
     }
   }
@@ -421,20 +583,25 @@ export class LoupeApp {
 
   private openComposer(target: ComposeTarget, x: number, y: number) {
     this.pending = target;
+    const isRecording = target.kind === "region" && !!target.recording;
     const c = this.composer;
     c.innerHTML = "";
     const label = el("div", "target",
       target.kind === "element" ? describe(target.element)
-        : target.kind === "region" ? `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`
+        : target.kind === "region"
+          ? (isRecording
+              ? `⏺ Recording · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`
+              : `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`)
           : "Free note · anywhere on the page");
     const ta = el("textarea") as HTMLTextAreaElement;
-    ta.placeholder = target.kind === "region" ? "What's the issue in this area?"
-      : target.kind === "free" ? "Leave a note about this page…"
-        : "What should change here?";
+    ta.placeholder = isRecording ? "What's the issue in this recording?"
+      : target.kind === "region" ? "What's the issue in this area?"
+        : target.kind === "free" ? "Leave a note about this page…"
+          : "What should change here?";
     const row = el("div", "row");
-    // Free notes never carry a screenshot, so they skip the attach checkbox.
+    // Free notes carry nothing; recordings always attach the video — both skip the checkbox.
     let box: HTMLInputElement | null = null;
-    if (target.kind !== "free") {
+    if (target.kind !== "free" && !isRecording) {
       const chk = el("label", "chk") as HTMLLabelElement;
       box = document.createElement("input"); box.type = "checkbox";
       // Default to attaching. Element shots are captured on submit; region shots are
@@ -477,6 +644,7 @@ export class LoupeApp {
 
     let anchor: Anchor, context: Comment["context"], offset: Comment["offset"];
     let screenshot: string | undefined;
+    let recording: string | undefined;
     let region: RegionRect | undefined;
     let anchoredEl: Element | null = null;
 
@@ -495,8 +663,10 @@ export class LoupeApp {
       context = { html: "", styles: {} };
       offset = target.offset;
     } else {
-      // Use the background capture; await it only if it hasn't attached yet.
-      screenshot = withShot ? (target.screenshot ?? await this.pendingShot) : undefined;
+      // A recording carries its own visuals; a plain region uses the background
+      // screenshot (awaited only if it hasn't attached yet).
+      recording = target.recording;
+      screenshot = !recording && withShot ? (target.screenshot ?? await this.pendingShot) : undefined;
       region = target.region;
       offset = { x: 0, y: 0 };
       // Prefer the real center-element anchor (survives reflow + gives Claude a
@@ -524,6 +694,7 @@ export class LoupeApp {
       offset,
       region,
       screenshot,
+      recording,
       // Record the screen the feedback was captured on (desktop / tablet / mobile).
       viewport: { w: window.innerWidth, h: window.innerHeight },
       createdAt: new Date().toISOString(),
@@ -685,6 +856,17 @@ export class LoupeApp {
     this.applyDockLayout();
   }
 
+  /** Switch the sidebar page (Comments ↔ Connect Claude). */
+  private setTab(tab: Tab) {
+    if (this.tab === tab) return;
+    // Leaving the Comments page cancels any active picking tool.
+    if (tab !== "comments") this.setMode("off");
+    this.tab = tab;
+    this.saveState();
+    this.applyDockLayout();
+    if (tab === "comments") this.renderList();
+  }
+
   private toggleTheme() {
     this.theme = this.theme === "dark" ? "light" : "dark";
     this.saveState();
@@ -704,6 +886,7 @@ export class LoupeApp {
       if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
       if (typeof p?.open === "boolean") this.open = p.open;
       if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
+      if (p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
     } catch { /* storage unavailable → defaults */ }
   }
@@ -711,7 +894,7 @@ export class LoupeApp {
   private saveState() {
     try {
       localStorage.setItem("loupe:dock", JSON.stringify({
-        mode: this.dockMode, open: this.open, theme: this.theme, float: this.floatRect,
+        mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
       }));
     } catch { /* ignore */ }
   }
@@ -725,6 +908,11 @@ export class LoupeApp {
     const d = this.dock;
     d.classList.toggle("open", this.open);
     for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
+    // Which sidebar page is active (Comments vs Connect Claude).
+    d.classList.toggle("tab-comments", this.tab === "comments");
+    d.classList.toggle("tab-connect", this.tab === "connect");
+    d.querySelectorAll<HTMLElement>(".tabs .tab").forEach((b) =>
+      b.classList.toggle("on", b.dataset.tab === this.tab));
 
     if (this.dockMode === "float") {
       const vw = window.innerWidth, vh = window.innerHeight;
@@ -836,8 +1024,9 @@ export class LoupeApp {
     const item = el("div", "item");
     const top = el("div", "top");
     const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
-    const who = el("span", "who", c.author.name);
-    top.append(num, who);
+    // No author identity is shown in the widget list (privacy — see the dashboard for triage).
+    top.append(num);
+    if (c.recording) top.appendChild(el("span", "rectag", "⏺ recording"));
     const vw = c.viewport?.w;
     if (vw) {
       const kind = vw < 768 ? "mobile" : vw < 1024 ? "tablet" : "desktop";
@@ -851,7 +1040,14 @@ export class LoupeApp {
     item.appendChild(el("div", "body", c.body));
     item.appendChild(el("div", "meta", describeAnchor(c)));
 
-    if (c.screenshot) {
+    if (c.recording) {
+      const v = el("video", "shot") as HTMLVideoElement;
+      v.src = c.recording;
+      v.controls = true;
+      v.playsInline = true;
+      if (c.screenshot) v.poster = c.screenshot;
+      item.appendChild(v);
+    } else if (c.screenshot) {
       const img = el("img", "shot") as HTMLImageElement;
       img.src = c.screenshot;
       item.appendChild(img);
@@ -898,6 +1094,7 @@ export class LoupeApp {
         `**Page:** ${c.url}`,
         `**Element:** \`${c.anchor.cssPath}\``,
         c.anchor.testid ? `**Stable id:** \`${c.anchor.testid}\`` : ``,
+        c.recording ? `**Screen recording (webm):** ${c.recording}` : ``,
         ``,
         `## Target element`,
         "```html",
@@ -958,6 +1155,7 @@ export class LoupeApp {
   }
 
   destroy() {
+    this.stopRecording?.();
     this.setMode("off");
     this.mo?.disconnect();
     if (this.tick) clearInterval(this.tick);
@@ -985,6 +1183,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 function clamp(n: number) { return Math.max(0, Math.min(1, n)); }
 function clampPx(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
+}
 
 // ---- inline icons (font-independent, currentColor) --------------------------
 
@@ -1017,6 +1218,31 @@ const REGION_ICON =
 const NOTE_ICON =
   `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
   `<path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `</svg>`;
+
+/** Camera/record icon for the "Record" button — dashed marquee with a record dot. */
+const RECORD_ICON =
+  `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
+  `<rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/>` +
+  `<circle cx="7.5" cy="7.5" r="2.4" fill="currentColor"/>` +
+  `</svg>`;
+
+// ---- integration icons (brand marks for the "Integrates with" footer) -------
+const I_GITHUB =
+  `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">` +
+  `<path d="M8 .2a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.3c-2.2.48-2.67-1.07-2.67-1.07-.36-.92-.88-1.16-.88-1.16-.72-.5.05-.48.05-.48.8.056 1.22.82 1.22.82.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.76-.2-3.6-.88-3.6-3.9 0-.86.3-1.57.82-2.12-.08-.2-.36-1 .08-2.1 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.02 2.2-.8 2.2-.8.44 1.1.16 1.9.08 2.1.5.55.82 1.26.82 2.12 0 3.03-1.85 3.7-3.61 3.9.28.24.54.72.54 1.46v2.16c0 .21.14.46.55.38A8 8 0 0 0 8 .2z"/>` +
+  `</svg>`;
+const I_SLACK =
+  `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">` +
+  `<path d="M3.4 10.1a1.6 1.6 0 1 1-1.6-1.6h1.6v1.6zm.8 0a1.6 1.6 0 0 1 3.2 0v4a1.6 1.6 0 1 1-3.2 0v-4zM5.8 3.4a1.6 1.6 0 1 1 1.6-1.6v1.6H5.8zm0 .8a1.6 1.6 0 0 1 0 3.2h-4a1.6 1.6 0 1 1 0-3.2h4zm6.7 1.6a1.6 1.6 0 1 1 1.6 1.6h-1.6V5.8zm-.8 0a1.6 1.6 0 0 1-3.2 0v-4a1.6 1.6 0 1 1 3.2 0v4zm-1.6 6.7a1.6 1.6 0 1 1-1.6 1.6v-1.6h1.6zm0-.8a1.6 1.6 0 0 1 0-3.2h4a1.6 1.6 0 1 1 0 3.2h-4z"/>` +
+  `</svg>`;
+const I_TELEGRAM =
+  `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">` +
+  `<path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.7 5.4-1.24 5.85c-.09.41-.34.51-.69.32l-1.9-1.4-.92.88c-.1.1-.19.19-.38.19l.14-1.93 3.5-3.17c.15-.13-.03-.2-.24-.07l-4.32 2.72-1.86-.58c-.4-.13-.41-.4.09-.6l7.26-2.8c.34-.12.63.08.52.6z"/>` +
+  `</svg>`;
+const I_LINEAR =
+  `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">` +
+  `<path d="M.6 9.2a7.4 7.4 0 0 0 6.2 6.2c.3.04.44-.33.22-.55L1.15 9a.33.33 0 0 0-.55.22zM.5 6.9c-.01.13.04.25.13.34l8.13 8.13c.09.09.21.14.34.13a7.4 7.4 0 0 0 1.3-.26c.28-.08.36-.43.15-.63L1.4 5.45c-.2-.2-.55-.13-.63.15-.12.42-.21.86-.26 1.3zM2.05 4c-.1.13-.09.32.03.44l9.48 9.48c.12.12.31.13.44.03.3-.23.58-.48.85-.75.15-.15.15-.4 0-.55L3.35 3.15a.39.39 0 0 0-.55 0c-.27.27-.52.55-.75.85zM4.5 1.9a.35.35 0 0 0-.04.53l9.11 9.11c.16.16.42.13.53-.04A7.4 7.4 0 1 0 4.5 1.9z"/>` +
   `</svg>`;
 
 /** Synthesize an Anchor for a free page-level note so downstream (dashboard/MCP) stays happy. */

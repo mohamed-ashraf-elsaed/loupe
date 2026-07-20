@@ -202,6 +202,62 @@ export const STYLES = /* css */ `
 .composer .primary:disabled { opacity: .5; cursor: default; }
 .composer .ghost { background: var(--bg-3); color: var(--ink); }
 
+/* ------------------------------------------------------------ sidebar tabs */
+.tabs { display: flex; gap: 4px; flex: none; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
+.tabs .tab {
+  flex: 1; padding: 8px 10px; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer;
+  border-radius: 6px 6px 0 0;
+}
+.tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
+.tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Two sidebar pages: only the active one shows. */
+.view { display: none; }
+.dock.tab-comments .comments-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.dock.tab-connect .connect-view { display: block; flex: 1; overflow-y: auto; }
+
+/* recording marker + video in the list */
+.item .rectag { font-size: 10px; font-weight: 700; color: var(--pin); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.item video.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); background: #000; display: block; }
+
+/* ------------------------------------------------ "integrates with" footer */
+.integrations { flex: none; padding: 12px 12px 14px; border-top: 1px solid var(--line); text-align: center; }
+.integrations .ilabel { font-size: 10px; letter-spacing: .12em; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+.integrations .irow { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.integrations .ibtn { color: var(--muted); display: inline-flex; opacity: .8; cursor: default; }
+.integrations .ibtn:hover { color: var(--accent); opacity: 1; }
+.integrations .ibtn svg { display: block; }
+
+/* ------------------------------------------------------- Connect Claude page */
+.connect-view { padding: 16px 14px 20px; }
+.connect-hero { text-align: center; margin-bottom: 18px; }
+.connect-hero .chero-logo { font-size: 34px; line-height: 1; color: var(--accent); }
+.connect-hero .chero-title { font-size: 18px; font-weight: 800; letter-spacing: -.02em; margin-top: 8px; }
+.connect-hero .chero-sub { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-top: 6px; }
+.accentink { color: var(--accent); }
+.connect-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.connect-steps .cstep-t { font-size: 13px; font-weight: 700; }
+.connect-steps .cstep-d { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 3px; }
+.connect-steps .cstep-code {
+  margin: 8px 0 0; padding: 10px; background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 8px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 1.4;
+  color: var(--ink); white-space: pre; overflow-x: auto;
+}
+
+/* ------------------------------------------------------- recording indicator */
+.recbar {
+  position: fixed; z-index: 2147483005; top: 16px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--pin);
+  box-shadow: var(--shadow); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.recbar.show { display: inline-flex; }
+.recbar b { color: var(--pin); }
+.recbar .recdot { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); animation: loupe-recpulse 1.1s infinite; }
+@keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
+
 /* Mobile: left/right/float docking is a desktop affordance. On small screens the
    panel collapses to a bottom sheet that OVERLAYS the page (pushing a side dock
    here would squeeze the page to a useless sliver), regardless of the chosen dock

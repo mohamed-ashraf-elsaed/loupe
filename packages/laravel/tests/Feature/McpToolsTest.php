@@ -3,9 +3,11 @@
 namespace Loupekit\Loupe\Tests\Feature;
 
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Mcp\Request;
 use Loupekit\Loupe\Mcp\Tools\GetComment;
 use Loupekit\Loupe\Mcp\Tools\ListComments;
+use Loupekit\Loupe\Mcp\Tools\ProposeChange;
 use Loupekit\Loupe\Mcp\Tools\UpdateStatus;
 use Loupekit\Loupe\Models\Comment;
 use Loupekit\Loupe\Tests\TestCase;
@@ -29,6 +31,10 @@ class McpToolsTest extends TestCase
         $this->assertArrayHasKey('status', (new ListComments)->schema(new JsonSchemaTypeFactory));
         $this->assertArrayHasKey('id', (new GetComment)->schema(new JsonSchemaTypeFactory));
         $this->assertArrayHasKey('status', (new UpdateStatus)->schema(new JsonSchemaTypeFactory));
+        $proposeSchema = (new ProposeChange)->schema(new JsonSchemaTypeFactory);
+        $this->assertArrayHasKey('id', $proposeSchema);
+        $this->assertArrayHasKey('html', $proposeSchema);
+        $this->assertArrayHasKey('css', $proposeSchema);
     }
 
     public function test_list_comments_returns_a_summary_and_filters(): void
@@ -97,16 +103,80 @@ class McpToolsTest extends TestCase
             'body' => 'Make the CTA bigger',
             'anchor' => ['testid' => 'cta', 'cssPath' => 'button'],
             'context' => ['html' => '<button>Go</button>', 'styles' => ['color' => 'red']],
-            'screenshot_url' => 'http://x/y.png',
+            'screenshot_url' => 'http://x/y.png', // not in storage → text only, no image block
         ]);
 
-        $text = (string) (new GetComment)->handle(new Request(['id' => 'a']))->content();
+        $result = (new GetComment)->handle(new Request(['id' => 'a']));
+        $this->assertIsArray($result);
+        $this->assertCount(1, $result); // just the text package
+        $text = (string) $result[0]->content();
 
         $this->assertStringContainsString('Make the CTA bigger', $text);
         $this->assertStringContainsString('[data-testid="cta"]', $text);
         $this->assertStringContainsString('<button>Go</button>', $text);
         $this->assertStringContainsString('"color": "red"', $text);
         $this->assertStringContainsString('http://x/y.png', $text);
+        $this->assertStringContainsString('propose_change', $text);
+    }
+
+    public function test_get_comment_includes_recording_and_existing_proposal(): void
+    {
+        $this->seedComment('a', [
+            'kind' => 'region',
+            'recording_url' => 'http://x/rec.webm',
+            'proposal' => ['html' => '<b>done</b>', 'css' => '.x{}', 'notes' => 'note', 'author' => 'Claude Code via MCP', 'createdAt' => 't'],
+        ]);
+
+        $text = (string) (new GetComment)->handle(new Request(['id' => 'a']))[0]->content();
+
+        $this->assertStringContainsString('http://x/rec.webm', $text);
+        $this->assertStringContainsString('Existing proposal', $text);
+        $this->assertStringContainsString('<b>done</b>', $text);
+        $this->assertStringContainsString('.x{}', $text);
+    }
+
+    public function test_get_comment_attaches_a_stored_screenshot_as_an_image(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        Storage::disk('public')->put('loupe/screenshots/shot1.png', 'PNGBYTES');
+        $this->seedComment('a', ['screenshot_url' => 'http://x/loupe/v1/blobs/shot1.png']);
+
+        $result = (new GetComment)->handle(new Request(['id' => 'a']));
+
+        $this->assertCount(2, $result); // text + image block
+        $this->assertFalse($result[1]->isError());
+    }
+
+    public function test_get_comment_embeds_a_legacy_extensionless_screenshot(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        Storage::disk('public')->put('loupe/screenshots/shot2.png', 'PNGBYTES');
+        // A URL saved before extensions were carried (basename has no dot).
+        $this->seedComment('a', ['screenshot_url' => 'http://x/loupe/v1/blobs/shot2']);
+
+        $result = (new GetComment)->handle(new Request(['id' => 'a']));
+
+        $this->assertCount(2, $result); // resolves to shot2.png and embeds it
+    }
+
+    public function test_get_comment_without_screenshot_returns_text_only(): void
+    {
+        $this->seedComment('a', ['screenshot_url' => null]);
+
+        $result = (new GetComment)->handle(new Request(['id' => 'a']));
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_get_comment_does_not_embed_a_non_png_screenshot(): void
+    {
+        $this->seedComment('a', ['screenshot_url' => 'http://x/thing.webm']);
+
+        $result = (new GetComment)->handle(new Request(['id' => 'a']));
+
+        $this->assertCount(1, $result); // .webm is not embeddable as an image
     }
 
     public function test_get_comment_errors_when_missing(): void
@@ -134,6 +204,42 @@ class McpToolsTest extends TestCase
     public function test_update_status_errors_when_missing(): void
     {
         $this->assertTrue((new UpdateStatus)->handle(new Request(['id' => 'nope', 'status' => 'done']))->isError());
+    }
+
+    public function test_propose_change_writes_the_modified_ui_back(): void
+    {
+        $this->seedComment('a');
+
+        $response = (new ProposeChange)->handle(new Request([
+            'id' => 'a', 'html' => '<b>new</b>', 'css' => '.x{color:red}', 'notes' => 'tightened',
+        ]));
+
+        $this->assertFalse($response->isError());
+        $this->assertStringContainsString('Proposal saved', (string) $response->content());
+
+        $proposal = Comment::query()->find('a')->proposal;
+        $this->assertSame('<b>new</b>', $proposal['html']);
+        $this->assertSame('.x{color:red}', $proposal['css']);
+        $this->assertSame('tightened', $proposal['notes']);
+        $this->assertSame('Claude Code via MCP', $proposal['author']);
+        $this->assertArrayHasKey('createdAt', $proposal);
+    }
+
+    public function test_propose_change_drops_omitted_optional_fields(): void
+    {
+        $this->seedComment('a');
+
+        (new ProposeChange)->handle(new Request(['id' => 'a', 'html' => '<b>new</b>']));
+
+        $proposal = Comment::query()->find('a')->proposal;
+        $this->assertArrayNotHasKey('css', $proposal);
+        $this->assertArrayNotHasKey('notes', $proposal);
+        $this->assertSame('<b>new</b>', $proposal['html']);
+    }
+
+    public function test_propose_change_errors_when_missing(): void
+    {
+        $this->assertTrue((new ProposeChange)->handle(new Request(['id' => 'nope', 'html' => '<b/>']))->isError());
     }
 
     private function seedComment(string $id, array $overrides = []): void

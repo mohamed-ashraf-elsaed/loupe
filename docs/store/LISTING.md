@@ -27,9 +27,10 @@ WHAT YOU CAN DO
 • Inspect & pin — click an element and attach a comment anchored to it, not to a vague screenshot.
 • Free notes — drop a page-level comment anywhere with the Note mode, no element or screenshot required.
 • Capture — pixel-perfect screenshots of the page, cropped to what matters (sensitive fields can be redacted).
+• Record — capture a short screen video of any region with the Record tool (you choose what to share; stop anytime).
 • Survive redeploys — pins re-anchor to their element even after the markup changes, using a multi-signal fingerprint.
 • Triage — every comment lands on a Kanban board: open, in progress, done.
-• Hand it to Claude — comments become a backlog Claude Code reads over MCP (element HTML, computed styles, screenshot) and resolves, closing the loop back to you.
+• Hand it to Claude — comments become a backlog Claude Code reads over MCP (element HTML, computed styles, the screenshot as an image) and resolves; Claude sends its modified HTML/CSS back to your dashboard, closing the loop.
 
 WHY LOUPE
 • Works on any site — no code change or SDK install required on the target page.

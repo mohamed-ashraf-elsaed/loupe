@@ -77,4 +77,39 @@ class BlobTest extends TestCase
 
         $this->get('/loupe/v1/blobs/does-not-exist')->assertNotFound();
     }
+
+    /** A tiny valid webm header — enough bytes to store and serve back. */
+    private const WEBM = 'GkXfo0AgQoaBAUL3gQFC8oEEQvOBCEKCQAR3ZWJtQoeBAkKFgQIYU4BnQI0VSalmQCg=';
+
+    public function test_it_stores_and_serves_a_screen_recording_as_webm(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        $this->actingAsAllowed();
+
+        $url = $this->postJson('/loupe/v1/blobs', [
+            'projectKey' => 'app',
+            'data' => 'data:video/webm;base64,'.self::WEBM,
+        ])->assertCreated()->json('url');
+
+        $this->assertStringEndsWith('.webm', $url);
+        $files = Storage::disk('public')->allFiles('loupe/screenshots');
+        $this->assertCount(1, $files);
+        $this->assertStringEndsWith('.webm', $files[0]);
+
+        app()['auth']->forgetGuards();
+        $this->get($url)->assertOk()->assertHeader('Content-Type', 'video/webm');
+    }
+
+    public function test_it_serves_a_legacy_extensionless_id_as_png(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        // Simulate a blob stored before extensions were carried in the URL.
+        Storage::disk('public')->put('loupe/screenshots/legacy123.png', base64_decode(self::PNG));
+
+        $this->get('/loupe/v1/blobs/legacy123')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+    }
 }

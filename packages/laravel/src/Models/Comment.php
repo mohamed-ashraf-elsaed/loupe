@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property array $offset
  * @property array|null $region
  * @property string|null $screenshot_url
+ * @property string|null $recording_url
+ * @property array|null $proposal
  */
 class Comment extends Model
 {
@@ -39,6 +41,7 @@ class Comment extends Model
         'offset' => 'array',
         'region' => 'array',
         'viewport' => 'array',
+        'proposal' => 'array',
     ];
 
     public function getTable()
@@ -75,6 +78,16 @@ class Comment extends Model
 
         if (! empty($this->viewport)) {
             $out['viewport'] = $this->viewport;
+        }
+
+        // A screen recording (webm), for region comments made with the Record tool.
+        if (! empty($this->recording_url)) {
+            $out['recording'] = $this->recording_url;
+        }
+
+        // Claude's proposed UI change, shown to the dev team in the dashboard.
+        if (! empty($this->proposal)) {
+            $out['proposal'] = $this->proposal;
         }
 
         return $out;

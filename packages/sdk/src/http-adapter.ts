@@ -34,20 +34,29 @@ export class HttpAdapter implements StorageAdapter {
     return (await res.json()) as Comment[];
   }
 
+  /** Upload an inline data-URL asset to object storage; return its URL (or the data URL on failure). */
+  private async uploadBlob(projectKey: string, data: string): Promise<string> {
+    try {
+      const up = await fetch(`${this.base}/v1/blobs`, this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({ projectKey, data }),
+      }));
+      if (up.ok) return (await up.json()).url as string;
+    } catch {
+      /* fall back to inlining below */
+    }
+    return data;
+  }
+
   async save(comment: Comment): Promise<Comment> {
-    // Upload the screenshot to object storage first, then store only its URL —
-    // keeps the comment row (and every later list/read) small.
+    // Upload media to object storage first, then store only the URL — keeps the
+    // comment row (and every later list/read) small.
     if (comment.screenshot?.startsWith("data:")) {
-      try {
-        const up = await fetch(`${this.base}/v1/blobs`, this.opts({
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({ projectKey: comment.projectKey, data: comment.screenshot }),
-        }));
-        if (up.ok) comment = { ...comment, screenshot: (await up.json()).url };
-      } catch {
-        /* fall back to inlining the data URL if upload fails */
-      }
+      comment = { ...comment, screenshot: await this.uploadBlob(comment.projectKey, comment.screenshot) };
+    }
+    if (comment.recording?.startsWith("data:")) {
+      comment = { ...comment, recording: await this.uploadBlob(comment.projectKey, comment.recording) };
     }
     const res = await fetch(`${this.base}/v1/comments`, this.opts({
       method: "POST",

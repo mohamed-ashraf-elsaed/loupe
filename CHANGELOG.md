@@ -11,6 +11,34 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.7.0] — 2026-07-20
+
+### Added
+
+- **Claude modification loop (round-trip).** The MCP `get_comment` tool now returns the
+  **actual screenshot as an image** (not just a URL) alongside the element HTML and computed
+  styles, and a new **`propose_change(id, html, css?, notes?)`** tool lets Claude write its
+  **modified HTML/CSS back onto the comment**. The dashboard renders that proposal for the dev
+  team as copyable code plus a **live before/after preview** (the "after" rendered in a
+  sandboxed iframe). Mirrored in the Laravel MCP server (`propose_change` tool + image block).
+- **Screen recording.** A new **Record** tool captures a screen video of a drag-selected
+  region (same selection UX as Region) via `getDisplayMedia` + per-frame canvas crop, saved as
+  `.webm` (duration-capped, with a Stop button). Recordings play back inline in the widget and
+  the dashboard. Overridable via the new `captureRecording` config seam.
+- **Two-page sidebar on both surfaces.** The SDK widget dock and the dashboard now each have a
+  **Comments** page and a **Connect Claude** page (numbered steps + copyable MCP config), plus
+  an **"Integrates with"** row (GitHub / Slack / Telegram / Linear — visual for now). The
+  widget's comment list no longer shows the author's name/email.
+
+### Changed
+
+- **Data model (additive).** `Comment` gains optional `recording` (webm URL) and `proposal`
+  (`{ html, css?, notes?, author?, createdAt }`) fields; new nullable DB columns
+  (`recording_url`, `proposal`) on both the Node and Laravel schemas. Blob storage now carries
+  a file extension / content type so it serves `video/webm` as well as `image/png` (legacy
+  extensionless ids still resolve to PNG). The comment `PATCH` accepts `proposal`. All changes
+  are back-compat — upgrading is drop-in.
+
 ## [0.6.0] — 2026-07-17
 
 ### Added

@@ -103,6 +103,35 @@ class CommentApiTest extends TestCase
         $this->assertDatabaseHas('loupe_comments', ['id' => 'f1', 'kind' => 'free', 'screenshot_url' => null]);
     }
 
+    public function test_it_stores_a_recording_comment(): void
+    {
+        $user = $this->actingAsAllowed();
+
+        $this->postJson('/loupe/v1/comments', $this->payload('rec1', $user->id, [
+            'kind' => 'region',
+            'region' => ['x' => 1, 'y' => 2, 'w' => 3, 'h' => 4],
+            'recording' => 'http://x/rec.webm',
+        ]))->assertCreated()
+            ->assertJsonPath('recording', 'http://x/rec.webm');
+
+        $this->assertDatabaseHas('loupe_comments', ['id' => 'rec1', 'recording_url' => 'http://x/rec.webm']);
+    }
+
+    public function test_it_patches_a_proposal_onto_a_comment(): void
+    {
+        $this->actingAsAllowed();
+        $this->seedComment('c1');
+
+        $proposal = ['html' => '<b>fixed</b>', 'css' => '.x{color:red}', 'notes' => 'tightened', 'author' => 'Claude Code via MCP', 'createdAt' => '2026-01-02T00:00:00.000Z'];
+
+        $this->patchJson('/loupe/v1/comments/c1', ['proposal' => $proposal])
+            ->assertOk()
+            ->assertJsonPath('proposal.html', '<b>fixed</b>')
+            ->assertJsonPath('proposal.css', '.x{color:red}');
+
+        $this->assertSame($proposal, Comment::query()->find('c1')->fresh()->toLoupeArray()['proposal']);
+    }
+
     public function test_it_rejects_a_missing_id(): void
     {
         $user = $this->actingAsAllowed();

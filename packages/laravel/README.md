@@ -183,7 +183,8 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | Tool | Arguments | Returns |
 | --- | --- | --- |
 | `list_comments` | `status?`, `url?` | the backlog, newest first |
-| `get_comment` | `id` | Claude-ready package: request + element HTML + computed styles + screenshot (or region rect) |
+| `get_comment` | `id` | Claude-ready package: request + element HTML + computed styles + the screenshot as an image + any recording URL |
+| `propose_change` | `id`, `html`, `css?`, `notes?` | stores Claude's modified HTML/CSS on the comment; the dashboard shows code + a live before/after preview |
 | `update_status` | `id`, `status` | marks a comment open / in_progress / done |
 
 <div align="center">

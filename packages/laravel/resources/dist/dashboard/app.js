@@ -87,7 +87,15 @@ function card(c) {
   body.className = "cbody";
   body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
   el.appendChild(body);
-  if (c.screenshot) {
+  if (c.recording) {
+    const v = document.createElement("video");
+    v.className = "rec";
+    v.src = c.recording;
+    v.controls = true;
+    v.playsInline = true;
+    if (c.screenshot) v.poster = c.screenshot;
+    el.appendChild(v);
+  } else if (c.screenshot) {
     const t = document.createElement("div");
     t.className = "thumb";
     t.title = "Open full screenshot";
@@ -95,6 +103,7 @@ function card(c) {
     t.onclick = () => openImage(c.screenshot);
     el.appendChild(t);
   }
+  if (c.proposal) el.appendChild(proposalView(c));
   const idx = ORDER.indexOf(c.status);
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -189,9 +198,119 @@ async function copyForClaude(c) {
     console.log(prompt);
   }
 }
+function proposalView(c) {
+  const p = c.proposal;
+  const d = document.createElement("details");
+  d.className = "proposal";
+  d.open = true;
+  const summary = document.createElement("summary");
+  summary.innerHTML = `\u2728 Claude's proposed fix${p.author ? ` <span style="color:var(--ink-3);font-weight:600">\xB7 ${escapeHtml(p.author)}</span>` : ""}`;
+  d.appendChild(summary);
+  const body = document.createElement("div");
+  body.className = "pbody";
+  if (p.notes) {
+    const n = document.createElement("p");
+    n.className = "pnotes";
+    n.textContent = p.notes;
+    body.appendChild(n);
+  }
+  const compare = document.createElement("div");
+  compare.className = "compare";
+  const before = document.createElement("div");
+  before.innerHTML = `<div class="cap">Before</div>`;
+  const bframe = document.createElement("div");
+  bframe.className = "frame" + (c.screenshot ? "" : " empty");
+  if (c.screenshot) bframe.innerHTML = `<img src="${escapeAttr(c.screenshot)}" alt="before" />`;
+  else bframe.textContent = "No screenshot";
+  before.appendChild(bframe);
+  const after = document.createElement("div");
+  after.innerHTML = `<div class="cap">After (preview)</div>`;
+  const aframe = document.createElement("div");
+  aframe.className = "frame";
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("sandbox", "");
+  iframe.setAttribute("loading", "lazy");
+  iframe.srcdoc = `<!doctype html><meta charset="utf-8"><style>body{margin:8px;font-family:system-ui,sans-serif}${p.css || ""}</style>${p.html || ""}`;
+  aframe.appendChild(iframe);
+  after.appendChild(aframe);
+  compare.append(before, after);
+  body.appendChild(compare);
+  body.appendChild(codeBlock("HTML", p.html || ""));
+  if (p.css) body.appendChild(codeBlock("CSS", p.css));
+  d.appendChild(body);
+  return d;
+}
+function codeBlock(lang, code) {
+  const wrap = document.createElement("div");
+  const head = document.createElement("div");
+  head.className = "codehead";
+  head.textContent = lang;
+  const copy = document.createElement("button");
+  copy.className = "copychip";
+  copy.textContent = "Copy";
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      copy.textContent = "Copied \u2713";
+      setTimeout(() => copy.textContent = "Copy", 1500);
+    } catch {
+    }
+  };
+  head.appendChild(copy);
+  const pre = document.createElement("pre");
+  pre.className = "propcode";
+  pre.textContent = code;
+  wrap.append(head, pre);
+  return wrap;
+}
 function openImage(dataUrl) {
   const w = window.open("");
   if (w) w.document.write(`<img src="${dataUrl}" style="max-width:100%">`);
+}
+var INTEGRATION_ICONS = {
+  GitHub: `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.3c-2.2.48-2.67-1.07-2.67-1.07-.36-.92-.88-1.16-.88-1.16-.72-.5.05-.48.05-.48.8.056 1.22.82 1.22.82.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.76-.2-3.6-.88-3.6-3.9 0-.86.3-1.57.82-2.12-.08-.2-.36-1 .08-2.1 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.02 2.2-.8 2.2-.8.44 1.1.16 1.9.08 2.1.5.55.82 1.26.82 2.12 0 3.03-1.85 3.7-3.61 3.9.28.24.54.72.54 1.46v2.16c0 .21.14.46.55.38A8 8 0 0 0 8 .2z"/></svg>`,
+  Slack: `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M3.4 10.1a1.6 1.6 0 1 1-1.6-1.6h1.6v1.6zm.8 0a1.6 1.6 0 0 1 3.2 0v4a1.6 1.6 0 1 1-3.2 0v-4zM5.8 3.4a1.6 1.6 0 1 1 1.6-1.6v1.6H5.8zm0 .8a1.6 1.6 0 0 1 0 3.2h-4a1.6 1.6 0 1 1 0-3.2h4zm6.7 1.6a1.6 1.6 0 1 1 1.6 1.6h-1.6V5.8zm-.8 0a1.6 1.6 0 0 1-3.2 0v-4a1.6 1.6 0 1 1 3.2 0v4zm-1.6 6.7a1.6 1.6 0 1 1-1.6 1.6v-1.6h1.6zm0-.8a1.6 1.6 0 0 1 0-3.2h4a1.6 1.6 0 1 1 0 3.2h-4z"/></svg>`,
+  Telegram: `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.7 5.4-1.24 5.85c-.09.41-.34.51-.69.32l-1.9-1.4-.92.88c-.1.1-.19.19-.38.19l.14-1.93 3.5-3.17c.15-.13-.03-.2-.24-.07l-4.32 2.72-1.86-.58c-.4-.13-.41-.4.09-.6l7.26-2.8c.34-.12.63.08.52.6z"/></svg>`,
+  Linear: `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M.6 9.2a7.4 7.4 0 0 0 6.2 6.2c.3.04.44-.33.22-.55L1.15 9a.33.33 0 0 0-.55.22zM.5 6.9c-.01.13.04.25.13.34l8.13 8.13c.09.09.21.14.34.13a7.4 7.4 0 0 0 1.3-.26c.28-.08.36-.43.15-.63L1.4 5.45c-.2-.2-.55-.13-.63.15-.12.42-.21.86-.26 1.3zM2.05 4c-.1.13-.09.32.03.44l9.48 9.48c.12.12.31.13.44.03.3-.23.58-.48.85-.75.15-.15.15-.4 0-.55L3.35 3.15a.39.39 0 0 0-.55 0c-.27.27-.52.55-.75.85zM4.5 1.9a.35.35 0 0 0-.04.53l9.11 9.11c.16.16.42.13.53-.04A7.4 7.4 0 1 0 4.5 1.9z"/></svg>`
+};
+function renderIntegrations() {
+  const row = document.getElementById("integrations");
+  if (row) row.innerHTML = Object.entries(INTEGRATION_ICONS).map(([name, svg]) => `<span title="${name} \u2014 coming soon">${svg}</span>`).join("");
+}
+function renderConnect() {
+  const host = document.getElementById("connect");
+  if (!host || host.dataset.ready) return;
+  host.dataset.ready = "1";
+  const config = JSON.stringify({
+    mcpServers: {
+      loupe: {
+        command: "npx",
+        args: ["-y", "@loupekit/mcp"],
+        env: { LOUPE_API: API, LOUPE_PROJECT_KEY: PROJECT, LOUPE_ADMIN_KEY: "<your project secret>" }
+      }
+    }
+  }, null, 2);
+  host.innerHTML = `<div class="chero"><span class="mark"></span><h1>Connect this project to Claude</h1><p class="sub">Loupe hands every pinned comment \u2014 with its screenshot, HTML and computed styles \u2014 to Claude Code over MCP. Claude rewrites the UI and sends the modified HTML/CSS back here for your dev team.</p></div><ol class="steps"><li><div><div class="st">Install the MCP server</div><div class="sd">It ships on npm as <code>@loupekit/mcp</code> \u2014 no clone needed.</div></div></li><li><div><div class="st">Add it to your Claude Code config</div><div class="sd">Drop this into your MCP settings, then restart Claude Code:</div><div class="codeblock"><button class="copychip" id="copyCfg">Copy</button>${escapeHtml(config)}</div></div></li><li><div><div class="st">Work the backlog with Claude</div><div class="sd">Ask Claude to <code>list_comments</code>, then <code>get_comment(id)</code> for full context (it even sees the screenshot). After it rewrites the UI it calls <code>propose_change</code> \u2014 the result appears on the comment card here, with a live preview.</div></div></li></ol>`;
+  const btn = document.getElementById("copyCfg");
+  if (btn) btn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(config);
+      btn.textContent = "Copied \u2713";
+      setTimeout(() => btn.textContent = "Copy", 1500);
+    } catch {
+    }
+  };
+}
+var currentPage = localStorage.getItem("loupe_page") === "connect" ? "connect" : "comments";
+function setPage(page) {
+  currentPage = page;
+  localStorage.setItem("loupe_page", page);
+  document.querySelectorAll(".navitem").forEach((b) => b.classList.toggle("on", b.dataset.page === page));
+  const comments2 = document.getElementById("page-comments");
+  const connect = document.getElementById("page-connect");
+  if (comments2) comments2.hidden = page !== "comments";
+  if (connect) connect.hidden = page !== "connect";
+  if (page === "connect") renderConnect();
 }
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -219,6 +338,9 @@ $("#pageFilter").addEventListener("change", (e) => {
   render();
 });
 $("#refresh").addEventListener("click", load);
+document.querySelectorAll(".navitem").forEach((b) => b.addEventListener("click", () => setPage(b.dataset.page || "comments")));
+renderIntegrations();
+setPage(currentPage);
 setInterval(load, 4e3);
 load();
 //# sourceMappingURL=app.js.map

@@ -83,6 +83,30 @@ class CommentModelTest extends TestCase
         $this->assertSame('element', $comment->toLoupeArray()['kind']);
     }
 
+    public function test_to_loupe_array_includes_recording_and_proposal_when_set(): void
+    {
+        $proposal = ['html' => '<b>new</b>', 'css' => '.x{color:red}', 'notes' => 'tighter', 'author' => 'Claude Code via MCP', 'createdAt' => '2026-01-02T00:00:00.000Z'];
+        $comment = Comment::query()->create(array_merge($this->attributes(), [
+            'id' => 'cr',
+            'kind' => 'region',
+            'recording_url' => 'http://x/rec.webm',
+            'proposal' => $proposal,
+        ]));
+
+        $array = $comment->fresh()->toLoupeArray();
+
+        $this->assertSame('http://x/rec.webm', $array['recording']);
+        $this->assertSame($proposal, $array['proposal']);
+    }
+
+    public function test_to_loupe_array_omits_recording_and_proposal_when_absent(): void
+    {
+        $array = Comment::query()->create($this->attributes())->fresh()->toLoupeArray();
+
+        $this->assertArrayNotHasKey('recording', $array);
+        $this->assertArrayNotHasKey('proposal', $array);
+    }
+
     private function attributes(): array
     {
         return [

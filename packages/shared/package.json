@@ -5,7 +5,7 @@
     "email": "m.ashraf.saed@gmail.com",
     "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Canonical TypeScript types + helpers (normalizeUrl) shared across the Loupe visual-feedback platform.",
   "keywords": [
     "loupe",

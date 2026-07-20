@@ -15,15 +15,15 @@ Runner: **Vitest** + **v8 coverage**. DOM code runs under **happy-dom** (files o
 |---|---|---|
 | `shared/normalizeUrl` | unit | Strips `utm_*`/click ids/dev params, sorts, trailing slash, absolute URLs |
 | `server/auth` | unit (PGlite) | HMAC sign/verify; admin vs user vs 401/404/400 |
-| `server/blobs` | unit | put/get round-trip, id sanitization, data-URL decode |
-| `server/store` | unit (PGlite) | CRUD, URL normalization on write/query, upsert-replace |
+| `server/blobs` | unit | put/get round-trip (png + webm), id sanitization, MIME↔ext mapping, content-type, legacy ext-less ids, data-URL decode |
+| `server/store` | unit (PGlite) | CRUD, URL normalization on write/query, upsert-replace, recording round-trip, proposal patch |
 | `server/api` | integration | Real `node:http` on port 0 — full auth matrix, comments CRUD, blob upload+serve, static, routing edges, malformed body |
 | `sdk/fingerprint` | unit (happy-dom) | Capture + all re-anchor tiers, dedup, detach, UI exclusion |
 | `sdk/store` | unit (happy-dom) | LocalStorage adapter CRUD + bad-JSON handling |
 | `sdk/http-adapter` | unit (mocked fetch) | Identity headers, blob-upload-then-save, fallback, PATCH/DELETE, errors |
 | `sdk/capture` | unit (happy-dom) | Element context, truncation, screenshot success + error swallow |
 | `sdk/app` | integration (happy-dom) | Mount, inspect→comment→pin→persist, free note, reload+re-anchor, comment list, done, delete, dock position + theme + push/reflow + mobile-inspect, launcher, Escape |
-| `mcp/handlers` | unit (canned API) | All three tools in-process, both anchor branches, filters, error path |
+| `mcp/handlers` | unit (canned API) | All four tools in-process (incl. `propose_change` + the screenshot image block), both anchor branches, filters, error path |
 | `mcp/mcp` | integration (stdio) | Real MCP server spawned + driven by an MCP client end-to-end |
 | `extension/manifest` | unit | Valid MV3 manifest; referenced files exist |
 
