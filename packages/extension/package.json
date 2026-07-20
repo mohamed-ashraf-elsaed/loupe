@@ -13,6 +13,6 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@loupekit/sdk": "0.6.0"
+    "@loupekit/sdk": "0.7.0"
   }
 }
