@@ -1,0 +1,4 @@
+# Both .claude/ and CLAUDE.md are gitignored in this repo, so a fresh
+# worktree would start with no agent instructions unless bb copies them.
+.claude/
+CLAUDE.md
