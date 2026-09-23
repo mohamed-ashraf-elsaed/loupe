@@ -5,7 +5,7 @@
     "email": "m.ashraf.saed@gmail.com",
     "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
   },
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Pin feedback to the live UI. Hand it to Claude.",
   "workspaces": [
@@ -14,7 +14,8 @@
     "packages/dashboard",
     "packages/server",
     "packages/mcp",
-    "packages/extension"
+    "packages/extension",
+    "packages/hub"
   ],
   "scripts": {
     "build": "npm run build -w @loupekit/shared && npm run build -w @loupekit/sdk && npm run build -w @loupekit/mcp && npm run build -w @loupekit/dashboard && npm run build -w @loupekit/extension",
@@ -26,7 +27,8 @@
     "typecheck": "npm run typecheck -w @loupekit/sdk",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "start:hub": "npm run start -w @loupekit/hub"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.10",

@@ -11,6 +11,25 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.8.0] — 2026-09-24
+
+### Added
+
+- **Loupe Hub** (`packages/hub`, private): a minimal hosted service with Google sign-in where
+  org owners create organizations, add allowed members (Google emails and/or one email
+  domain) and create projects with a generated Project ID (`prj_…`), Project Secret (`psk_…`),
+  webhook URL and webhook signing secret (`whs_…`). Secrets are shown once and can be rotated.
+  `POST /v1/issues` verifies the project HMAC (±5 min timestamp), checks the submitter's email
+  belongs to the organization (`403` otherwise), and forwards the issue to the project webhook,
+  signed, with a 10 s timeout and 3 attempts. The dashboard lists the last 20 deliveries.
+  Ships with `deploy/` scripts for a GCP e2-micro VM (Node 24, Postgres 16, Caddy HTTPS,
+  systemd).
+- **Laravel → Hub forwarding.** New `loupe.hub.url` / `loupe.hub.project_id` /
+  `loupe.hub.project_secret` config (`LOUPE_HUB_URL`, `LOUPE_PROJECT_ID`,
+  `LOUPE_PROJECT_SECRET`). When all three are set, each new comment dispatches a queued
+  `SendToHub` job (after the response on the sync queue) signed with the Project Secret and
+  carrying the logged-in user's email. Hub failures are logged and never break comment creation.
+
 ## [0.7.0] — 2026-07-20
 
 ### Added
@@ -312,7 +331,10 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   SEO/GEO-optimized landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.4.3...v0.5.0

@@ -46,6 +46,18 @@ flowchart LR
   MCP -->|"admin key"| API
   CLAUDE <-->|"MCP tools"| MCP
   DASH -.serves.- STATIC
+
+  subgraph HubBox["@loupekit/hub (optional, hosted)"]
+    HUB["POST /v1/issues<br/>project HMAC + org membership"]
+    HUBUI["org / project dashboard<br/>Google sign-in"]
+  end
+  HUBPG[("Postgres 16")]
+  LARA["loupekit/laravel<br/>SendToHub job"]
+  HOOK["project webhook<br/>(your receiver)"]
+  LARA -->|"signed issue + user email"| HUB
+  HUB --> HUBPG
+  HUBUI --> HUBPG
+  HUB -->|"signed, 3 attempts"| HOOK
 ```
 
 Everything runs from a single Node process locally — the API, the database (embedded
@@ -79,6 +91,42 @@ sequenceDiagram
   API-->>Claude: request + element HTML + styles + screenshot URL
   Claude->>MCP: update_status(done)
   MCP->>API: PATCH /v1/comments/:id
+```
+
+## Loupe Hub (optional)
+
+`packages/hub` (`@loupekit/hub`, private) is a small hosted service that forwards new issues
+to a per-project webhook, after checking the author belongs to the project's organization.
+
+- **Dashboard:** Google sign-in (ID token verified server side: `aud`, `email_verified`).
+  A session cookie (HttpOnly, Secure, SameSite=Lax, HMAC-signed) plus an Origin check guard
+  every form POST. Users see only orgs they are a member of; only an org **owner** changes
+  members, the allowed domain, projects, webhooks and secrets.
+- **Ingest:** `POST /v1/issues` with `X-Loupe-Project`, `X-Loupe-Timestamp` and
+  `X-Loupe-Signature = hex(HMAC-SHA256(timestamp + "." + rawBody, project_secret))`
+  (±5 min, constant-time compare). The submitter's email must be an org member or on the
+  org's `allowed_domain`, else `403`. The issue is forwarded signed with the webhook secret
+  (`X-Loupe-Hub-Signature`), 10 s timeout, 3 attempts (1 s, 4 s backoff), and logged in
+  `deliveries`.
+- **Laravel:** with `LOUPE_HUB_URL` + `LOUPE_PROJECT_ID` + `LOUPE_PROJECT_SECRET` set,
+  every new comment dispatches `SendToHub` (queued; after-response on the sync queue).
+  Failures are logged and never block comment creation.
+
+```mermaid
+sequenceDiagram
+  participant App as Laravel app
+  participant Hub as Loupe Hub
+  participant PG as Hub Postgres
+  participant WH as Project webhook
+  App->>Hub: POST /v1/issues {user.email, issue}  [project HMAC]
+  Hub->>PG: project + org membership
+  alt not in org
+    Hub-->>App: 403 user not in organization
+  else member / allowed domain
+    Hub->>WH: POST {project_id, organization_id, user, issue, received_at}  [webhook HMAC]
+    Hub->>PG: INSERT deliveries
+    Hub-->>App: 202 {id, delivery}
+  end
 ```
 
 ## Packages

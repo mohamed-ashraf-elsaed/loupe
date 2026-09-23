@@ -208,6 +208,34 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | `comment_model` | `Loupekit\Loupe\Models\Comment` | Swap for your own subclass. |
 | `disk` | `public` | Filesystem disk for screenshots. |
 | `asset_url` | `env('LOUPE_ASSET_URL')` | Origin Loupe's own JS is served from. Defaults to the app URL — see the CDN note below. |
+| `hub.url` | `env('LOUPE_HUB_URL')` | Loupe Hub base URL, e.g. `https://hub.example.com`. |
+| `hub.project_id` | `env('LOUPE_PROJECT_ID')` | Hub Project ID (`prj_…`). |
+| `hub.project_secret` | `env('LOUPE_PROJECT_SECRET')` | Hub Project Secret (`psk_…`). Keep it in `.env`, never in git. |
+
+### Send new comments to Loupe Hub (optional)
+
+[Loupe Hub](https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/packages/hub) checks
+that a comment's author belongs to your organization and forwards it to your project's
+webhook. Create a project in the Hub dashboard, then set all three keys:
+
+```env
+LOUPE_HUB_URL=https://hub.example.com
+LOUPE_PROJECT_ID=prj_…
+LOUPE_PROJECT_SECRET=psk_…
+```
+
+The feature is **off unless all three are set**. Each **new** comment (not later edits)
+dispatches the `Loupekit\Loupe\Jobs\SendToHub` job:
+
+- It POSTs `{ user: { email, name }, issue }` to `{LOUPE_HUB_URL}/v1/issues`, where `user`
+  is the logged-in user (through your `user_resolver`, if set) and `issue` is the comment.
+- It signs the request: `X-Loupe-Project`, `X-Loupe-Timestamp` and
+  `X-Loupe-Signature = hex(HMAC-SHA256(timestamp + "." + body, project_secret))`.
+- It runs on your queue. With `QUEUE_CONNECTION=sync`, or if the queue is unavailable,
+  it runs after the response is sent.
+- A Hub failure (rejection such as `403 user not in organization`, network error, failed
+  webhook delivery) is **logged as a warning and never breaks comment creation**. Users
+  without an email are skipped (and logged).
 
 ### Multiple auth guards
 

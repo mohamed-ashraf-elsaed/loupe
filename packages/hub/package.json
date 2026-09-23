@@ -1,0 +1,20 @@
+{
+  "name": "@loupekit/hub",
+  "version": "0.8.0",
+  "private": true,
+  "description": "Loupe Hub: organizations, projects and allowed members; verifies signed issues from Loupe installs and forwards them to per-project webhooks.",
+  "type": "module",
+  "scripts": {
+    "start": "node index.ts",
+    "seed": "node seed.ts",
+    "receiver": "node tools/webhook-receiver.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.17",
+    "google-auth-library": "^10.9.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@loupekit/shared": "0.8.0"
+  }
+}

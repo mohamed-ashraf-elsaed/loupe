@@ -135,4 +135,23 @@ return [
     'disk' => env('LOUPE_DISK', 'public'),
     'blob_path' => 'loupe/screenshots',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Loupe Hub (optional)
+    |--------------------------------------------------------------------------
+    | Also send every NEW comment to Loupe Hub, which checks the author belongs
+    | to your organization and forwards it to your project's webhook. Off unless
+    | all three values are set. Create the project in the Hub dashboard to get
+    | its Project ID (prj_…) and Project Secret (psk_…).
+    |
+    | The request is signed with the Project Secret and carries the logged-in
+    | user's email. It runs as a queued job (after the response on the "sync"
+    | queue), and a Hub failure is logged — it never breaks comment creation.
+    */
+    'hub' => [
+        'url' => env('LOUPE_HUB_URL'),
+        'project_id' => env('LOUPE_PROJECT_ID'),
+        'project_secret' => env('LOUPE_PROJECT_SECRET'),
+    ],
+
 ];

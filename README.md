@@ -25,6 +25,7 @@ packages/
   mcp/         MCP server — exposes comments to Claude Code
   extension/   MV3 browser extension — inspect/comment on ANY site, pixel-perfect capture
   laravel/     Loupe for Laravel — composer package: widget + your DB + gating + dashboard + MCP
+  hub/         Loupe Hub (optional, private) — orgs/members/projects; verifies issues, forwards to webhooks
 ```
 
 ### Loupe for Laravel
@@ -40,6 +41,10 @@ composer require loupekit/laravel
 php artisan loupe:install && php artisan migrate
 # add @loupeWidget to your layout, then open /loupe/dashboard
 ```
+
+Optional: set `LOUPE_HUB_URL`, `LOUPE_PROJECT_ID` and `LOUPE_PROJECT_SECRET` to also send
+every new comment to [Loupe Hub](packages/hub), which checks the author belongs to your
+organization and forwards it to your project's webhook.
 
 ## Run it
 

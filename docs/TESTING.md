@@ -26,6 +26,20 @@ Runner: **Vitest** + **v8 coverage**. DOM code runs under **happy-dom** (files o
 | `mcp/handlers` | unit (canned API) | All four tools in-process (incl. `propose_change` + the screenshot image block), both anchor branches, filters, error path |
 | `mcp/mcp` | integration (stdio) | Real MCP server spawned + driven by an MCP client end-to-end |
 | `extension/manifest` | unit | Valid MV3 manifest; referenced files exist |
+| `hub/crypto` | unit | HMAC sign/verify (valid, tampered, wrong secret, ±5 min expiry, bad timestamp), session cookie round-trip + forgery/expiry |
+| `hub/webhook` | integration (local receiver) | Signed delivery, 1 s/4 s retry backoff, give-up after 3, redirects not followed, network error, 10 s timeout |
+| `hub/google` | unit (mocked library) | ID token audience check, `email_verified` required, missing email, invalid token |
+| `hub/api` | integration | Real `node:http` on port 0 — ingest auth matrix, membership by email and by domain, 403 path, delivery log, sign-in, owner/member/non-member permissions, CSRF, one-time secrets + rotation, input validation |
+
+**Laravel** (`packages/laravel`, PHPUnit + Testbench) has a hard **100% line-coverage** gate
+(`composer test:coverage-100`). `HubTest` covers the Hub forwarding with `Http::fake()` /
+`Bus::fake()`: off unless all keys are set, signature + payload, new-comments-only, real
+queue vs after-response, queue-down fallback, users without email, and failures logged
+without breaking comment creation.
+
+> Node 25+ ships a built-in global `localStorage` that would shadow happy-dom's in the DOM
+> suites; `vitest.config.ts` starts the test workers with `--no-experimental-webstorage`
+> (a no-op on Node 24), so `npm test` passes on Node 24 and newer.
 
 ## Coverage — the honest picture
 
@@ -37,8 +51,10 @@ We deliberately do **not** chase a literal 100% by excluding real code, because 
 of paths can't be meaningfully exercised in this harness — reaching them would mean faking
 the environment rather than testing behavior:
 
-- **`server/db.ts` (~73%)** — the `pg` (hosted Postgres) branch needs a live Postgres
-  server; locally we run and test the PGlite branch. The SQL is identical.
+- **`server/db.ts` (~73%) and `hub/db.ts`** — the `pg` (hosted Postgres) branch needs a
+  live Postgres server; locally we run and test the PGlite branch. The SQL is identical.
+- **`hub/index.ts` entrypoint** — `start()` / auto-listen and the production
+  session-secret guard run only as the real process (verified by the live deploy).
 - **`sdk/capture.ts` filter (~65%)** — the redaction `filter` callback only executes
   inside `modern-screenshot`'s real render pipeline, which is mocked in Node.
 - **`sdk/app.ts` & `dashboard/app.ts` (~84%)** — scroll/resize `requestAnimationFrame`,

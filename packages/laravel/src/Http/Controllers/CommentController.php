@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Loupekit\Loupe\Loupe;
+use Loupekit\Loupe\Support\Hub;
 use Loupekit\Loupe\Support\Url;
 
 /**
@@ -68,8 +69,9 @@ class CommentController extends Controller
         ];
 
         $comment = $this->model()->newQuery()->find($data['id']);
+        $isNew = $comment === null;
 
-        if ($comment === null) {
+        if ($isNew) {
             $comment = $this->model()->newInstance();
             $comment->id = $data['id'];
             // Honor a client-supplied timestamp on first insert (matches the server).
@@ -79,8 +81,14 @@ class CommentController extends Controller
         }
 
         $comment->fill($attributes)->save();
+        $issue = $comment->fresh()->toLoupeArray();
 
-        return response()->json($comment->fresh()->toLoupeArray(), 201);
+        // Only brand-new comments go to Loupe Hub (not later edits of the same id).
+        if ($isNew && Hub::enabled()) {
+            Hub::forward($loupe->describeUser($loupe->resolveUser()), $issue);
+        }
+
+        return response()->json($issue, 201);
     }
 
     /** PATCH /{path}/v1/comments/{id} — status, body, or proposal (Claude's modified UI). */

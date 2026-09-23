@@ -10,6 +10,7 @@
 - Re-anchors each pin to its element after redeploys using a multi-signal fingerprint.
 - Exposes an MCP server (tools: list_comments, get_comment, propose_change, update_status) so Claude Code reads feedback with full element context — the screenshot is delivered as an image — and writes its modified HTML/CSS back via propose_change, which the dashboard renders as code plus a live before/after preview for the dev team.
 - Ships a Kanban triage dashboard and an MV3 browser extension (pixel-perfect capture on any site).
+- Optional Loupe Hub: a hosted service where organization owners (Google sign-in) manage allowed members and projects; it verifies HMAC-signed issues (POST /v1/issues), checks the author's email belongs to the organization, and forwards them to a per-project signed webhook. The Laravel package forwards new comments to Hub when LOUPE_HUB_URL, LOUPE_PROJECT_ID and LOUPE_PROJECT_SECRET are set.
 
 ## Docs
 - [README](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/README.md): quick start and run instructions.

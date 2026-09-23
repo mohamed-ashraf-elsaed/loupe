@@ -275,8 +275,46 @@ return [
     'authorize' => ['use' => null, 'dashboard' => null],
     'comment_model' => Loupekit\Loupe\Models\Comment::class,
     'disk' => env('LOUPE_DISK', 'public'),
+    'hub' => [
+        'url' => env('LOUPE_HUB_URL'),
+        'project_id' => env('LOUPE_PROJECT_ID'),
+        'project_secret' => env('LOUPE_PROJECT_SECRET'),
+    ],
 ];
 ```
+
+## Loupe Hub (optional)
+
+[Loupe Hub](../packages/hub) is a small hosted service. Organization owners sign in with
+Google, add allowed members (Google emails and/or one email domain) and create projects.
+Hub accepts an issue only when its author belongs to the project's organization, then
+forwards it to the project's webhook, signed.
+
+Create a project in Hub, then set all three keys. The feature is **off unless all three
+are set**:
+
+```env
+LOUPE_HUB_URL=https://hub.example.com
+LOUPE_PROJECT_ID=prj_…
+LOUPE_PROJECT_SECRET=psk_…
+```
+
+How it behaves:
+
+- Each **new** comment (not later edits of the same id) dispatches
+  `Loupekit\Loupe\Jobs\SendToHub`. It POSTs `{ user: { email, name }, issue }` to
+  `{LOUPE_HUB_URL}/v1/issues`. `user` is the logged-in user (through `user_resolver`, if
+  set); `issue` is the comment in the canonical Loupe shape.
+- Signing: `X-Loupe-Project: prj_…`, `X-Loupe-Timestamp: <unix seconds>` and
+  `X-Loupe-Signature = hex(HMAC-SHA256(timestamp + "." + body, project_secret))`. Hub
+  rejects timestamps more than 5 minutes off, so keep the server clock in sync (NTP).
+- Queueing: the job runs on your default queue. With `QUEUE_CONNECTION=sync`, or when the
+  queue can't accept the job, it runs **after the response** so users never wait on Hub.
+  With a real queue (`database`, `redis`, …) a worker must be running.
+- Failures never break comment creation. A Hub rejection (`403 user not in organization`,
+  `401` bad signature), a network error or a failed webhook delivery is logged as a
+  warning (`[loupe] Hub rejected comment`, …). The job is not retried. Users without an
+  email are skipped (and logged).
 
 ## Sanctum / SPA setups
 
@@ -314,6 +352,12 @@ session/CSRF instead of HMAC; the dashboard reads an injected `window.__LOUPE__`
 the vendored bundles with `packages/laravel/bin/sync-assets.sh`.
 
 ## Troubleshooting
+
+- **Comments don't reach Loupe Hub.** Check all three `LOUPE_HUB_*` / `LOUPE_PROJECT_*`
+  keys are set (then `php artisan config:clear`), a queue worker is running for non-sync
+  queues, and `storage/logs` for `[loupe] Hub …` warnings. `user not in organization`
+  means the user's email is neither an org member nor on the org's allowed domain.
+
 
 - **Widget doesn't appear** — the current user fails `loupe:use` (default: local only), or
   `@loupeWidget` isn't in the rendered layout, or `LOUPE_ENABLED=false`.

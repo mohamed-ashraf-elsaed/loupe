@@ -1,0 +1,9 @@
+# Loupe Hub. setup-vm.sh replaces __HUB_DOMAIN__ and installs this as /etc/caddy/Caddyfile.
+# Caddy obtains and renews the HTTPS certificate automatically and redirects http → https.
+__HUB_DOMAIN__ {
+	encode gzip
+	request_body {
+		max_size 6MB
+	}
+	reverse_proxy 127.0.0.1:8790
+}

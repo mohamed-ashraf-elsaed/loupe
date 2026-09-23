@@ -1,0 +1,32 @@
+[Unit]
+Description=Loupe Hub
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=loupehub
+Group=loupehub
+WorkingDirectory=/opt/loupe-hub
+# DATABASE_URL, HUB_SESSION_SECRET, GOOGLE_CLIENT_ID, NODE_ENV, PORT, HOST
+EnvironmentFile=/etc/loupe-hub.env
+ExecStart=/usr/bin/node index.ts
+Restart=on-failure
+RestartSec=3
+
+# Hardening: read-only system, no privilege escalation, private /tmp.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadOnlyPaths=/opt/loupe-hub
+
+[Install]
+WantedBy=multi-user.target
