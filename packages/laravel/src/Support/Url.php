@@ -32,6 +32,42 @@ class Url
         return rtrim($base, '/').'/'.ltrim($path, '/');
     }
 
+    /**
+     * A Loupe asset URL with a build-stamp query, e.g. `…/loupe.js?v=1a2b3c4d`.
+     *
+     * A new build is then a NEW url, so no CDN edge or browser cache can serve
+     * the previous bundle after an upgrade. Without this, an app behind a CDN
+     * (Cloudflare and friends) keeps handing users the old SDK until the edge
+     * TTL expires — something a package user has no way to fix themselves.
+     */
+    public static function versioned(string $path): string
+    {
+        return self::asset($path).'?v='.self::stamp($path);
+    }
+
+    /**
+     * A token that changes whenever the served bundle changes: the stamp of the
+     * published copy under public/ if present, else the packaged one, else
+     * "dev" (an unpublished asset, e.g. before `vendor:publish`).
+     */
+    private static function stamp(string $path): string
+    {
+        $relative = (string) preg_replace('#^vendor/loupe/#', '', ltrim($path, '/'));
+
+        $candidates = [
+            public_path($path),
+            dirname(__DIR__, 2).'/resources/dist/'.$relative,
+        ];
+
+        foreach ($candidates as $file) {
+            if (is_file($file)) {
+                return dechex((int) filemtime($file)).'-'.dechex((int) filesize($file));
+            }
+        }
+
+        return 'dev';
+    }
+
     public static function normalize(string $input): string
     {
         try {

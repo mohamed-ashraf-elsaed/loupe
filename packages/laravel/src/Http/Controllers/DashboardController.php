@@ -17,8 +17,9 @@ class DashboardController extends Controller
         return view('loupe::dashboard', [
             'api' => url(config('loupe.path', 'loupe')),
             'project' => config('loupe.project_key', 'app'),
-            // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()).
-            'appSrc' => Url::asset('vendor/loupe/dashboard/app.js'),
+            // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()),
+            // versioned so a new build is a new URL and no cache serves the old board.
+            'appSrc' => Url::versioned('vendor/loupe/dashboard/app.js'),
         ]);
     }
 }

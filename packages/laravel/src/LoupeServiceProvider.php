@@ -113,8 +113,9 @@ class LoupeServiceProvider extends ServiceProvider
             'projectKey' => config('loupe.project_key', 'app'),
             'apiBase' => url(config('loupe.path', 'loupe')),
             'csrf' => csrf_token(),
-            // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()).
-            'sdkSrc' => Url::asset('vendor/loupe/sdk/loupe.js'),
+            // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()),
+            // versioned so a new build is a new URL and no cache serves the old SDK.
+            'sdkSrc' => Url::versioned('vendor/loupe/sdk/loupe.js'),
         ])->render();
     }
 
