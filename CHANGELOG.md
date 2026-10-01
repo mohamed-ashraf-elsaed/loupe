@@ -11,6 +11,18 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.9.1] — 2026-10-01
+
+### Fixed
+
+- **Laravel: a custom `config('loupe.user_resolver')` is honoured by the identity check.**
+  `CommentController::store()` compared the client's `author.id` against the raw session
+  user, so an app that describes a different identity — the documented way to attribute
+  comments made while an admin impersonates a user to the **admin** rather than the
+  impersonated account — was rejected with *"cannot post as another user"*. The check and
+  `author_id` now use the identity the widget was handed (`describeUser()`), which is
+  unchanged when no resolver is configured.
+
 ## [0.9.0] — 2026-10-01
 
 ### Added
