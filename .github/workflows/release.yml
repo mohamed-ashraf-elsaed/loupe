@@ -29,10 +29,17 @@ jobs:
       - name: Extract release notes for this version
         run: awk '/^## \[${{ steps.v.outputs.version }}\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md > NOTES.md
 
-      - name: Create the GitHub Release
+      - name: Create or update the GitHub Release (idempotent)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
+        run: |
+          # A re-run (or a re-pushed tag) must not fail just because the release
+          # already exists — update it in place instead.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
+          else
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
+          fi
 
   # Publishes the tagged version to BOTH registries after the release is cut:
   #   • public npm      → @loupekit/*                 (needs the NPM_TOKEN repo secret)
@@ -65,9 +72,21 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm publish ./packages/shared --access public
-          npm publish ./packages/mcp    --access public
-          npm publish ./packages/sdk    --access public
+          # Idempotent: skip a version that is already published rather than
+          # failing with "cannot publish over the previously published versions".
+          publish() {
+            local dir="$1" name version
+            name=$(node -p "require('./${dir}/package.json').name")
+            version=$(node -p "require('./${dir}/package.json').version")
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "✓ ${name}@${version} already published — skipping"
+            else
+              npm publish "./${dir}" --access public
+            fi
+          }
+          publish packages/shared
+          publish packages/mcp
+          publish packages/sdk
 
       - name: Mirror to GitHub Packages (@mohamed-ashraf-elsaed, latest)
         env:
@@ -75,6 +94,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node scripts/set-version.mjs --name-scope @mohamed-ashraf-elsaed
-          npm publish ./packages/shared
-          npm publish ./packages/mcp
-          npm publish ./packages/sdk
+          for dir in packages/shared packages/mcp packages/sdk; do
+            name=$(node -p "require('./${dir}/package.json').name")
+            version=$(node -p "require('./${dir}/package.json').version")
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "✓ ${name}@${version} already on GitHub Packages — skipping"
+            else
+              npm publish "./${dir}"
+            fi
+          done
