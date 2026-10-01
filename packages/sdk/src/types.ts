@@ -2,7 +2,7 @@
 // internal `./types.js` imports keep working.
 export * from "@loupekit/shared";
 
-import type { Comment, LoupeUser, RegionRect } from "@loupekit/shared";
+import type { Attachment, Comment, LoupeUser, RegionRect } from "@loupekit/shared";
 
 export interface LoupeConfig {
   /** Public project key issued by the backend. */
@@ -61,6 +61,11 @@ export interface StorageAdapter {
   save(comment: Comment): Promise<Comment>;
   update(id: string, patch: Partial<Comment>): Promise<void>;
   remove(id: string): Promise<void>;
+  /**
+   * Persist one file the reporter attached. Resolves to the stored attachment —
+   * an object-storage URL in server mode, or an inline data URL offline.
+   */
+  upload(projectKey: string, file: File): Promise<Attachment>;
 }
 
 /** Result of trying to re-locate an anchored element on the current page. */

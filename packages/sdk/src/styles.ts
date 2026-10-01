@@ -169,6 +169,16 @@ export const STYLES = /* css */ `
 .item .actions button { font-size: 11px; border: 1px solid var(--line); background: var(--bg-3); border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--ink); }
 .item .actions button:hover { border-color: var(--accent); }
 .item img.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
+.item video.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
+.item .caret { margin-left: auto; color: var(--muted); font-size: 11px; }
+.item .summary { font-size: 13px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .detail { margin-top: 6px; }
+.item.collapsed .detail { display: none; }
+.listhead .search {
+  margin-left: auto; flex: 1; max-width: 170px; font-size: 12px; text-transform: none; letter-spacing: 0;
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-2); color: var(--ink); outline: none;
+}
+.listhead .search:focus { border-color: var(--accent); }
 
 /* float resize grip (bottom-right corner) */
 .resize { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 1; }
@@ -180,7 +190,7 @@ export const STYLES = /* css */ `
 
 /* composer popover */
 .composer {
-  position: fixed; z-index: 2147483004; pointer-events: auto; width: 300px;
+  position: fixed; z-index: 2147483004; pointer-events: auto; width: 320px;
   background: var(--bg); color: var(--ink); border: 1px solid var(--line);
   border-radius: 12px; box-shadow: var(--shadow); padding: 12px; display: none;
 }
@@ -201,6 +211,25 @@ export const STYLES = /* css */ `
 .composer .primary { background: var(--accent); color: #fff; }
 .composer .primary:disabled { opacity: .5; cursor: default; }
 .composer .ghost { background: var(--bg-3); color: var(--ink); }
+.composer input.title {
+  width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink); background: var(--bg-2); outline: none;
+}
+.composer input.title:focus { border-color: var(--accent); }
+.composer .attach { margin-top: 8px; }
+.composer .pick {
+  width: 100%; border: 1px dashed var(--line); background: transparent; color: var(--muted);
+  border-radius: 8px; padding: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.composer .pick:hover { border-color: var(--accent); color: var(--accent); }
+.composer .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.composer .chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  background: var(--bg-3); border-radius: 6px; padding: 2px 4px 2px 7px; font-size: 11px; color: var(--ink);
+}
+.composer .chip .x { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.composer .err { color: var(--pin); font-size: 11px; margin-top: 4px; }
+.composer .err:empty { display: none; }
 
 /* ------------------------------------------------------------ sidebar tabs */
 .tabs { display: flex; gap: 4px; flex: none; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }

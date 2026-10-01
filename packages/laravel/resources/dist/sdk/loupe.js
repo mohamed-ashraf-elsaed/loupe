@@ -198,6 +198,16 @@ var Loupe = (() => {
 .item .actions button { font-size: 11px; border: 1px solid var(--line); background: var(--bg-3); border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--ink); }
 .item .actions button:hover { border-color: var(--accent); }
 .item img.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
+.item video.shot { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
+.item .caret { margin-left: auto; color: var(--muted); font-size: 11px; }
+.item .summary { font-size: 13px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .detail { margin-top: 6px; }
+.item.collapsed .detail { display: none; }
+.listhead .search {
+  margin-left: auto; flex: 1; max-width: 170px; font-size: 12px; text-transform: none; letter-spacing: 0;
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-2); color: var(--ink); outline: none;
+}
+.listhead .search:focus { border-color: var(--accent); }
 
 /* float resize grip (bottom-right corner) */
 .resize { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 1; }
@@ -209,7 +219,7 @@ var Loupe = (() => {
 
 /* composer popover */
 .composer {
-  position: fixed; z-index: 2147483004; pointer-events: auto; width: 300px;
+  position: fixed; z-index: 2147483004; pointer-events: auto; width: 320px;
   background: var(--bg); color: var(--ink); border: 1px solid var(--line);
   border-radius: 12px; box-shadow: var(--shadow); padding: 12px; display: none;
 }
@@ -230,6 +240,25 @@ var Loupe = (() => {
 .composer .primary { background: var(--accent); color: #fff; }
 .composer .primary:disabled { opacity: .5; cursor: default; }
 .composer .ghost { background: var(--bg-3); color: var(--ink); }
+.composer input.title {
+  width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink); background: var(--bg-2); outline: none;
+}
+.composer input.title:focus { border-color: var(--accent); }
+.composer .attach { margin-top: 8px; }
+.composer .pick {
+  width: 100%; border: 1px dashed var(--line); background: transparent; color: var(--muted);
+  border-radius: 8px; padding: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.composer .pick:hover { border-color: var(--accent); color: var(--accent); }
+.composer .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.composer .chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  background: var(--bg-3); border-radius: 6px; padding: 2px 4px 2px 7px; font-size: 11px; color: var(--ink);
+}
+.composer .chip .x { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.composer .err { color: var(--pin); font-size: 11px; margin-top: 4px; }
+.composer .err:empty { display: none; }
 
 /* ------------------------------------------------------------ sidebar tabs */
 .tabs { display: flex; gap: 4px; flex: none; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
@@ -2172,6 +2201,12 @@ var Loupe = (() => {
       r.readAsDataURL(blob);
     });
   }
+  function fileToDataUrl(file) {
+    return blobToDataUrl2(file);
+  }
+  function attachmentKind(mime) {
+    return (mime ?? "").startsWith("video/") ? "video" : "image";
+  }
   async function captureRegionRecording(rect, opts) {
     const md = navigator.mediaDevices;
     if (!md?.getDisplayMedia || !window.MediaRecorder) return void 0;
@@ -2288,6 +2323,20 @@ var Loupe = (() => {
       this.writeAll(comment.projectKey, comment.url, all);
       return comment;
     }
+    /**
+     * Offline mode: keep the file inline. localStorage is only a few MB, so refuse
+     * anything that would blow the quota rather than silently dropping it.
+     */
+    async upload(_projectKey, file) {
+      if (file.size > 3e6) throw new Error("attachment too large for offline mode");
+      return {
+        url: await fileToDataUrl(file),
+        name: file.name,
+        mime: file.type || void 0,
+        kind: attachmentKind(file.type),
+        size: file.size
+      };
+    }
     async update(id, patch) {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
@@ -2369,6 +2418,17 @@ var Loupe = (() => {
       if (!res.ok) throw new Error(`save failed: ${res.status}`);
       return await res.json();
     }
+    /** Persist one reporter-attached file to object storage and describe it. */
+    async upload(projectKey, file) {
+      const data = await fileToDataUrl(file);
+      return {
+        url: await this.uploadBlob(projectKey, data),
+        name: file.name,
+        mime: file.type || void 0,
+        kind: attachmentKind(file.type),
+        size: file.size
+      };
+    }
     async update(id, patch) {
       const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
         method: "PATCH",
@@ -2389,6 +2449,9 @@ var Loupe = (() => {
   // src/app.ts
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
+  var MAX_FILES = 10;
+  var MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+  var MAX_VIDEO_BYTES = 25 * 1024 * 1024;
   var uid2 = () => crypto.randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
   function hash(s) {
     let h = 0;
@@ -2398,6 +2461,10 @@ var Loupe = (() => {
   var LoupeApp = class {
     constructor(cfg) {
       this.comments = [];
+      /** Free-text filter over the list (title / body / author). */
+      this.search = "";
+      /** Ids of list items the user expanded — items are collapsed by default. */
+      this.expanded = /* @__PURE__ */ new Set();
       /** comment.id → currently resolved element (or null when detached). */
       this.resolved = /* @__PURE__ */ new Map();
       /** comment.id → pin element. */
@@ -2754,6 +2821,15 @@ var Loupe = (() => {
       listHead.append(document.createTextNode("Comments"));
       this.countEl = el("span", "count", "0");
       listHead.appendChild(this.countEl);
+      const search = el("input", "search");
+      search.type = "search";
+      search.placeholder = "Search\u2026";
+      search.value = this.search;
+      search.oninput = () => {
+        this.search = search.value;
+        this.renderList();
+      };
+      listHead.appendChild(search);
       this.listEl = el("div", "list");
       const commentsView = el("div", "view comments-view");
       commentsView.append(tools, listHead, this.listEl, this.buildIntegrations());
@@ -2991,8 +3067,53 @@ var Loupe = (() => {
         "target",
         target.kind === "element" ? describe(target.element) : target.kind === "region" ? isRecording ? `\u23FA Recording \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : "Free note \xB7 anywhere on the page"
       );
+      const title = el("input", "title");
+      title.type = "text";
+      title.placeholder = "Title \u2014 one line: what's wrong, or what you need";
       const ta = el("textarea");
-      ta.placeholder = isRecording ? "What's the issue in this recording?" : target.kind === "region" ? "What's the issue in this area?" : target.kind === "free" ? "Leave a note about this page\u2026" : "What should change here?";
+      ta.placeholder = isRecording ? "Describe the issue in this recording\u2026" : target.kind === "region" ? "Describe the issue in this area\u2026" : target.kind === "free" ? "Describe this note\u2026" : "Describe what should change here\u2026";
+      const files = [];
+      const attach = el("div", "attach");
+      const pick = el("button", "pick", "\uFF0B Attach images / videos");
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,video/*";
+      input.multiple = true;
+      input.style.display = "none";
+      const chips = el("div", "chips");
+      const err = el("div", "err");
+      const drawChips = () => {
+        chips.innerHTML = "";
+        files.forEach((f, idx) => {
+          const chip = el("span", "chip", `${attachmentKind(f.type) === "video" ? "\u{1F3AC}" : "\u{1F5BC}"} ${f.name}`);
+          const x2 = el("button", "x", "\xD7");
+          x2.onclick = () => {
+            files.splice(idx, 1);
+            drawChips();
+          };
+          chip.appendChild(x2);
+          chips.appendChild(chip);
+        });
+      };
+      input.onchange = () => {
+        err.textContent = "";
+        for (const f of Array.from(input.files ?? [])) {
+          if (files.length >= MAX_FILES) {
+            err.textContent = `Up to ${MAX_FILES} files.`;
+            break;
+          }
+          const cap = attachmentKind(f.type) === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+          if (f.size > cap) {
+            err.textContent = `${f.name} is too large.`;
+            continue;
+          }
+          files.push(f);
+        }
+        input.value = "";
+        drawChips();
+      };
+      pick.onclick = () => input.click();
+      attach.append(pick, input, chips, err);
       const row = el("div", "row");
       let box = null;
       if (target.kind !== "free" && !isRecording) {
@@ -3010,14 +3131,17 @@ var Loupe = (() => {
       cancel.onclick = () => this.closeComposer();
       const save = el("button", "primary", "Comment");
       save.disabled = true;
-      ta.oninput = () => {
-        save.disabled = !ta.value.trim();
+      const sync = () => {
+        save.disabled = !title.value.trim() || !ta.value.trim();
       };
-      save.onclick = () => this.submit(target, ta.value.trim(), box ? box.checked : false);
+      title.oninput = sync;
+      ta.oninput = sync;
+      sync();
+      save.onclick = () => this.submit(target, title.value.trim(), ta.value.trim(), box ? box.checked : false, files.slice());
       btns.append(cancel, save);
       row.append(btns);
-      c.append(label, ta, row);
-      const w = 300, h = 190;
+      c.append(label, title, ta, attach, row);
+      const w = 320, h = 340;
       const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
       const top = Math.min(Math.max(8, y + 12), window.innerHeight - h - 8);
       Object.assign(c.style, { display: "block", left: left + "px", top: top + "px" });
@@ -3028,8 +3152,8 @@ var Loupe = (() => {
       this.pending = null;
       this.pendingShot = void 0;
     }
-    async submit(target, body, withShot) {
-      if (!body) return;
+    async submit(target, title, body, withShot, files) {
+      if (!title || !body) return;
       const saveBtn = this.composer.querySelector(".primary");
       if (saveBtn) {
         saveBtn.disabled = true;
@@ -3071,6 +3195,7 @@ var Loupe = (() => {
         projectKey: this.cfg.projectKey,
         url: this.url,
         author: this.cfg.user,
+        title,
         body,
         status: "open",
         kind: target.kind,
@@ -3080,6 +3205,7 @@ var Loupe = (() => {
         region,
         screenshot,
         recording,
+        attachments: await this.uploadAttachments(files),
         // Record the screen the feedback was captured on (desktop / tablet / mobile).
         viewport: { w: window.innerWidth, h: window.innerHeight },
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -3091,6 +3217,19 @@ var Loupe = (() => {
       this.renderPins();
       this.renderList();
       this.flash(comment.id);
+    }
+    /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
+    async uploadAttachments(files) {
+      if (!files.length) return void 0;
+      const out = [];
+      for (const f of files) {
+        try {
+          out.push(await this.store.upload(this.cfg.projectKey, f));
+        } catch (e) {
+          console.warn("[loupe] attachment upload failed", f.name, e);
+        }
+      }
+      return out.length ? out : void 0;
     }
     // ---- pins + re-anchoring --------------------------------------------------
     renderPins() {
@@ -3274,19 +3413,22 @@ var Loupe = (() => {
     // ---- comment list ---------------------------------------------------------
     renderList() {
       this.listEl.innerHTML = "";
-      if (!this.comments.length) {
+      const q = this.search.trim().toLowerCase();
+      const items = q ? this.comments.filter((c) => `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q)) : this.comments;
+      if (!items.length) {
         this.listEl.appendChild(el(
           "div",
           "empty",
-          "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
+          q ? "No comments match your search." : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
         ));
       }
-      this.comments.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
+      items.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
       this.updateCount();
     }
     itemView(c, i) {
       const detached = this.pins.get(c.id)?.classList.contains("detached") && c.status !== "done";
-      const item = el("div", "item");
+      const open = this.expanded.has(c.id);
+      const item = el("div", "item" + (open ? "" : " collapsed"));
       const top = el("div", "top");
       const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
       top.append(num);
@@ -3299,20 +3441,38 @@ var Loupe = (() => {
       }
       if (c.status === "done") top.appendChild(el("span", "badge done", "done"));
       else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
+      top.appendChild(el("span", "caret", open ? "\u25BE" : "\u25B8"));
       item.appendChild(top);
-      item.appendChild(el("div", "body", c.body));
-      item.appendChild(el("div", "meta", describeAnchor(c)));
+      const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
+      item.appendChild(el("div", "summary", summary));
+      const detail = el("div", "detail");
+      if (c.title || c.body.includes("\n")) detail.appendChild(el("div", "body", c.body));
+      detail.appendChild(el("div", "meta", describeAnchor(c)));
       if (c.recording) {
         const v = el("video", "shot");
         v.src = c.recording;
         v.controls = true;
         v.playsInline = true;
         if (c.screenshot) v.poster = c.screenshot;
-        item.appendChild(v);
+        detail.appendChild(v);
       } else if (c.screenshot) {
         const img = el("img", "shot");
         img.src = c.screenshot;
-        item.appendChild(img);
+        detail.appendChild(img);
+      }
+      for (const a of c.attachments ?? []) {
+        if (a.kind === "video") {
+          const v = el("video", "shot");
+          v.src = a.url;
+          v.controls = true;
+          v.playsInline = true;
+          detail.appendChild(v);
+        } else {
+          const img = el("img", "shot");
+          img.src = a.url;
+          img.alt = a.name ?? "attachment";
+          detail.appendChild(img);
+        }
       }
       const actions = el("div", "actions");
       const doneBtn = el("button", "", c.status === "done" ? "Reopen" : "Mark done");
@@ -3324,12 +3484,6 @@ var Loupe = (() => {
         this.renderPins();
         this.renderList();
       };
-      const claudeBtn = el("button", "", "Copy for Claude");
-      claudeBtn.onclick = async (e) => {
-        e.stopPropagation();
-        await this.copyForClaude(c);
-        claudeBtn.textContent = "Copied \u2713";
-      };
       const del = el("button", "", "Delete");
       del.onclick = async (e) => {
         e.stopPropagation();
@@ -3339,43 +3493,15 @@ var Loupe = (() => {
         this.renderPins();
         this.renderList();
       };
-      actions.append(doneBtn, claudeBtn, del);
-      item.appendChild(actions);
-      item.onclick = () => this.flash(c.id);
+      actions.append(doneBtn, del);
+      detail.appendChild(actions);
+      item.appendChild(detail);
+      item.onclick = () => {
+        if (open) this.expanded.delete(c.id);
+        else this.expanded.add(c.id);
+        this.renderList();
+      };
       return item;
-    }
-    async copyForClaude(c) {
-      const lines = c.kind === "free" ? [
-        `# Product feedback from ${c.author.name}`,
-        ``,
-        `**Note:** ${c.body}`,
-        `**Page:** ${c.url}`,
-        `**Type:** Free note \u2014 a page-level comment not tied to a specific element.`
-      ] : [
-        `# Product feedback from ${c.author.name}`,
-        ``,
-        `**Comment:** ${c.body}`,
-        `**Page:** ${c.url}`,
-        `**Element:** \`${c.anchor.cssPath}\``,
-        c.anchor.testid ? `**Stable id:** \`${c.anchor.testid}\`` : ``,
-        c.recording ? `**Screen recording (webm):** ${c.recording}` : ``,
-        ``,
-        `## Target element`,
-        "```html",
-        c.context.html,
-        "```",
-        ``,
-        `## Computed styles`,
-        "```json",
-        JSON.stringify(c.context.styles, null, 2),
-        "```"
-      ];
-      const prompt = lines.filter(Boolean).join("\n");
-      try {
-        await navigator.clipboard.writeText(prompt);
-      } catch {
-        console.log("[loupe] copy failed; prompt:\n" + prompt);
-      }
     }
     flash(id) {
       const c = this.comments.find((x) => x.id === id);

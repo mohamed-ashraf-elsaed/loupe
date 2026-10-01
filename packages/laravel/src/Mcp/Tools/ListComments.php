@@ -41,9 +41,11 @@ class ListComments extends Tool
             'id' => $c->id,
             'status' => $c->status,
             'author' => data_get($c->author, 'name'),
+            'title' => $this->titleOf($c),
             'body' => $c->body,
             'url' => $c->url,
             'target' => $this->targetOf($c),
+            'attachments' => count($c->attachments ?? []),
             'createdAt' => optional($c->created_at)->toISOString(),
         ])->all();
 

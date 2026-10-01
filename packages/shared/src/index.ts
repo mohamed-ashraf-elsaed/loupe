@@ -43,6 +43,23 @@ export interface Proposal {
   createdAt: string;
 }
 
+/**
+ * A file the reporter attached to a comment (anything they picked: a screenshot,
+ * a screen recording, a document). `kind` decides how it is rendered — images
+ * inline, videos with a player, anything else as a download chip. Either an
+ * object-storage URL (server mode) or an inline data URL (offline mode).
+ */
+export interface Attachment {
+  url: string;
+  /** Original filename, for the download chip / alt text. */
+  name?: string;
+  /** The file's MIME type, e.g. "image/png", "video/webm". */
+  mime?: string;
+  kind: "image" | "video";
+  /** Size in bytes, when known. */
+  size?: number;
+}
+
 /** A rectangle in **document** coordinates (page px, scroll included). */
 export interface RegionRect {
   x: number;
@@ -83,6 +100,9 @@ export interface Comment {
   projectKey: string;
   url: string;
   author: LoupeUser;
+  /** One-line summary of the issue. Falls back to the first line of `body` when absent. */
+  title?: string;
+  /** The reporter's description of the issue. */
   body: string;
   status: CommentStatus;
   /** Defaults to "element" when absent (back-compat with pre-region comments). */
@@ -101,6 +121,11 @@ export interface Comment {
    * inline data URL offline. Present for "region" comments made with the Record tool.
    */
   recording?: string;
+  /**
+   * Files the reporter attached by hand (images and/or videos, several of each).
+   * Separate from `screenshot` / `recording`, which Loupe captures itself.
+   */
+  attachments?: Attachment[];
   /** Claude's proposed UI change, written back via MCP. Shown to devs in the dashboard. */
   proposal?: Proposal;
   createdAt: string;

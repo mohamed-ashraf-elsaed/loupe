@@ -78,6 +78,26 @@ const targetOf = (c: Comment) =>
     ? "page-level note"
     : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
 
+/** The one-line summary: the title, or the first line of the description. */
+const titleOf = (c: Comment) => c.title || (c.body.split("\n")[0] ?? "").trim() || "(no title)";
+
+/** Fetch the reporter's IMAGE attachments as content blocks (videos stay URL text). */
+async function imageBlocks(attachments?: { url: string; kind: string }[]) {
+  const out: { data: string; mimeType: string }[] = [];
+  for (const a of attachments ?? []) {
+    if (a.kind !== "image") continue;
+    const img = await fetchImage(a.url);
+    if (img) out.push(img);
+  }
+  return out;
+}
+
+/** `**Attachments:**` block for the text part, when there are any. */
+const attachmentLines = (c: Comment) =>
+  (c.attachments ?? []).length
+    ? ["", "**Attachments:**", ...(c.attachments ?? []).map((a) => `- ${a.kind === "video" ? "🎬" : "🖼"} ${a.name ?? "attachment"} — ${a.url}`)]
+    : [];
+
 // Tool handlers are exported so they can be unit-tested in-process (the stdio
 // transport below only runs when this file is the entrypoint).
 
@@ -89,7 +109,7 @@ export async function listComments({ status, url }: { status?: string; url?: str
   if (!comments.length) return wrap("No comments match.");
   const lines = comments.map(
     (c) =>
-      `- [${c.status}] #${c.id} — ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
+      `- [${c.status}] #${c.id} — ${titleOf(c)}: ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
   );
   return wrap(`${comments.length} comment(s):\n\n${lines.join("\n")}\n\nUse get_comment(id) for the full element context.`);
 }
@@ -98,24 +118,28 @@ export async function getComment({ id }: { id: string }) {
   const c = (await api(`/v1/comments/${encodeURIComponent(id)}`)) as Comment;
   // Free notes aren't tied to an element — skip the element HTML/styles sections.
   if (c.kind === "free") {
-    return wrap(
-      [
-        `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
-        ``,
-        `**Note:** ${c.body}`,
-        `**Page:** ${c.url}`,
-        `**Type:** Free note — a page-level comment, not tied to a specific element (no screenshot).`,
-      ].join("\n"),
-    );
+    const text = [
+      `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
+      ``,
+      `**Title:** ${titleOf(c)}`,
+      `**Note:** ${c.body}`,
+      `**Page:** ${c.url}`,
+      `**Type:** Free note — a page-level comment, not tied to a specific element.`,
+      ...attachmentLines(c),
+    ].join("\n");
+    const imgs = await imageBlocks(c.attachments);
+    return wrap(text, ...imgs.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType })));
   }
   const text = [
     `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
     ``,
+    `**Title:** ${titleOf(c)}`,
     `**Request:** ${c.body}`,
     `**Page:** ${c.url}`,
     `**Target element:** ${c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : `\`${c.anchor.cssPath}\``}`,
     c.screenshot ? `**Screenshot:** ${c.screenshot}` : ``,
     c.recording ? `**Screen recording (webm):** ${c.recording}` : ``,
+    ...attachmentLines(c),
     ``,
     `## Target element HTML`,
     "```html",
@@ -143,9 +167,12 @@ export async function getComment({ id }: { id: string }) {
     `When you've rewritten this UI, call \`propose_change(id: "${c.id}", html, css?, notes?)\` so the dev team sees your modified HTML/CSS in the dashboard.`,
   ].filter(Boolean).join("\n");
 
-  // Attach the real screenshot pixels as an image block when we can fetch them.
-  const img = c.screenshot ? await fetchImage(c.screenshot) : null;
-  return img ? wrap(text, { type: "image", data: img.data, mimeType: img.mimeType }) : wrap(text);
+  // Attach real pixels: the auto screenshot and every image the reporter attached.
+  const images = [
+    ...(c.screenshot ? [await fetchImage(c.screenshot)] : []),
+    ...(await imageBlocks(c.attachments)),
+  ].filter((i): i is { data: string; mimeType: string } => i !== null);
+  return wrap(text, ...images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType })));
 }
 
 export async function updateStatus({ id, status }: { id: string; status: string }) {

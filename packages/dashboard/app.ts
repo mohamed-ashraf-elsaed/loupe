@@ -29,6 +29,12 @@ const ORDER: Status[] = ["open", "in_progress", "done"];
 
 let comments: Comment[] = [];
 let pageFilter = "";
+let search = "";
+let kindFilter = "";   // "" | element | region | free
+let deviceFilter = ""; // "" | desktop | tablet | mobile
+let sortOrder: "newest" | "oldest" = "newest";
+/** Ids of cards the user expanded — cards are collapsed to a summary by default. */
+const expanded = new Set<string>();
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const boardEl = $("#board");
@@ -81,12 +87,20 @@ function renderPageFilter() {
 
 function render() {
   $("#project").textContent = PROJECT;
-  const visible = comments.filter((c) => !pageFilter || c.url === pageFilter);
+  const q = search.trim().toLowerCase();
+  const visible = comments.filter((c) =>
+    (!pageFilter || c.url === pageFilter) &&
+    (!kindFilter || (c.kind ?? "element") === kindFilter) &&
+    (!deviceFilter || deviceKey(c) === deviceFilter) &&
+    (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q)),
+  );
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
     const items = visible
       .filter((c) => c.status === col.key)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => (sortOrder === "newest"
+        ? b.createdAt.localeCompare(a.createdAt)
+        : a.createdAt.localeCompare(b.createdAt)));
     const colEl = document.createElement("section");
     colEl.className = `col ${col.key}`;
     colEl.innerHTML =
@@ -106,9 +120,16 @@ function render() {
   }
 }
 
+/** The device class a comment was captured on ("" when the viewport is unknown). */
+function deviceKey(c: Comment): string {
+  const w = c.viewport?.w;
+  return !w ? "" : w < 768 ? "mobile" : w < 1024 ? "tablet" : "desktop";
+}
+
 function card(c: Comment): HTMLElement {
   const el = document.createElement("article");
-  el.className = "card";
+  const open = expanded.has(c.id);
+  el.className = "card" + (open ? "" : " collapsed");
   el.dataset.id = c.id;
 
   const target = c.kind === "free"
@@ -119,14 +140,22 @@ function card(c: Comment): HTMLElement {
 
   const body = document.createElement("div");
   body.className = "cbody";
+  // The title is the always-visible summary; everything else is in `.detail`.
   body.innerHTML =
     `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span>` +
     `<span class="who">${escapeHtml(c.author.name)}</span>` +
     (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") +
+    `<span class="caret">${open ? "▾" : "▸"}</span>` +
     `<span class="when">${fmtTime(c.createdAt)}</span></div>` +
+    `<p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p>`;
+
+  const detail = document.createElement("div");
+  detail.className = "detail";
+  detail.innerHTML =
     `<p class="ctext">${escapeHtml(c.body)}</p>` +
     `<span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span>` +
     `<span class="page">${escapeHtml(c.url)}</span>`;
+  body.appendChild(detail);
   el.appendChild(body);
 
   if (c.recording) {
@@ -136,17 +165,36 @@ function card(c: Comment): HTMLElement {
     v.controls = true;
     v.playsInline = true;
     if (c.screenshot) v.poster = c.screenshot;
-    el.appendChild(v);
+    detail.appendChild(v);
   } else if (c.screenshot) {
     const t = document.createElement("div");
     t.className = "thumb";
     t.title = "Open full screenshot";
     t.innerHTML = `<img src="${c.screenshot}" alt="screenshot of the commented element" />`;
     t.onclick = () => openImage(c.screenshot!);
-    el.appendChild(t);
+    detail.appendChild(t);
   }
 
-  if (c.proposal) el.appendChild(proposalView(c));
+  // Files the reporter attached (images render as thumbs, videos with a player).
+  for (const a of c.attachments ?? []) {
+    if (a.kind === "video") {
+      const v = document.createElement("video");
+      v.className = "rec";
+      v.src = a.url;
+      v.controls = true;
+      v.playsInline = true;
+      detail.appendChild(v);
+    } else {
+      const t = document.createElement("div");
+      t.className = "thumb";
+      t.title = a.name || "Open attachment";
+      t.innerHTML = `<img src="${escapeAttr(a.url)}" alt="${escapeAttr(a.name || "attachment")}" />`;
+      t.onclick = () => openImage(a.url);
+      detail.appendChild(t);
+    }
+  }
+
+  if (c.proposal) detail.appendChild(proposalView(c));
 
   const idx = ORDER.indexOf(c.status);
   const actions = document.createElement("div");
@@ -161,12 +209,6 @@ function card(c: Comment): HTMLElement {
   const grow = document.createElement("span");
   grow.className = "grow";
 
-  const copy = linkBtn("Copy for Claude", false, async (btn) => {
-    await copyForClaude(c);
-    btn.textContent = "Copied ✓";
-    setTimeout(() => (btn.textContent = "Copy for Claude"), 1500);
-  });
-
   const del = linkBtn("Delete", true, (btn) => {
     if (btn.dataset.armed) { remove(c); return; }
     btn.dataset.armed = "1";
@@ -174,8 +216,16 @@ function card(c: Comment): HTMLElement {
     setTimeout(() => { delete btn.dataset.armed; btn.textContent = "Delete"; }, 3000);
   });
 
-  actions.append(move, grow, copy, del);
+  actions.append(move, grow, del);
   el.appendChild(actions);
+
+  // Clicking the card (but not its controls/media) expands it.
+  el.onclick = (e) => {
+    if ((e.target as HTMLElement).closest("button, video, img, a, details, iframe")) return;
+    if (expanded.has(c.id)) expanded.delete(c.id);
+    else expanded.add(c.id);
+    render();
+  };
   return el;
 }
 
@@ -208,36 +258,6 @@ async function remove(c: Comment) {
   comments = comments.filter((x) => x.id !== c.id); // optimistic
   renderPageFilter(); render();
   await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "DELETE" });
-}
-
-async function copyForClaude(c: Comment) {
-  const lines = c.kind === "free"
-    ? [
-      `# Product feedback from ${c.author.name}`,
-      ``,
-      `**Note:** ${c.body}`,
-      `**Page:** ${c.url}`,
-      `**Type:** Free note — a page-level comment not tied to a specific element.`,
-    ]
-    : [
-      `# Product feedback from ${c.author.name}`,
-      ``,
-      `**Request:** ${c.body}`,
-      `**Page:** ${c.url}`,
-      `**Target element:** \`${c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath}\``,
-      ``,
-      `## Target element HTML`,
-      "```html",
-      c.context.html,
-      "```",
-      ``,
-      `## Computed styles`,
-      "```json",
-      JSON.stringify(c.context.styles, null, 2),
-      "```",
-    ];
-  const prompt = lines.join("\n");
-  try { await navigator.clipboard.writeText(prompt); } catch { console.log(prompt); }
 }
 
 /**
@@ -373,6 +393,11 @@ function setPage(page: string) {
 }
 
 // ---- helpers ----
+/** First line of the description — the card summary when there is no title. */
+function firstLine(s: string): string {
+  const i = s.indexOf("\n");
+  return (i >= 0 ? s.slice(0, i) : s).trim() || "(no description)";
+}
 function fmtTime(iso: string): string {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 1000;
@@ -398,6 +423,14 @@ $<HTMLSelectElement>("#pageFilter").addEventListener("change", (e) => {
   pageFilter = (e.target as HTMLSelectElement).value;
   render();
 });
+const searchEl = document.getElementById("search") as HTMLInputElement | null;
+if (searchEl) searchEl.addEventListener("input", () => { search = searchEl.value; render(); });
+const kindEl = document.getElementById("kindFilter") as HTMLSelectElement | null;
+if (kindEl) kindEl.addEventListener("change", () => { kindFilter = kindEl.value; render(); });
+const deviceEl = document.getElementById("deviceFilter") as HTMLSelectElement | null;
+if (deviceEl) deviceEl.addEventListener("change", () => { deviceFilter = deviceEl.value; render(); });
+const sortEl = document.getElementById("sortOrder") as HTMLSelectElement | null;
+if (sortEl) sortEl.addEventListener("change", () => { sortOrder = sortEl.value === "oldest" ? "oldest" : "newest"; render(); });
 $("#refresh").addEventListener("click", load);
 document.querySelectorAll<HTMLButtonElement>(".navitem").forEach((b) =>
   b.addEventListener("click", () => setPage(b.dataset.page || "comments")));

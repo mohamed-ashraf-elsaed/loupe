@@ -1,4 +1,5 @@
-import type { Comment, LoupeUser, StorageAdapter } from "./types.js";
+import type { Attachment, Comment, LoupeUser, StorageAdapter } from "./types.js";
+import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
  * Talks to the Loupe backend. Selected automatically when `apiBase` is set in
@@ -65,6 +66,18 @@ export class HttpAdapter implements StorageAdapter {
     }));
     if (!res.ok) throw new Error(`save failed: ${res.status}`);
     return (await res.json()) as Comment;
+  }
+
+  /** Persist one reporter-attached file to object storage and describe it. */
+  async upload(projectKey: string, file: File): Promise<Attachment> {
+    const data = await fileToDataUrl(file);
+    return {
+      url: await this.uploadBlob(projectKey, data),
+      name: file.name,
+      mime: file.type || undefined,
+      kind: attachmentKind(file.type),
+      size: file.size,
+    };
   }
 
   async update(id: string, patch: Partial<Comment>): Promise<void> {

@@ -6,14 +6,22 @@ const sr = () => document.getElementById("loupe-root")!.shadowRoot!;
 const fire = (el: Element, type: string, extra: Record<string, number> = {}) =>
   el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, ...extra }));
 
+/** Fill the composer's Title + Description (both are required to submit). */
+function fillComposer(title: string, body: string) {
+  const t = sr().querySelector<HTMLInputElement>(".composer input.title")!;
+  t.value = title;
+  t.dispatchEvent(new Event("input", { bubbles: true }));
+  const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
+  ta.value = body;
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 async function leaveComment(text: string) {
   sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
   const btn = document.querySelector('[data-testid="save"]')!;
   fire(btn, "mousemove", { clientX: 5, clientY: 5 });
   fire(btn, "click", { clientX: 5, clientY: 5 });
-  const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
-  ta.value = text;
-  ta.dispatchEvent(new Event("input", { bubbles: true }));
+  fillComposer(text, text);
   sr().querySelector<HTMLElement>(".composer .primary")!.click();
   await new Promise((r) => setTimeout(r, 10));
 }
@@ -94,8 +102,7 @@ describe("LoupeApp", () => {
 
     const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
     expect(ta).toBeTruthy();
-    ta.value = "this whole area is misaligned";
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    fillComposer("region misaligned", "this whole area is misaligned");
     sr().querySelector<HTMLElement>(".composer .primary")!.click();
     await new Promise((r) => setTimeout(r, 10));
 
@@ -118,8 +125,7 @@ describe("LoupeApp", () => {
     expect(ta).toBeTruthy();
     // Free notes never offer a screenshot checkbox.
     expect(sr().querySelector(".composer .chk")).toBeNull();
-    ta.value = "the whole page needs more spacing";
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    fillComposer("page spacing", "the whole page needs more spacing");
     sr().querySelector<HTMLElement>(".composer .primary")!.click();
     await new Promise((r) => setTimeout(r, 10));
 
@@ -220,6 +226,44 @@ describe("LoupeApp", () => {
     sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(sr().querySelector<HTMLElement>('[data-role="inspect"]')!.classList.contains("on")).toBe(false);
+  });
+
+  it("composer collects a title and offers multi-file attachments", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
+    fire(document.querySelector('[data-testid="save"]')!, "click", { clientX: 5, clientY: 5 });
+
+    expect(sr().querySelector(".composer input.title")).toBeTruthy();
+    expect(sr().querySelector(".composer .attach .pick")).toBeTruthy();
+    const file = sr().querySelector<HTMLInputElement>('.composer input[type="file"]')!;
+    expect(file.multiple).toBe(true);
+    expect(file.accept).toContain("video/");
+  });
+
+  it("search filters the list, and items start collapsed", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    await leaveComment("first issue");
+
+    expect(sr().querySelector(".item")!.classList.contains("collapsed")).toBe(true);
+    expect(sr().querySelector(".item .summary")!.textContent).toBe("first issue");
+
+    const search = sr().querySelector<HTMLInputElement>(".listhead .search")!;
+    search.value = "zzz-no-match";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(sr().querySelectorAll(".item").length).toBe(0);
+
+    search.value = "first";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(sr().querySelectorAll(".item").length).toBe(1);
+  });
+
+  it("expanding a collapsed item reveals its detail", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    await leaveComment("expandable");
+    expect(sr().querySelector(".item")!.classList.contains("collapsed")).toBe(true);
+
+    sr().querySelector<HTMLElement>(".item")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(sr().querySelector(".item")!.classList.contains("collapsed")).toBe(false);
   });
 
   it("does not initialize without projectKey or user id", () => {

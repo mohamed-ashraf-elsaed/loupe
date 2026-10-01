@@ -40,4 +40,38 @@ trait ResolvesComments
 
         return $anchor['cssPath'] ?? '—';
     }
+
+    /** The one-line summary: the title, or the first line of the description. */
+    protected function titleOf(Model $comment): string
+    {
+        $title = trim((string) ($comment->title ?? ''));
+        if ($title !== '') {
+            return $title;
+        }
+
+        $first = trim(strtok((string) $comment->body, "\n") ?: '');
+
+        return $first !== '' ? $first : '(no title)';
+    }
+
+    /**
+     * A `**Attachments:**` block for the text part, when the reporter attached files.
+     *
+     * @return list<string>
+     */
+    protected function attachmentLines(Model $comment): array
+    {
+        $attachments = $comment->attachments ?? [];
+        if (empty($attachments)) {
+            return [];
+        }
+
+        $lines = ['', '**Attachments:**'];
+        foreach ($attachments as $a) {
+            $kind = ($a['kind'] ?? 'image') === 'video' ? '🎬' : '🖼';
+            $lines[] = '- '.$kind.' '.($a['name'] ?? 'attachment').' — '.($a['url'] ?? '');
+        }
+
+        return $lines;
+    }
 }

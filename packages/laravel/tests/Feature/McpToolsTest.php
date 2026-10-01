@@ -170,6 +170,90 @@ class McpToolsTest extends TestCase
         $this->assertCount(1, $result);
     }
 
+    public function test_get_comment_embeds_image_attachments_and_lists_videos(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        Storage::disk('public')->put('loupe/screenshots/att1.png', 'PNGBYTES');
+
+        $this->seedComment('a', [
+            'title' => 'Chip styling',
+            'screenshot_url' => null,
+            'attachments' => [
+                ['url' => 'http://x/loupe/v1/blobs/att1.png', 'name' => 'one.png', 'mime' => 'image/png', 'kind' => 'image'],
+                ['url' => 'http://x/loupe/v1/blobs/att2.webm', 'name' => 'two.webm', 'mime' => 'video/webm', 'kind' => 'video'],
+                ['url' => 'http://x/loupe/v1/blobs/missing.png', 'name' => 'gone.png', 'mime' => 'image/png', 'kind' => 'image'],
+                // An "image" whose extension isn't one, and one with no url at all — neither embeds.
+                ['url' => 'http://x/loupe/v1/blobs/odd.webm', 'name' => 'odd.webm', 'mime' => 'image/png', 'kind' => 'image'],
+                ['url' => '', 'name' => 'empty', 'mime' => 'image/png', 'kind' => 'image'],
+            ],
+        ]);
+
+        $result = (new GetComment)->handle(new Request(['id' => 'a']));
+        $this->assertIsArray($result);
+        $text = (string) $result[0]->content();
+
+        $this->assertStringContainsString('**Title:** Chip styling', $text);
+        $this->assertStringContainsString('one.png', $text);
+        $this->assertStringContainsString('two.webm — http://x/loupe/v1/blobs/att2.webm', $text);
+
+        // Only the stored image becomes an image block (the video and the missing file do not).
+        $this->assertCount(2, $result);
+    }
+
+    public function test_get_comment_falls_back_to_the_body_first_line_for_the_title(): void
+    {
+        $this->seedComment('a', ['title' => null, 'body' => "First line here\nsecond line"]);
+
+        $text = (string) (new GetComment)->handle(new Request(['id' => 'a']))[0]->content();
+
+        $this->assertStringContainsString('**Title:** First line here', $text);
+    }
+
+    public function test_get_comment_with_an_empty_body_reports_no_title(): void
+    {
+        $this->seedComment('a', ['title' => null, 'body' => '']);
+
+        $text = (string) (new GetComment)->handle(new Request(['id' => 'a']))[0]->content();
+
+        $this->assertStringContainsString('**Title:** (no title)', $text);
+    }
+
+    public function test_a_free_note_with_an_image_attachment_returns_text_and_image(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        Storage::disk('public')->put('loupe/screenshots/free1.jpg', 'JPG');
+
+        $this->seedComment('f', [
+            'kind' => 'free',
+            'anchor' => [],
+            'context' => ['html' => '', 'styles' => []],
+            'attachments' => [
+                ['url' => 'http://x/loupe/v1/blobs/free1.jpg', 'name' => 'free.jpg', 'mime' => 'image/jpeg', 'kind' => 'image'],
+            ],
+        ]);
+
+        $result = (new GetComment)->handle(new Request(['id' => 'f']));
+
+        $this->assertIsArray($result);
+        $this->assertCount(2, $result);
+        $this->assertStringContainsString('free.jpg', (string) $result[0]->content());
+    }
+
+    public function test_list_comments_reports_the_title_and_attachment_count(): void
+    {
+        $this->seedComment('a', [
+            'title' => 'Named issue',
+            'attachments' => [['url' => 'http://x/a.png', 'kind' => 'image']],
+        ]);
+
+        $out = json_decode((string) (new ListComments)->handle(new Request)->content(), true);
+
+        $this->assertSame('Named issue', $out['comments'][0]['title']);
+        $this->assertSame(1, $out['comments'][0]['attachments']);
+    }
+
     public function test_get_comment_does_not_embed_a_non_png_screenshot(): void
     {
         $this->seedComment('a', ['screenshot_url' => 'http://x/thing.webm']);

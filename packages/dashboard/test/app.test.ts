@@ -3,14 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const now = new Date().toISOString();
 const COMMENTS = [
-  { id: "1", projectKey: "pk", url: "/p", status: "open", body: "open one", author: { id: "u", name: "Sara Kim" }, anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: {} }, createdAt: now },
-  { id: "2", projectKey: "pk", url: "/p", status: "done", body: "done one", author: { id: "u", name: "Dev Team" }, anchor: { cssPath: ".y", testid: null }, context: { html: "", styles: {} }, screenshot: "http://blob/x", createdAt: now },
+  { id: "1", projectKey: "pk", url: "/p", status: "open", title: "Revenue card", body: "open one", author: { id: "u", name: "Sara Kim" }, anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: {} }, createdAt: now },
+  { id: "2", projectKey: "pk", url: "/p", status: "done", title: "Sidebar spacing", body: "done one", author: { id: "u", name: "Dev Team" }, anchor: { cssPath: ".y", testid: null }, context: { html: "", styles: {} }, screenshot: "http://blob/x", createdAt: now },
 ];
 
 function shell() {
   document.body.innerHTML = `
     <span id="project"></span>
+    <input id="search" />
     <select id="pageFilter"></select>
+    <select id="kindFilter"></select>
+    <select id="deviceFilter"></select>
+    <select id="sortOrder"></select>
     <button id="refresh"></button>
     <div id="board"></div>
     <div id="status"></div>`;
@@ -22,7 +26,7 @@ beforeEach(() => {
   shell();
   fetchMock = vi.fn(async (url: string) =>
     String(url).includes("/v1/comments?")
-      ? { ok: true, status: 200, json: async () => COMMENTS }
+      ? { ok: true, status: 200, json: async () => structuredClone(COMMENTS) }
       : { ok: true, status: 200, json: async () => ({}) },
   );
   vi.stubGlobal("fetch", fetchMock);
@@ -47,6 +51,25 @@ describe("dashboard", () => {
     fwd.click();
     await new Promise((r) => setTimeout(r, 20));
     expect(fetchMock.mock.calls.some((c: any[]) => c[1]?.method === "PATCH")).toBe(true);
+  });
+
+  it("shows the title as a summary and collapses the card by default", async () => {
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+    const card = document.querySelector<HTMLElement>(".col.open .card")!;
+    expect(card.classList.contains("collapsed")).toBe(true);
+    expect(card.querySelector(".ctitle")!.textContent).toBe("Revenue card");
+  });
+
+  it("search narrows the board to matching cards", async () => {
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.querySelectorAll(".card").length).toBe(2);
+
+    const search = document.querySelector<HTMLInputElement>("#search")!;
+    search.value = "sidebar";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(document.querySelectorAll(".card").length).toBe(1);
   });
 
   it("shows an authorization error on 401", async () => {

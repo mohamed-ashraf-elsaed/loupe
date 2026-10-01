@@ -78,4 +78,8 @@ export async function migrate(): Promise<void> {
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS recording_url TEXT;`);
   // Claude's proposed UI change, written back via MCP (see shared Proposal type).
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS proposal JSONB;`);
+  // One-line summary of the issue (falls back to the first line of `body`).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS title TEXT;`);
+  // Files the reporter attached — a JSONB array of the shared `Attachment` type.
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS attachments JSONB;`);
 }

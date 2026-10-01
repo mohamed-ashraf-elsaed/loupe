@@ -1,4 +1,5 @@
-import type { Comment, StorageAdapter } from "./types.js";
+import type { Attachment, Comment, StorageAdapter } from "./types.js";
+import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
  * Prototype storage: everything lives in localStorage, keyed by project + path.
@@ -32,6 +33,21 @@ export class LocalStorageAdapter implements StorageAdapter {
     all.push(comment);
     this.writeAll(comment.projectKey, comment.url, all);
     return comment;
+  }
+
+  /**
+   * Offline mode: keep the file inline. localStorage is only a few MB, so refuse
+   * anything that would blow the quota rather than silently dropping it.
+   */
+  async upload(_projectKey: string, file: File): Promise<Attachment> {
+    if (file.size > 3_000_000) throw new Error("attachment too large for offline mode");
+    return {
+      url: await fileToDataUrl(file),
+      name: file.name,
+      mime: file.type || undefined,
+      kind: attachmentKind(file.type),
+      size: file.size,
+    };
   }
 
   async update(id: string, patch: Partial<Comment>): Promise<void> {

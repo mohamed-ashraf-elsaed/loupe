@@ -35,6 +35,7 @@ function rowToComment(r: any): Comment {
     url: r.url,
     status: r.status,
     body: r.body,
+    title: r.title ?? undefined,
     kind: r.kind ?? "element",
     author: r.author,
     anchor: r.anchor,
@@ -44,6 +45,7 @@ function rowToComment(r: any): Comment {
     viewport: r.viewport ?? undefined,
     screenshot: r.screenshot_url ?? undefined,
     recording: r.recording_url ?? undefined,
+    attachments: r.attachments ?? undefined,
     proposal: r.proposal ?? undefined,
     createdAt: new Date(r.created_at).toISOString(),
   };
@@ -73,21 +75,23 @@ export async function upsertComment(c: Comment): Promise<Comment> {
   const d = await db();
   const url = normalizeUrl(c.url);
   const { rows } = await d.query(
-    `INSERT INTO comments (id, project_key, url, status, body, kind, author, anchor, context, "offset", region, viewport, screenshot_url, recording_url, proposal, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, COALESCE($16::timestamptz, now()))
+    `INSERT INTO comments (id, project_key, url, status, body, title, kind, author, anchor, context, "offset", region, viewport, screenshot_url, recording_url, attachments, proposal, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, COALESCE($18::timestamptz, now()))
      ON CONFLICT (id) DO UPDATE SET
-       url = EXCLUDED.url, status = EXCLUDED.status, body = EXCLUDED.body, kind = EXCLUDED.kind,
+       url = EXCLUDED.url, status = EXCLUDED.status, body = EXCLUDED.body, title = EXCLUDED.title,
+       kind = EXCLUDED.kind,
        author = EXCLUDED.author, anchor = EXCLUDED.anchor, context = EXCLUDED.context,
        "offset" = EXCLUDED."offset", region = EXCLUDED.region, viewport = EXCLUDED.viewport,
        screenshot_url = EXCLUDED.screenshot_url, recording_url = EXCLUDED.recording_url,
-       proposal = EXCLUDED.proposal
+       attachments = EXCLUDED.attachments, proposal = EXCLUDED.proposal
      RETURNING *`,
     [
-      c.id, c.projectKey, url, c.status ?? "open", c.body, c.kind ?? "element",
+      c.id, c.projectKey, url, c.status ?? "open", c.body, c.title ?? null, c.kind ?? "element",
       JSON.stringify(c.author), JSON.stringify(c.anchor), JSON.stringify(c.context),
       JSON.stringify(c.offset), c.region ? JSON.stringify(c.region) : null,
       c.viewport ? JSON.stringify(c.viewport) : null,
       c.screenshot ?? null, c.recording ?? null,
+      c.attachments ? JSON.stringify(c.attachments) : null,
       c.proposal ? JSON.stringify(c.proposal) : null, c.createdAt ?? null,
     ],
   );
@@ -101,6 +105,7 @@ export async function patchComment(id: string, patch: Partial<Comment>): Promise
   let i = 1;
   if (patch.status !== undefined) { sets.push(`status = $${i++}`); vals.push(patch.status); }
   if (patch.body !== undefined) { sets.push(`body = $${i++}`); vals.push(patch.body); }
+  if (patch.title !== undefined) { sets.push(`title = $${i++}`); vals.push(patch.title); }
   // Claude writes its modified UI back here (via MCP propose_change / the API).
   if (patch.proposal !== undefined) { sets.push(`proposal = $${i++}`); vals.push(JSON.stringify(patch.proposal)); }
   if (!sets.length) return getComment(id);

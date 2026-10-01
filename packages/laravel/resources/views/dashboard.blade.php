@@ -100,6 +100,19 @@
     .linkbtn:hover { background: var(--surface-2); }
     .linkbtn.danger { color: var(--pin); }
 
+    /* ---- search + filters ---- */
+    .top .search {
+      font-family: var(--sans); font-size: 13px; color: var(--ink); background: var(--surface);
+      border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 10px; min-width: 220px; outline: none;
+    }
+    .top .search:focus { border-color: var(--accent); }
+
+    /* ---- collapsible cards: a title summary + a hidden detail ---- */
+    .card { cursor: pointer; }
+    .ctitle { font-size: 14px; font-weight: 700; line-height: 1.4; margin: 0 0 6px; }
+    .caret { color: var(--ink-3); font-size: 11px; margin-left: 4px; }
+    .card.collapsed .detail { display: none; }
+
     .loading, .error { padding: 40px; text-align: center; color: var(--ink-3); }
     .error { color: var(--pin); }
 
@@ -202,9 +215,32 @@
       <section class="page" id="page-comments">
         <header class="top">
           <span class="project" id="project">—</span>
+          <input id="search" class="search" type="search" placeholder="Search title, text, author…" />
           <span class="spacer"></span>
           <label class="control">Page
             <select id="pageFilter"><option value="">All pages</option></select>
+          </label>
+          <label class="control">Kind
+            <select id="kindFilter">
+              <option value="">All</option>
+              <option value="element">Element</option>
+              <option value="region">Region</option>
+              <option value="free">Note</option>
+            </select>
+          </label>
+          <label class="control">Device
+            <select id="deviceFilter">
+              <option value="">All</option>
+              <option value="desktop">Desktop</option>
+              <option value="tablet">Tablet</option>
+              <option value="mobile">Mobile</option>
+            </select>
+          </label>
+          <label class="control">Sort
+            <select id="sortOrder">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
           </label>
           <span class="live"><span class="dot"></span><span id="liveText">live</span></span>
           <button class="btn" id="refresh">Refresh</button>

@@ -37,28 +37,38 @@ class GetComment extends Tool
 
         // Free notes aren't tied to an element — return a compact, element-free package.
         if (($comment->kind ?? 'element') === 'free') {
-            return Response::text(implode("\n", [
+            $lines = array_merge([
                 '# Product feedback from '.data_get($comment->author, 'name', 'a user'),
                 '',
+                '**Title:** '.$this->titleOf($comment),
                 '**Note:** '.$comment->body,
                 '**Status:** '.$comment->status,
                 '**Page:** '.$comment->url,
-                '**Type:** Free note — a page-level comment, not tied to a specific element (no screenshot).',
-            ]));
+                '**Type:** Free note — a page-level comment, not tied to a specific element.',
+            ], $this->attachmentLines($comment));
+
+            $responses = [Response::text(implode("\n", $lines))];
+            foreach ($this->imageAttachments($comment) as $image) {
+                $responses[] = $image;
+            }
+
+            return count($responses) === 1 ? $responses[0] : $responses;
         }
 
         $context = $comment->context ?? [];
         $styles = $context['styles'] ?? [];
 
-        $lines = [
+        $lines = array_merge([
             '# Product feedback from '.data_get($comment->author, 'name', 'a user'),
             '',
+            '**Title:** '.$this->titleOf($comment),
             '**Request:** '.$comment->body,
             '**Status:** '.$comment->status,
             '**Page:** '.$comment->url,
             '**Target:** `'.$this->targetOf($comment).'`',
             $comment->screenshot_url ? '**Screenshot:** '.$comment->screenshot_url : '',
             $comment->recording_url ? '**Screen recording (webm):** '.$comment->recording_url : '',
+        ], $this->attachmentLines($comment), [
             '',
             '## Target element HTML',
             '```html',
@@ -69,7 +79,7 @@ class GetComment extends Tool
             '```json',
             json_encode($styles, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
             '```',
-        ];
+        ]);
 
         // Surface an existing proposal so Claude can iterate rather than start over.
         if (! empty($comment->proposal)) {
@@ -93,12 +103,65 @@ class GetComment extends Tool
 
         $responses = [Response::text(implode("\n", $lines))];
 
-        // Attach the real screenshot pixels (an image block) when we can read them back.
+        // Attach the real pixels: the auto screenshot and every image the reporter attached.
         if ($image = $this->screenshotImage($comment)) {
+            $responses[] = $image;
+        }
+        foreach ($this->imageAttachments($comment) as $image) {
             $responses[] = $image;
         }
 
         return $responses;
+    }
+
+    /**
+     * Read the reporter's IMAGE attachments back as image responses (videos stay URL text).
+     *
+     * @return list<Response>
+     */
+    protected function imageAttachments(Model $comment): array
+    {
+        $out = [];
+        foreach ($comment->attachments ?? [] as $a) {
+            if (($a['kind'] ?? 'image') !== 'image') {
+                continue;
+            }
+            $image = $this->attachmentImage((string) ($a['url'] ?? ''));
+            if ($image !== null) {
+                $out[] = $image;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Read a locally-stored image attachment back as an image response. */
+    protected function attachmentImage(string $url): ?Response
+    {
+        if ($url === '') {
+            return null;
+        }
+
+        $name = preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) basename((string) parse_url($url, PHP_URL_PATH)));
+        $mime = [
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+        ][strtolower((string) pathinfo((string) $name, PATHINFO_EXTENSION))] ?? null;
+
+        if ($mime === null) {
+            return null; // videos/other files are not image blocks
+        }
+
+        $disk = (string) config('loupe.disk', 'public');
+        $path = trim((string) config('loupe.blob_path', 'loupe/screenshots'), '/').'/'.$name;
+        if (! Storage::disk($disk)->exists($path)) {
+            return null;
+        }
+
+        return Response::image(Storage::disk($disk)->get($path), $mime);
     }
 
     /**

@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $url
  * @property string $status
  * @property string $body
+ * @property string|null $title
  * @property string $kind
  * @property array $author
  * @property string|null $author_id
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property array|null $region
  * @property string|null $screenshot_url
  * @property string|null $recording_url
+ * @property array|null $attachments
  * @property array|null $proposal
  */
 class Comment extends Model
@@ -41,6 +43,7 @@ class Comment extends Model
         'offset' => 'array',
         'region' => 'array',
         'viewport' => 'array',
+        'attachments' => 'array',
         'proposal' => 'array',
     ];
 
@@ -61,6 +64,7 @@ class Comment extends Model
             'projectKey' => $this->project_key,
             'url' => $this->url,
             'author' => $this->author,
+            'title' => $this->title,
             'body' => $this->body,
             'status' => $this->status,
             'kind' => $this->kind ?: 'element',
@@ -70,6 +74,11 @@ class Comment extends Model
             'screenshot' => $this->screenshot_url,
             'createdAt' => optional($this->created_at)->toISOString(),
         ];
+
+        // Files the reporter attached by hand (images and/or videos).
+        if (! empty($this->attachments)) {
+            $out['attachments'] = $this->attachments;
+        }
 
         // Present only for region comments (keeps element comments identical to before).
         if (! empty($this->region)) {

@@ -14,6 +14,11 @@ var COLUMNS = [
 var ORDER = ["open", "in_progress", "done"];
 var comments = [];
 var pageFilter = "";
+var search = "";
+var kindFilter = "";
+var deviceFilter = "";
+var sortOrder = "newest";
+var expanded = /* @__PURE__ */ new Set();
 var $ = (sel) => document.querySelector(sel);
 var boardEl = $("#board");
 var statusEl = $("#status");
@@ -55,10 +60,13 @@ function renderPageFilter() {
 }
 function render() {
   $("#project").textContent = PROJECT;
-  const visible = comments.filter((c) => !pageFilter || c.url === pageFilter);
+  const q = search.trim().toLowerCase();
+  const visible = comments.filter(
+    (c) => (!pageFilter || c.url === pageFilter) && (!kindFilter || (c.kind ?? "element") === kindFilter) && (!deviceFilter || deviceKey(c) === deviceFilter) && (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
+  );
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
-    const items = visible.filter((c) => c.status === col.key).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const items = visible.filter((c) => c.status === col.key).sort((a, b) => sortOrder === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt));
     const colEl = document.createElement("section");
     colEl.className = `col ${col.key}`;
     colEl.innerHTML = `<div class="col-head"><span class="swatch"></span><h2>${col.label}</h2><span class="n">${items.length}</span></div>`;
@@ -76,16 +84,25 @@ function render() {
     boardEl.appendChild(colEl);
   }
 }
+function deviceKey(c) {
+  const w = c.viewport?.w;
+  return !w ? "" : w < 768 ? "mobile" : w < 1024 ? "tablet" : "desktop";
+}
 function card(c) {
   const el = document.createElement("article");
-  el.className = "card";
+  const open = expanded.has(c.id);
+  el.className = "card" + (open ? "" : " collapsed");
   el.dataset.id = c.id;
   const target = c.kind === "free" ? "Free note \xB7 page-level" : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "\u2014";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const device = deviceBadge(c);
   const body = document.createElement("div");
   body.className = "cbody";
-  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
+  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="caret">${open ? "\u25BE" : "\u25B8"}</span><span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p>`;
+  const detail = document.createElement("div");
+  detail.className = "detail";
+  detail.innerHTML = `<p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
+  body.appendChild(detail);
   el.appendChild(body);
   if (c.recording) {
     const v = document.createElement("video");
@@ -94,16 +111,33 @@ function card(c) {
     v.controls = true;
     v.playsInline = true;
     if (c.screenshot) v.poster = c.screenshot;
-    el.appendChild(v);
+    detail.appendChild(v);
   } else if (c.screenshot) {
     const t = document.createElement("div");
     t.className = "thumb";
     t.title = "Open full screenshot";
     t.innerHTML = `<img src="${c.screenshot}" alt="screenshot of the commented element" />`;
     t.onclick = () => openImage(c.screenshot);
-    el.appendChild(t);
+    detail.appendChild(t);
   }
-  if (c.proposal) el.appendChild(proposalView(c));
+  for (const a of c.attachments ?? []) {
+    if (a.kind === "video") {
+      const v = document.createElement("video");
+      v.className = "rec";
+      v.src = a.url;
+      v.controls = true;
+      v.playsInline = true;
+      detail.appendChild(v);
+    } else {
+      const t = document.createElement("div");
+      t.className = "thumb";
+      t.title = a.name || "Open attachment";
+      t.innerHTML = `<img src="${escapeAttr(a.url)}" alt="${escapeAttr(a.name || "attachment")}" />`;
+      t.onclick = () => openImage(a.url);
+      detail.appendChild(t);
+    }
+  }
+  if (c.proposal) detail.appendChild(proposalView(c));
   const idx = ORDER.indexOf(c.status);
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -114,11 +148,6 @@ function card(c) {
   move.append(left, right);
   const grow = document.createElement("span");
   grow.className = "grow";
-  const copy = linkBtn("Copy for Claude", false, async (btn) => {
-    await copyForClaude(c);
-    btn.textContent = "Copied \u2713";
-    setTimeout(() => btn.textContent = "Copy for Claude", 1500);
-  });
   const del = linkBtn("Delete", true, (btn) => {
     if (btn.dataset.armed) {
       remove(c);
@@ -131,8 +160,14 @@ function card(c) {
       btn.textContent = "Delete";
     }, 3e3);
   });
-  actions.append(move, grow, copy, del);
+  actions.append(move, grow, del);
   el.appendChild(actions);
+  el.onclick = (e) => {
+    if (e.target.closest("button, video, img, a, details, iframe")) return;
+    if (expanded.has(c.id)) expanded.delete(c.id);
+    else expanded.add(c.id);
+    render();
+  };
   return el;
 }
 function iconBtn(label, title, disabled, onClick) {
@@ -166,37 +201,6 @@ async function remove(c) {
   renderPageFilter();
   render();
   await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "DELETE" });
-}
-async function copyForClaude(c) {
-  const lines = c.kind === "free" ? [
-    `# Product feedback from ${c.author.name}`,
-    ``,
-    `**Note:** ${c.body}`,
-    `**Page:** ${c.url}`,
-    `**Type:** Free note \u2014 a page-level comment not tied to a specific element.`
-  ] : [
-    `# Product feedback from ${c.author.name}`,
-    ``,
-    `**Request:** ${c.body}`,
-    `**Page:** ${c.url}`,
-    `**Target element:** \`${c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath}\``,
-    ``,
-    `## Target element HTML`,
-    "```html",
-    c.context.html,
-    "```",
-    ``,
-    `## Computed styles`,
-    "```json",
-    JSON.stringify(c.context.styles, null, 2),
-    "```"
-  ];
-  const prompt = lines.join("\n");
-  try {
-    await navigator.clipboard.writeText(prompt);
-  } catch {
-    console.log(prompt);
-  }
 }
 function proposalView(c) {
   const p = c.proposal;
@@ -312,6 +316,10 @@ function setPage(page) {
   if (connect) connect.hidden = page !== "connect";
   if (page === "connect") renderConnect();
 }
+function firstLine(s) {
+  const i = s.indexOf("\n");
+  return (i >= 0 ? s.slice(0, i) : s).trim() || "(no description)";
+}
 function fmtTime(iso) {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 1e3;
@@ -335,6 +343,26 @@ function deviceBadge(c) {
 }
 $("#pageFilter").addEventListener("change", (e) => {
   pageFilter = e.target.value;
+  render();
+});
+var searchEl = document.getElementById("search");
+if (searchEl) searchEl.addEventListener("input", () => {
+  search = searchEl.value;
+  render();
+});
+var kindEl = document.getElementById("kindFilter");
+if (kindEl) kindEl.addEventListener("change", () => {
+  kindFilter = kindEl.value;
+  render();
+});
+var deviceEl = document.getElementById("deviceFilter");
+if (deviceEl) deviceEl.addEventListener("change", () => {
+  deviceFilter = deviceEl.value;
+  render();
+});
+var sortEl = document.getElementById("sortOrder");
+if (sortEl) sortEl.addEventListener("change", () => {
+  sortOrder = sortEl.value === "oldest" ? "oldest" : "newest";
   render();
 });
 $("#refresh").addEventListener("click", load);

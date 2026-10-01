@@ -155,6 +155,16 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+/** Read a file the reporter picked into a data URL (for upload, or offline storage). */
+export function fileToDataUrl(file: File): Promise<string> {
+  return blobToDataUrl(file);
+}
+
+/** Classify an attachment by MIME type — videos play inline, images render as thumbs. */
+export function attachmentKind(mime: string | undefined): "image" | "video" {
+  return (mime ?? "").startsWith("video/") ? "video" : "image";
+}
+
 /**
  * Record a screen video cropped to `rect` (viewport coords), mirroring the region
  * screenshot flow. Uses getDisplayMedia (real pixels) — the browser shows a share

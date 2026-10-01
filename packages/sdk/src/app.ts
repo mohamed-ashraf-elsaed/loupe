@@ -1,9 +1,9 @@
 import { STYLES } from "./styles.js";
 import { captureAnchor, resolveAnchor } from "./fingerprint.js";
-import { captureElementContext, captureScreenshot, captureRegionScreenshot, captureRegionRecording } from "./capture.js";
+import { attachmentKind, captureElementContext, captureScreenshot, captureRegionScreenshot, captureRegionRecording } from "./capture.js";
 import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
-import type { Anchor, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
+import type { Anchor, Attachment, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
 
 type Mode = "off" | "inspect" | "region" | "free" | "record";
 /** Where the control panel is anchored. */
@@ -19,6 +19,10 @@ type ComposeTarget =
 const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
 /** How long a single screen recording may run before it auto-stops. */
 const RECORD_MAX_MS = 20000;
+/** Attachment limits for the composer — small enough to survive a base64 POST. */
+const MAX_FILES = 10;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 
 const uid = () =>
   (crypto as any).randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
@@ -49,6 +53,10 @@ export class LoupeApp {
   private stopRecording?: () => void;
 
   private comments: Comment[] = [];
+  /** Free-text filter over the list (title / body / author). */
+  private search = "";
+  /** Ids of list items the user expanded — items are collapsed by default. */
+  private expanded = new Set<string>();
   /** comment.id → currently resolved element (or null when detached). */
   private resolved = new Map<string, Element | null>();
   /** comment.id → pin element. */
@@ -240,6 +248,12 @@ export class LoupeApp {
     listHead.append(document.createTextNode("Comments"));
     this.countEl = el("span", "count", "0");
     listHead.appendChild(this.countEl);
+    const search = el("input", "search") as HTMLInputElement;
+    search.type = "search";
+    search.placeholder = "Search…";
+    search.value = this.search;
+    search.oninput = () => { this.search = search.value; this.renderList(); };
+    listHead.appendChild(search);
     this.listEl = el("div", "list");
 
     // Comments view = tools + list + the "integrates with" footer.
@@ -593,11 +607,51 @@ export class LoupeApp {
               ? `⏺ Recording · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`
               : `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`)
           : "Free note · anywhere on the page");
+    const title = el("input", "title") as HTMLInputElement;
+    title.type = "text";
+    title.placeholder = "Title — one line: what's wrong, or what you need";
+
     const ta = el("textarea") as HTMLTextAreaElement;
-    ta.placeholder = isRecording ? "What's the issue in this recording?"
-      : target.kind === "region" ? "What's the issue in this area?"
-        : target.kind === "free" ? "Leave a note about this page…"
-          : "What should change here?";
+    ta.placeholder = isRecording ? "Describe the issue in this recording…"
+      : target.kind === "region" ? "Describe the issue in this area…"
+        : target.kind === "free" ? "Describe this note…"
+          : "Describe what should change here…";
+
+    // Attachments: images and/or videos, several of each.
+    const files: File[] = [];
+    const attach = el("div", "attach");
+    const pick = el("button", "pick", "＋ Attach images / videos") as HTMLButtonElement;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,video/*";
+    input.multiple = true;
+    input.style.display = "none";
+    const chips = el("div", "chips");
+    const err = el("div", "err");
+    const drawChips = () => {
+      chips.innerHTML = "";
+      files.forEach((f, idx) => {
+        const chip = el("span", "chip", `${attachmentKind(f.type) === "video" ? "🎬" : "🖼"} ${f.name}`);
+        const x = el("button", "x", "×") as HTMLButtonElement;
+        x.onclick = () => { files.splice(idx, 1); drawChips(); };
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    };
+    input.onchange = () => {
+      err.textContent = "";
+      for (const f of Array.from(input.files ?? [])) {
+        if (files.length >= MAX_FILES) { err.textContent = `Up to ${MAX_FILES} files.`; break; }
+        const cap = attachmentKind(f.type) === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+        if (f.size > cap) { err.textContent = `${f.name} is too large.`; continue; }
+        files.push(f);
+      }
+      input.value = "";
+      drawChips();
+    };
+    pick.onclick = () => input.click();
+    attach.append(pick, input, chips, err);
+
     const row = el("div", "row");
     // Free notes carry nothing; recordings always attach the video — both skip the checkbox.
     let box: HTMLInputElement | null = null;
@@ -617,14 +671,17 @@ export class LoupeApp {
     cancel.onclick = () => this.closeComposer();
     const save = el("button", "primary", "Comment") as HTMLButtonElement;
     save.disabled = true;
-    ta.oninput = () => { save.disabled = !ta.value.trim(); };
-    save.onclick = () => this.submit(target, ta.value.trim(), box ? box.checked : false);
+    const sync = () => { save.disabled = !title.value.trim() || !ta.value.trim(); };
+    title.oninput = sync;
+    ta.oninput = sync;
+    sync();
+    save.onclick = () => this.submit(target, title.value.trim(), ta.value.trim(), box ? box.checked : false, files.slice());
     btns.append(cancel, save);
     row.append(btns);
-    c.append(label, ta, row);
+    c.append(label, title, ta, attach, row);
 
     // Position near the click, clamped to the viewport.
-    const w = 300, h = 190;
+    const w = 320, h = 340;
     const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
     const top = Math.min(Math.max(8, y + 12), window.innerHeight - h - 8);
     Object.assign(c.style, { display: "block", left: left + "px", top: top + "px" });
@@ -637,8 +694,8 @@ export class LoupeApp {
     this.pendingShot = undefined;
   }
 
-  private async submit(target: ComposeTarget, body: string, withShot: boolean) {
-    if (!body) return;
+  private async submit(target: ComposeTarget, title: string, body: string, withShot: boolean, files: File[]) {
+    if (!title || !body) return;
     const saveBtn = this.composer.querySelector(".primary") as HTMLButtonElement;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
 
@@ -686,6 +743,7 @@ export class LoupeApp {
       projectKey: this.cfg.projectKey,
       url: this.url,
       author: this.cfg.user,
+      title,
       body,
       status: "open",
       kind: target.kind,
@@ -695,6 +753,7 @@ export class LoupeApp {
       region,
       screenshot,
       recording,
+      attachments: await this.uploadAttachments(files),
       // Record the screen the feedback was captured on (desktop / tablet / mobile).
       viewport: { w: window.innerWidth, h: window.innerHeight },
       createdAt: new Date().toISOString(),
@@ -706,6 +765,20 @@ export class LoupeApp {
     this.renderPins();
     this.renderList();
     this.flash(comment.id);
+  }
+
+  /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
+  private async uploadAttachments(files: File[]): Promise<Attachment[] | undefined> {
+    if (!files.length) return undefined;
+    const out: Attachment[] = [];
+    for (const f of files) {
+      try {
+        out.push(await this.store.upload(this.cfg.projectKey, f));
+      } catch (e) {
+        console.warn("[loupe] attachment upload failed", f.name, e);
+      }
+    }
+    return out.length ? out : undefined;
   }
 
   // ---- pins + re-anchoring --------------------------------------------------
@@ -1011,17 +1084,23 @@ export class LoupeApp {
 
   private renderList() {
     this.listEl.innerHTML = "";
-    if (!this.comments.length) {
+    const q = this.search.trim().toLowerCase();
+    const items = q
+      ? this.comments.filter((c) => `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
+      : this.comments;
+    if (!items.length) {
       this.listEl.appendChild(el("div", "empty",
-        "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."));
+        q ? "No comments match your search."
+          : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."));
     }
-    this.comments.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
+    items.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
     this.updateCount();
   }
 
   private itemView(c: Comment, i: number): HTMLElement {
     const detached = this.pins.get(c.id)?.classList.contains("detached") && c.status !== "done";
-    const item = el("div", "item");
+    const open = this.expanded.has(c.id);
+    const item = el("div", "item" + (open ? "" : " collapsed"));
     const top = el("div", "top");
     const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
     // No author identity is shown in the widget list (privacy — see the dashboard for triage).
@@ -1035,10 +1114,18 @@ export class LoupeApp {
     }
     if (c.status === "done") top.appendChild(el("span", "badge done", "done"));
     else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
+    top.appendChild(el("span", "caret", open ? "▾" : "▸"));
     item.appendChild(top);
 
-    item.appendChild(el("div", "body", c.body));
-    item.appendChild(el("div", "meta", describeAnchor(c)));
+    // Collapsed, the item is a single summary line; expanding reveals the detail.
+    const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
+    item.appendChild(el("div", "summary", summary));
+
+    const detail = el("div", "detail");
+    // With a title, the body is the full description; without one the first line is
+    // already the summary, so only multi-line bodies repeat it here.
+    if (c.title || c.body.includes("\n")) detail.appendChild(el("div", "body", c.body));
+    detail.appendChild(el("div", "meta", describeAnchor(c)));
 
     if (c.recording) {
       const v = el("video", "shot") as HTMLVideoElement;
@@ -1046,11 +1133,27 @@ export class LoupeApp {
       v.controls = true;
       v.playsInline = true;
       if (c.screenshot) v.poster = c.screenshot;
-      item.appendChild(v);
+      detail.appendChild(v);
     } else if (c.screenshot) {
       const img = el("img", "shot") as HTMLImageElement;
       img.src = c.screenshot;
-      item.appendChild(img);
+      detail.appendChild(img);
+    }
+
+    // Files the reporter attached (images and videos).
+    for (const a of c.attachments ?? []) {
+      if (a.kind === "video") {
+        const v = el("video", "shot") as HTMLVideoElement;
+        v.src = a.url;
+        v.controls = true;
+        v.playsInline = true;
+        detail.appendChild(v);
+      } else {
+        const img = el("img", "shot") as HTMLImageElement;
+        img.src = a.url;
+        img.alt = a.name ?? "attachment";
+        detail.appendChild(img);
+      }
     }
 
     const actions = el("div", "actions");
@@ -1061,8 +1164,6 @@ export class LoupeApp {
       c.status = status; await this.store.update(c.id, { status });
       this.renderPins(); this.renderList();
     };
-    const claudeBtn = el("button", "", "Copy for Claude") as HTMLButtonElement;
-    claudeBtn.onclick = async (e) => { e.stopPropagation(); await this.copyForClaude(c); claudeBtn.textContent = "Copied ✓"; };
     const del = el("button", "", "Delete") as HTMLButtonElement;
     del.onclick = async (e) => {
       e.stopPropagation();
@@ -1071,43 +1172,16 @@ export class LoupeApp {
       this.resolved.delete(c.id);
       this.renderPins(); this.renderList();
     };
-    actions.append(doneBtn, claudeBtn, del);
-    item.appendChild(actions);
+    actions.append(doneBtn, del);
+    detail.appendChild(actions);
+    item.appendChild(detail);
 
-    item.onclick = () => this.flash(c.id);
+    item.onclick = () => {
+      if (open) this.expanded.delete(c.id);
+      else this.expanded.add(c.id);
+      this.renderList();
+    };
     return item;
-  }
-
-  private async copyForClaude(c: Comment) {
-    const lines = c.kind === "free"
-      ? [
-        `# Product feedback from ${c.author.name}`,
-        ``,
-        `**Note:** ${c.body}`,
-        `**Page:** ${c.url}`,
-        `**Type:** Free note — a page-level comment not tied to a specific element.`,
-      ]
-      : [
-        `# Product feedback from ${c.author.name}`,
-        ``,
-        `**Comment:** ${c.body}`,
-        `**Page:** ${c.url}`,
-        `**Element:** \`${c.anchor.cssPath}\``,
-        c.anchor.testid ? `**Stable id:** \`${c.anchor.testid}\`` : ``,
-        c.recording ? `**Screen recording (webm):** ${c.recording}` : ``,
-        ``,
-        `## Target element`,
-        "```html",
-        c.context.html,
-        "```",
-        ``,
-        `## Computed styles`,
-        "```json",
-        JSON.stringify(c.context.styles, null, 2),
-        "```",
-      ];
-    const prompt = lines.filter(Boolean).join("\n");
-    try { await navigator.clipboard.writeText(prompt); } catch { console.log("[loupe] copy failed; prompt:\n" + prompt); }
   }
 
   private flash(id: string) {

@@ -54,6 +54,7 @@ class CommentController extends Controller
             'project_key' => $this->projectKey(),
             'url' => Url::normalize((string) ($data['url'] ?? '/')),
             'status' => $data['status'] ?? 'open',
+            'title' => is_string($data['title'] ?? null) && $data['title'] !== '' ? mb_substr($data['title'], 0, 255) : null,
             'body' => (string) ($data['body'] ?? ''),
             'kind' => $data['kind'] ?? 'element',
             'author' => $data['author'] ?? ['id' => $userId, 'name' => 'User'],
@@ -65,6 +66,8 @@ class CommentController extends Controller
             'viewport' => $data['viewport'] ?? null,
             'screenshot_url' => $data['screenshot'] ?? null,
             'recording_url' => $data['recording'] ?? null,
+            // Files the reporter attached (images/videos) — a JSON array of Attachments.
+            'attachments' => is_array($data['attachments'] ?? null) ? $data['attachments'] : null,
             'proposal' => $data['proposal'] ?? null,
         ];
 
@@ -103,7 +106,7 @@ class CommentController extends Controller
         }
 
         $patch = [];
-        foreach (['status', 'body', 'proposal'] as $field) {
+        foreach (['status', 'title', 'body', 'proposal'] as $field) {
             if ($request->has($field)) {
                 $patch[$field] = $request->input($field);
             }

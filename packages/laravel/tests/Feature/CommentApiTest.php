@@ -132,6 +132,50 @@ class CommentApiTest extends TestCase
         $this->assertSame($proposal, Comment::query()->find('c1')->fresh()->toLoupeArray()['proposal']);
     }
 
+    public function test_it_stores_a_title_and_attachments(): void
+    {
+        $user = $this->actingAsAllowed();
+
+        $attachments = [
+            ['url' => 'http://x/a.png', 'name' => 'a.png', 'mime' => 'image/png', 'kind' => 'image', 'size' => 10],
+            ['url' => 'http://x/b.webm', 'name' => 'b.webm', 'mime' => 'video/webm', 'kind' => 'video', 'size' => 20],
+        ];
+
+        $this->postJson('/loupe/v1/comments', $this->payload('t1', $user->id, [
+            'title' => 'Revenue card is wrong',
+            'attachments' => $attachments,
+        ]))->assertCreated()
+            ->assertJsonPath('title', 'Revenue card is wrong')
+            ->assertJsonPath('attachments.1.kind', 'video');
+
+        $this->assertDatabaseHas('loupe_comments', ['id' => 't1', 'title' => 'Revenue card is wrong']);
+
+        // Round-trips through the canonical shape the dashboard/Hub consume.
+        $row = Comment::query()->find('t1')->fresh()->toLoupeArray();
+        $this->assertSame('Revenue card is wrong', $row['title']);
+        $this->assertCount(2, $row['attachments']);
+    }
+
+    public function test_it_ignores_a_non_array_attachments_value(): void
+    {
+        $user = $this->actingAsAllowed();
+
+        $this->postJson('/loupe/v1/comments', $this->payload('t2', $user->id, ['attachments' => 'nope']))
+            ->assertCreated();
+
+        $this->assertNull(Comment::query()->find('t2')->attachments);
+    }
+
+    public function test_it_patches_a_title(): void
+    {
+        $this->actingAsAllowed();
+        $this->seedComment('c1');
+
+        $this->patchJson('/loupe/v1/comments/c1', ['title' => 'A better title'])
+            ->assertOk()
+            ->assertJsonPath('title', 'A better title');
+    }
+
     public function test_it_rejects_a_missing_id(): void
     {
         $user = $this->actingAsAllowed();
