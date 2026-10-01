@@ -72,17 +72,32 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Idempotent: skip a version that is already published rather than
-          # failing with "cannot publish over the previously published versions".
+          # Idempotent, and tolerant of the registry lagging behind its own
+          # bookkeeping: a re-run must not fail whether the version is plainly
+          # visible ("already published") or already taken but not yet served
+          # ("cannot publish over the previously published versions").
           publish() {
-            local dir="$1" name version
+            local dir="$1" name version out
             name=$(node -p "require('./${dir}/package.json').name")
             version=$(node -p "require('./${dir}/package.json').version")
+
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
               echo "✓ ${name}@${version} already published — skipping"
-            else
-              npm publish "./${dir}" --access public
+              return 0
             fi
+
+            if out=$(npm publish "./${dir}" --access public 2>&1); then
+              printf '%s\n' "$out"
+              return 0
+            fi
+
+            if printf '%s' "$out" | grep -qi "cannot publish over the previously published versions"; then
+              echo "✓ ${name}@${version} already taken by the registry — skipping"
+              return 0
+            fi
+
+            printf '%s\n' "$out"
+            return 1
           }
           publish packages/shared
           publish packages/mcp
@@ -97,9 +112,18 @@ jobs:
           for dir in packages/shared packages/mcp packages/sdk; do
             name=$(node -p "require('./${dir}/package.json').name")
             version=$(node -p "require('./${dir}/package.json').version")
+
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
               echo "✓ ${name}@${version} already on GitHub Packages — skipping"
+              continue
+            fi
+
+            if out=$(npm publish "./${dir}" 2>&1); then
+              printf '%s\n' "$out"
+            elif printf '%s' "$out" | grep -qi "cannot publish over the previously published versions"; then
+              echo "✓ ${name}@${version} already taken — skipping"
             else
-              npm publish "./${dir}"
+              printf '%s\n' "$out"
+              exit 1
             fi
           done
