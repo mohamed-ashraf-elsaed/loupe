@@ -40,6 +40,70 @@ class AssetUrlTest extends TestCase
         $this->assertSame('/vendor/loupe/x.js', Url::asset('vendor/loupe/x.js'));
     }
 
+    public function test_versioned_assets_carry_a_build_stamp(): void
+    {
+        config()->set('loupe.asset_url', null);
+        config()->set('app.url', 'https://app.test');
+
+        $url = Url::versioned('vendor/loupe/sdk/loupe.js');
+
+        // The app origin is kept, and a build stamp is appended so a new build
+        // is a new URL no CDN edge can serve stale.
+        $this->assertStringStartsWith('https://app.test/vendor/loupe/sdk/loupe.js?v=', $url);
+        $this->assertNotSame('https://app.test/vendor/loupe/sdk/loupe.js?v=dev', $url);
+    }
+
+    public function test_the_stamp_uses_the_published_copy_when_present(): void
+    {
+        config()->set('loupe.asset_url', null);
+        config()->set('app.url', 'https://app.test');
+
+        $published = public_path('vendor/loupe/sdk/loupe.js');
+        @mkdir(dirname($published), 0777, true);
+        file_put_contents($published, 'console.log(1)');
+
+        try {
+            $url = Url::versioned('vendor/loupe/sdk/loupe.js');
+            $this->assertStringStartsWith('https://app.test/vendor/loupe/sdk/loupe.js?v=', $url);
+            $this->assertStringNotContainsString('?v=dev', $url);
+        } finally {
+            @unlink($published);
+        }
+    }
+
+    public function test_an_unpublished_asset_falls_back_to_the_dev_stamp(): void
+    {
+        config()->set('loupe.asset_url', null);
+        config()->set('app.url', 'https://app.test');
+
+        $this->assertSame(
+            'https://app.test/vendor/loupe/nope.js?v=dev',
+            Url::versioned('vendor/loupe/nope.js')
+        );
+    }
+
+    public function test_the_widget_version_tags_the_sdk_url(): void
+    {
+        config()->set('app.url', 'https://app.test');
+        $this->actingAsAllowed();
+
+        Route::middleware('web')->get('/_asset_version_probe', fn () => Blade::render('@loupeWidget'));
+
+        $this->get('/_asset_version_probe')
+            ->assertOk()
+            ->assertSee('vendor/loupe/sdk/loupe.js?v=', false);
+    }
+
+    public function test_the_dashboard_version_tags_its_bundle_url(): void
+    {
+        config()->set('app.url', 'https://app.test');
+        $this->actingAsAllowed();
+
+        $this->get('/loupe/dashboard')
+            ->assertOk()
+            ->assertSee('vendor/loupe/dashboard/app.js?v=', false);
+    }
+
     public function test_the_widget_loads_the_sdk_from_the_app_origin_not_the_cdn(): void
     {
         config()->set('app.url', 'https://app.test');
