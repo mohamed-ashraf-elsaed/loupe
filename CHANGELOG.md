@@ -11,6 +11,16 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.8.1] — 2026-10-01
+
+### Fixed
+
+- **The Laravel widget and dashboard asset URLs are now versioned** (`…/loupe.js?v=…`, from the
+  published bundle's mtime+size). A new build is a new URL, so no CDN edge or browser cache can
+  keep serving the previous bundle after an upgrade. In the field an app behind Cloudflare kept
+  handing users the old SDK — missing the Record tool — until the edge TTL expired, and a
+  package user has no way to purge someone else's cache. Versioning fixes it for every host.
+
 ## [0.8.0] — 2026-09-24
 
 ### Added
