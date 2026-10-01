@@ -11,6 +11,42 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.9.0] — 2026-10-01
+
+### Added
+
+- **A real issue form in the widget.** The composer now takes a **Title** and a
+  **Description** (the old single field), plus **Attachments** — several images and/or
+  videos, picked or dropped in, each shown as a removable chip (images ≤10 MB, videos
+  ≤25 MB, up to 10 files). Free notes ("Note") get the same form.
+- **`Comment.title` and `Comment.attachments[]`** in `@loupekit/shared`, with an
+  `Attachment { url, name?, mime?, kind: image|video, size? }`. Additive — the
+  auto-captured `screenshot` / `recording` are unchanged.
+- **Search, filters and a sort** on the dashboard board (title/body/author search,
+  kind + device filters, newest/oldest), and a **search box** in the widget list.
+- **Collapsible comment cards** in both the widget list and the board: a title
+  summary that expands to the full card, with an attachment gallery.
+- **MCP**: `get_comment` reports the title and every attachment and embeds each
+  image attachment as an image content block (plus the auto screenshot);
+  `list_comments` reports the title and attachment count.
+- **Laravel**: a migration adding `title` and `attachments` to `loupe_comments`,
+  model/controller support, and the re-vendored SDK + dashboard bundles.
+
+### Removed
+
+- **"Copy for Claude"** in the widget and the dashboard. The MCP `get_comment` tool
+  is the supported way to hand a comment to Claude, and it carries more than the
+  clipboard prompt ever did.
+
+### Changed
+
+- **Tickets filed from a Hub issue no longer dump element HTML into the description**
+  (the CRM receiver): the description reads like a request, while the raw element
+  markup, computed styles and anchor are stored in the ticket's `loupe_context`
+  column — still available to the tech team and to Claude over MCP. Every attached
+  image **and video** is attached to the ticket, and the ticket drawer renders
+  videos with a real player.
+
 ## [0.8.1] — 2026-10-01
 
 ### Fixed
