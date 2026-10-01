@@ -42,11 +42,15 @@ class CommentController extends Controller
             return response()->json(['error' => 'id required'], 422);
         }
 
-        // Identity is resolved through the same configured guards the widget used
-        // (see Loupe::resolveUser) — you cannot post as someone else.
-        $userId = (string) $loupe->resolveUser()?->getAuthIdentifier();
+        // The widget posts the identity it was handed — describeUser(), which an app may
+        // override via config('loupe.user_resolver') (e.g. to attribute comments made
+        // while an admin impersonates a user to the ADMIN, not the impersonated account).
+        // Compare against THAT identity: checking the raw session user instead would
+        // reject a custom resolver with "cannot post as another user".
+        $user = $loupe->resolveUser();
+        $identity = $user === null ? '' : $loupe->describeUser($user)['id'] ?? '';
         $authorId = (string) data_get($data, 'author.id');
-        if ($authorId !== '' && $authorId !== $userId) {
+        if ($authorId !== '' && $authorId !== (string) $identity) {
             return response()->json(['error' => 'cannot post as another user'], 403);
         }
 
@@ -57,8 +61,8 @@ class CommentController extends Controller
             'title' => is_string($data['title'] ?? null) && $data['title'] !== '' ? mb_substr($data['title'], 0, 255) : null,
             'body' => (string) ($data['body'] ?? ''),
             'kind' => $data['kind'] ?? 'element',
-            'author' => $data['author'] ?? ['id' => $userId, 'name' => 'User'],
-            'author_id' => $userId,
+            'author' => $data['author'] ?? ['id' => $identity, 'name' => 'User'],
+            'author_id' => $identity,
             'anchor' => $data['anchor'] ?? [],
             'context' => $data['context'] ?? [],
             'offset' => $data['offset'] ?? ['x' => 0.5, 'y' => 0.5],

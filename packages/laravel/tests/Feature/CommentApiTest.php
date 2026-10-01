@@ -241,6 +241,34 @@ class CommentApiTest extends TestCase
         $this->deleteJson('/loupe/v1/comments/missing')->assertNoContent();
     }
 
+    public function test_a_custom_user_resolver_defines_who_may_post(): void
+    {
+        $this->actingAsAllowed();
+        // The host app decides the widget's identity — here, an admin impersonating a
+        // user: the comment must be attributable to the ADMIN, not the impersonated account.
+        config()->set('loupe.user_resolver', fn () => [
+            'id' => 'admin-7',
+            'name' => 'Admin Impersonator',
+            'email' => 'admin@converted.in',
+        ]);
+
+        $this->postJson('/loupe/v1/comments', $this->payload('imp1', 'admin-7'))
+            ->assertCreated()
+            ->assertJsonPath('author.id', 'admin-7');
+
+        $this->assertSame('admin-7', Comment::query()->find('imp1')->author_id);
+    }
+
+    public function test_the_identity_check_still_rejects_an_unrelated_author(): void
+    {
+        $this->actingAsAllowed();
+        config()->set('loupe.user_resolver', fn () => ['id' => 'admin-7', 'name' => 'Admin', 'email' => 'admin@converted.in']);
+
+        $this->postJson('/loupe/v1/comments', $this->payload('imp2', 'someone-else'))
+            ->assertForbidden()
+            ->assertJsonPath('error', 'cannot post as another user');
+    }
+
     private function seedComment(string $id, array $overrides = []): Comment
     {
         return Comment::query()->create(array_merge([
