@@ -101,6 +101,25 @@ class BlobTest extends TestCase
         $this->get($url)->assertOk()->assertHeader('Content-Type', 'video/webm');
     }
 
+    public function test_it_stores_and_serves_an_iphone_screen_recording_as_mov(): void
+    {
+        Storage::fake('public');
+        config()->set('loupe.disk', 'public');
+        $this->actingAsAllowed();
+
+        // What iOS hands a file picker for a screen recording. Unmapped, it fell back to
+        // "png" — the clip was then served as an image, i.e. a broken video in the ticket.
+        $url = $this->postJson('/loupe/v1/blobs', [
+            'projectKey' => 'app',
+            'data' => 'data:video/quicktime;base64,'.self::WEBM,
+        ])->assertCreated()->json('url');
+
+        $this->assertStringEndsWith('.mov', $url);
+
+        app()['auth']->forgetGuards();
+        $this->get($url)->assertOk()->assertHeader('Content-Type', 'video/quicktime');
+    }
+
     public function test_it_serves_a_legacy_extensionless_id_as_png(): void
     {
         Storage::fake('public');
