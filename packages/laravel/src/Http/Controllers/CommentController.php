@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Loupekit\Loupe\Loupe;
 use Loupekit\Loupe\Support\Hub;
 use Loupekit\Loupe\Support\Stages;
@@ -18,6 +20,41 @@ use Loupekit\Loupe\Support\Url;
  */
 class CommentController extends Controller
 {
+    /**
+     * Keep only the attributes this table actually has.
+     *
+     * A package upgrade must never make an app *unable to file feedback*. That is
+     * exactly what happened when `pr` landed: the controller wrote a column the host
+     * had not migrated yet, so every create raised a QueryException and returned a
+     * 500. Dropping unknown attributes degrades instead — the newest fields simply
+     * stay empty until `php artisan migrate` runs — and says so in the log.
+     *
+     * The column list is fetched on every call rather than cached. Caching it in a
+     * static looked tempting and is wrong: under Octane or a queue worker the process
+     * outlives a migration, so a worker started before `php artisan migrate` would
+     * keep writing the old shape until it was restarted. This runs on the write path
+     * only, where one metadata query is nothing.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    protected function onlyExistingColumns(array $attributes): array
+    {
+        $table = $this->model()->getTable();
+        $columns = array_fill_keys(Schema::getColumnListing($table), true);
+
+        $kept = array_filter($attributes, static fn ($value, $key) => isset($columns[$key]), ARRAY_FILTER_USE_BOTH);
+        $missing = array_keys(array_diff_key($attributes, $kept));
+        if ($missing) {
+            Log::warning(
+                '[loupe] '.$table.' is missing '.implode(', ', $missing).
+                ' — run `php artisan migrate` to add '.(count($missing) === 1 ? 'it' : 'them').'.'
+            );
+        }
+
+        return $kept;
+    }
+
     /** GET /{path}/v1/comments?projectKey=&url= — list, newest first. */
     public function index(Request $request): JsonResponse
     {
@@ -134,7 +171,7 @@ class CommentController extends Controller
             $comment->setUpdatedAt($created);
         }
 
-        $comment->fill($attributes)->save();
+        $comment->fill($this->onlyExistingColumns($attributes))->save();
         $issue = $comment->fresh()->toLoupeArray();
 
         // Only brand-new comments go to Loupe Hub (not later edits of the same id).
@@ -173,7 +210,7 @@ class CommentController extends Controller
             $patch['change_type'] = Triage::normalizeType($request->input('changeType'));
         }
         if ($patch !== []) {
-            $comment->fill($patch)->save();
+            $comment->fill($this->onlyExistingColumns($patch))->save();
         }
 
         return response()->json($comment->fresh()->toLoupeArray());

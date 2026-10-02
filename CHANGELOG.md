@@ -11,6 +11,25 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.18] — 2026-10-02
+
+### Fixed
+
+- **A package upgrade can no longer break a host app's writes.** `POST /comments` returned **500**
+  on an app whose database had not run the migration that adds a column the controller writes —
+  reproduced against the package itself: with `pr` absent, every create raised a
+  `QueryException` and **zero rows were written**. The write path now keeps only the attributes the
+  table actually has, so a pending migration degrades (the newest fields stay empty) instead of
+  taking feedback down, and logs one clear warning naming the migration to run.
+
+  If your app was upgraded to 0.10.15+ without migrating, run `php artisan migrate` — that is the
+  real fix, and this release means the window before you do is no longer an outage.
+
+  The column list is deliberately **not** cached: under Octane or a queue worker the process
+  outlives a migration, so a worker started before `php artisan migrate` would keep writing the old
+  shape until restarted. Caught by a test that checks the write path still carries `pr` after a
+  migration in the same process.
+
 ## [0.10.17] — 2026-10-02
 
 ### Added
