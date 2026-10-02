@@ -11,6 +11,20 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.9.3] — 2026-10-02
+
+### Fixed
+
+- **Laravel: `config('loupe.user_resolver')` may be a class-string.** A Closure cannot be
+  serialized, so `php artisan config:cache` failed ("the value at loupe.user_resolver is
+  non-serializable") — and since config:cache boots the providers before serializing, a
+  Closure injected at runtime broke it too, leaving the app with no config cache. A
+  class-string (or `[class, method]`) is now accepted and survives the cache.
+
+## [0.9.2] — 2026-10-02
+
+_Nothing yet._
+
 ## [0.9.2] — 2026-10-02
 
 ### Fixed
