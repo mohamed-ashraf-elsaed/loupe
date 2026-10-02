@@ -241,7 +241,10 @@ export class LoupeApp {
     const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
     recordBtn.title = "Drag a box, record a screen video of it, and comment";
     recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-    tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
+    // Screen recording needs getDisplayMedia, which some mobile browsers (iOS Safari)
+    // do not implement — a button that can never work is worse than no button.
+    const canRecord = typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
+    tools.append(inspectBtn, freeBtn, regionBtn, ...(canRecord ? [recordBtn] : []));
 
     // list --------------------------------------------------------------------
     const listHead = el("div", "listhead");
@@ -366,7 +369,11 @@ export class LoupeApp {
 
   // ---- inspector ------------------------------------------------------------
 
-  private onMove = (e: MouseEvent) => {
+  // Pointer Events, not mouse events: a touch drag on a phone never fires
+  // mousemove/mouseup, so Region/Record selection was impossible on touch devices.
+  // Pointer events cover mouse, touch and pen with one handler each.
+
+  private onMove = (e: PointerEvent) => {
     if (this.mode !== "inspect") return;
     const target = this.pick(e.clientX, e.clientY);
     if (!target) { this.hl.style.display = "none"; return; }
@@ -400,26 +407,29 @@ export class LoupeApp {
 
   // ---- region ("free-size screenshot") selection ----------------------------
 
-  private onRegionDown = (e: MouseEvent) => {
-    if ((this.mode !== "region" && this.mode !== "record") || e.button !== 0) return;
+  private onRegionDown = (e: PointerEvent) => {
+    if (this.mode !== "region" && this.mode !== "record") return;
+    // A mouse must use the primary button; touch/pen always start with button 0.
+    if (e.pointerType !== "touch" && e.pointerType !== "pen" && e.button !== 0) return;
     // Ignore drags that start on our own UI (the panel overlays the page).
     const t = e.target as Element | null;
     if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
     e.preventDefault();
     e.stopPropagation();
     this.dragStart = { x: e.clientX, y: e.clientY };
-    document.addEventListener("mousemove", this.onRegionMove, true);
-    document.addEventListener("mouseup", this.onRegionUp, true);
+    document.addEventListener("pointermove", this.onRegionMove, true);
+    document.addEventListener("pointerup", this.onRegionUp, true);
+    document.addEventListener("pointercancel", this.onRegionCancel, true);
     this.drawSelection(e.clientX, e.clientY);
   };
 
-  private onRegionMove = (e: MouseEvent) => {
+  private onRegionMove = (e: PointerEvent) => {
     if (!this.dragStart) return;
     e.preventDefault();
     this.drawSelection(e.clientX, e.clientY);
   };
 
-  private onRegionUp = (e: MouseEvent) => {
+  private onRegionUp = (e: PointerEvent) => {
     if (!this.dragStart) return;
     e.preventDefault();
     e.stopPropagation();
@@ -430,10 +440,16 @@ export class LoupeApp {
       x: Math.min(start.x, e.clientX), y: Math.min(start.y, e.clientY),
       w: Math.abs(e.clientX - start.x), h: Math.abs(e.clientY - start.y),
     };
-    if (vp.w < 8 || vp.h < 8) { this.selbox.style.display = "none"; return; } // stray click
+    if (vp.w < 8 || vp.h < 8) { this.selbox.style.display = "none"; return; } // stray tap
     this.setMode("off");
     if (wasRecord) void this.finishRecording(vp);
     else this.finishRegion(vp);
+  };
+
+  /** The OS took over the gesture (e.g. a system swipe): drop the selection. */
+  private onRegionCancel = () => {
+    this.cancelDrag();
+    this.selbox.style.display = "none";
   };
 
   private drawSelection(curX: number, curY: number) {
@@ -447,8 +463,9 @@ export class LoupeApp {
 
   private cancelDrag() {
     this.dragStart = null;
-    document.removeEventListener("mousemove", this.onRegionMove, true);
-    document.removeEventListener("mouseup", this.onRegionUp, true);
+    document.removeEventListener("pointermove", this.onRegionMove, true);
+    document.removeEventListener("pointerup", this.onRegionUp, true);
+    document.removeEventListener("pointercancel", this.onRegionCancel, true);
   }
 
   /**
@@ -556,21 +573,30 @@ export class LoupeApp {
     // so most of the page stays visible while picking an element/region.
     this.dock.classList.toggle("inspecting", mode !== "off");
 
-    document.removeEventListener("mousemove", this.onMove, true);
+    document.removeEventListener("pointermove", this.onMove, true);
+    document.removeEventListener("pointerdown", this.onMove, true);
     document.removeEventListener("click", this.onClick, true);
     document.removeEventListener("click", this.onFreeClick, true);
-    document.removeEventListener("mousedown", this.onRegionDown, true);
+    document.removeEventListener("pointerdown", this.onRegionDown, true);
+
+    // A touch drag must select a region, not scroll the page. `touch-action: none`
+    // is what actually stops it (preventDefault on pointerdown is not enough), and
+    // it is only needed while a drag-select tool is active.
+    document.documentElement.style.touchAction = mode === "region" || mode === "record" ? "none" : "";
 
     if (mode === "off") return;
     document.addEventListener("keydown", this.onKey, true);
     this.closeComposer();
     if (mode === "inspect") {
-      document.addEventListener("mousemove", this.onMove, true);
+      document.addEventListener("pointermove", this.onMove, true);
+      // Touch has no hover: highlight on finger-down so the user can see what a tap
+      // will select before lifting (the tap itself still arrives as a click).
+      document.addEventListener("pointerdown", this.onMove, true);
       document.addEventListener("click", this.onClick, true);
     } else if (mode === "free") {
       document.addEventListener("click", this.onFreeClick, true);
     } else if (mode === "region" || mode === "record") {
-      document.addEventListener("mousedown", this.onRegionDown, true);
+      document.addEventListener("pointerdown", this.onRegionDown, true);
     }
   }
 
