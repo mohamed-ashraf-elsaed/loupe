@@ -23,10 +23,6 @@ _Nothing yet._
 
 ## [0.9.2] — 2026-10-02
 
-_Nothing yet._
-
-## [0.9.2] — 2026-10-02
-
 ### Fixed
 
 - **The widget is usable by touch, not just with a mouse.** Inspect, Region and Record
