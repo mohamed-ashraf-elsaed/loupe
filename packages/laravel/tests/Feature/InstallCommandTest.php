@@ -3,6 +3,7 @@
 namespace Loupekit\Loupe\Tests\Feature;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
 use Loupekit\Loupe\Console\InstallCommand;
 use Loupekit\Loupe\Tests\TestCase;
 
@@ -51,13 +52,39 @@ class InstallCommandTest extends TestCase
         );
     }
 
-    public function test_install_warns_when_bootstrap_is_missing(): void
+    /**
+     * A fresh Laravel app (11+) ships no auth scaffolding: nobody can sign in, and Loupe
+     * shows the widget only to authenticated users — so the install looks broken with no
+     * explanation. It has to say so.
+     */
+    public function test_install_warns_when_the_app_has_no_login_route(): void
     {
-        // No bootstrap/providers.php in the temp base path.
+        Route::shouldReceive('has')->with('login')->andReturn(false);
         $this->app->setBasePath($this->tmp);
 
         $this->artisan('loupe:install')
-            ->expectsOutputToContain('Could not auto-register the provider')
+            ->expectsOutputToContain('no [login] route')
+            ->assertExitCode(0);
+    }
+
+    public function test_install_is_quiet_when_the_app_has_a_login_route(): void
+    {
+        Route::shouldReceive('has')->with('login')->andReturn(true);
+        $this->app->setBasePath($this->tmp);
+
+        $this->artisan('loupe:install')
+            ->doesntExpectOutputToContain('no [login] route')
+            ->assertExitCode(0);
+    }
+
+    public function test_install_stays_quiet_when_the_route_list_cannot_be_read(): void
+    {
+        // Better to say nothing than to warn wrongly.
+        Route::shouldReceive('has')->andThrow(new \RuntimeException('no router here'));
+        $this->app->setBasePath($this->tmp);
+
+        $this->artisan('loupe:install')
+            ->doesntExpectOutputToContain('no [login] route')
             ->assertExitCode(0);
     }
 }

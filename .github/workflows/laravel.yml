@@ -22,8 +22,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.4']
+        # What the package claims to support: PHP ^8.2 (Laravel 11 and 12) and ^8.3
+        # (Laravel 13). Testing the floor is the point — the constraint was ^8.4 with
+        # nothing but 8.4 in CI, which locked out most real apps for no reason.
+        php: ['8.2', '8.3', '8.4']
         laravel: [11, 12, 13]
+        exclude:
+          - php: '8.2'
+            laravel: 13
         include:
           - laravel: 11
             testbench: '^9.0'
@@ -54,3 +60,51 @@ jobs:
 
       - name: Run tests with the 100% coverage gate
         run: composer run test:coverage-100
+
+  # Installs the package the way a STRANGER would — into a brand-new Laravel app — and
+  # asserts the first-run path actually works (widget renders for a user, not for a guest;
+  # a comment posts; the dashboard never 5xxs). This is the check that would have caught
+  # the "Route [login] not defined" 500, which the unit suite could not see because its
+  # testbench app always registers a login route.
+  #
+  # Run at both ends of the support matrix: the PHP floor (8.2, on Laravel 12 — the newest
+  # line that supports it) and the newest (8.4 / Laravel 13).
+  #
+  # Why not Laravel 11 on 8.2: composer 2.9+ blocks any package with a known advisory, and
+  # EVERY Laravel 11 release (v11.31 … v11.57) is currently flagged — so a brand-new
+  # Laravel 11 app cannot be installed at all, on any PHP. That is the skeleton's problem,
+  # not this package's; Laravel 11 support is still covered by the unit matrix above.
+  stranger:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            laravel: 12
+          - php: '8.4'
+            laravel: 13
+
+    name: stranger · PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Install the package's own dependencies
+        working-directory: packages/laravel
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run the stranger test
+        # The workflow sets working-directory: packages/laravel, and the script works out
+        # its own absolute paths from there.
+        env:
+          STRANGER_LARAVEL: ${{ matrix.laravel }}
+        run: bin/stranger-test.sh

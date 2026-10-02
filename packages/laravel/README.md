@@ -82,7 +82,7 @@ a route **you** own behind **your** auth.
 
 | | Supported |
 | --- | --- |
-| **PHP** | **8.4** and higher |
+| **PHP** | **8.2** and higher (**8.3+** on Laravel 13) |
 | **Laravel** | **11, 12, 13** |
 | **Database** | anything Eloquent supports (MySQL, PostgreSQL, SQLite, SQL Server) |
 | **MCP** (optional) | `laravel/mcp` **^0.8** — Laravel 11, 12 & 13 |
@@ -97,6 +97,19 @@ php artisan migrate
 
 `loupe:install` publishes the config, migration and browser assets (to `public/vendor/loupe`),
 then publishes and registers an `App\Providers\LoupeServiceProvider` where you control access.
+
+> **Prerequisite: a user who can sign in.** Loupe shows the widget to an **authenticated**
+> user and serves the dashboard behind your auth. Laravel 11+ ships **no auth scaffolding**,
+> so a brand-new app has nobody to sign in as — and Loupe then looks broken (no widget
+> anywhere, and the dashboard cannot authenticate you). Add auth first if you haven't:
+>
+> ```bash
+> composer require laravel/breeze --dev
+> php artisan breeze:install
+> ```
+>
+> `loupe:install` prints a warning when it sees no `login` route, so you find out at install
+> time rather than by staring at a page that never shows the widget.
 
 ## Quick start
 
@@ -115,7 +128,8 @@ Gate::define('loupe:use', fn ($user) => $user->is_staff);   // who sees the widg
 Gate::define('loupe:admin', fn ($user) => $user->is_admin);  // who opens the dashboard
 ```
 
-**3.** Open the board at **`/loupe/dashboard`**. That's the whole setup.
+**3.** Sign in as one of those users and open the board at **`/loupe/dashboard`**. That's the
+whole setup. (In `local` the gates are bypassed, so any signed-in user works.)
 
 ## How it works
 

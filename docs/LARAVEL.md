@@ -5,7 +5,7 @@
     <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/promo-marquee-1400x560.jpg" alt="Loupe — Pin feedback to the live UI. Hand it to Claude." width="100%" />
   </a>
   <p>
-    <img src="https://img.shields.io/badge/PHP-8.4+-4a55d6" alt="PHP 8.4+" />
+    <img src="https://img.shields.io/badge/PHP-8.2+-4a55d6" alt="PHP 8.2+" />
     <img src="https://img.shields.io/badge/Laravel-11%20|%2012%20|%2013-4a55d6" alt="Laravel 11, 12, 13" />
     <img src="https://img.shields.io/badge/coverage-100%25-4a55d6" alt="100% coverage" />
     <img src="https://img.shields.io/badge/license-MIT-4a55d6" alt="MIT license" />
@@ -64,7 +64,7 @@ flowchart LR
 
 | | Supported |
 |---|---|
-| PHP | **8.4** and higher |
+| PHP | **8.2** and higher (**8.3+** on Laravel 13) |
 | Laravel | **11, 12, 13** |
 | Database | anything Eloquent supports (MySQL, Postgres, SQLite, SQL Server) |
 | MCP (optional) | `laravel/mcp` **^0.8** — Laravel 11, 12 & 13 |

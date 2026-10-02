@@ -4,6 +4,7 @@ namespace Loupekit\Loupe\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Route;
 
 class InstallCommand extends Command
 {
@@ -32,6 +33,7 @@ class InstallCommand extends Command
         }
 
         $this->registerProvider($files);
+        $this->warnAboutMissingAuth();
 
         $this->newLine();
         $this->components->info('Loupe installed. Next steps:');
@@ -41,6 +43,35 @@ class InstallCommand extends Command
         $this->line('  4. Visit <comment>/'.config('loupe.path', 'loupe').'/dashboard</comment>');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Loupe shows the widget to a **signed-in** user and serves the dashboard behind your
+     * auth — so an app with no way to log anyone in looks simply broken: the widget never
+     * appears and the dashboard cannot authenticate you. Laravel 11+ ships no auth
+     * scaffolding, so this is the normal state of a brand-new app. Say so, loudly, here
+     * rather than leaving the user to guess.
+     */
+    private function warnAboutMissingAuth(): void
+    {
+        try {
+            $hasLogin = Route::has('login');
+        } catch (\Throwable) {
+            return; // routes not loadable here — say nothing rather than guess
+        }
+
+        if ($hasLogin) {
+            return;
+        }
+
+        $this->newLine();
+        $this->components->warn(
+            'This app has no [login] route, so nobody can sign in — and Loupe only shows the '
+            .'widget to authenticated users. Add auth before expecting it to appear:'
+        );
+        $this->line('    <comment>composer require laravel/breeze --dev</comment>');
+        $this->line('    <comment>php artisan breeze:install</comment>');
+        $this->line('  …or sign someone in your own way, then open the dashboard as that user.');
     }
 
     /** Register App\Providers\LoupeServiceProvider (Laravel 11+ bootstrap/providers.php). */

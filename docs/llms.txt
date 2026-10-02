@@ -28,7 +28,7 @@
 - License: MIT
 - Languages: TypeScript (npm workspaces monorepo) + PHP (Laravel package)
 - npm packages: @loupekit/sdk, @loupekit/server, @loupekit/dashboard, @loupekit/mcp, @loupekit/extension, @loupekit/shared
-- Composer package: loupekit/laravel (Loupe for Laravel — widget + your DB + gating + dashboard + MCP; PHP 8.4+, Laravel 11/12/13)
+- Composer package: loupekit/laravel (Loupe for Laravel — widget + your DB + gating + dashboard + MCP; PHP 8.2+ (8.3+ on Laravel 13), Laravel 11/12/13)
 - Repository: https://github.com/mohamed-ashraf-elsaed/loupe
 - Author: Mohamed Ashraf Elsaed (https://www.linkedin.com/in/mohamedashrafelsaed/)
 - Category: developer tools, visual feedback, bug reporting, product management, AI agent tooling
