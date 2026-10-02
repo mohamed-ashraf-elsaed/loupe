@@ -335,6 +335,14 @@ var Loupe = (() => {
      page stays visible and tappable; the list returns when the tool closes. */
   .dock.inspecting { height: auto !important; }
   .dock.inspecting .listhead, .dock.inspecting .list { display: none; }
+  /* The composer is a bottom sheet on a phone: full width, thumb-reachable, and it
+     scrolls when the on-screen keyboard is up. JS sets its position inline (hence the
+     !important) \u2014 on small screens the sheet wins. */
+  .composer {
+    top: auto !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: auto !important; max-height: 80vh; overflow-y: auto;
+    border-radius: 16px 16px 0 0; padding-bottom: 16px;
+  }
 }
 `
   );
@@ -2458,6 +2466,26 @@ var Loupe = (() => {
     for (let i = 0; i < s.length; i++) h = h * 31 + s.charCodeAt(i) | 0;
     return h;
   }
+  function isTouchDevice() {
+    try {
+      return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+    } catch {
+      return false;
+    }
+  }
+  function dataUrlToFile(dataUrl, name) {
+    const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(dataUrl);
+    if (!m) return null;
+    const [, type, b64, payload = ""] = m;
+    try {
+      const raw = b64 ? atob(payload) : decodeURIComponent(payload);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      return new File([bytes], name, { type: type || "image/png" });
+    } catch {
+      return null;
+    }
+  }
   var LoupeApp = class {
     constructor(cfg) {
       this.comments = [];
@@ -2826,7 +2854,7 @@ var Loupe = (() => {
       const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
       recordBtn.title = "Drag a box, record a screen video of it, and comment";
       recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-      const canRecord = typeof navigator.mediaDevices?.getDisplayMedia === "function";
+      const canRecord = !isTouchDevice() && typeof navigator.mediaDevices?.getDisplayMedia === "function";
       tools.append(inspectBtn, freeBtn, regionBtn, ...canRecord ? [recordBtn] : []);
       const listHead = el("div", "listhead");
       listHead.append(document.createTextNode("Comments"));
@@ -2974,6 +3002,34 @@ var Loupe = (() => {
       const region = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
       return { region, element: centerEl };
     }
+    /**
+     * Touch path for the Region tool: capture what is on screen right now and open the
+     * composer with it already attached. The reporter scrolls to the part of the page they
+     * mean FIRST, then taps Region — no drag, so nothing fights the page scroll.
+     */
+    async captureViewportForComposer() {
+      const vp = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+      const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
+      let shot;
+      try {
+        shot = await capture(vp);
+      } catch {
+        shot = void 0;
+      }
+      const file = shot ? dataUrlToFile(shot, "screenshot.png") : null;
+      const docX = window.scrollX + vp.w / 2;
+      const docY = window.scrollY + vp.h / 2;
+      const docW = Math.max(1, document.documentElement.scrollWidth);
+      const docH = Math.max(1, document.documentElement.scrollHeight);
+      const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
+      this.setMode("off");
+      this.openComposer(
+        { kind: "free", offset, point: { x: docX, y: docY }, label: "Screenshot \xB7 attached" },
+        8,
+        window.innerHeight / 2,
+        file ? [file] : []
+      );
+    }
     /** Capture the selected viewport rect, then open the composer for a region comment. */
     async finishRegion(vp) {
       this.selbox.style.display = "none";
@@ -3057,7 +3113,6 @@ var Loupe = (() => {
       document.removeEventListener("click", this.onClick, true);
       document.removeEventListener("click", this.onFreeClick, true);
       document.removeEventListener("pointerdown", this.onRegionDown, true);
-      document.documentElement.style.touchAction = mode === "region" || mode === "record" ? "none" : "";
       if (mode === "off") return;
       document.addEventListener("keydown", this.onKey, true);
       this.closeComposer();
@@ -3067,12 +3122,14 @@ var Loupe = (() => {
         document.addEventListener("click", this.onClick, true);
       } else if (mode === "free") {
         document.addEventListener("click", this.onFreeClick, true);
+      } else if (mode === "region" && isTouchDevice()) {
+        void this.captureViewportForComposer();
       } else if (mode === "region" || mode === "record") {
         document.addEventListener("pointerdown", this.onRegionDown, true);
       }
     }
     // ---- composer -------------------------------------------------------------
-    openComposer(target, x, y) {
+    openComposer(target, x, y, seedFiles = []) {
       this.pending = target;
       const isRecording = target.kind === "region" && !!target.recording;
       const c = this.composer;
@@ -3080,14 +3137,14 @@ var Loupe = (() => {
       const label = el(
         "div",
         "target",
-        target.kind === "element" ? describe(target.element) : target.kind === "region" ? isRecording ? `\u23FA Recording \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : "Free note \xB7 anywhere on the page"
+        target.kind === "element" ? describe(target.element) : target.kind === "region" ? isRecording ? `\u23FA Recording \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : `Region \xB7 ${Math.round(target.region.w)}\xD7${Math.round(target.region.h)} px` : target.label ?? "Free note \xB7 anywhere on the page"
       );
       const title = el("input", "title");
       title.type = "text";
       title.placeholder = "Title \u2014 one line: what's wrong, or what you need";
       const ta = el("textarea");
       ta.placeholder = isRecording ? "Describe the issue in this recording\u2026" : target.kind === "region" ? "Describe the issue in this area\u2026" : target.kind === "free" ? "Describe this note\u2026" : "Describe what should change here\u2026";
-      const files = [];
+      const files = seedFiles.slice();
       const attach = el("div", "attach");
       const pick = el("button", "pick", "\uFF0B Attach images / videos");
       const input = document.createElement("input");
@@ -3129,6 +3186,7 @@ var Loupe = (() => {
       };
       pick.onclick = () => input.click();
       attach.append(pick, input, chips, err);
+      if (files.length) drawChips();
       const row = el("div", "row");
       let box = null;
       if (target.kind !== "free" && !isRecording) {
@@ -3160,7 +3218,7 @@ var Loupe = (() => {
       const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
       const top = Math.min(Math.max(8, y + 12), window.innerHeight - h - 8);
       Object.assign(c.style, { display: "block", left: left + "px", top: top + "px" });
-      ta.focus();
+      if (!isTouchDevice()) ta.focus();
     }
     closeComposer() {
       this.composer.style.display = "none";
