@@ -1,7 +1,14 @@
 {
     "name": "loupekit/laravel",
-    "description": "Loupe for Laravel — embeddable visual feedback that stores comments in your own database, gates access per user, serves the Loupe dashboard, and exposes the backlog to Claude Code over MCP.",
-    "keywords": ["laravel", "feedback", "visual-feedback", "loupe", "mcp", "product"],
+    "description": "Loupe for Laravel \u2014 embeddable visual feedback that stores comments in your own database, gates access per user, serves the Loupe dashboard, and exposes the backlog to Claude Code over MCP.",
+    "keywords": [
+        "laravel",
+        "feedback",
+        "visual-feedback",
+        "loupe",
+        "mcp",
+        "product"
+    ],
     "license": "MIT",
     "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
     "authors": [
@@ -18,7 +25,7 @@
         "docs": "https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md"
     },
     "require": {
-        "php": "^8.4",
+        "php": "^8.2",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "illuminate/console": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
@@ -33,7 +40,7 @@
         "phpunit/phpunit": "^11.0|^12.0"
     },
     "suggest": {
-        "laravel/mcp": "Enables `php artisan mcp:start loupe` — hands the feedback backlog to Claude Code. Use ^0.8 (supports Laravel 11, 12 and 13)."
+        "laravel/mcp": "Enables `php artisan mcp:start loupe` \u2014 hands the feedback backlog to Claude Code. Use ^0.8 (supports Laravel 11, 12 and 13)."
     },
     "autoload": {
         "psr-4": {
@@ -58,7 +65,8 @@
     "scripts": {
         "test": "phpunit",
         "test:coverage": "phpunit --coverage-text",
-        "test:coverage-100": "phpunit --coverage-clover=build/clover.xml && php bin/check-coverage.php build/clover.xml 100"
+        "test:coverage-100": "phpunit --coverage-clover=build/clover.xml && php bin/check-coverage.php build/clover.xml 100",
+        "stranger-test": "bin/stranger-test.sh"
     },
     "config": {
         "sort-packages": true,
