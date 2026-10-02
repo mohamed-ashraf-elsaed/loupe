@@ -267,13 +267,15 @@ export class LoupeApp {
     regionBtn.title = "Drag a free-size box, screenshot it, and comment";
     regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
     const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
-    recordBtn.title = "Drag a box, record a screen video of it, and comment";
+    recordBtn.title = isTouchDevice()
+      ? "Record your screen, then describe the issue"
+      : "Drag a box, record a screen video of it, and comment";
     recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-    // Screen recording needs getDisplayMedia (absent on iOS Safari) AND a pointer that
-    // can drag a box — a touch device gets neither, so the tool is not offered there.
-    // The Region tool covers mobile: it grabs the viewport instead (see captureViewportForComposer).
-    const canRecord = !isTouchDevice()
-      && typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
+    // Offer Record wherever the browser can capture the screen. Android Chrome can
+    // (screen/tab capture); iOS Safari cannot — there the tool is hidden rather than
+    // being a button that can never work. On touch there is no box to drag: tapping it
+    // records the whole screen (see setMode).
+    const canRecord = typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
     tools.append(inspectBtn, freeBtn, regionBtn, ...(canRecord ? [recordBtn] : []));
 
     // list --------------------------------------------------------------------
@@ -654,6 +656,12 @@ export class LoupeApp {
       // fights the page scroll. Grab the visible viewport instead (the reporter scrolls
       // to what they mean first, then taps Region) and hand it to the composer.
       void this.captureViewportForComposer();
+    } else if (mode === "record" && isTouchDevice()) {
+      // Same one-tap idea for video: nothing to drag with a finger, so record the whole
+      // screen. Called synchronously from the tap — getDisplayMedia needs that gesture.
+      const vp: RegionRect = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+      this.setMode("off");
+      void this.finishRecording(vp);
     } else if (mode === "region" || mode === "record") {
       document.addEventListener("pointerdown", this.onRegionDown, true);
     }

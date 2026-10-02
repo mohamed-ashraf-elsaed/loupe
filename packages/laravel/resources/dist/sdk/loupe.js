@@ -2852,9 +2852,9 @@ var Loupe = (() => {
       regionBtn.title = "Drag a free-size box, screenshot it, and comment";
       regionBtn.onclick = () => this.setMode(this.mode === "region" ? "off" : "region");
       const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
-      recordBtn.title = "Drag a box, record a screen video of it, and comment";
+      recordBtn.title = isTouchDevice() ? "Record your screen, then describe the issue" : "Drag a box, record a screen video of it, and comment";
       recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-      const canRecord = !isTouchDevice() && typeof navigator.mediaDevices?.getDisplayMedia === "function";
+      const canRecord = typeof navigator.mediaDevices?.getDisplayMedia === "function";
       tools.append(inspectBtn, freeBtn, regionBtn, ...canRecord ? [recordBtn] : []);
       const listHead = el("div", "listhead");
       listHead.append(document.createTextNode("Comments"));
@@ -3124,6 +3124,10 @@ var Loupe = (() => {
         document.addEventListener("click", this.onFreeClick, true);
       } else if (mode === "region" && isTouchDevice()) {
         void this.captureViewportForComposer();
+      } else if (mode === "record" && isTouchDevice()) {
+        const vp = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+        this.setMode("off");
+        void this.finishRecording(vp);
       } else if (mode === "region" || mode === "record") {
         document.addEventListener("pointerdown", this.onRegionDown, true);
       }
