@@ -85,12 +85,27 @@ class Loupe
      * Describe a user to the SDK. Honors config('loupe.user_resolver'); falls
      * back to id/name/email.
      *
+     * The resolver may be a Closure, a class-string (resolved through the container,
+     * called via __invoke), or a [class, method] callable. Prefer the class-string:
+     * a Closure in config is NOT serializable, so `php artisan config:cache` fails
+     * ("the value at loupe.user_resolver is non-serializable") — and it boots the
+     * providers first, so injecting the Closure at runtime does not avoid it either.
+     *
      * @return array<string, mixed>
      */
     public function describeUser(Authenticatable $user): array
     {
         $resolver = config('loupe.user_resolver');
+
+        if (is_string($resolver) && class_exists($resolver)) {
+            $resolver = app($resolver);
+        }
+
         if ($resolver instanceof Closure) {
+            return $resolver($user);
+        }
+
+        if ((is_object($resolver) || is_array($resolver)) && is_callable($resolver)) {
             return $resolver($user);
         }
 

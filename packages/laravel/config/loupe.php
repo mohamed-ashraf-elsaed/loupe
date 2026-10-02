@@ -120,7 +120,14 @@ return [
     | User payload
     |--------------------------------------------------------------------------
     | How the @loupeWidget directive describes the current user to the SDK.
-    | Provide a closure fn($user): array{id,name,email?} to customize.
+    |
+    | Prefer a class-string, resolved through the container and called via __invoke:
+    |     'user_resolver' => App\Support\LoupeUserResolver::class,
+    |
+    | A Closure works too, but it is NOT serializable: `php artisan config:cache`
+    | would fail with "the value at loupe.user_resolver is non-serializable", and
+    | because config:cache boots the providers before serializing, injecting the
+    | Closure at runtime does not avoid it either.
     */
     'user_resolver' => null,
 
