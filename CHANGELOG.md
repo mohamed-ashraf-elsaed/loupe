@@ -11,6 +11,40 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.22] — 2026-10-02
+
+### Added
+
+- **The conversation is now in the panel** (milestone 0.13; #20). Expanding a thread shows its replies,
+  a reply box, the activity timeline and the copy actions.
+  - **Message list** — avatar, name, relative time, body. An agent's reply carries a left accent bar, a
+    tinted container and an `agent` tag, so who you are talking to is obvious at a glance.
+  - **Reply composer** — optimistic: the row appears immediately, and if the store rejects it the text
+    **stays on screen** flagged with a **Retry**. Losing what someone typed is worse than showing a
+    failed row. Typing never re-renders (the draft lives outside the render path), so the caret does not
+    jump; Enter sends, Shift+Enter is a newline; `@ to mention` is hinted under the box.
+  - **Activity timeline** — captured → replied → change ready → PR opened → preview live → waiting on a
+    human → resolved. Built from what the thread already carries rather than a separate event log, so it
+    cannot drift: if it says a PR was opened, there is a `pr` on the comment saying so. Steps that were
+    skipped do not appear, and a preview row only exists when a URL is actually known.
+  - **Copy thread text** — a readable summary that leads with the element selector, because pasted
+    somewhere without Loupe the selector is the only part that still identifies what is being discussed.
+    **Copy images** is best-effort and says so rather than failing silently.
+  - Replies load **lazily** — opening one card fetches one thread, not twenty.
+- **`threadTimeline()` and `threadAsText()` in `@loupekit/shared`** — pure, so the panel and the
+  dashboard render the same story from the same function.
+- **Thread messages through the storage seam** — `StorageAdapter` gains `listMessages`/`addMessage`,
+  implemented for both the HTTP adapter and offline `localStorage`.
+- **Participants** (`thread_participants`) — recorded on message write, so a notification can target
+  them without walking the conversation, with the thread's own author folded in on read: a reporter who
+  has never replied is still a participant, and dropping them from a notification list would be a silent
+  bug. Exposed at `GET /v1/comments/:id/participants`.
+
+### Fixed
+
+- The offline adapter's comment-key scan also matched `loupe:msgs:*`, so update/remove would have hunted
+  a comment id among a thread's replies.
+
 ## [0.10.21] — 2026-10-02
 
 ### Added

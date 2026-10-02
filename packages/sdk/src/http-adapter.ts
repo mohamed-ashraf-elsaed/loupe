@@ -1,4 +1,4 @@
-import type { Attachment, Comment, LoupeUser, StorageAdapter } from "./types.js";
+import type { Attachment, Comment, LoupeUser, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
@@ -86,6 +86,23 @@ export class HttpAdapter implements StorageAdapter {
       kind: attachmentKind(file.type),
       size: file.size,
     };
+  }
+
+  /** Replies on a thread. The comment's own body is message #1, not returned here. */
+  async listMessages(threadId: string): Promise<ThreadMessage[]> {
+    const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({ headers: this.headers() }));
+    if (!res.ok) throw new Error(`listMessages failed: ${res.status}`);
+    return (await res.json()) as ThreadMessage[];
+  }
+
+  async addMessage(threadId: string, message: { author: ThreadAuthor; body: string }): Promise<ThreadMessage> {
+    const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(message),
+    }));
+    if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
+    return (await res.json()) as ThreadMessage;
   }
 
   async update(id: string, patch: Partial<Comment>): Promise<void> {

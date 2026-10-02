@@ -142,6 +142,20 @@ export async function migrate(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );`);
   await d.query(`CREATE INDEX IF NOT EXISTS thread_messages_lookup ON thread_messages (thread_id, created_at);`);
+  // Who took part. Maintained on write so a notification can target them without
+  // walking the conversation; the comment's own author is folded in on read.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS thread_participants (
+      thread_id TEXT NOT NULL,
+      project_key TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      type TEXT NOT NULL,
+      first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (thread_id, author_id)
+    );`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).

@@ -794,6 +794,68 @@ var Loupe = (() => {
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* ------------------------------------------------------------- conversation */
+.convo { margin-top: 8px; }
+.convo-loading { padding: 10px; text-align: center; font-size: 11.5px; color: var(--muted); }
+.msgs { display: flex; flex-direction: column; gap: 6px; }
+.msg { padding: 7px 8px; border-radius: 9px; background: var(--bg-2); border: 1px solid transparent; }
+/* An agent's reply is called out with a left accent bar and a lighter container \u2014
+   it should be obvious at a glance who you are talking to. */
+.msg.agent { border-left: 3px solid var(--accent); background: var(--bg-3); }
+.msg.pending { opacity: .65; }
+.msg.failed { border-color: var(--pin); }
+.msg-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.msg-av {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; background: var(--bg-3); color: var(--muted);
+  font-size: 10px; font-weight: 700;
+}
+.msg-av.agent { background: var(--accent); color: #fff; }
+.msg-name { font-size: 11.5px; color: var(--ink); }
+.msg-when { flex: 1; font-size: 10.5px; color: var(--muted); }
+.msg-tag {
+  padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.msg-body { font-size: 11.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-state { margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+.msg-state.failed { color: var(--pin); }
+.msg-retry {
+  margin-left: 6px; padding: 1px 7px; border: 1px solid var(--pin); border-radius: 6px;
+  background: transparent; color: var(--pin); font-size: 10.5px; cursor: pointer;
+}
+.reply { margin-top: 7px; }
+.reply-in {
+  width: 100%; resize: vertical; min-height: 40px; padding: 7px 8px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--bg);
+  color: var(--ink); font: inherit; font-size: 11.5px;
+}
+.reply-in:focus { outline: none; border-color: var(--accent); }
+.reply-foot { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.reply-hint { flex: 1; font-size: 10.5px; color: var(--muted); }
+.reply-send {
+  padding: 5px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+/* the activity timeline */
+.tl { margin-top: 10px; }
+.tl-h { margin-bottom: 5px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.tl-i { position: relative; padding: 0 0 7px 14px; font-size: 11px; color: var(--muted); }
+.tl-i::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: -3px; width: 1px; background: var(--line); }
+.tl-i:last-child::before { display: none; }
+.tl-dot { position: absolute; left: 0; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tl-i.tl-resolved .tl-dot { background: #2f9e6a; }
+.tl-i.tl-pr .tl-dot, .tl-i.tl-preview .tl-dot { background: #3f8ae0; }
+.tl-i.tl-review .tl-dot { background: var(--accent); }
+.tl-l { color: var(--ink); }
+.tl-d { display: block; font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+.copyrow { display: flex; gap: 6px; margin-top: 8px; }
+.copy-b {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.copy-b:hover { border-color: var(--accent); color: var(--ink); }
+
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {
   position: relative; margin: 8px 12px 0; padding: 10px 28px 10px 11px;
@@ -2882,15 +2944,15 @@ var Loupe = (() => {
       };
     }
     /**
-     * Keys that hold a comment list. `loupe:dock` also lives under `loupe:` but
-     * holds an OBJECT (panel state), so treating every `loupe:` key as a list made
-     * update()/remove() throw as soon as the panel persisted anything.
+     * Keys that hold a comment list. `loupe:dock` (panel state) and `loupe:msgs:*`
+     * (replies) share the prefix but are not comment lists — treating them as one made
+     * update()/remove() throw, and would have it hunt a comment id among messages.
      */
     commentKeys() {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith("loupe:") && k !== "loupe:dock") keys.push(k);
+        if (k && k.startsWith("loupe:") && k !== "loupe:dock" && !k.startsWith("loupe:msgs:")) keys.push(k);
       }
       return keys;
     }
@@ -2901,6 +2963,32 @@ var Loupe = (() => {
       } catch {
         return [];
       }
+    }
+    /** Replies, kept under their own key so they survive a comment being re-saved. */
+    msgKey(threadId) {
+      return `loupe:msgs:${threadId}`;
+    }
+    async listMessages(threadId) {
+      try {
+        const raw = localStorage.getItem(this.msgKey(threadId));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    async addMessage(threadId, message) {
+      const stored = {
+        id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        threadId,
+        author: message.author,
+        body: message.body,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      const all = await this.listMessages(threadId);
+      all.push(stored);
+      localStorage.setItem(this.msgKey(threadId), JSON.stringify(all));
+      return stored;
     }
     async update(id, patch) {
       for (const k of this.commentKeys()) {
@@ -2996,6 +3084,21 @@ var Loupe = (() => {
         kind: attachmentKind(file.type),
         size: file.size
       };
+    }
+    /** Replies on a thread. The comment's own body is message #1, not returned here. */
+    async listMessages(threadId) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listMessages failed: ${res.status}`);
+      return await res.json();
+    }
+    async addMessage(threadId, message) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(message)
+      }));
+      if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
+      return await res.json();
     }
     async update(id, patch) {
       const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
@@ -3177,10 +3280,108 @@ var Loupe = (() => {
   }
 
   // ../shared/dist/thread.js
+  function firstMessageFromComment(comment) {
+    return {
+      id: `${comment.id}:0`,
+      threadId: comment.id,
+      author: { ...comment.author, type: "user" },
+      body: comment.body,
+      attachments: comment.attachments?.length ? comment.attachments : void 0,
+      createdAt: comment.createdAt
+    };
+  }
+  function threadConversation(comment, replies) {
+    return [firstMessageFromComment(comment), ...replies].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
   function iterationLabel(link) {
     if (!link.parentThreadId || link.iterationType !== "revision")
       return null;
     return `Iteration ${link.iterationNumber ?? 2}`;
+  }
+
+  // ../shared/dist/timeline.js
+  function describeTarget(input) {
+    const parts = [];
+    if (input.anchor?.tag)
+      parts.push(`a <${input.anchor.tag}>`);
+    if (input.anchor?.selector)
+      parts.push(`\`${input.anchor.selector}\``);
+    return parts.length ? parts.join(" ") : input.kind === "free" ? "a page note" : "an element";
+  }
+  function threadTimeline(input, messages = []) {
+    const out = [];
+    const latest = messages.length ? messages[messages.length - 1].at : input.createdAt;
+    out.push({
+      at: input.createdAt,
+      kind: "captured",
+      label: "Feedback captured",
+      detail: [input.title, describeTarget(input)].filter(Boolean).join(" \xB7 ")
+    });
+    for (const m of messages) {
+      out.push({
+        at: m.at,
+        kind: "message",
+        label: `${m.authorName} replied`,
+        actor: m.fromAgent ? m.authorName : void 0
+      });
+    }
+    const stage = normalizeStage(input.status);
+    const reached = (s) => STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf(s);
+    if (input.proposal || reached("in_review")) {
+      const agent = input.proposal?.author ?? "Claude Code";
+      out.push({
+        at: input.proposal?.createdAt ?? latest,
+        kind: "sent",
+        label: `Change ready from ${agent}`,
+        detail: "The rewritten markup is on the thread.",
+        actor: agent
+      });
+    }
+    if (input.pr) {
+      out.push({
+        at: latest,
+        kind: "pr",
+        label: input.pr.number ? `Pull request #${input.pr.number} opened` : "Pull request opened",
+        detail: input.pr.state === "merged" ? "Merged." : input.pr.state === "closed" ? "Closed without merging." : "Waiting on review."
+      });
+      if (input.pr.previewUrl) {
+        out.push({ at: latest, kind: "preview", label: "Preview live", detail: input.pr.previewUrl });
+      }
+    }
+    if (reached("in_review")) {
+      out.push({ at: latest, kind: "review", label: "Waiting on a human review", detail: "Only a person can close this." });
+    }
+    if (stage === "resolved") {
+      out.push({ at: latest, kind: "resolved", label: "Resolved", detail: "A person closed this." });
+    }
+    return out;
+  }
+  var STAGE_ORDER = ["queue", "todo", "in_progress", "in_review", "resolved"];
+  function normalizeStage(status) {
+    if (status === "open")
+      return "queue";
+    if (status === "done")
+      return "resolved";
+    return status;
+  }
+  function threadAsText(input, messages = []) {
+    const lines = [
+      `# ${input.title ?? "Feedback"} (#${input.id})`,
+      "",
+      `- Stage: ${normalizeStage(input.status)}`,
+      `- Page: ${input.url ?? "\u2014"}`
+    ];
+    if (input.anchor?.selector)
+      lines.push(`- Target: \`${input.anchor.selector}\``);
+    if (input.pr?.number)
+      lines.push(`- PR: #${input.pr.number}${input.pr.previewUrl ? ` \xB7 preview ${input.pr.previewUrl}` : ""}`);
+    lines.push("", "## Request", "", input.body);
+    if (messages.length) {
+      lines.push("", "## Conversation", "");
+      for (const m of messages)
+        lines.push(`**${m.authorName}**${m.fromAgent ? " (agent)" : ""} \u2014 ${m.at}`, "", m.body, "");
+    }
+    return lines.join("\n");
   }
 
   // ../shared/dist/index.js
@@ -3230,7 +3431,7 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.21" : "dev";
+  var SDK_VERSION = true ? "0.10.22" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -3637,6 +3838,15 @@ var Loupe = (() => {
       /** Draft follow-ups, kept out of the render path so the input never loses focus. */
       this.iterDraft = /* @__PURE__ */ new Map();
       this.voiceTarget = null;
+      /** Replies per thread, loaded lazily when a card is expanded. */
+      this.messages = /* @__PURE__ */ new Map();
+      /** Reply drafts, kept out of the render path so the textarea keeps focus. */
+      this.msgDrafts = /* @__PURE__ */ new Map();
+      /** Optimistic replies awaiting the store. */
+      this.msgPending = /* @__PURE__ */ new Set();
+      /** Optimistic replies the store rejected — offered for retry rather than lost. */
+      this.msgFailed = /* @__PURE__ */ new Set();
+      this.msgErr = /* @__PURE__ */ new Map();
       this.cfg = cfg;
       this.store = cfg.apiBase ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac, cfg.headers, cfg.credentials) : new LocalStorageAdapter();
     }
@@ -5396,11 +5606,15 @@ var Loupe = (() => {
       };
       actions.append(doneBtn, del);
       detail.appendChild(actions);
+      detail.appendChild(this.conversationView(c));
       detail.appendChild(this.generateView(c));
       item.appendChild(detail);
       item.onclick = () => {
         if (open) this.expanded.delete(c.id);
-        else this.expanded.add(c.id);
+        else {
+          this.expanded.add(c.id);
+          void this.loadMessages(c);
+        }
         this.renderList();
       };
       return item;
@@ -5860,6 +6074,227 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       }
       this.voice = null;
       this.voiceTarget = null;
+    }
+    /**
+     * The conversation: the replies, a reply box, the activity timeline and the copy
+     * actions. Loaded lazily — a list of twenty cards should not fire twenty requests.
+     */
+    conversationView(c) {
+      const wrap = el("div", "convo");
+      const replies = this.messages.get(c.id);
+      if (replies === void 0) {
+        wrap.appendChild(el("div", "convo-loading", "Loading conversation\u2026"));
+        return wrap;
+      }
+      const asRows = replies.map((m) => ({
+        at: m.createdAt,
+        authorName: m.author.name,
+        body: m.body,
+        fromAgent: m.author.type === "agent"
+      }));
+      const conversation = threadConversation(c, replies);
+      const list = el("div", "msgs");
+      for (const m of conversation) {
+        const fromAgent = m.author.type === "agent";
+        const state = this.msgPending.has(m.id) ? " pending" : this.msgFailed.has(m.id) ? " failed" : "";
+        const row = el("div", "msg" + (fromAgent ? " agent" : "") + state);
+        const initials = (m.author.name || "?").trim().slice(0, 1).toUpperCase();
+        const head = el("div", "msg-head");
+        head.append(
+          el("span", "msg-av" + (fromAgent ? " agent" : ""), initials),
+          el("b", "msg-name", m.author.name),
+          el("span", "msg-when", fmtAgo(m.createdAt))
+        );
+        if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
+        row.append(head, el("div", "msg-body", m.body));
+        if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending\u2026"));
+        if (this.msgFailed.has(m.id)) {
+          const failed = el("div", "msg-state failed");
+          failed.append(document.createTextNode(this.msgErr.get(m.id) ?? "Could not send."));
+          const retry = el("button", "msg-retry", "Retry");
+          retry.onclick = (e) => {
+            e.stopPropagation();
+            void this.resend(c, m.id);
+          };
+          failed.appendChild(retry);
+          row.appendChild(failed);
+        }
+        list.appendChild(row);
+      }
+      wrap.appendChild(list);
+      const reply = el("div", "reply");
+      const input = el("textarea", "reply-in");
+      input.rows = 2;
+      input.placeholder = "Reply\u2026 use @ to mention";
+      input.value = this.msgDrafts.get(c.id) ?? "";
+      input.oninput = () => this.msgDrafts.set(c.id, input.value);
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void this.sendReply(c, input.value);
+        }
+      };
+      const foot = el("div", "reply-foot");
+      const send = el("button", "reply-send", "\u27A4 Send");
+      send.setAttribute("aria-label", "Send reply");
+      send.onclick = (e) => {
+        e.stopPropagation();
+        void this.sendReply(c, input.value);
+      };
+      foot.append(el("span", "reply-hint", "@ to mention"), send);
+      reply.append(input, foot);
+      wrap.appendChild(reply);
+      const timeline = threadTimeline(c, asRows);
+      const tl = el("div", "tl");
+      tl.appendChild(el("div", "tl-h", "Activity"));
+      for (const entry of timeline) {
+        const item = el("div", `tl-i tl-${entry.kind}`);
+        item.append(el("span", "tl-dot"), el("span", "tl-l", entry.label));
+        if (entry.detail) item.appendChild(el("span", "tl-d", entry.detail));
+        tl.appendChild(item);
+      }
+      wrap.appendChild(tl);
+      const copyRow = el("div", "copyrow");
+      const copyTextBtn = el("button", "copy-b", "Copy thread text");
+      copyTextBtn.onclick = (e) => {
+        e.stopPropagation();
+        const text = threadAsText(
+          {
+            id: c.id,
+            body: c.body,
+            title: c.title,
+            url: c.url,
+            status: c.status,
+            createdAt: c.createdAt,
+            kind: c.kind,
+            anchor: { tag: c.anchor?.tag, selector: c.anchor?.cssPath },
+            proposal: c.proposal,
+            pr: c.pr
+          },
+          asRows
+        );
+        void this.copyText(copyTextBtn, text);
+      };
+      const copyImagesBtn = el("button", "copy-b", "Copy images");
+      copyImagesBtn.onclick = (e) => {
+        e.stopPropagation();
+        void this.copyImages(copyImagesBtn, c);
+      };
+      copyRow.append(copyTextBtn, copyImagesBtn);
+      wrap.appendChild(copyRow);
+      return wrap;
+    }
+    /** Fetch replies once, when a card is first expanded. */
+    async loadMessages(c) {
+      if (this.messages.has(c.id)) return;
+      try {
+        this.messages.set(c.id, await this.store.listMessages(c.id));
+      } catch {
+        this.messages.set(c.id, []);
+      }
+      this.renderList();
+    }
+    /**
+     * Post a reply, optimistically.
+     *
+     * The row appears immediately; if the store rejects it the row stays with a Retry,
+     * because losing what someone typed is worse than showing a failed row.
+     */
+    async sendReply(c, raw) {
+      const body = raw.trim();
+      if (!body) return;
+      const author = {
+        id: this.cfg.user.id,
+        name: this.cfg.user.name,
+        email: this.cfg.user.email,
+        type: "user"
+      };
+      const optimistic = {
+        id: `pending-${Date.now().toString(36)}`,
+        threadId: c.id,
+        author,
+        body,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      this.messages.set(c.id, [...this.messages.get(c.id) ?? [], optimistic]);
+      this.msgPending.add(optimistic.id);
+      this.msgDrafts.delete(c.id);
+      this.renderList();
+      try {
+        const saved = await this.store.addMessage(c.id, { author, body });
+        this.messages.set(c.id, (this.messages.get(c.id) ?? []).map((m) => m.id === optimistic.id ? saved : m));
+        this.msgPending.delete(optimistic.id);
+        this.addActivity({ kind: "message.create", label: `Replied on \u201C${c.title || body.slice(0, 40)}\u201D` });
+      } catch (e) {
+        this.msgPending.delete(optimistic.id);
+        this.msgFailed.add(optimistic.id);
+        this.msgErr.set(optimistic.id, e instanceof Error ? e.message : "Could not send.");
+      }
+      this.renderList();
+    }
+    /** Try a failed optimistic reply again, in place. */
+    async resend(c, id) {
+      const found = (this.messages.get(c.id) ?? []).find((m) => m.id === id);
+      if (!found) return;
+      this.msgFailed.delete(id);
+      this.msgErr.delete(id);
+      this.msgPending.add(id);
+      this.renderList();
+      try {
+        const saved = await this.store.addMessage(c.id, { author: found.author, body: found.body });
+        this.messages.set(c.id, (this.messages.get(c.id) ?? []).map((m) => m.id === id ? saved : m));
+        this.msgPending.delete(id);
+      } catch (e) {
+        this.msgPending.delete(id);
+        this.msgFailed.add(id);
+        this.msgErr.set(id, e instanceof Error ? e.message : "Could not send.");
+      }
+      this.renderList();
+    }
+    /** Copy text, and say so — silence looks like a no-op. */
+    async copyText(button, text) {
+      const original = button.textContent;
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+        await navigator.clipboard.writeText(text);
+        button.textContent = "Copied \u2713";
+      } catch {
+        button.textContent = "Copy failed";
+      }
+      setTimeout(() => {
+        button.textContent = original;
+      }, 1500);
+    }
+    /**
+     * Copy the captured images. Best-effort and reported as such: an image clipboard
+     * write needs a secure context and a user gesture, and a silent failure would look
+     * like it worked.
+     */
+    async copyImages(button, c) {
+      const original = button.textContent;
+      const sources = [c.screenshot, ...(c.attachments ?? []).filter((a) => a.kind === "image").map((a) => a.url)].filter((s) => !!s);
+      if (!sources.length) {
+        button.textContent = "No images";
+        setTimeout(() => {
+          button.textContent = original;
+        }, 1500);
+        return;
+      }
+      try {
+        const blobs = await Promise.all(sources.slice(0, 4).map(async (src) => (await fetch(src)).blob()));
+        const items = {};
+        blobs.forEach((blob, i) => {
+          items[i === 0 ? "image/png" : `image/png-${i}`] = blob;
+        });
+        await navigator.clipboard.write([new window.ClipboardItem(items)]);
+        button.textContent = "Copied \u2713";
+      } catch {
+        button.textContent = "Copy failed";
+      }
+      setTimeout(() => {
+        button.textContent = original;
+      }, 1500);
     }
     flash(id) {
       const c = this.comments.find((x) => x.id === id);

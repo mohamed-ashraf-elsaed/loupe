@@ -29,6 +29,9 @@ import {
   requestNavigation as requestNav,
   STAGE_LABELS,
   stackLabel,
+  threadAsText,
+  threadConversation,
+  threadTimeline,
   summarizeActivity,
   undo as undoIteration,
   withdraw as withdrawConsent,
@@ -36,7 +39,7 @@ import {
 import type {
   ActivityEvent, ActivityEventInput, ActivityStatus, Anchor, Attachment, ChangeType, Comment,
   CommentPriority, ConsentRecord, IterationState, LocalAiConfig, LoupeConfig, RegionRect,
-  ResolveResult, StorageAdapter,
+  ResolveResult, StorageAdapter, ThreadAuthor, ThreadMessage,
 } from "./types.js";
 
 declare const __LOUPE_VERSION__: string | undefined;
@@ -2648,13 +2651,19 @@ export class LoupeApp {
     };
     actions.append(doneBtn, del);
     detail.appendChild(actions);
+    // The conversation: replies, a reply box, the timeline and the copy actions.
+    detail.appendChild(this.conversationView(c));
     // Generating a change for this thread, and its iteration history.
     detail.appendChild(this.generateView(c));
     item.appendChild(detail);
 
     item.onclick = () => {
       if (open) this.expanded.delete(c.id);
-      else this.expanded.add(c.id);
+      else {
+        this.expanded.add(c.id);
+        // Replies are fetched the first time a card is opened, not for the whole list.
+        void this.loadMessages(c);
+      }
       this.renderList();
     };
     return item;
@@ -3163,6 +3172,221 @@ export class LoupeApp {
     try { this.voice?.stop(); } catch { /* already stopped */ }
     this.voice = null;
     this.voiceTarget = null;
+  }
+
+  /** Replies per thread, loaded lazily when a card is expanded. */
+  private messages = new Map<string, ThreadMessage[]>();
+  /** Reply drafts, kept out of the render path so the textarea keeps focus. */
+  private msgDrafts = new Map<string, string>();
+  /** Optimistic replies awaiting the store. */
+  private msgPending = new Set<string>();
+  /** Optimistic replies the store rejected — offered for retry rather than lost. */
+  private msgFailed = new Set<string>();
+  private msgErr = new Map<string, string>();
+
+  /**
+   * The conversation: the replies, a reply box, the activity timeline and the copy
+   * actions. Loaded lazily — a list of twenty cards should not fire twenty requests.
+   */
+  private conversationView(c: Comment): HTMLElement {
+    const wrap = el("div", "convo");
+    const replies = this.messages.get(c.id);
+
+    if (replies === undefined) {
+      wrap.appendChild(el("div", "convo-loading", "Loading conversation…"));
+      return wrap;
+    }
+
+    const asRows = replies.map((m) => ({
+      at: m.createdAt, authorName: m.author.name, body: m.body, fromAgent: m.author.type === "agent",
+    }));
+    const conversation = threadConversation(c, replies);
+
+    const list = el("div", "msgs");
+    for (const m of conversation) {
+      const fromAgent = m.author.type === "agent";
+      const state = this.msgPending.has(m.id) ? " pending" : this.msgFailed.has(m.id) ? " failed" : "";
+      const row = el("div", "msg" + (fromAgent ? " agent" : "") + state);
+      const initials = (m.author.name || "?").trim().slice(0, 1).toUpperCase();
+      const head = el("div", "msg-head");
+      head.append(
+        el("span", "msg-av" + (fromAgent ? " agent" : ""), initials),
+        el("b", "msg-name", m.author.name),
+        el("span", "msg-when", fmtAgo(m.createdAt)),
+      );
+      if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
+      row.append(head, el("div", "msg-body", m.body));
+
+      if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending…"));
+      if (this.msgFailed.has(m.id)) {
+        const failed = el("div", "msg-state failed");
+        failed.append(document.createTextNode(this.msgErr.get(m.id) ?? "Could not send."));
+        const retry = el("button", "msg-retry", "Retry") as HTMLButtonElement;
+        retry.onclick = (e) => { e.stopPropagation(); void this.resend(c, m.id); };
+        failed.appendChild(retry);
+        row.appendChild(failed);
+      }
+      list.appendChild(row);
+    }
+    wrap.appendChild(list);
+
+    // ---- reply box ---------------------------------------------------------
+    const reply = el("div", "reply");
+    const input = el("textarea", "reply-in") as HTMLTextAreaElement;
+    input.rows = 2;
+    input.placeholder = "Reply… use @ to mention";
+    input.value = this.msgDrafts.get(c.id) ?? "";
+    // Typing must not re-render, or the caret jumps on every keystroke.
+    input.oninput = () => this.msgDrafts.set(c.id, input.value);
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.onkeydown = (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void this.sendReply(c, input.value); }
+    };
+    const foot = el("div", "reply-foot");
+    const send = el("button", "reply-send", "➤ Send") as HTMLButtonElement;
+    send.setAttribute("aria-label", "Send reply");
+    send.onclick = (e) => { e.stopPropagation(); void this.sendReply(c, input.value); };
+    foot.append(el("span", "reply-hint", "@ to mention"), send);
+    reply.append(input, foot);
+    wrap.appendChild(reply);
+
+    // ---- timeline ----------------------------------------------------------
+    const timeline = threadTimeline(c, asRows);
+    const tl = el("div", "tl");
+    tl.appendChild(el("div", "tl-h", "Activity"));
+    for (const entry of timeline) {
+      const item = el("div", `tl-i tl-${entry.kind}`);
+      item.append(el("span", "tl-dot"), el("span", "tl-l", entry.label));
+      if (entry.detail) item.appendChild(el("span", "tl-d", entry.detail));
+      tl.appendChild(item);
+    }
+    wrap.appendChild(tl);
+
+    // ---- copy --------------------------------------------------------------
+    const copyRow = el("div", "copyrow");
+    const copyTextBtn = el("button", "copy-b", "Copy thread text") as HTMLButtonElement;
+    copyTextBtn.onclick = (e) => {
+      e.stopPropagation();
+      const text = threadAsText(
+        {
+          id: c.id, body: c.body, title: c.title, url: c.url, status: c.status, createdAt: c.createdAt,
+          kind: c.kind, anchor: { tag: c.anchor?.tag, selector: c.anchor?.cssPath },
+          proposal: c.proposal, pr: c.pr,
+        },
+        asRows,
+      );
+      void this.copyText(copyTextBtn, text);
+    };
+    const copyImagesBtn = el("button", "copy-b", "Copy images") as HTMLButtonElement;
+    copyImagesBtn.onclick = (e) => { e.stopPropagation(); void this.copyImages(copyImagesBtn, c); };
+    copyRow.append(copyTextBtn, copyImagesBtn);
+    wrap.appendChild(copyRow);
+
+    return wrap;
+  }
+
+  /** Fetch replies once, when a card is first expanded. */
+  private async loadMessages(c: Comment) {
+    if (this.messages.has(c.id)) return;
+    try {
+      this.messages.set(c.id, await this.store.listMessages(c.id));
+    } catch {
+      this.messages.set(c.id, []);
+    }
+    this.renderList();
+  }
+
+  /**
+   * Post a reply, optimistically.
+   *
+   * The row appears immediately; if the store rejects it the row stays with a Retry,
+   * because losing what someone typed is worse than showing a failed row.
+   */
+  private async sendReply(c: Comment, raw: string) {
+    const body = raw.trim();
+    if (!body) return;
+    const author: ThreadAuthor = {
+      id: this.cfg.user.id, name: this.cfg.user.name, email: this.cfg.user.email, type: "user",
+    };
+    const optimistic: ThreadMessage = {
+      id: `pending-${Date.now().toString(36)}`, threadId: c.id, author, body,
+      createdAt: new Date().toISOString(),
+    };
+    this.messages.set(c.id, [...(this.messages.get(c.id) ?? []), optimistic]);
+    this.msgPending.add(optimistic.id);
+    this.msgDrafts.delete(c.id);
+    this.renderList();
+
+    try {
+      const saved = await this.store.addMessage(c.id, { author, body });
+      this.messages.set(c.id, (this.messages.get(c.id) ?? []).map((m) => (m.id === optimistic.id ? saved : m)));
+      this.msgPending.delete(optimistic.id);
+      this.addActivity({ kind: "message.create", label: `Replied on “${c.title || body.slice(0, 40)}”` });
+    } catch (e) {
+      this.msgPending.delete(optimistic.id);
+      this.msgFailed.add(optimistic.id);
+      this.msgErr.set(optimistic.id, e instanceof Error ? e.message : "Could not send.");
+    }
+    this.renderList();
+  }
+
+  /** Try a failed optimistic reply again, in place. */
+  private async resend(c: Comment, id: string) {
+    const found = (this.messages.get(c.id) ?? []).find((m) => m.id === id);
+    if (!found) return;
+    this.msgFailed.delete(id);
+    this.msgErr.delete(id);
+    this.msgPending.add(id);
+    this.renderList();
+    try {
+      const saved = await this.store.addMessage(c.id, { author: found.author, body: found.body });
+      this.messages.set(c.id, (this.messages.get(c.id) ?? []).map((m) => (m.id === id ? saved : m)));
+      this.msgPending.delete(id);
+    } catch (e) {
+      this.msgPending.delete(id);
+      this.msgFailed.add(id);
+      this.msgErr.set(id, e instanceof Error ? e.message : "Could not send.");
+    }
+    this.renderList();
+  }
+
+  /** Copy text, and say so — silence looks like a no-op. */
+  private async copyText(button: HTMLButtonElement, text: string) {
+    const original = button.textContent;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+      button.textContent = "Copied ✓";
+    } catch {
+      button.textContent = "Copy failed";
+    }
+    setTimeout(() => { button.textContent = original; }, 1500);
+  }
+
+  /**
+   * Copy the captured images. Best-effort and reported as such: an image clipboard
+   * write needs a secure context and a user gesture, and a silent failure would look
+   * like it worked.
+   */
+  private async copyImages(button: HTMLButtonElement, c: Comment) {
+    const original = button.textContent;
+    const sources = [c.screenshot, ...(c.attachments ?? []).filter((a) => a.kind === "image").map((a) => a.url)]
+      .filter((s): s is string => !!s);
+    if (!sources.length) {
+      button.textContent = "No images";
+      setTimeout(() => { button.textContent = original; }, 1500);
+      return;
+    }
+    try {
+      const blobs = await Promise.all(sources.slice(0, 4).map(async (src) => (await fetch(src)).blob()));
+      const items: Record<string, Blob> = {};
+      blobs.forEach((blob, i) => { items[i === 0 ? "image/png" : `image/png-${i}`] = blob; });
+      await (navigator.clipboard as any).write([new (window as any).ClipboardItem(items)]);
+      button.textContent = "Copied ✓";
+    } catch {
+      button.textContent = "Copy failed";
+    }
+    setTimeout(() => { button.textContent = original; }, 1500);
   }
 
   private flash(id: string) {

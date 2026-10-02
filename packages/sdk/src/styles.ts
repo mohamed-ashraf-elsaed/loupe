@@ -758,6 +758,68 @@ export const STYLES = /* css */ `
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* ------------------------------------------------------------- conversation */
+.convo { margin-top: 8px; }
+.convo-loading { padding: 10px; text-align: center; font-size: 11.5px; color: var(--muted); }
+.msgs { display: flex; flex-direction: column; gap: 6px; }
+.msg { padding: 7px 8px; border-radius: 9px; background: var(--bg-2); border: 1px solid transparent; }
+/* An agent's reply is called out with a left accent bar and a lighter container —
+   it should be obvious at a glance who you are talking to. */
+.msg.agent { border-left: 3px solid var(--accent); background: var(--bg-3); }
+.msg.pending { opacity: .65; }
+.msg.failed { border-color: var(--pin); }
+.msg-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.msg-av {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; background: var(--bg-3); color: var(--muted);
+  font-size: 10px; font-weight: 700;
+}
+.msg-av.agent { background: var(--accent); color: #fff; }
+.msg-name { font-size: 11.5px; color: var(--ink); }
+.msg-when { flex: 1; font-size: 10.5px; color: var(--muted); }
+.msg-tag {
+  padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.msg-body { font-size: 11.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-state { margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+.msg-state.failed { color: var(--pin); }
+.msg-retry {
+  margin-left: 6px; padding: 1px 7px; border: 1px solid var(--pin); border-radius: 6px;
+  background: transparent; color: var(--pin); font-size: 10.5px; cursor: pointer;
+}
+.reply { margin-top: 7px; }
+.reply-in {
+  width: 100%; resize: vertical; min-height: 40px; padding: 7px 8px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--bg);
+  color: var(--ink); font: inherit; font-size: 11.5px;
+}
+.reply-in:focus { outline: none; border-color: var(--accent); }
+.reply-foot { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.reply-hint { flex: 1; font-size: 10.5px; color: var(--muted); }
+.reply-send {
+  padding: 5px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+/* the activity timeline */
+.tl { margin-top: 10px; }
+.tl-h { margin-bottom: 5px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.tl-i { position: relative; padding: 0 0 7px 14px; font-size: 11px; color: var(--muted); }
+.tl-i::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: -3px; width: 1px; background: var(--line); }
+.tl-i:last-child::before { display: none; }
+.tl-dot { position: absolute; left: 0; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tl-i.tl-resolved .tl-dot { background: #2f9e6a; }
+.tl-i.tl-pr .tl-dot, .tl-i.tl-preview .tl-dot { background: #3f8ae0; }
+.tl-i.tl-review .tl-dot { background: var(--accent); }
+.tl-l { color: var(--ink); }
+.tl-d { display: block; font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+.copyrow { display: flex; gap: 6px; margin-top: 8px; }
+.copy-b {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.copy-b:hover { border-color: var(--accent); color: var(--ink); }
+
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {
   position: relative; margin: 8px 12px 0; padding: 10px 28px 10px 11px;

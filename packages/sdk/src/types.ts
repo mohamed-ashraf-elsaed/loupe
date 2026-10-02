@@ -4,6 +4,7 @@ export * from "@loupekit/shared";
 
 import type {
   ActivityEventInput, Attachment, Comment, Iteration, IterationKind, LoupeUser, RegionRect,
+  ThreadAuthor, ThreadMessage,
 } from "@loupekit/shared";
 
 /** Local-AI settings the user configured in the panel (any OpenAI-compatible server). */
@@ -195,6 +196,9 @@ export interface StorageAdapter {
    * an object-storage URL in server mode, or an inline data URL offline.
    */
   upload(projectKey: string, file: File): Promise<Attachment>;
+  /** Replies on a thread, oldest first. The comment's own body is message #1. */
+  listMessages(threadId: string): Promise<ThreadMessage[]>;
+  addMessage(threadId: string, message: { author: ThreadAuthor; body: string }): Promise<ThreadMessage>;
 }
 
 /** Result of trying to re-locate an anchored element on the current page. */

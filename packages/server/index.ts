@@ -11,7 +11,7 @@ import {
 } from "./branches.ts";
 import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } from "./blobs.ts";
 import { migrate } from "./db.ts";
-import { addMessage, deleteMessage, listMessages } from "./messages.ts";
+import { addMessage, deleteMessage, listMessages, listParticipants } from "./messages.ts";
 import type { Comment } from "@loupekit/shared";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -161,6 +161,18 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
         return send(res, 201, message);
       }
     }
+    const participants = path.match(/^\/v1\/comments\/([^/]+)\/participants$/);
+    if (participants && req.method === "GET") {
+      const threadId = decodeURIComponent(participants[1]!);
+      const comment = await store.getComment(threadId);
+      if (!comment) return send(res, 404, { error: "not found" });
+      const auth = await authenticate(comment.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      // The thread's own author is folded in: a reporter who never replied is still a
+      // participant, and dropping them from a notification list is a silent bug.
+      return send(res, 200, await listParticipants(threadId, { ...comment.author, type: "user" }));
+    }
+
     const messageDelete = path.match(/^\/v1\/comments\/([^/]+)\/messages\/([^/]+)$/);
     if (messageDelete && req.method === "DELETE") {
       const threadId = decodeURIComponent(messageDelete[1]!);

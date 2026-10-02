@@ -1,4 +1,4 @@
-import type { Attachment, Comment, StorageAdapter } from "./types.js";
+import type { Attachment, Comment, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
@@ -65,15 +65,15 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 
   /**
-   * Keys that hold a comment list. `loupe:dock` also lives under `loupe:` but
-   * holds an OBJECT (panel state), so treating every `loupe:` key as a list made
-   * update()/remove() throw as soon as the panel persisted anything.
+   * Keys that hold a comment list. `loupe:dock` (panel state) and `loupe:msgs:*`
+   * (replies) share the prefix but are not comment lists — treating them as one made
+   * update()/remove() throw, and would have it hunt a comment id among messages.
    */
   private commentKeys(): string[] {
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith("loupe:") && k !== "loupe:dock") keys.push(k);
+      if (k && k.startsWith("loupe:") && k !== "loupe:dock" && !k.startsWith("loupe:msgs:")) keys.push(k);
     }
     return keys;
   }
@@ -85,6 +85,35 @@ export class LocalStorageAdapter implements StorageAdapter {
     } catch {
       return [];
     }
+  }
+
+  /** Replies, kept under their own key so they survive a comment being re-saved. */
+  private msgKey(threadId: string) {
+    return `loupe:msgs:${threadId}`;
+  }
+
+  async listMessages(threadId: string): Promise<ThreadMessage[]> {
+    try {
+      const raw = localStorage.getItem(this.msgKey(threadId));
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? (parsed as ThreadMessage[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async addMessage(threadId: string, message: { author: ThreadAuthor; body: string }): Promise<ThreadMessage> {
+    const stored: ThreadMessage = {
+      id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      threadId,
+      author: message.author,
+      body: message.body,
+      createdAt: new Date().toISOString(),
+    };
+    const all = await this.listMessages(threadId);
+    all.push(stored);
+    localStorage.setItem(this.msgKey(threadId), JSON.stringify(all));
+    return stored;
   }
 
   async update(id: string, patch: Partial<Comment>): Promise<void> {

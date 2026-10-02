@@ -1332,6 +1332,144 @@ describe("LoupeApp", () => {
     expect(sr().querySelector<HTMLElement>(".iterchip")!.title).toBe("Revision of thread #orig");
   });
 
+  it("renders the conversation, with an agent's reply called out", async () => {
+    // The replies must post-date the request, or the ordering assertion is meaningless.
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "Make the CTA bigger", body: "It is too small.", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "a1", name: "Claude Code", type: "agent" }, body: "Made it bigger.", createdAt: "2026-01-01T11:00:00.000Z" },
+      { id: "m2", threadId: "t1", author: { id: "u1", name: "Sara", type: "user" }, body: "Still too small.", createdAt: "2026-01-01T12:00:00.000Z" },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Nothing loads until the card is opened.
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const rows = [...sr().querySelectorAll<HTMLElement>(".msg")];
+    // The request itself is message #1, then the two replies — nothing was migrated.
+    expect(rows.length).toBe(3);
+    expect(rows[0]!.querySelector(".msg-body")!.textContent).toBe("It is too small.");
+    expect(rows[0]!.classList.contains("agent")).toBe(false);
+
+    const agentRow = rows.find((r) => r.classList.contains("agent"))!;
+    expect(agentRow.querySelector(".msg-name")!.textContent).toBe("Claude Code");
+    expect(agentRow.querySelector(".msg-tag")!.textContent).toBe("agent");
+    expect(agentRow.querySelector(".msg-body")!.textContent).toBe("Made it bigger.");
+    // Only the agent's row carries the marker.
+    expect(rows.filter((r) => r.classList.contains("agent")).length).toBe(1);
+  });
+
+  it("posts a reply from the composer and shows it immediately", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "Ada" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const input = sr().querySelector<HTMLTextAreaElement>(".reply-in")!;
+    input.value = "Looking at it now.";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>(".reply-send")!.click();
+    await new Promise((r) => setTimeout(r, 20));
+
+    const bodies = [...sr().querySelectorAll<HTMLElement>(".msg-body")].map((b) => b.textContent);
+    expect(bodies).toContain("Looking at it now.");
+    // Attributed to the signed-in person, not to an agent.
+    const mine = [...sr().querySelectorAll<HTMLElement>(".msg")].find((m) => m.querySelector(".msg-body")!.textContent === "Looking at it now.")!;
+    expect(mine.querySelector(".msg-name")!.textContent).toBe("Ada");
+    expect(mine.classList.contains("agent")).toBe(false);
+    // It persisted, so a reload would show it.
+    expect(JSON.parse(localStorage.getItem("loupe:msgs:t1")!).length).toBe(1);
+    // And the draft is cleared.
+    expect(sr().querySelector<HTMLTextAreaElement>(".reply-in")!.value).toBe("");
+  });
+
+  it("keeps a failed reply with a retry rather than losing it", async () => {
+    // The offline store is in-memory and effectively cannot fail, so drive this
+    // through the HTTP adapter — a server that is down is the real failure mode.
+    const comment = seeded({ id: "t1", title: "T", body: "b" });
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: any = {}) => {
+      if (url.includes("/messages") && init.method === "POST") {
+        return new Response(JSON.stringify({ error: "boom" }), { status: 500 });
+      }
+      if (url.includes("/messages")) return new Response("[]", { status: 200 });
+      if (url.includes("/v1/comments")) return new Response(JSON.stringify([comment]), { status: 200 });
+      return new Response("[]", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "Ada" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>(".item")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+
+      const input = sr().querySelector<HTMLTextAreaElement>(".reply-in")!;
+      input.value = "this will not save";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      sr().querySelector<HTMLElement>(".reply-send")!.click();
+      await new Promise((r) => setTimeout(r, 40));
+
+      const failed = sr().querySelector<HTMLElement>(".msg.failed");
+      expect(failed, "a rejected reply should stay on screen").toBeTruthy();
+      // The text is preserved — losing what someone typed is the worst outcome.
+      expect(failed!.querySelector(".msg-body")!.textContent).toBe("this will not save");
+      expect(failed!.querySelector(".msg-state")!.textContent).toContain("addMessage failed");
+      expect(failed!.querySelector(".msg-retry")).toBeTruthy();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("shows the activity timeline for the thread", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({
+        id: "t1", title: "T", body: "b", status: "in_review",
+        pr: { number: 412, url: "https://github.com/acme/web/pull/412", previewUrl: "https://acme.github.io/web/pr-preview/pr-412/" },
+      }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const labels = [...sr().querySelectorAll<HTMLElement>(".tl-l")].map((l) => l.textContent);
+    expect(labels[0]).toBe("Feedback captured");
+    expect(labels).toContain("Pull request #412 opened");
+    expect(labels).toContain("Preview live");
+    expect(labels).toContain("Waiting on a human review");
+    // Resolved is not claimed for a thread that is not resolved.
+    expect(labels).not.toContain("Resolved");
+  });
+
+  it("copies the thread as readable text, selector included", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "Make the CTA bigger", body: "It is too small." }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    sr().querySelector<HTMLElement>(".copy-b")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const text = writeText.mock.calls[0]![0] as unknown as string;
+    expect(text).toContain("# Make the CTA bigger (#t1)");
+    // The selector is the part that still means something outside Loupe.
+    expect(text).toContain("- Target: `.x`");
+    expect(text).toContain("It is too small.");
+    expect(sr().querySelector<HTMLElement>(".copy-b")!.textContent).toBe("Copied ✓");
+  });
+
   it("does not initialize without projectKey or user id", () => {
     init({ projectKey: "", user: { id: "u", name: "U" } } as any);
     expect(document.getElementById("loupe-root")).toBeNull();
