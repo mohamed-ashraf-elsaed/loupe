@@ -153,6 +153,29 @@ trackActivity({ kind: "Bash", label: "pnpm test", detail: "exit 1", level: "erro
 Loupe's own operations feed the same stream, so the view is never empty. With nothing connected it
 says *Monitor unavailable* and explains how to wire it up.
 
+### Reviewing a change
+
+A thread can carry the pull request its fix is riding on, which the panel turns into a lifecycle chip,
+a PR link and a checks meter:
+
+```ts
+// Via the API (or your own tooling) — the panel picks it up on the next load.
+await fetch(`${apiBase}/v1/comments/${id}`, {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json", "X-Loupe-Admin": secret },
+  body: JSON.stringify({
+    pr: { number: 412, url: "https://github.com/acme/web/pull/412", checksPassed: 3, checksTotal: 4 },
+  }),
+});
+```
+
+Threads in **In Review** lead their detail with a review banner — **Approve** and **Add comment** —
+and, when a change has been proposed, a *Show original* toggle that puts your original request beside
+the proposal. Approving resolves the thread and is logged in the Activity feed.
+
+The rule that shape enforces: **only a human resolves a thread.** An agent moves work to In Review;
+a person closes it from there.
+
 ### Offline mode (no backend)
 
 Omit `apiBase` and comments persist to `localStorage` — great for demos and local dev:

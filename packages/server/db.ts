@@ -92,6 +92,9 @@ export async function migrate(): Promise<void> {
   // Which repo/branch the feedback was filed against (branch-aware threads).
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS repo TEXT;`);
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS branch TEXT;`);
+  // The pull request carrying a thread's fix: { number, url, state, checksPassed,
+  // checksTotal }. Drives the panel's lifecycle chip and checks meter.
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS pr JSONB;`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).

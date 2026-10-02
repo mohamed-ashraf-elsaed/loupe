@@ -238,7 +238,12 @@ var Loupe = (() => {
 
 .item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--bg-2); }
 .item:hover { border-color: var(--accent); }
-.item .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+/* The header row now carries the number, a detached badge, a lifecycle chip, a PR
+   chip, a checks meter and the caret \u2014 more than fits on one line in a narrow
+   panel, so it wraps rather than clipping the last chip. The caret keeps its place
+   at the end of the row. */
+.item .top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 6px; }
+.item .top .caret { margin-left: auto; }
 .item .num { background: var(--pin); color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
 .item .num.detached { background: #9aa0af; }
 .item .num.done { background: #10935a; }
@@ -611,6 +616,74 @@ var Loupe = (() => {
 }
 .menu-ver b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
 .menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
+
+/* ------------------------------------------------ lifecycle chips + review flow */
+.lifechip {
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+.lifechip.st-sent { border-color: var(--accent); color: var(--accent); }
+.lifechip.st-in_pr { border-color: #3f8ae0; color: #3f8ae0; }
+.lifechip.st-preview { border-color: var(--accent); background: var(--accent); color: #fff; }
+.lifechip.st-reviewed { border-color: #2f9e6a; color: #2f9e6a; }
+.prchip {
+  padding: 1px 6px; border-radius: 6px; text-decoration: none; cursor: pointer;
+  border: 1px solid #3f8ae0; background: var(--bg); color: #3f8ae0;
+  font-family: ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 700;
+}
+.prchip:hover { background: #3f8ae0; color: #fff; }
+.prchip.st-merged { border-color: #8250df; color: #8250df; }
+.prchip.st-merged:hover { background: #8250df; color: #fff; }
+.prchip.st-closed { border-color: var(--line); color: var(--muted); }
+/* checks meter \u2014 a numerator over a thin bar */
+.checks { display: inline-flex; align-items: center; gap: 4px; }
+.checks-n { font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.checks-bar { display: block; width: 26px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.checks-bar i { display: block; height: 100%; background: #2f9e6a; }
+
+/* the "N waiting on your review" strip above the list */
+.reviewbar {
+  display: flex; align-items: center; gap: 7px; margin: 8px 12px 0; padding: 7px 10px;
+  border: 1px solid var(--accent); border-radius: 9px; background: var(--bg-2);
+}
+.rb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; animation: loupe-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .rb-dot { animation: none; } }
+.rb-t { flex: 1; font-size: 11.5px; color: var(--ink); }
+.rb-t b { font-variant-numeric: tabular-nums; }
+.rb-b {
+  padding: 3px 9px; border: 1px solid var(--accent); border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+
+/* the review banner inside a thread */
+.revbanner {
+  display: flex; align-items: center; gap: 6px; margin: 8px 0; padding: 7px 8px;
+  border: 1px solid var(--accent); border-radius: 9px; background: var(--bg-3);
+}
+.rev-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.rev-t { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+.rev-approve {
+  padding: 4px 10px; border: 1px solid var(--accent); border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.rev-approve:disabled { opacity: .6; cursor: default; }
+.rev-comment, .rev-origin {
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.rev-comment:hover, .rev-origin:hover { border-color: var(--accent); }
+
+/* original request beside the proposed change */
+.origin { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.or-col { min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.or-h { margin-bottom: 4px; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.or-b { font-size: 11px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.or-code {
+  margin: 6px 0 0; padding: 6px; max-height: 130px; overflow: auto; border-radius: 6px;
+  background: var(--bg-2); color: var(--muted); font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
 
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {
@@ -2876,6 +2949,44 @@ var Loupe = (() => {
     };
   }
 
+  // ../shared/dist/lifecycle.js
+  var LIFECYCLE_LABELS = {
+    sent: "Sent to agent",
+    in_pr: "In PR",
+    preview: "Review preview",
+    reviewed: "Reviewed"
+  };
+  function lifecycle(c) {
+    const hasProposal = !!c.proposal;
+    const pr = c.pr ?? void 0;
+    const withPr = (stage) => {
+      const out = { stage, label: LIFECYCLE_LABELS[stage] };
+      if (pr) {
+        out.pr = pr;
+        if (typeof pr.checksTotal === "number" && pr.checksTotal > 0) {
+          const passed = Math.max(0, Math.min(pr.checksTotal, pr.checksPassed ?? 0));
+          out.checks = {
+            text: `${passed}/${pr.checksTotal}`,
+            ratio: passed / pr.checksTotal
+          };
+        }
+      }
+      return out;
+    };
+    if (c.status === "resolved")
+      return hasProposal || pr ? withPr("reviewed") : null;
+    if (pr)
+      return withPr("in_pr");
+    if (c.status === "in_review")
+      return { stage: "preview", label: LIFECYCLE_LABELS.preview };
+    if (hasProposal)
+      return { stage: "sent", label: LIFECYCLE_LABELS.sent };
+    return null;
+  }
+  function awaitingReview(comments) {
+    return comments.filter((c) => c.status === "in_review");
+  }
+
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
   var STAGE_LABELS = {
@@ -2923,7 +3034,7 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.14" : "dev";
+  var SDK_VERSION = true ? "0.10.15" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -3535,7 +3646,9 @@ var Loupe = (() => {
       this.homeEl = homeView;
       const commentsView = el("div", "view comments-view");
       this.commentsHint = el("div", "hint-slot");
-      commentsView.append(this.commentsHint, tools, listHead, this.listEl, this.buildIntegrations());
+      this.reviewBar = el("div", "reviewbar");
+      this.reviewBar.style.display = "none";
+      commentsView.append(this.commentsHint, tools, listHead, this.reviewBar, this.listEl, this.buildIntegrations());
       const activityView = el("div", "view activity-view");
       this.activityEl = activityView;
       const customViews = (this.cfg.tabs ?? []).map((t) => {
@@ -4889,6 +5002,7 @@ var Loupe = (() => {
       });
       if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       this.renderRepoFilter();
+      this.renderReviewBar();
       if (!items.length) {
         this.listEl.appendChild(el(
           "div",
@@ -4933,7 +5047,32 @@ var Loupe = (() => {
         top.appendChild(el("span", "device", `${icon} ${kind}`));
       }
       if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
-      else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
+      else if (detached) {
+        const b = el("span", "badge detached", "moved");
+        b.title = "element moved or removed";
+        top.appendChild(b);
+      }
+      const lc = lifecycle(c);
+      if (lc) {
+        if (lc.stage !== "reviewed") top.appendChild(el("span", `lifechip st-${lc.stage}`, lc.label));
+        if (lc.pr) {
+          const pr = el(lc.pr.url ? "a" : "span", `prchip${lc.pr.state ? ` st-${lc.pr.state}` : ""}`, `#${lc.pr.number}`);
+          pr.title = `Pull request #${lc.pr.number}${lc.pr.state ? ` \u2014 ${lc.pr.state}` : ""}`;
+          if (lc.pr.url) {
+            pr.href = lc.pr.url;
+            pr.setAttribute("target", "_blank");
+            pr.setAttribute("rel", "noreferrer");
+            pr.addEventListener("click", (e) => e.stopPropagation());
+          }
+          top.appendChild(pr);
+        }
+        if (lc.checks) {
+          const meter = el("span", "checks");
+          meter.title = `Checks \u2014 ${lc.checks.text} passed`;
+          meter.innerHTML = `<span class="checks-n">${escapeHtml(lc.checks.text)}</span><span class="checks-bar"><i style="width:${Math.round(lc.checks.ratio * 100)}%"></i></span>`;
+          top.appendChild(meter);
+        }
+      }
       if (this.showPaths && this.scope === "all" && c.url) {
         top.appendChild(el("span", "pathtag", shortPath(c.url)));
       }
@@ -4942,6 +5081,8 @@ var Loupe = (() => {
       const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
       item.appendChild(el("div", "summary", summary));
       const detail = el("div", "detail");
+      if (c.status === "in_review") detail.appendChild(this.reviewBanner(c));
+      if (c.proposal) detail.appendChild(this.proposalView(c));
       if (c.title || c.body.includes("\n")) detail.appendChild(el("div", "body", c.body));
       detail.appendChild(el("div", "meta", describeAnchor(c)));
       if (c.recording) {
@@ -5007,6 +5148,87 @@ var Loupe = (() => {
         this.renderList();
       };
       return item;
+    }
+    /**
+     * The review banner. This is the one place the panel asks a human to decide
+     * something, so it sits above everything else in the detail.
+     *
+     * Approving resolves the thread. That asymmetry is the rule the whole flow rests
+     * on: an agent moves work to In Review, only a person closes it.
+     */
+    reviewBanner(c) {
+      const label = c.title || c.body.split("\n")[0] || "this thread";
+      const banner = el("div", "revbanner");
+      banner.innerHTML = `<span class="rev-dot"></span><span class="rev-t">Waiting on your review</span><span class="rev-spacer"></span>`;
+      const approve = el("button", "rev-approve", "Approve");
+      approve.onclick = async (e) => {
+        e.stopPropagation();
+        approve.disabled = true;
+        approve.textContent = "Approving\u2026";
+        await this.store.update(c.id, { status: "resolved" });
+        c.status = "resolved";
+        this.renderPins();
+        this.renderList();
+        this.renderHome();
+        this.addActivity({ kind: "review.approve", label: `Approved \u201C${label}\u201D` });
+      };
+      const discuss = el("button", "rev-comment", "Add comment");
+      discuss.onclick = (e) => {
+        e.stopPropagation();
+        const target = this.resolved.get(c.id);
+        if (target && target.isConnected) {
+          const r = target.getBoundingClientRect();
+          this.openComposer({ kind: "element", element: target }, r.left + r.width / 2, r.top + r.height);
+        } else {
+          this.setMode("free");
+        }
+      };
+      banner.append(approve, discuss);
+      if (c.proposal) {
+        const origin = el("button", "rev-origin", "Show original");
+        origin.onclick = (e) => {
+          e.stopPropagation();
+          const view = banner.parentElement?.querySelector(".origin");
+          if (!view) return;
+          const shown = view.classList.toggle("show");
+          view.style.display = shown ? "" : "none";
+          origin.textContent = shown ? "Hide original" : "Show original";
+        };
+        banner.appendChild(origin);
+      }
+      return banner;
+    }
+    /**
+     * The original request beside Claude's proposed change. Hidden until the review
+     * banner's toggle asks for it — a reviewer who does not care should not pay for
+     * the markup.
+     */
+    proposalView(c) {
+      const p = c.proposal;
+      const wrap = el("div", "origin");
+      wrap.style.display = "none";
+      wrap.innerHTML = `<div class="or-col"><div class="or-h">Original request</div><div class="or-b">${escapeHtml(c.title ? `${c.title}
+
+${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escapeHtml(c.context.html)}</pre>` : "") + `</div><div class="or-col"><div class="or-h">Proposed change${p.author ? ` \xB7 ${escapeHtml(p.author)}` : ""}</div>` + (p.notes ? `<div class="or-b">${escapeHtml(p.notes)}</div>` : "") + (p.html ? `<pre class="or-code">${escapeHtml(p.html)}</pre>` : "") + (p.css ? `<pre class="or-code">${escapeHtml(p.css)}</pre>` : "") + `</div>`;
+      return wrap;
+    }
+    /** The strips above the list: how many threads are waiting on a human. */
+    renderReviewBar() {
+      if (!this.reviewBar) return;
+      const waiting = awaitingReview(this.visibleComments);
+      if (!waiting.length) {
+        this.reviewBar.innerHTML = "";
+        this.reviewBar.style.display = "none";
+        return;
+      }
+      const on = this.statFilter === "needs_you";
+      this.reviewBar.style.display = "";
+      this.reviewBar.innerHTML = `<span class="rb-dot"></span><span class="rb-t"><b>${waiting.length}</b> waiting on your review</span><button class="rb-b" data-role="rb-toggle">${on ? "Show all" : "Review"}</button>`;
+      this.reviewBar.querySelector('[data-role="rb-toggle"]').onclick = () => {
+        this.statFilter = on ? "" : "needs_you";
+        this.renderList();
+        this.renderHome();
+      };
     }
     flash(id) {
       const c = this.comments.find((x) => x.id === id);

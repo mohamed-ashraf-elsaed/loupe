@@ -205,7 +205,12 @@ export const STYLES = /* css */ `
 
 .item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--bg-2); }
 .item:hover { border-color: var(--accent); }
-.item .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+/* The header row now carries the number, a detached badge, a lifecycle chip, a PR
+   chip, a checks meter and the caret — more than fits on one line in a narrow
+   panel, so it wraps rather than clipping the last chip. The caret keeps its place
+   at the end of the row. */
+.item .top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 6px; }
+.item .top .caret { margin-left: auto; }
 .item .num { background: var(--pin); color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
 .item .num.detached { background: #9aa0af; }
 .item .num.done { background: #10935a; }
@@ -578,6 +583,74 @@ export const STYLES = /* css */ `
 }
 .menu-ver b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
 .menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
+
+/* ------------------------------------------------ lifecycle chips + review flow */
+.lifechip {
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+.lifechip.st-sent { border-color: var(--accent); color: var(--accent); }
+.lifechip.st-in_pr { border-color: #3f8ae0; color: #3f8ae0; }
+.lifechip.st-preview { border-color: var(--accent); background: var(--accent); color: #fff; }
+.lifechip.st-reviewed { border-color: #2f9e6a; color: #2f9e6a; }
+.prchip {
+  padding: 1px 6px; border-radius: 6px; text-decoration: none; cursor: pointer;
+  border: 1px solid #3f8ae0; background: var(--bg); color: #3f8ae0;
+  font-family: ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 700;
+}
+.prchip:hover { background: #3f8ae0; color: #fff; }
+.prchip.st-merged { border-color: #8250df; color: #8250df; }
+.prchip.st-merged:hover { background: #8250df; color: #fff; }
+.prchip.st-closed { border-color: var(--line); color: var(--muted); }
+/* checks meter — a numerator over a thin bar */
+.checks { display: inline-flex; align-items: center; gap: 4px; }
+.checks-n { font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.checks-bar { display: block; width: 26px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.checks-bar i { display: block; height: 100%; background: #2f9e6a; }
+
+/* the "N waiting on your review" strip above the list */
+.reviewbar {
+  display: flex; align-items: center; gap: 7px; margin: 8px 12px 0; padding: 7px 10px;
+  border: 1px solid var(--accent); border-radius: 9px; background: var(--bg-2);
+}
+.rb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; animation: loupe-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .rb-dot { animation: none; } }
+.rb-t { flex: 1; font-size: 11.5px; color: var(--ink); }
+.rb-t b { font-variant-numeric: tabular-nums; }
+.rb-b {
+  padding: 3px 9px; border: 1px solid var(--accent); border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+
+/* the review banner inside a thread */
+.revbanner {
+  display: flex; align-items: center; gap: 6px; margin: 8px 0; padding: 7px 8px;
+  border: 1px solid var(--accent); border-radius: 9px; background: var(--bg-3);
+}
+.rev-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.rev-t { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+.rev-approve {
+  padding: 4px 10px; border: 1px solid var(--accent); border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.rev-approve:disabled { opacity: .6; cursor: default; }
+.rev-comment, .rev-origin {
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.rev-comment:hover, .rev-origin:hover { border-color: var(--accent); }
+
+/* original request beside the proposed change */
+.origin { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.or-col { min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.or-h { margin-bottom: 4px; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.or-b { font-size: 11px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.or-code {
+  margin: 6px 0 0; padding: 6px; max-height: 130px; overflow: auto; border-radius: 6px;
+  background: var(--bg-2); color: var(--muted); font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
 
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {

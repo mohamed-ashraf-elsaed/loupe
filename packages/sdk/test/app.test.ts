@@ -960,6 +960,143 @@ describe("LoupeApp", () => {
     expect(JSON.parse(localStorage.getItem("loupe:project:pk")!).environments.length).toBe(1);
   });
 
+  it("shows lifecycle chips, a PR link and a checks meter on a thread", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "plain", title: "Nothing attached" }),
+      seeded({ id: "sent", title: "Sent", proposal: { html: "<b/>", notes: "Tweaked" } }),
+      seeded({
+        id: "pr", title: "In a PR", status: "in_review",
+        pr: { number: 412, url: "https://github.com/acme/web/pull/412", checksPassed: 3, checksTotal: 4 },
+      }),
+      seeded({ id: "done", title: "Reviewed", status: "resolved", proposal: { html: "<b/>" }, pr: { number: 7, state: "merged" } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const chips = [...sr().querySelectorAll<HTMLElement>(".item")].map((i) => ({
+      title: i.querySelector(".summary")!.textContent,
+      life: i.querySelector(".lifechip")?.textContent ?? null,
+      pr: i.querySelector(".prchip")?.textContent ?? null,
+      checks: i.querySelector(".checks-n")?.textContent ?? null,
+    }));
+
+    // A thread with nothing attached wears no badge at all.
+    expect(chips[0]).toEqual({ title: "Nothing attached", life: null, pr: null, checks: null });
+    expect(chips[1]!.life).toBe("Sent to agent");
+    expect(chips[1]!.pr).toBeNull();
+    expect(chips[2]!.life).toBe("In PR");
+    expect(chips[2]!.pr).toBe("#412");
+    expect(chips[2]!.checks).toBe("3/4");
+    // A resolved thread keeps its PR chip but drops the "Reviewed" pill — the
+    // "resolved" badge beside it already says that, twice is noise.
+    expect(chips[3]!.life).toBeNull();
+    expect(chips[3]!.pr).toBe("#7");
+    expect(chips[3]!.checks).toBeNull();
+
+    // The PR chip is a real link out, and clicking it does not toggle the card.
+    const link = sr().querySelector<HTMLAnchorElement>(".prchip")!;
+    expect(link.getAttribute("href")).toBe("https://github.com/acme/web/pull/412");
+    expect(link.getAttribute("target")).toBe("_blank");
+    // The meter's bar reflects the fraction, not just the numerator.
+    expect((sr().querySelector(".item:nth-child(3) .checks-bar i") as HTMLElement).style.width).toBe("75%");
+  });
+
+  it("banners the threads waiting on a human, and can filter to them", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "a", title: "Queue one" }),
+      seeded({ id: "b", title: "Waiting one", status: "in_review" }),
+      seeded({ id: "c", title: "Waiting two", status: "in_review" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const bar = () => sr().querySelector(".reviewbar") as HTMLElement;
+    expect(bar().style.display).toBe("");
+    expect(bar().textContent).toContain("2 waiting on your review");
+
+    // "Review" narrows the list; the button then offers the way back.
+    (sr().querySelector('[data-role="rb-toggle"]') as HTMLElement).click();
+    expect(sr().querySelectorAll(".item").length).toBe(2);
+    expect(sr().querySelector('[data-role="rb-toggle"]')!.textContent).toBe("Show all");
+    (sr().querySelector('[data-role="rb-toggle"]') as HTMLElement).click();
+    expect(sr().querySelectorAll(".item").length).toBe(3);
+  });
+
+  it("hides the review bar when nothing is waiting", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a", status: "queue" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect((sr().querySelector(".reviewbar") as HTMLElement).style.display).toBe("none");
+  });
+
+  it("approves a thread from its review banner — only a human resolves", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "a", title: "Fix the CTA", status: "in_review", proposal: { html: "<button>Go</button>", notes: "Bigger hit area" } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // The banner sits inside the thread's detail, above everything else.
+    expect(sr().querySelector(".revbanner .rev-t")!.textContent).toBe("Waiting on your review");
+    expect(sr().querySelector(".revbanner .rev-approve")!.textContent).toBe("Approve");
+    expect(sr().querySelector(".revbanner .rev-comment")!.textContent).toBe("Add comment");
+
+    sr().querySelector<HTMLElement>(".rev-approve")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelector(".revbanner")).toBeFalsy();
+    // Resolved: the badge says it, so no second "Reviewed" pill beside it.
+    expect(sr().querySelector(".badge.done")!.textContent).toBe("resolved");
+    expect(sr().querySelector(".lifechip")).toBeFalsy();
+    expect((sr().querySelector(".reviewbar") as HTMLElement).style.display).toBe("none");
+    // And it is recorded in the Activity feed, like every other operation.
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Approved");
+  });
+
+  it("toggles the original request beside the proposed change", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({
+        id: "a", title: "Fix the CTA", body: "It is too small on mobile.",
+        status: "in_review",
+        context: { html: "<button class=\"cta\">Go</button>", styles: {} },
+        proposal: { html: "<button class=\"cta big\">Go</button>", css: ".cta.big{padding:14px}", notes: "Bigger hit area", author: "Claude Code via MCP" },
+      }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const view = () => sr().querySelector(".origin") as HTMLElement;
+    expect(view().style.display).toBe("none");
+
+    const toggle = sr().querySelector<HTMLElement>(".rev-origin")!;
+    expect(toggle.textContent).toBe("Show original");
+    toggle.click();
+    expect(view().style.display).toBe("");
+    expect(toggle.textContent).toBe("Hide original");
+
+    const cols = [...sr().querySelectorAll<HTMLElement>(".or-col")];
+    expect(cols.length).toBe(2);
+    expect(cols[0]!.querySelector(".or-h")!.textContent).toBe("Original request");
+    expect(cols[0]!.textContent).toContain("It is too small on mobile.");
+    expect(cols[0]!.textContent).toContain('<button class="cta">Go</button>');
+    expect(cols[1]!.querySelector(".or-h")!.textContent).toContain("Claude Code via MCP");
+    expect(cols[1]!.textContent).toContain("Bigger hit area");
+    expect(cols[1]!.textContent).toContain(".cta.big{padding:14px}");
+
+    toggle.click();
+    expect(view().style.display).toBe("none");
+    expect(toggle.textContent).toBe("Show original");
+  });
+
+  it("offers no origin toggle when nothing has been proposed", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a", status: "in_review" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector(".revbanner")).toBeTruthy();
+    expect(sr().querySelector(".rev-origin")).toBeFalsy();
+    expect(sr().querySelector(".origin")).toBeFalsy();
+  });
+
   it("does not initialize without projectKey or user id", () => {
     init({ projectKey: "", user: { id: "u", name: "U" } } as any);
     expect(document.getElementById("loupe-root")).toBeNull();

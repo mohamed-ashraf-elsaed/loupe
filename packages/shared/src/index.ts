@@ -1,6 +1,10 @@
 // Canonical types + pure helpers shared across the SDK, server, dashboard, and MCP.
 
 export * from "./activity.js";
+export * from "./lifecycle.js";
+
+// `export *` re-exports without bringing names into this module's scope.
+import type { PrInfo } from "./lifecycle.js";
 
 /**
  * Where a comment sits on the triage board. Five stages rather than three: the
@@ -284,6 +288,11 @@ export interface Comment {
   attachments?: Attachment[];
   /** Claude's proposed UI change, written back via MCP. Shown to devs in the dashboard. */
   proposal?: Proposal;
+  /**
+   * The pull request carrying this thread's fix, when there is one. Drives the
+   * panel's lifecycle chip and checks meter.
+   */
+  pr?: PrInfo;
   createdAt: string;
 }
 

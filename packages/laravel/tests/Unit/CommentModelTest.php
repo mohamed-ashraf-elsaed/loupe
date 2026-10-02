@@ -99,12 +99,24 @@ class CommentModelTest extends TestCase
         $this->assertSame($proposal, $array['proposal']);
     }
 
+    public function test_to_loupe_array_includes_the_pr_when_set(): void
+    {
+        $pr = ['number' => 412, 'url' => 'https://github.com/acme/web/pull/412', 'checksPassed' => 3, 'checksTotal' => 4];
+        $comment = Comment::query()->create(array_merge($this->attributes(), ['id' => 'cpr', 'pr' => $pr]));
+
+        $array = $comment->fresh()->toLoupeArray();
+
+        $this->assertSame($pr, $array['pr']);
+    }
+
     public function test_to_loupe_array_omits_recording_and_proposal_when_absent(): void
     {
         $array = Comment::query()->create($this->attributes())->fresh()->toLoupeArray();
 
         $this->assertArrayNotHasKey('recording', $array);
         $this->assertArrayNotHasKey('proposal', $array);
+        // A thread without a pull request must not claim one.
+        $this->assertArrayNotHasKey('pr', $array);
     }
 
     public function test_to_loupe_array_carries_the_repo_and_branch_when_set(): void

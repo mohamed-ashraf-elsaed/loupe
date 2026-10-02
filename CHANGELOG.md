@@ -11,6 +11,44 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.15] — 2026-10-02
+
+### Added
+
+- **A thread's change now has a lifecycle.** `Comment.pr` records the pull request carrying a fix
+  (`number`, `url`, `state`, `checksPassed`, `checksTotal`), and `lifecycle()` in `@loupekit/shared`
+  turns that plus the thread's stage into one chip: **Sent to agent → In PR → Review preview →
+  Reviewed**. Precedence is deliberate — a PR outranks the board column, because "In PR" is more
+  specific than the column it happens to sit in. A thread with nothing attached wears no badge at
+  all. (Milestone 0.20; #71.)
+- **PR chips and a checks meter on every card.** The number is a monospace chip that links out to the
+  PR; the checks render as a numerator over a thin bar, and the bar reflects the fraction, not just
+  the count. (Milestone 0.20; #71.)
+- **A review banner.** Threads in In Review lead their detail with a banner — *Waiting on your
+  review* — carrying **Approve** and **Add comment**. Approving resolves the thread and is recorded in
+  the Activity feed, like every other operation. That asymmetry is the rule the flow rests on: an
+  agent moves work to In Review, only a human closes it. (Milestone 0.20; #61, #71.)
+- **An origin compare.** When Claude has proposed a change, *Show original* puts the original request
+  (its text and the element's captured HTML) beside the proposal (its notes, HTML and CSS), in two
+  columns that collapse to one in a narrow panel. (Milestone 0.20; #61, #71.)
+- **A review strip** above the list — *2 waiting on your review* with a **Review** button that
+  narrows the list to them and back again. (Milestone 0.20; #61, #71.)
+- **`pr` is stored end to end** — a new `pr` column on the server (additive, `ALTER TABLE … IF NOT
+  EXISTS`) and in the Laravel package (additive migration), accepted on create and on PATCH,
+  returned in the canonical comment shape. A non-object `pr` is dropped rather than stored, so the
+  panel never renders a chip from something that is not a pull request.
+
+### Fixed
+
+- **The card's header row could overflow.** It now carries the number, a badge, a lifecycle chip, a
+  PR chip, a checks meter and the caret — more than fits on one line in a 360px panel, so the last
+  chip and the caret were spilling past the card edge. The row wraps now, and the "element
+  moved/removed" badge became **moved** with the full wording on hover — at 158px it was eating a
+  third of the row on its own.
+- **A resolved thread no longer wears two green pills.** The "resolved" badge already says it, so the
+  lifecycle chip is suppressed for that stage; its PR chip and meter stay, since those are the part
+  you cannot read off the badge.
+
 ## [0.10.14] — 2026-10-02
 
 ### Added

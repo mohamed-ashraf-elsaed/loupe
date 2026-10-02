@@ -135,6 +135,38 @@ class CommentApiTest extends TestCase
         $this->assertSame($proposal, Comment::query()->find('c1')->fresh()->toLoupeArray()['proposal']);
     }
 
+    public function test_it_stores_a_pr_on_create_and_accepts_it_on_patch(): void
+    {
+        $user = $this->actingAsAllowed();
+
+        $pr = ['number' => 412, 'url' => 'https://github.com/acme/web/pull/412', 'checksPassed' => 3, 'checksTotal' => 4];
+
+        $this->postJson('/loupe/v1/comments', $this->payload('p1', $user->id, ['pr' => $pr]))
+            ->assertCreated()
+            ->assertJsonPath('pr.number', 412)
+            ->assertJsonPath('pr.checksTotal', 4);
+
+        $this->assertSame($pr, Comment::query()->find('p1')->fresh()->toLoupeArray()['pr']);
+
+        // A patch can move it on — a merged PR is the same shape with a new state.
+        $this->patchJson('/loupe/v1/comments/p1', ['pr' => ['number' => 412, 'state' => 'merged']])
+            ->assertOk()
+            ->assertJsonPath('pr.state', 'merged');
+    }
+
+    public function test_it_ignores_a_non_array_pr(): void
+    {
+        // A garbage `pr` is dropped rather than stored, so the panel never renders a
+        // chip from something that is not a PR.
+        $user = $this->actingAsAllowed();
+
+        $this->postJson('/loupe/v1/comments', $this->payload('p2', $user->id, ['pr' => 'nope']))
+            ->assertCreated()
+            ->assertJsonMissingPath('pr');
+
+        $this->assertNull(Comment::query()->find('p2')->fresh()->pr);
+    }
+
     public function test_it_stores_a_title_and_attachments(): void
     {
         $user = $this->actingAsAllowed();

@@ -1217,9 +1217,29 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.14</strong> (2026-10-02).</p>
+          release: <strong>0.10.15</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.15</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>A thread's change has a lifecycle.</strong> A comment can record the pull
+              request carrying its fix, and one chip tells you where it has got to —
+              <em>Sent to agent → In PR → Review preview → Reviewed</em> — with the PR number linking
+              out and a checks meter. A thread with nothing attached wears no badge.</li>
+            <li><strong>Review from the panel.</strong> Threads in In Review lead with a banner —
+              <em>Waiting on your review</em> — carrying <strong>Approve</strong> and
+              <strong>Add comment</strong>; a strip above the list counts them and filters to them.
+              Approving resolves the thread: an agent moves work to In Review, only a human closes it.</li>
+            <li><strong>Compare the original against the change.</strong> Where Claude has proposed
+              something, <em>Show original</em> puts your request and the element's HTML beside the
+              proposal's notes, HTML and CSS.</li>
+            <li><strong>Fixed:</strong> a card's header row could overflow once it carried a lifecycle
+              chip and a PR chip — it wraps now — and a resolved thread no longer wears two green pills
+              saying the same thing.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.14</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
           <ul class="bul">
             <li><strong>Bring your own tabs.</strong> <code>init({ tabs: [...] })</code> adds your own

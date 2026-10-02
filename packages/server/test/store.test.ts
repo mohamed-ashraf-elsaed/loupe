@@ -150,6 +150,35 @@ describe("store", () => {
     expect((await store.getComment("c1"))!.proposal).toEqual(proposal);
   });
 
+  it("persists the PR a thread's change rides on, and can clear it", async () => {
+    await store.upsertComment(make());
+    // Absent by default — a thread that has no PR must not claim one.
+    expect((await store.getComment("c1"))!.pr).toBeUndefined();
+
+    const pr = { number: 412, url: "https://github.com/acme/web/pull/412", checksPassed: 3, checksTotal: 4 };
+    await store.patchComment("c1", { pr });
+    expect((await store.getComment("c1"))!.pr).toEqual(pr);
+
+    // The panel's chip reads the number and the meter reads the fraction.
+    const back = (await store.getComment("c1"))!;
+    expect(back.pr!.number).toBe(412);
+    expect(back.pr!.checksPassed! / back.pr!.checksTotal!).toBe(0.75);
+
+    // A merge state survives the round trip too.
+    await store.patchComment("c1", { pr: { ...pr, state: "merged" } });
+    expect((await store.getComment("c1"))!.pr!.state).toBe("merged");
+
+    // And clearing it is a real clear, not an ignored patch.
+    await store.patchComment("c1", { pr: null as never });
+    expect((await store.getComment("c1"))!.pr).toBeUndefined();
+  });
+
+  it("carries a PR through the initial write as well as a patch", async () => {
+    const withPr = { ...make(), pr: { number: 9, url: "https://x/9" } };
+    const saved = await store.upsertComment(withPr);
+    expect(saved.pr).toEqual({ number: 9, url: "https://x/9" });
+  });
+
   it("removes a comment", async () => {
     await store.upsertComment(make());
     expect(await store.removeComment("c1")).toBe(true);

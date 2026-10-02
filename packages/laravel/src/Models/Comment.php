@@ -29,6 +29,7 @@ use Loupekit\Loupe\Support\Triage;
  * @property string|null $recording_url
  * @property array|null $attachments
  * @property array|null $proposal
+ * @property array|null $pr
  */
 class Comment extends Model
 {
@@ -47,6 +48,7 @@ class Comment extends Model
         'viewport' => 'array',
         'attachments' => 'array',
         'proposal' => 'array',
+        'pr' => 'array',
     ];
 
     public function getTable()
@@ -113,6 +115,11 @@ class Comment extends Model
         // Claude's proposed UI change, shown to the dev team in the dashboard.
         if (! empty($this->proposal)) {
             $out['proposal'] = $this->proposal;
+        }
+
+        // The pull request carrying this thread's fix (panel lifecycle chip).
+        if (! empty($this->pr)) {
+            $out['pr'] = $this->pr;
         }
 
         return $out;

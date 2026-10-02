@@ -5,12 +5,14 @@ import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
 import {
   ACTIVITY_STATUS_LABELS,
+  awaitingReview,
   CHANGE_TYPES,
   CHANGE_TYPE_LABELS,
   COMMENT_PRIORITIES,
   DEFAULT_CHANGE_TYPE,
   DEFAULT_PRIORITY,
   formatDuration,
+  lifecycle,
   normalizePriority,
   normalizeStatus,
   PRIORITY_LABELS,
@@ -546,7 +548,9 @@ export class LoupeApp {
     // Comments view = hint card + tools + list + the "integrates with" footer.
     const commentsView = el("div", "view comments-view");
     this.commentsHint = el("div", "hint-slot");
-    commentsView.append(this.commentsHint, tools, listHead, this.listEl, this.buildIntegrations());
+    this.reviewBar = el("div", "reviewbar");
+    this.reviewBar.style.display = "none";
+    commentsView.append(this.commentsHint, tools, listHead, this.reviewBar, this.listEl, this.buildIntegrations());
 
     // Activity view = the live monitor (status, summary, chips, feed). The hint slot
     // is part of this panel's own markup — appending it beforehand would be wiped by
@@ -603,6 +607,8 @@ export class LoupeApp {
   /** The contextual hint cards live in a slot at the top of each view. */
   private commentsHint!: HTMLElement;
   private activityHint!: HTMLElement;
+  /** The "N waiting on your review" strip above the list. */
+  private reviewBar!: HTMLElement;
   /** Tab id → its hint slot (custom tabs only; the built-ins have named fields). */
   private customHintSlots = new Map<string, HTMLElement>();
   /** The tab strip, in order. */
@@ -2375,6 +2381,7 @@ export class LoupeApp {
     if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
     this.renderRepoFilter();
+    this.renderReviewBar();
 
     if (!items.length) {
       this.listEl.appendChild(el("div", "empty",
@@ -2428,7 +2435,43 @@ export class LoupeApp {
       top.appendChild(el("span", "device", `${icon} ${kind}`));
     }
     if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
-    else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
+    else if (detached) {
+      // Short label, full explanation on hover — the long form ate a third of the
+      // row on its own and pushed the lifecycle chips past the card edge.
+      const b = el("span", "badge detached", "moved");
+      b.title = "element moved or removed";
+      top.appendChild(b);
+    }
+
+    // Where this thread's change has got to: sent to an agent, in a PR, or waiting
+    // on a review. A thread with nothing attached stays unbadged.
+    const lc = lifecycle(c);
+    if (lc) {
+      // A resolved thread already wears the "resolved" badge, so a second green pill
+      // saying "Reviewed" is noise. Its PR chip and checks meter are still worth
+      // showing — that is the part you cannot read off the badge.
+      if (lc.stage !== "reviewed") top.appendChild(el("span", `lifechip st-${lc.stage}`, lc.label));
+      if (lc.pr) {
+        const pr = el(lc.pr.url ? "a" : "span", `prchip${lc.pr.state ? ` st-${lc.pr.state}` : ""}`, `#${lc.pr.number}`);
+        pr.title = `Pull request #${lc.pr.number}${lc.pr.state ? ` — ${lc.pr.state}` : ""}`;
+        if (lc.pr.url) {
+          (pr as HTMLAnchorElement).href = lc.pr.url;
+          pr.setAttribute("target", "_blank");
+          pr.setAttribute("rel", "noreferrer");
+          pr.addEventListener("click", (e) => e.stopPropagation());
+        }
+        top.appendChild(pr);
+      }
+      if (lc.checks) {
+        const meter = el("span", "checks");
+        meter.title = `Checks — ${lc.checks.text} passed`;
+        meter.innerHTML =
+          `<span class="checks-n">${escapeHtml(lc.checks.text)}</span>` +
+          `<span class="checks-bar"><i style="width:${Math.round(lc.checks.ratio * 100)}%"></i></span>`;
+        top.appendChild(meter);
+      }
+    }
+
     // Page paths only mean something once the list spans more than one page.
     if (this.showPaths && this.scope === "all" && c.url) {
       top.appendChild(el("span", "pathtag", shortPath(c.url)));
@@ -2441,6 +2484,11 @@ export class LoupeApp {
     item.appendChild(el("div", "summary", summary));
 
     const detail = el("div", "detail");
+    // A thread in review leads with its banner: this is the one place a human is
+    // being asked to decide something, so it goes above everything else.
+    if (c.status === "in_review") detail.appendChild(this.reviewBanner(c));
+    // Claude's proposed change, with the original request beside it on demand.
+    if (c.proposal) detail.appendChild(this.proposalView(c));
     // With a title, the body is the full description; without one the first line is
     // already the summary, so only multi-line bodies repeat it here.
     if (c.title || c.body.includes("\n")) detail.appendChild(el("div", "body", c.body));
@@ -2510,6 +2558,107 @@ export class LoupeApp {
       this.renderList();
     };
     return item;
+  }
+
+  /**
+   * The review banner. This is the one place the panel asks a human to decide
+   * something, so it sits above everything else in the detail.
+   *
+   * Approving resolves the thread. That asymmetry is the rule the whole flow rests
+   * on: an agent moves work to In Review, only a person closes it.
+   */
+  private reviewBanner(c: Comment): HTMLElement {
+    const label = c.title || c.body.split("\n")[0] || "this thread";
+    const banner = el("div", "revbanner");
+    banner.innerHTML = `<span class="rev-dot"></span><span class="rev-t">Waiting on your review</span><span class="rev-spacer"></span>`;
+
+    const approve = el("button", "rev-approve", "Approve") as HTMLButtonElement;
+    approve.onclick = async (e) => {
+      e.stopPropagation();
+      approve.disabled = true;
+      approve.textContent = "Approving…";
+      await this.store.update(c.id, { status: "resolved" });
+      c.status = "resolved";
+      this.renderPins();
+      this.renderList();
+      this.renderHome();
+      this.addActivity({ kind: "review.approve", label: `Approved “${label}”` });
+    };
+
+    const discuss = el("button", "rev-comment", "Add comment") as HTMLButtonElement;
+    discuss.onclick = (e) => {
+      e.stopPropagation();
+      // Comment on the same element when it is still on the page; otherwise drop a
+      // page-level note rather than refusing the action.
+      const target = this.resolved.get(c.id);
+      if (target && target.isConnected) {
+        const r = target.getBoundingClientRect();
+        this.openComposer({ kind: "element", element: target }, r.left + r.width / 2, r.top + r.height);
+      } else {
+        this.setMode("free");
+      }
+    };
+
+    banner.append(approve, discuss);
+
+    // The origin toggle only means something once there is a change to compare to.
+    if (c.proposal) {
+      const origin = el("button", "rev-origin", "Show original") as HTMLButtonElement;
+      origin.onclick = (e) => {
+        e.stopPropagation();
+        const view = banner.parentElement?.querySelector(".origin") as HTMLElement | null;
+        if (!view) return;
+        const shown = view.classList.toggle("show");
+        view.style.display = shown ? "" : "none";
+        origin.textContent = shown ? "Hide original" : "Show original";
+      };
+      banner.appendChild(origin);
+    }
+    return banner;
+  }
+
+  /**
+   * The original request beside Claude's proposed change. Hidden until the review
+   * banner's toggle asks for it — a reviewer who does not care should not pay for
+   * the markup.
+   */
+  private proposalView(c: Comment): HTMLElement {
+    const p = c.proposal!;
+    const wrap = el("div", "origin");
+    wrap.style.display = "none";
+    wrap.innerHTML =
+      `<div class="or-col"><div class="or-h">Original request</div>` +
+      `<div class="or-b">${escapeHtml(c.title ? `${c.title}\n\n${c.body}` : c.body)}</div>` +
+      (c.context?.html ? `<pre class="or-code">${escapeHtml(c.context.html)}</pre>` : "") +
+      `</div>` +
+      `<div class="or-col"><div class="or-h">Proposed change${p.author ? ` · ${escapeHtml(p.author)}` : ""}</div>` +
+      (p.notes ? `<div class="or-b">${escapeHtml(p.notes)}</div>` : "") +
+      (p.html ? `<pre class="or-code">${escapeHtml(p.html)}</pre>` : "") +
+      (p.css ? `<pre class="or-code">${escapeHtml(p.css)}</pre>` : "") +
+      `</div>`;
+    return wrap;
+  }
+
+  /** The strips above the list: how many threads are waiting on a human. */
+  private renderReviewBar() {
+    if (!this.reviewBar) return;
+    const waiting = awaitingReview(this.visibleComments);
+    if (!waiting.length) {
+      this.reviewBar.innerHTML = "";
+      this.reviewBar.style.display = "none";
+      return;
+    }
+    const on = this.statFilter === "needs_you";
+    this.reviewBar.style.display = "";
+    this.reviewBar.innerHTML =
+      `<span class="rb-dot"></span>` +
+      `<span class="rb-t"><b>${waiting.length}</b> waiting on your review</span>` +
+      `<button class="rb-b" data-role="rb-toggle">${on ? "Show all" : "Review"}</button>`;
+    (this.reviewBar.querySelector('[data-role="rb-toggle"]') as HTMLElement).onclick = () => {
+      this.statFilter = on ? "" : "needs_you";
+      this.renderList();
+      this.renderHome();
+    };
   }
 
   private flash(id: string) {

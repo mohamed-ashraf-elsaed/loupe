@@ -118,6 +118,8 @@ class CommentController extends Controller
             // Files the reporter attached (images/videos) — a JSON array of Attachments.
             'attachments' => is_array($data['attachments'] ?? null) ? $data['attachments'] : null,
             'proposal' => $data['proposal'] ?? null,
+            // The pull request carrying this thread's fix (panel lifecycle chip).
+            'pr' => is_array($data['pr'] ?? null) ? $data['pr'] : null,
         ];
 
         $comment = $this->model()->newQuery()->find($data['id']);
@@ -155,7 +157,7 @@ class CommentController extends Controller
         }
 
         $patch = [];
-        foreach (['status', 'title', 'body', 'proposal'] as $field) {
+        foreach (['status', 'title', 'body', 'proposal', 'pr'] as $field) {
             if ($request->has($field)) {
                 // A legacy `open` / `done` from an older client still lands on a stage.
                 $patch[$field] = $field === 'status'
