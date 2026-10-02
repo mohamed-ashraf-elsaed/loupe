@@ -38,11 +38,17 @@ note() { printf '    %s\n' "$1"; }
 
 step "1/7  A brand-new Laravel app — the stranger's starting point"
 # STRANGER_LARAVEL pins the framework line (CI runs the floor and the newest); unset means
-# whatever create-project gives you today.
+# whatever create-project gives you today. Output is captured rather than silenced: a
+# resolution failure here is the whole story, and "could not be resolved" alone is useless.
 if [ -n "${STRANGER_LARAVEL:-}" ]; then
-  composer create-project "laravel/laravel:^${STRANGER_LARAVEL}.0" "$APP" --no-interaction --no-progress --no-scripts --quiet
+  target="laravel/laravel:^${STRANGER_LARAVEL}.0"
 else
-  composer create-project laravel/laravel "$APP" --no-interaction --no-progress --no-scripts --quiet
+  target="laravel/laravel"
+fi
+if ! composer create-project "$target" "$APP" --no-interaction --no-progress --no-scripts >"$WORK/create.log" 2>&1; then
+  bad "composer create-project $target failed:"
+  tail -25 "$WORK/create.log"
+  exit 1
 fi
 cd "$APP"
 # --no-scripts skips the create-project hooks that write .env and the app key.
