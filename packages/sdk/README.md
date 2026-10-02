@@ -60,7 +60,7 @@ the moment of the comment, so the feedback stays actionable even after the UI ch
 | 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
 | ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. The region anchors to the element under its center, so it tracks responsive reflow and scrolling. |
 | ⏺ **Screen recording** | The **Record** tool drags the same box, then captures a screen video of it (via `getDisplayMedia` + canvas crop) as `.webm` — duration-capped with a Stop button. Recordings play back inline in the widget and the dashboard. |
-| 🧲 **Dockable control** | A DevTools-style panel: dock it to the left / right / bottom edge (which pushes your page over so it's never covered) or float it as a movable, resizable window. Light/dark theme, collapses to a small `◎` launcher, and becomes a bottom sheet on mobile. Position & theme persist. |
+| 🧲 **Dockable control** | A DevTools-style panel: dock it to the left / right / bottom edge (which pushes your page over so it's never covered) or float it as a movable, resizable window. Light/dark theme, collapses to a `◎` FAB cluster (quick actions to pin a comment, drop a note, hide the markers, or open the Claude setup), and becomes a bottom sheet on mobile. Position, theme and marker visibility persist. |
 | 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint (stable id/testid, CSS path, XPath, text, attributes, position) re-locates the element on the current page; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
 | 📸 **Screenshot capture** | `[data-loupe-redact]` regions are painted over **before any pixels leave the browser**. |
 | 🧩 **Shadow-DOM isolation** | The widget's CSS never leaks into your page and vice-versa. |
@@ -93,8 +93,10 @@ init({
 A dockable control panel appears with a two-page sidebar — **Comments** (with the
 **Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
 **Connect Claude** (MCP setup steps). Use the header's dock controls to dock it left / right /
-bottom (which pushes your page over) or float it, toggle light/dark, or close it to a small
-`◎` launcher. Call `destroy()` to tear it down. `init()` is idempotent — safe to call more
+bottom (which pushes your page over) or float it, toggle light/dark, or close it to the `◎`
+FAB cluster — the primary button carries the comment count and expands four quick actions
+(pin a comment, drop a note, hide the markers, open the Claude setup). Call `destroy()` to
+tear it down. `init()` is idempotent — safe to call more
 than once. Pass `label` to change the brand name shown in the header.
 
 ### Offline mode (no backend)

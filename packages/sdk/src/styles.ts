@@ -71,25 +71,74 @@ export const STYLES = /* css */ `
 .pin.free { background: var(--accent); border-radius: 50% 50% 2px 50%; }
 .pin.free.done { background: #10935a; }
 .pin.active { outline: 3px solid rgba(107,115,230,.45); }
+/* The quick-action "Markers" toggle hides every pin without discarding it.
+   !important beats the inline display the pin positioner sets on each frame. */
+.overlay.hide-pins .pin { display: none !important; }
 
-/* ------------------------------------------------------------------ launcher */
-/* The collapsed state: a small floating button that reopens the panel. */
-.launcher {
+/* --------------------------------------------------------------- FAB cluster */
+/* The collapsed state: a primary brand button (with the comment count) plus the
+   quick actions that expand out of it. Replaces the old single launcher. */
+.fab-cluster {
   position: fixed; z-index: 2147483003; bottom: 20px; right: 20px;
-  width: 46px; height: 46px; border-radius: 50%; padding: 0;
-  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
-  cursor: pointer; display: none; align-items: center; justify-content: center;
+  display: none; flex-direction: column; align-items: flex-end; gap: 10px;
+}
+.fab-cluster.show { display: flex; }
+
+.fab-minis { display: none; flex-direction: column; align-items: flex-end; gap: 10px; }
+.fab-cluster.expanded .fab-minis { display: flex; }
+.fab-cluster.expanded .fab-minis .fab-mini { animation: loupe-fab-in 180ms cubic-bezier(.16, 1, .3, 1) both; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(1) { animation-delay: 0ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(2) { animation-delay: 30ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(3) { animation-delay: 60ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(4) { animation-delay: 90ms; }
+@keyframes loupe-fab-in { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+
+.fab-mini {
+  position: relative; width: 40px; height: 40px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow);
 }
-.launcher.show { display: inline-flex; }
+.fab-mini:hover { border-color: var(--accent); color: var(--accent); }
+.fab-mini.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fab-mini.on:hover { color: #fff; }
+.fab-mini svg { display: block; width: 16px; height: 16px; }
+/* The action's label, revealed on hover so the collapsed cluster stays calm. */
+.fab-mini .fab-tip {
+  position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity 120ms ease;
+}
+.fab-mini:hover .fab-tip { opacity: 1; }
+
+.launcher {
+  position: relative; width: 46px; height: 46px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
+}
 .launcher:hover { border-color: var(--accent); }
 .launcher .logo { font-size: 24px; line-height: 1; color: var(--accent); }
+/* Chevron pinned to the corner: up = actions are tucked away, down = they are out. */
+.launcher .lchev {
+  position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg); border: 1px solid var(--line); color: var(--muted);
+  display: grid; place-items: center; transition: transform 160ms cubic-bezier(.16, 1, .3, 1);
+}
+.launcher .lchev svg { width: 11px; height: 11px; display: block; }
+.fab-cluster.expanded .launcher .lchev { transform: rotate(180deg); }
 .launcher .lcount {
   position: absolute; top: -5px; right: -5px; background: var(--pin); color: #fff;
   font-size: 10px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 6px;
   border: 2px solid var(--bg);
 }
 .launcher .lcount:empty { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fab-cluster.expanded .fab-minis .fab-mini { animation: none; }
+  .launcher .lchev { transition: none; }
+  .fab-mini .fab-tip { transition: none; }
+}
 
 /* --------------------------------------------------------------------- dock */
 /* The control panel. One container, four dock modes (left/right/bottom/float),
@@ -301,7 +350,7 @@ export const STYLES = /* css */ `
   .resize { display: none !important; }
   .tools button { flex: 1; justify-content: center; } /* full-width tap targets */
   .dock.mode-bottom .list { grid-template-columns: 1fr; }
-  .launcher { bottom: 16px; right: 16px; }
+  .fab-cluster { bottom: 16px; right: 16px; }
   /* While a tool is active, shrink the sheet to just header + tools so most of the
      page stays visible and tappable; the list returns when the tool closes. */
   .dock.inspecting { height: auto !important; }
