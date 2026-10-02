@@ -11,6 +11,28 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.7] — 2026-10-02
+
+### Changed
+
+- **Laravel: the package supports PHP 8.2+ (was 8.4+).** The constraint was `^8.4`, with only
+  8.4 in CI — which locked out most real apps for no reason. Laravel 11/12 need PHP ^8.2 (13
+  needs ^8.3) and there is no 8.4-only syntax in the package, so the floor is now `^8.2`, and
+  the CI matrix tests that claim: 8.2 · Laravel 11/12, 8.3 · 11/12/13, 8.4 · 11/12/13.
+
+### Added
+
+- **`loupe:install` now says when the app has nobody to sign in.** Laravel 11+ ships no auth
+  scaffolding and Loupe only shows the widget to an authenticated user, so a fresh install
+  looked broken with no explanation. The installer warns, and the README states the
+  prerequisite up front.
+- **A stranger test in CI** (`packages/laravel/bin/stranger-test.sh`): it creates a brand-new
+  Laravel app, installs this working tree, wires it up the way the docs say, and asserts the
+  widget renders for a signed-in user but not for a guest, `/loupe/dashboard` never 5xxs, the
+  versioned SDK bundle downloads, and a comment posts and comes back in the list. It runs at
+  both ends of the support matrix — and it is the check that would have caught the
+  `Route [login] not defined` 500 that 0.10.5 fixed.
+
 ## [0.10.6] — 2026-10-02
 
 ### Added
