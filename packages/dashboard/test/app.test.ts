@@ -43,6 +43,7 @@ function shell() {
     <select id="branchFilter"></select>
     <select id="viewFilter"></select>
     <button id="refresh"></button>
+    <button id="density"></button>
     <div id="board"></div>
     <div id="status"></div>`;
 }
@@ -216,6 +217,78 @@ describe("dashboard", () => {
     view.dispatchEvent(new Event("change", { bubbles: true }));
     expect(cards()).toBe(4);
     expect(location.search).not.toContain("view=");
+  });
+
+  it("leads the card with the screenshot and hides it in compact density", async () => {
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+
+    // id 2 is the only fixture with a screenshot; it leads the card face.
+    const shot = document.querySelector<HTMLElement>('.card[data-id="2"] .cthumb img')!;
+    expect(shot.getAttribute("src")).toBe("http://blob/x");
+    // A card with no media has no strip.
+    expect(document.querySelector('.card[data-id="1"] .cthumb')).toBeNull();
+
+    const board = document.getElementById("board")!;
+    const density = document.querySelector<HTMLButtonElement>("#density")!;
+    expect(board.dataset.density).toBe("comfortable");
+    expect(density.textContent).toBe("Compact");
+
+    density.click();
+    expect(board.dataset.density).toBe("compact");
+    expect(density.textContent).toBe("Comfortable");
+    expect(localStorage.getItem("loupe_board_density")).toBe("compact");
+
+    density.click();
+    expect(board.dataset.density).toBe("comfortable");
+  });
+
+  it("copies a full agent brief for a card", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+    const btn = [...document.querySelectorAll<HTMLButtonElement>('.card[data-id="1"] .linkbtn')]
+      .find((b) => b.textContent === "Copy for agent")!;
+    btn.click();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const text = writeText.mock.calls[0][0] as string;
+    expect(text).toContain("# Feedback #1");
+    expect(text).toContain("**Priority:** High");
+    expect(text).toContain("**Repo:** acme/web @ main");
+    expect(text).toContain("**Target:** [data-testid=\"x\"]");
+    expect(text).toContain("<b/>");              // the element HTML
+    expect(text).toContain("## Computed styles"); // and its styles block
+    expect(btn.textContent).toBe("Copied ✓");
+  });
+
+  it("expands a card from the keyboard", async () => {
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+    const first = () => document.querySelector<HTMLElement>('.card[data-id="1"]')!;
+
+    expect(first().classList.contains("collapsed")).toBe(true);
+    expect(first().getAttribute("role")).toBe("button");
+    expect(first().getAttribute("aria-expanded")).toBe("false");
+
+    first().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(first().classList.contains("collapsed")).toBe(false);
+    expect(first().getAttribute("aria-expanded")).toBe("true");
+
+    first().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    expect(first().classList.contains("collapsed")).toBe(true);
+  });
+
+  it("shows a loading state until the first fetch lands", async () => {
+    await import("../app.ts");
+    const status = document.querySelector<HTMLElement>("#status")!;
+    expect(status.className).toBe("loading");
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(status.style.display).toBe("none");
   });
 
   it("shows an authorization error on 401", async () => {

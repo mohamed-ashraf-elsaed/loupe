@@ -11,6 +11,29 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.11] — 2026-10-02
+
+### Added
+
+- **The card leads with the captured pixels.** A card now opens with its screenshot (or a recording's
+  poster frame) above the text, so a board reads visually instead of as a wall of titles. The
+  screenshot is no longer repeated on expand — expanding now reveals the recording player and any
+  attachments. (Milestone 0.14; #26.)
+- **Copy for agent.** Every card has a one-click brief: stage, priority, change type, repo/branch,
+  page, target selector, the element HTML and its computed styles — the same context the MCP
+  `get_comment` tool returns, as pasteable Markdown. (The "Copy-for-Claude" affordance the docs
+  described but the board never actually shipped.)
+- **Compact density.** A header toggle trades the media strip and the card padding for scanability on
+  a long board. The choice persists in `localStorage`.
+- **A loading state.** The board says _Loading feedback…_ on first paint instead of showing an empty
+  board while the first fetch is in flight.
+
+### Changed
+
+- **A card is a keyboard-reachable disclosure.** It is focusable, carries `role="button"` and
+  `aria-expanded`, and expands on `Enter` / `Space`; clicking a card no longer collapses when you
+  interact with its selects. Each card also shows its repo/branch as a chip when it has one.
+
 ## [0.10.10] — 2026-10-02
 
 ### Added

@@ -76,14 +76,21 @@ async function api(path, init) {
   const credentials = CSRF ? "same-origin" : void 0;
   return fetch(`${API}${path}`, { ...init, headers, ...credentials ? { credentials } : {} });
 }
+var loadedOnce = false;
 async function load() {
   try {
+    if (!loadedOnce) {
+      statusEl.className = "loading";
+      statusEl.textContent = "Loading feedback\u2026";
+      statusEl.style.display = "block";
+    }
     const res = await api(`/v1/comments?projectKey=${encodeURIComponent(PROJECT)}`);
     if (res.status === 401 || res.status === 404) {
       throw new Error("AUTH");
     }
     if (!res.ok) throw new Error(`API ${res.status}`);
     comments = await res.json();
+    loadedOnce = true;
     statusEl.style.display = "none";
     boardEl.style.display = "grid";
     renderPageFilter();
@@ -184,9 +191,34 @@ function card(c) {
   const device = deviceBadge(c);
   const prio = normalizePriority(c.priority);
   const ctype = normalizeChangeType(c.changeType);
+  if (c.screenshot || c.recording) {
+    const thumb = document.createElement("div");
+    thumb.className = "cthumb";
+    if (c.screenshot) {
+      thumb.title = "Open full screenshot";
+      thumb.innerHTML = `<img src="${escapeAttr(c.screenshot)}" alt="screenshot of the commented element" />`;
+      const shot = c.screenshot;
+      thumb.onclick = (e) => {
+        e.stopPropagation();
+        openImage(shot);
+      };
+    } else {
+      thumb.classList.add("cthumb-video");
+      thumb.title = "Includes a screen recording \u2014 expand the card to play it";
+      thumb.innerHTML = `<span class="cthumb-play">\u25B6</span>`;
+    }
+    if (c.recording) {
+      const badge = document.createElement("span");
+      badge.className = "cthumb-badge";
+      badge.textContent = "\u23FA";
+      badge.title = "Includes a screen recording";
+      thumb.appendChild(badge);
+    }
+    el.appendChild(thumb);
+  }
   const body = document.createElement("div");
   body.className = "cbody";
-  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="caret">${open ? "\u25BE" : "\u25B8"}</span><span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p><div class="chips"><span class="chip prio prio-${prio}" title="Priority">${PRIORITY_LABELS[prio]}</span><span class="chip ctype" title="Change type">${CHANGE_TYPE_LABELS[ctype]}</span></div>`;
+  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="caret">${open ? "\u25BE" : "\u25B8"}</span><span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p><div class="chips"><span class="chip prio prio-${prio}" title="Priority">${PRIORITY_LABELS[prio]}</span><span class="chip ctype" title="Change type">${CHANGE_TYPE_LABELS[ctype]}</span>` + (c.repo ? `<span class="chip cref" title="Repository${c.branch ? " and branch" : ""}">${escapeHtml(c.repo)}${c.branch ? ` @ ${escapeHtml(c.branch)}` : ""}</span>` : "") + `</div>`;
   const detail = document.createElement("div");
   detail.className = "detail";
   detail.innerHTML = `<p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
@@ -200,13 +232,6 @@ function card(c) {
     v.playsInline = true;
     if (c.screenshot) v.poster = c.screenshot;
     detail.appendChild(v);
-  } else if (c.screenshot) {
-    const t = document.createElement("div");
-    t.className = "thumb";
-    t.title = "Open full screenshot";
-    t.innerHTML = `<img src="${c.screenshot}" alt="screenshot of the commented element" />`;
-    t.onclick = () => openImage(c.screenshot);
-    detail.appendChild(t);
   }
   for (const a of c.attachments ?? []) {
     if (a.kind === "video") {
@@ -260,15 +285,107 @@ function card(c) {
     ctype,
     (v) => setChangeType(c, v)
   );
-  actions.append(move, prioSel, typeSel, grow, del);
+  const copy = linkBtn("Copy for agent", false, async (btn) => {
+    const ok = await copyText(agentPrompt(c));
+    btn.textContent = ok ? "Copied \u2713" : "Copy failed";
+    setTimeout(() => {
+      btn.textContent = "Copy for agent";
+    }, 1800);
+  });
+  actions.append(move, prioSel, typeSel, grow, copy, del);
   el.appendChild(actions);
   el.onclick = (e) => {
-    if (e.target.closest("button, video, img, a, details, iframe")) return;
-    if (expanded.has(c.id)) expanded.delete(c.id);
-    else expanded.add(c.id);
-    render();
+    if (e.target.closest("button, select, video, img, a, details, iframe")) return;
+    toggleCard(c.id);
+  };
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-expanded", String(open));
+  el.setAttribute("aria-label", `Feedback: ${c.title || firstLine(c.body)}`);
+  el.onkeydown = (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (e.target !== el) return;
+    e.preventDefault();
+    toggleCard(c.id);
   };
   return el;
+}
+var DENSITY_KEY = "loupe_board_density";
+var density = "comfortable";
+function loadDensity() {
+  try {
+    return localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfortable";
+  } catch {
+    return "comfortable";
+  }
+}
+function applyDensity() {
+  boardEl.dataset.density = density;
+  const b = document.getElementById("density");
+  if (b) {
+    b.textContent = density === "compact" ? "Comfortable" : "Compact";
+    b.setAttribute("aria-pressed", String(density === "compact"));
+  }
+}
+function toggleCard(id) {
+  if (expanded.has(id)) expanded.delete(id);
+  else expanded.add(id);
+  render();
+}
+function agentPrompt(c) {
+  const target = c.kind === "free" ? "page-level note (no element)" : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "\u2014";
+  const styles = Object.entries(c.context?.styles ?? {});
+  return [
+    `# Feedback #${c.id} \u2014 ${c.title || firstLine(c.body)}`,
+    ``,
+    `- **Stage:** ${STAGE_LABELS[normalizeStatus(c.status)]}`,
+    `- **Priority:** ${PRIORITY_LABELS[normalizePriority(c.priority)]}`,
+    `- **Change type:** ${CHANGE_TYPE_LABELS[normalizeChangeType(c.changeType)]}`,
+    c.repo ? `- **Repo:** ${c.repo}${c.branch ? ` @ ${c.branch}` : ""}` : ``,
+    `- **Page:** ${c.url}`,
+    `- **Target:** ${target}`,
+    c.screenshot ? `- **Screenshot:** ${c.screenshot}` : ``,
+    c.recording ? `- **Recording:** ${c.recording}` : ``,
+    ``,
+    `## Request`,
+    ``,
+    c.body,
+    ``,
+    `## Target element HTML`,
+    ``,
+    "```html",
+    c.context?.html ?? "",
+    "```",
+    ``,
+    `## Computed styles`,
+    ``,
+    "```json",
+    JSON.stringify(Object.fromEntries(styles), null, 2),
+    "```"
+  ].filter((line) => line !== void 0 && line !== "").join("\n").replace(/\n{3,}/g, "\n\n");
+}
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 function iconBtn(label, title, disabled, onClick) {
   const b = document.createElement("button");
@@ -529,9 +646,20 @@ if (viewEl) viewEl.addEventListener("change", () => {
   render();
 });
 $("#refresh").addEventListener("click", load);
+var densityBtn = document.getElementById("density");
+if (densityBtn) densityBtn.addEventListener("click", () => {
+  density = density === "compact" ? "comfortable" : "compact";
+  try {
+    localStorage.setItem(DENSITY_KEY, density);
+  } catch {
+  }
+  applyDensity();
+});
 document.querySelectorAll(".navitem").forEach((b) => b.addEventListener("click", () => setPage(b.dataset.page || "comments")));
 view = loadView();
 renderViewFilter();
+density = loadDensity();
+applyDensity();
 renderIntegrations();
 setPage(currentPage);
 setInterval(load, 4e3);

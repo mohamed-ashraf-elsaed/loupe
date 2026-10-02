@@ -83,6 +83,20 @@
     .col-empty { border: 1.5px dashed var(--line-strong); border-radius: 12px; padding: 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+    /* The captured pixels lead the card. Compact density hides this strip. */
+    .card .cthumb { position: relative; display: block; background: var(--surface-2); border-bottom: 1px solid var(--line); cursor: zoom-in; }
+    .card .cthumb img { display: block; width: 100%; max-height: 130px; object-fit: cover; object-position: top; }
+    .card .cthumb-video { display: grid; place-items: center; height: 56px; cursor: default; }
+    .card .cthumb-play { color: var(--ink-3); font-size: 18px; }
+    .card .cthumb-badge { position: absolute; top: 6px; right: 6px; background: var(--pin); color: #fff; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 6px; }
+    .chip.cref { font-family: var(--mono); font-size: 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    /* Density toggle: a long board reads much faster with the media hidden. */
+    #board[data-density="compact"] .card .cthumb { display: none; }
+    #board[data-density="compact"] .card .cbody { padding: 9px 10px; }
+    #board[data-density="compact"] .stack { gap: 8px; }
+    /* Focus ring, since a card is a keyboard-reachable disclosure. */
+    .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    #status.loading { border-color: var(--line); background: var(--surface); color: var(--ink-2); text-align: center; }
     .card .cbody { padding: 12px 13px; }
     .card .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
@@ -296,6 +310,7 @@
             </select>
           </label>
           <span class="live"><span class="dot"></span><span id="liveText">live</span></span>
+          <button class="btn" id="density" aria-pressed="false">Compact</button>
           <button class="btn" id="refresh">Refresh</button>
         </header>
         <main>

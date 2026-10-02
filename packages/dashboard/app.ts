@@ -102,14 +102,24 @@ async function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API}${path}`, { ...init, headers, ...(credentials ? { credentials } : {}) });
 }
 
+/** True until the first successful fetch, so the board can show a loading state. */
+let loadedOnce = false;
+
 async function load() {
   try {
+    // First paint has nothing to show yet — say so rather than an empty board.
+    if (!loadedOnce) {
+      statusEl.className = "loading";
+      statusEl.textContent = "Loading feedback…";
+      statusEl.style.display = "block";
+    }
     const res = await api(`/v1/comments?projectKey=${encodeURIComponent(PROJECT)}`);
     if (res.status === 401 || res.status === 404) {
       throw new Error("AUTH");
     }
     if (!res.ok) throw new Error(`API ${res.status}`);
     comments = (await res.json()) as Comment[];
+    loadedOnce = true;
     statusEl.style.display = "none";
     boardEl.style.display = "grid";
     renderPageFilter();
@@ -244,6 +254,32 @@ function card(c: Comment): HTMLElement {
   const prio = normalizePriority(c.priority);
   const ctype = normalizeChangeType(c.changeType);
 
+  // The card leads with the captured pixels when there are any — the screenshot,
+  // or a recording's poster frame. Clicking opens it full size. Compact density
+  // hides this strip (see the CSS) so a long board stays scannable.
+  if (c.screenshot || c.recording) {
+    const thumb = document.createElement("div");
+    thumb.className = "cthumb";
+    if (c.screenshot) {
+      thumb.title = "Open full screenshot";
+      thumb.innerHTML = `<img src="${escapeAttr(c.screenshot)}" alt="screenshot of the commented element" />`;
+      const shot = c.screenshot;
+      thumb.onclick = (e) => { e.stopPropagation(); openImage(shot); };
+    } else {
+      thumb.classList.add("cthumb-video");
+      thumb.title = "Includes a screen recording — expand the card to play it";
+      thumb.innerHTML = `<span class="cthumb-play">▶</span>`;
+    }
+    if (c.recording) {
+      const badge = document.createElement("span");
+      badge.className = "cthumb-badge";
+      badge.textContent = "⏺";
+      badge.title = "Includes a screen recording";
+      thumb.appendChild(badge);
+    }
+    el.appendChild(thumb);
+  }
+
   const body = document.createElement("div");
   body.className = "cbody";
   // The title is the always-visible summary; everything else is in `.detail`.
@@ -257,6 +293,7 @@ function card(c: Comment): HTMLElement {
     `<div class="chips">` +
     `<span class="chip prio prio-${prio}" title="Priority">${PRIORITY_LABELS[prio]}</span>` +
     `<span class="chip ctype" title="Change type">${CHANGE_TYPE_LABELS[ctype]}</span>` +
+    (c.repo ? `<span class="chip cref" title="Repository${c.branch ? " and branch" : ""}">${escapeHtml(c.repo)}${c.branch ? ` @ ${escapeHtml(c.branch)}` : ""}</span>` : "") +
     `</div>`;
 
   const detail = document.createElement("div");
@@ -268,6 +305,8 @@ function card(c: Comment): HTMLElement {
   body.appendChild(detail);
   el.appendChild(body);
 
+  // The screenshot already leads the card, so expanding reveals the recording
+  // player (and any attachments) rather than repeating the same image.
   if (c.recording) {
     const v = document.createElement("video");
     v.className = "rec";
@@ -276,13 +315,6 @@ function card(c: Comment): HTMLElement {
     v.playsInline = true;
     if (c.screenshot) v.poster = c.screenshot;
     detail.appendChild(v);
-  } else if (c.screenshot) {
-    const t = document.createElement("div");
-    t.className = "thumb";
-    t.title = "Open full screenshot";
-    t.innerHTML = `<img src="${c.screenshot}" alt="screenshot of the commented element" />`;
-    t.onclick = () => openImage(c.screenshot!);
-    detail.appendChild(t);
   }
 
   // Files the reporter attached (images render as thumbs, videos with a player).
@@ -340,17 +372,126 @@ function card(c: Comment): HTMLElement {
     (v) => setChangeType(c, v as ChangeType),
   );
 
-  actions.append(move, prioSel, typeSel, grow, del);
+  // Hand the whole thread to a coding agent in one click — the same package the
+  // MCP `get_comment` tool returns, as pasteable Markdown.
+  const copy = linkBtn("Copy for agent", false, async (btn) => {
+    const ok = await copyText(agentPrompt(c));
+    btn.textContent = ok ? "Copied ✓" : "Copy failed";
+    setTimeout(() => { btn.textContent = "Copy for agent"; }, 1800);
+  });
+
+  actions.append(move, prioSel, typeSel, grow, copy, del);
   el.appendChild(actions);
 
   // Clicking the card (but not its controls/media) expands it.
   el.onclick = (e) => {
-    if ((e.target as HTMLElement).closest("button, video, img, a, details, iframe")) return;
-    if (expanded.has(c.id)) expanded.delete(c.id);
-    else expanded.add(c.id);
-    render();
+    if ((e.target as HTMLElement).closest("button, select, video, img, a, details, iframe")) return;
+    toggleCard(c.id);
+  };
+  // Reachable and operable from the keyboard, and announced as a disclosure.
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-expanded", String(open));
+  el.setAttribute("aria-label", `Feedback: ${c.title || firstLine(c.body)}`);
+  el.onkeydown = (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if ((e.target as HTMLElement) !== el) return; // let the inner controls keep their keys
+    e.preventDefault();
+    toggleCard(c.id);
   };
   return el;
+}
+
+/** Card density: "compact" hides the thumbnail strip and tightens the padding. */
+type Density = "comfortable" | "compact";
+const DENSITY_KEY = "loupe_board_density";
+let density: Density = "comfortable";
+
+function loadDensity(): Density {
+  try {
+    return localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfortable";
+  } catch {
+    return "comfortable";
+  }
+}
+
+function applyDensity() {
+  boardEl.dataset.density = density;
+  const b = document.getElementById("density");
+  if (b) {
+    b.textContent = density === "compact" ? "Comfortable" : "Compact";
+    b.setAttribute("aria-pressed", String(density === "compact"));
+  }
+}
+
+/** Expand / collapse a card. */
+function toggleCard(id: string) {
+  if (expanded.has(id)) expanded.delete(id);
+  else expanded.add(id);
+  render();
+}
+
+/**
+ * The thread as a self-contained brief for a coding agent — the same context the
+ * MCP `get_comment` tool hands over, so the dashboard and MCP agree.
+ */
+function agentPrompt(c: Comment): string {
+  const target = c.kind === "free"
+    ? "page-level note (no element)"
+    : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "—";
+  const styles = Object.entries(c.context?.styles ?? {});
+  return [
+    `# Feedback #${c.id} — ${c.title || firstLine(c.body)}`,
+    ``,
+    `- **Stage:** ${STAGE_LABELS[normalizeStatus(c.status)]}`,
+    `- **Priority:** ${PRIORITY_LABELS[normalizePriority(c.priority)]}`,
+    `- **Change type:** ${CHANGE_TYPE_LABELS[normalizeChangeType(c.changeType)]}`,
+    c.repo ? `- **Repo:** ${c.repo}${c.branch ? ` @ ${c.branch}` : ""}` : ``,
+    `- **Page:** ${c.url}`,
+    `- **Target:** ${target}`,
+    c.screenshot ? `- **Screenshot:** ${c.screenshot}` : ``,
+    c.recording ? `- **Recording:** ${c.recording}` : ``,
+    ``,
+    `## Request`,
+    ``,
+    c.body,
+    ``,
+    `## Target element HTML`,
+    ``,
+    "```html",
+    c.context?.html ?? "",
+    "```",
+    ``,
+    `## Computed styles`,
+    ``,
+    "```json",
+    JSON.stringify(Object.fromEntries(styles), null, 2),
+    "```",
+  ].filter((line) => line !== undefined && line !== "").join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+/** Copy text, preferring the async clipboard API with a textarea fallback. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* fall through to the fallback */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function iconBtn(label: string, title: string, disabled: boolean, onClick: () => void): HTMLButtonElement {
@@ -614,10 +755,18 @@ if (viewEl) viewEl.addEventListener("change", () => {
   render();
 });
 $("#refresh").addEventListener("click", load);
+const densityBtn = document.getElementById("density");
+if (densityBtn) densityBtn.addEventListener("click", () => {
+  density = density === "compact" ? "comfortable" : "compact";
+  try { localStorage.setItem(DENSITY_KEY, density); } catch { /* storage unavailable */ }
+  applyDensity();
+});
 document.querySelectorAll<HTMLButtonElement>(".navitem").forEach((b) =>
   b.addEventListener("click", () => setPage(b.dataset.page || "comments")));
 view = loadView();
 renderViewFilter();
+density = loadDensity();
+applyDensity();
 renderIntegrations();
 setPage(currentPage);
 setInterval(load, 4000); // live board
