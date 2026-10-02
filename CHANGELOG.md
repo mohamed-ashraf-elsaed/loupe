@@ -11,6 +11,26 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.0] — 2026-10-02
+
+### Added
+
+- **A touch-first capture flow.** On a phone the Region tool now captures the **visible
+  viewport** in one tap and opens the composer with the screenshot already attached —
+  scroll to what you mean first, then tap Region. Drag-select was unusable on touch: a
+  finger hides the area it draws and the drag fought the page scroll.
+- The composer is a **bottom sheet** on small screens (full width, thumb-reachable,
+  scrollable when the keyboard is up).
+
+### Fixed
+
+- **The composer no longer steals focus on touch**, which threw the on-screen keyboard up
+  over the page being described. It still focuses for a mouse/pen.
+- **The Region/Record drag no longer locks page scrolling** (the `touch-action: none` page
+  lock is gone).
+- **Record is not offered on touch at all** — there is no `getDisplayMedia` on iOS Safari,
+  and no pointer with which to drag a selection box.
+
 ## [0.9.3] — 2026-10-02
 
 ### Fixed
