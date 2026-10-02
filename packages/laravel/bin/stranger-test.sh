@@ -51,18 +51,23 @@ if ! composer create-project "$target" "$APP" --no-interaction --no-progress --n
   exit 1
 fi
 cd "$APP"
-# Composer 2.9+ refuses to install packages with known advisories, and every Laravel 11
-# release currently carries one — so a fresh Laravel 11 app cannot resolve at all until the
-# policy is relaxed. That is the fixture's business, not the package's: turn it off here so
-# the test exercises the floor instead of composer's policy. (`composer config` does not
-# accept this key, so it goes straight into the app's composer.json.)
+# Two fixture concessions, both about the SKELETON rather than Loupe:
+#
+#  * Composer 2.9+ refuses packages with known advisories, and every Laravel 11 release
+#    carries one — a fresh Laravel 11 app cannot resolve at all until that policy is off.
+#  * The skeleton's dev tooling (phpunit, pint, sail…) now requires PHP 8.3+, so installing
+#    it blocks the PHP 8.2 floor for reasons that have nothing to do with this package. A
+#    deployment does not install dev dependencies, so neither does this test.
+#
+# (`composer config` does not accept the policy key, so it goes straight into composer.json.)
 php -r '
 $file = "composer.json";
 $json = json_decode(file_get_contents($file), true);
 $json["policy"]["advisories"]["block"] = false;
+unset($json["require-dev"], $json["config"]["allow-plugins"]);
 file_put_contents($file, json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
 '
-if ! composer install --no-interaction --no-progress --quiet >"$WORK/install.log" 2>&1; then
+if ! composer install --no-dev --no-interaction --no-progress >"$WORK/install.log" 2>&1; then
   bad "composer install in the fresh app failed:"
   tail -25 "$WORK/install.log"
   exit 1
@@ -113,7 +118,13 @@ routes = app / "routes/web.php"
 routes.write_text(routes.read_text() + """
 
 Route::get('/__stranger_login', function () {
-    $user = \\App\\Models\\User::factory()->create(['email' => 'stranger@example.com']);
+    // No factory: this fixture installs without dev dependencies (see step 1), and the
+    // factory needs fakerphp/faker. A plain create() is all a sign-in needs.
+    $user = \\App\\Models\\User::create([
+        'name' => 'Stranger',
+        'email' => 'stranger@example.com',
+        'password' => bcrypt('stranger-test'),
+    ]);
     auth()->login($user);
 
     return response()->json(['csrf' => csrf_token(), 'id' => (string) $user->id]);
@@ -184,11 +195,17 @@ fi
 
 # --- the SDK is actually served ------------------------------------------------------
 sdk_path="$(grep -o 'vendor/loupe/sdk/loupe.js?v=[^"]*' "$WORK/user.html" | head -1 || true)"
-code=$(curl -s -o "$WORK/sdk.js" -w '%{http_code}' -b "$USER_JAR" "$BASE/$sdk_path")
-if [ "$code" = "200" ] && [ "$(wc -c <"$WORK/sdk.js")" -gt 10000 ]; then
-  pass "user: the SDK bundle downloads ($(wc -c <"$WORK/sdk.js") bytes)"
+if [ -z "$sdk_path" ]; then
+  bad "user: no SDK script in the page, so there is nothing to download"
 else
-  bad "user: SDK bundle returned $code / $(wc -c <"$WORK/sdk.js") bytes (was it published?)"
+  code=$(curl -s -o "$WORK/sdk.js" -w '%{http_code}' -b "$USER_JAR" "$BASE/$sdk_path")
+  # Size matters: an HTML error page also answers 200 and is ~40KB, so require a bundle.
+  size=$(wc -c <"$WORK/sdk.js")
+  if [ "$code" = "200" ] && [ "$size" -gt 100000 ] && head -c 400 "$WORK/sdk.js" | grep -q "Loupe"; then
+    pass "user: the SDK bundle downloads ($size bytes)"
+  else
+    bad "user: SDK bundle returned $code / $size bytes (an HTML error page is ~40KB)"
+  fi
 fi
 
 # --- write + read a comment, exactly as the widget does ------------------------------
