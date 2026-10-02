@@ -185,16 +185,44 @@ describe("LoupeApp", () => {
     spy.mockRestore();
   });
 
-  it("touch: the Record tool is not offered (no getDisplayMedia, no drag-select)", () => {
+  it("touch: Record is offered where the browser can capture the screen, hidden where it cannot", () => {
+    setPointer("coarse");
+
+    // Android Chrome can share the screen.
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getDisplayMedia: () => undefined },
+      configurable: true,
+    });
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    expect(sr().querySelector('[data-role="record"]')).not.toBeNull();
+    destroy();
+
+    // iOS Safari has no getDisplayMedia at all.
+    delete (navigator as any).mediaDevices;
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    expect(sr().querySelector('[data-role="record"]')).toBeNull();
+  });
+
+  it("touch: tapping Record records the whole screen — no drag — then opens the composer", async () => {
     setPointer("coarse");
     Object.defineProperty(navigator, "mediaDevices", {
       value: { getDisplayMedia: () => undefined },
       configurable: true,
     });
+    let asked: any;
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      captureRecording: async (vp: any) => { asked = vp; return "data:video/webm;base64,QUJD"; },
+    });
 
-    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('[data-role="record"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
 
-    expect(sr().querySelector('[data-role="record"]')).toBeNull();
+    // The whole viewport, with no pointer input at all.
+    expect(asked).toMatchObject({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight });
+    expect(sr().querySelector<HTMLElement>(".composer")!.style.display).toBe("block");
+    expect(sr().querySelector(".composer .target")!.textContent).toContain("Recording");
+
     delete (navigator as any).mediaDevices;
   });
 
