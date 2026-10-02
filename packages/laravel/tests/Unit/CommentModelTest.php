@@ -107,6 +107,16 @@ class CommentModelTest extends TestCase
         $this->assertArrayNotHasKey('proposal', $array);
     }
 
+    public function test_to_loupe_array_carries_the_repo_and_branch_when_set(): void
+    {
+        $comment = Comment::query()->create($this->attributes() + ['repo' => 'acme/web', 'branch' => 'main']);
+
+        $array = $comment->fresh()->toLoupeArray();
+
+        $this->assertSame('acme/web', $array['repo']);
+        $this->assertSame('main', $array['branch']);
+    }
+
     public function test_a_legacy_status_reads_as_a_board_stage(): void
     {
         // A row written before the five-stage board must still land on a column,

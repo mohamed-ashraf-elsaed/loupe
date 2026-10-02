@@ -61,8 +61,35 @@ describe("store", () => {
   it("lists by project and normalized URL", async () => {
     await store.upsertComment(make());
     expect((await store.listComments("pk_test")).length).toBe(1);
-    expect((await store.listComments("pk_test", "/p?utm_source=other")).length).toBe(1);
-    expect((await store.listComments("pk_test", "/nope")).length).toBe(0);
+    expect((await store.listComments("pk_test", { url: "/p?utm_source=other" })).length).toBe(1);
+    expect((await store.listComments("pk_test", { url: "/nope" })).length).toBe(0);
+  });
+
+  it("filters in SQL by repo, branch, stage, priority, type, kind and text", async () => {
+    const withRepo = await store.upsertComment(make({ id: "r0", repo: "acme/web", branch: "main" }));
+    expect(withRepo.repo).toBe("acme/web");
+    expect(withRepo.branch).toBe("main");
+
+    await store.upsertComment(make({ id: "f1", repo: "acme/web", branch: "main", priority: "critical", changeType: "frontend", title: "Checkout total", body: "overlaps the footer" }));
+    await store.upsertComment(make({ id: "f2", repo: "acme/web", branch: "feature/x", priority: "low", changeType: "api", title: "Refund 500", body: "server error" }));
+    await store.upsertComment(make({ id: "f3", repo: "acme/api", branch: "main", kind: "free", title: "Docs typo", body: "cramped" }));
+
+    const ids = async (f: store.CommentFilters) =>
+      (await store.listComments("pk_test", f)).map((c) => c.id).sort();
+
+    expect(await ids({ repo: "acme/web" })).toEqual(["f1", "f2", "r0"]);
+    expect(await ids({ repo: "acme/web", branch: "main" })).toEqual(["f1", "r0"]);
+    expect(await ids({ priority: "critical" })).toEqual(["f1"]);
+    expect(await ids({ changeType: "api" })).toEqual(["f2"]);
+    expect(await ids({ kind: "free" })).toEqual(["f3"]);
+    // Text search is case-insensitive and matches the title as well as the body.
+    expect(await ids({ q: "refund" })).toEqual(["f2"]);
+    expect(await ids({ q: "REFUND" })).toEqual(["f2"]);
+    expect(await ids({ q: "overlaps" })).toEqual(["f1"]);
+    // Legacy stage names still match board rows.
+    expect(await ids({ status: "open" })).toEqual(["f1", "f2", "f3", "r0"]);
+    // Filters compose.
+    expect(await ids({ repo: "acme/web", priority: "critical", q: "checkout" })).toEqual(["f1"]);
   });
 
   it("patches status and body; no-op patch returns the comment", async () => {

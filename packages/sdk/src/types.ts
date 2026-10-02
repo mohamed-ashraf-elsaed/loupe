@@ -21,6 +21,13 @@ export interface LoupeConfig {
   /** Brand label shown in the control-panel header. Defaults to "Loupe". */
   label?: string;
   /**
+   * The repository this product's feedback belongs to (e.g. "org/repo"). Set it
+   * and every comment is filed against it, so a board can be filtered by repo.
+   */
+  repo?: string;
+  /** The branch in play — makes threads branch-aware (e.g. "main", "feature/x"). */
+  branch?: string;
+  /**
    * Override screenshot capture. The browser extension passes a function backed
    * by chrome.tabs.captureVisibleTab for pixel-perfect captures; the default is
    * DOM-based (modern-screenshot).

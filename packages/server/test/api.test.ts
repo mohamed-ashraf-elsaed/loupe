@@ -78,6 +78,22 @@ describe("api", () => {
     expect((await post(comment({ id: undefined }))).status).toBe(400);
   });
 
+  it("filters the list by query params", async () => {
+    await post(comment({ id: "k1", repo: "acme/web", branch: "main", priority: "critical", title: "Checkout" }));
+    await post(comment({ id: "k2", repo: "acme/api", branch: "main", priority: "low", title: "Refund" }));
+
+    const list = async (qs: string) =>
+      (await (await fetch(`${base}/v1/comments?projectKey=pk&${qs}`, { headers: adminH })).json()) as { id: string }[];
+    const ids = async (qs: string) => (await list(qs)).map((c) => c.id).sort();
+
+    expect(await ids("")).toEqual(["k1", "k2"]);
+    expect(await ids("repo=acme/web")).toEqual(["k1"]);
+    expect(await ids("branch=main")).toEqual(["k1", "k2"]);
+    expect(await ids("priority=critical")).toEqual(["k1"]);
+    expect(await ids("q=refund")).toEqual(["k2"]);
+    expect(await ids("repo=acme/web&priority=low")).toEqual([]);
+  });
+
   it("gets, patches, and deletes by id", async () => {
     await post(comment());
     expect((await fetch(`${base}/v1/comments/c1`, { headers: adminH })).status).toBe(200);

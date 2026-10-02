@@ -92,6 +92,15 @@ class Comment extends Model
             $out['region'] = $this->region;
         }
 
+        // Branch-aware threads: which repo/branch this was filed against.
+        if (! empty($this->repo)) {
+            $out['repo'] = $this->repo;
+        }
+
+        if (! empty($this->branch)) {
+            $out['branch'] = $this->branch;
+        }
+
         if (! empty($this->viewport)) {
             $out['viewport'] = $this->viewport;
         }

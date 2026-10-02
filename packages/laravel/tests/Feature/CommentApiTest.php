@@ -239,6 +239,47 @@ class CommentApiTest extends TestCase
             ->assertJsonPath('changeType', 'other');
     }
 
+    public function test_it_records_the_repo_and_branch(): void
+    {
+        $user = $this->actingAsAllowed();
+
+        $this->postJson('/loupe/v1/comments', $this->payload('c1', $user->id) + ['repo' => 'acme/web', 'branch' => 'feature/x'])
+            ->assertCreated()
+            ->assertJsonPath('repo', 'acme/web')
+            ->assertJsonPath('branch', 'feature/x');
+
+        // A blank value is stored as NULL, not as an empty string.
+        $this->postJson('/loupe/v1/comments', $this->payload('c2', $user->id) + ['repo' => '', 'branch' => ''])
+            ->assertCreated();
+        $this->assertDatabaseHas('loupe_comments', ['id' => 'c2', 'repo' => null, 'branch' => null]);
+    }
+
+    public function test_it_filters_the_list_by_query_params(): void
+    {
+        $this->actingAsAllowed();
+        $this->seedComment('a', ['repo' => 'acme/web', 'branch' => 'main', 'priority' => 'critical', 'change_type' => 'api', 'title' => 'Checkout', 'url' => '/p']);
+        $this->seedComment('b', ['repo' => 'acme/api', 'branch' => 'main', 'kind' => 'free', 'title' => 'Docs', 'body' => 'cramped', 'url' => '/q']);
+
+        $ids = function (string $qs): array {
+            $res = $this->getJson('/loupe/v1/comments'.($qs !== '' ? '?'.$qs : ''))->assertOk()->json();
+
+            return array_column($res, 'id');
+        };
+
+        $this->assertSame(['a', 'b'], $ids(''));
+        $this->assertSame(['a'], $ids('repo=acme/web'));
+        $this->assertSame(['b'], $ids('repo=acme/api'));
+        $this->assertSame(['a', 'b'], $ids('branch=main'));
+        $this->assertSame(['a'], $ids('priority=critical'));
+        $this->assertSame(['a'], $ids('changeType=api'));
+        $this->assertSame(['b'], $ids('kind=free'));
+        $this->assertSame(['a'], $ids('q=checkout'));   // title, case-insensitive
+        $this->assertSame(['b'], $ids('q=CRAMPED'));    // body
+        $this->assertSame([], $ids('repo=acme/web&priority=low')); // filters compose
+        // A legacy stage name still matches board rows.
+        $this->assertSame(['a', 'b'], $ids('status=open'));
+    }
+
     public function test_update_with_no_patchable_fields_is_a_noop(): void
     {
         $this->actingAsAllowed();

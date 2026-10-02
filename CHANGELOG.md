@@ -11,6 +11,21 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.10] — 2026-10-02
+
+### Added
+
+- **Branch-aware threads.** A comment now records the **`repo`** and **`branch`** it was filed against.
+  The widget takes both from `init({ repo, branch })`, the API and dashboard store and filter them, and
+  both MCP servers report them per item and accept them as filters — so an agent can be pointed at one
+  repository or branch. (Milestone 0.14; #25.)
+- **Filtering moves into SQL.** `GET /v1/comments` (and the matching Laravel route) now accept `repo`,
+  `branch`, `status`, `priority`, `changeType`, `kind` and `q` — so a board with thousands of rows never
+  ships them all to the client. A stage filter still matches the legacy `open` / `done` rows.
+- **Saved views.** The board gains a Repo and a Branch filter plus a view switcher: **All feedback**,
+  **Needs you (In Review)**, **Critical only** and **Not linked to a repo**. The choice is remembered in
+  `localStorage` and reflected in the URL (`?view=…`), so a filtered board can be shared as a link.
+
 ## [0.10.9] — 2026-10-02
 
 ### Added

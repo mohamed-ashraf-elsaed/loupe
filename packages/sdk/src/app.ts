@@ -1026,6 +1026,9 @@ export class LoupeApp {
       status: "queue",
       priority,
       changeType,
+      // Branch-aware threads: the host declares these once in `init()`.
+      repo: this.cfg.repo,
+      branch: this.cfg.branch,
       kind: target.kind,
       anchor,
       context,

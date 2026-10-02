@@ -92,7 +92,9 @@ init({
 
 A dockable control panel appears with a two-page sidebar — **Comments** (with the
 **Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
-**Connect Claude** (MCP setup steps). Use the header's dock controls to dock it left / right /
+**Connect Claude** (MCP setup steps). Pass `repo` and `branch` to `init()` to make
+threads branch-aware — the board can then be filtered by repository and branch.
+Use the header's dock controls to dock it left / right /
 bottom (which pushes your page over) or float it, toggle light/dark, or close it to the `◎`
 FAB cluster — the primary button carries the comment count and expands four quick actions
 (pin a comment, drop a note, hide the markers, open the Claude setup). Call `destroy()` to

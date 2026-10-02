@@ -105,7 +105,18 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const projectKey = url.searchParams.get("projectKey");
       const auth = await authenticate(projectKey, req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
-      return send(res, 200, await store.listComments(projectKey!, url.searchParams.get("url") || undefined));
+      // Filter in SQL, so a board with thousands of rows never ships them all.
+      const p = url.searchParams;
+      return send(res, 200, await store.listComments(projectKey!, {
+        url: p.get("url") || undefined,
+        repo: p.get("repo") || undefined,
+        branch: p.get("branch") || undefined,
+        status: p.get("status") || undefined,
+        priority: p.get("priority") || undefined,
+        changeType: p.get("changeType") || undefined,
+        kind: p.get("kind") || undefined,
+        q: p.get("q") || undefined,
+      }));
     }
 
     // Create/replace a comment. Authed; users may only post as themselves.

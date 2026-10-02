@@ -44,7 +44,48 @@ let kindFilter = "";   // "" | element | region | free
 let deviceFilter = ""; // "" | desktop | tablet | mobile
 let priorityFilter = ""; // "" | critical | high | medium | low
 let typeFilter = "";     // "" | frontend | backend | api | other
+let repoFilter = "";
+let branchFilter = "";
 let sortOrder: "newest" | "oldest" | "priority" = "newest";
+
+/**
+ * Saved views: a named filter combination on top of the manual filters, so a
+ * team can jump to "what needs a human" without rebuilding a filter each time.
+ */
+type View = "all" | "needs_you" | "unassigned" | "critical";
+const VIEW_KEY = "loupe_board_view";
+const VIEWS: { key: View; label: string }[] = [
+  { key: "all", label: "All feedback" },
+  { key: "needs_you", label: "Needs you (In Review)" },
+  { key: "critical", label: "Critical only" },
+  { key: "unassigned", label: "Not linked to a repo" },
+];
+let view: View = "all";
+
+function loadView(): View {
+  // The URL wins (a shared link), then the last choice, then everything.
+  const fromUrl = new URLSearchParams(location.search).get("view");
+  const raw = fromUrl || localStorage.getItem(VIEW_KEY) || "all";
+  return (VIEWS.some((v) => v.key === raw) ? raw : "all") as View;
+}
+
+function saveView(v: View) {
+  try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable */ }
+  const u = new URL(location.href);
+  if (v === "all") u.searchParams.delete("view");
+  else u.searchParams.set("view", v);
+  history.replaceState(null, "", u.toString());
+}
+
+/** Does a comment belong to the active saved view? */
+function matchesView(c: Comment): boolean {
+  switch (view) {
+    case "needs_you": return normalizeStatus(c.status) === "in_review";
+    case "critical": return normalizePriority(c.priority) === "critical";
+    case "unassigned": return !c.repo;
+    default: return true;
+  }
+}
 /** Ids of cards the user expanded — cards are collapsed to a summary by default. */
 const expanded = new Set<string>();
 
@@ -72,6 +113,8 @@ async function load() {
     statusEl.style.display = "none";
     boardEl.style.display = "grid";
     renderPageFilter();
+    renderRepoFilter();
+    renderBranchFilter();
     render();
   } catch (err) {
     boardEl.style.display = "none";
@@ -97,6 +140,44 @@ function renderPageFilter() {
   sel.value = current;
 }
 
+/** Repo filter — options come from the data, so a newly connected repo appears. */
+function renderRepoFilter() {
+  const sel = document.getElementById("repoFilter") as HTMLSelectElement | null;
+  if (!sel) return;
+  const current = sel.value;
+  const repos = [...new Set(comments.map((c) => c.repo).filter((r): r is string => !!r))];
+  sel.innerHTML = `<option value="">All repos</option>` +
+    repos.sort().map((r) => {
+      const n = comments.filter((c) => c.repo === r).length;
+      return `<option value="${escapeAttr(r)}">${escapeHtml(r)} (${n})</option>`;
+    }).join("");
+  sel.value = current;
+}
+
+/** Branch filter — same idea, for branch-aware threads. */
+function renderBranchFilter() {
+  const sel = document.getElementById("branchFilter") as HTMLSelectElement | null;
+  if (!sel) return;
+  const current = sel.value;
+  const branches = [...new Set(comments.map((c) => c.branch).filter((b): b is string => !!b))];
+  sel.innerHTML = `<option value="">All branches</option>` +
+    branches.sort().map((b) => {
+      const n = comments.filter((c) => c.branch === b).length;
+      return `<option value="${escapeAttr(b)}">${escapeHtml(b)} (${n})</option>`;
+    }).join("");
+  sel.value = current;
+}
+
+/** The saved-view switcher: built once from VIEWS, then kept in sync. */
+function renderViewFilter() {
+  const sel = document.getElementById("viewFilter") as HTMLSelectElement | null;
+  if (!sel) return;
+  if (!sel.options.length) {
+    sel.innerHTML = VIEWS.map((v) => `<option value="${v.key}">${escapeHtml(v.label)}</option>`).join("");
+  }
+  sel.value = view;
+}
+
 function render() {
   $("#project").textContent = PROJECT;
   const q = search.trim().toLowerCase();
@@ -106,6 +187,9 @@ function render() {
     (!deviceFilter || deviceKey(c) === deviceFilter) &&
     (!priorityFilter || normalizePriority(c.priority) === priorityFilter) &&
     (!typeFilter || normalizeChangeType(c.changeType) === typeFilter) &&
+    (!repoFilter || c.repo === repoFilter) &&
+    (!branchFilter || c.branch === branchFilter) &&
+    matchesView(c) &&
     (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q)),
   );
   boardEl.innerHTML = "";
@@ -519,9 +603,21 @@ const priorityEl = document.getElementById("priorityFilter") as HTMLSelectElemen
 if (priorityEl) priorityEl.addEventListener("change", () => { priorityFilter = priorityEl.value; render(); });
 const typeEl = document.getElementById("typeFilter") as HTMLSelectElement | null;
 if (typeEl) typeEl.addEventListener("change", () => { typeFilter = typeEl.value; render(); });
+const repoEl = document.getElementById("repoFilter") as HTMLSelectElement | null;
+if (repoEl) repoEl.addEventListener("change", () => { repoFilter = repoEl.value; render(); });
+const branchEl = document.getElementById("branchFilter") as HTMLSelectElement | null;
+if (branchEl) branchEl.addEventListener("change", () => { branchFilter = branchEl.value; render(); });
+const viewEl = document.getElementById("viewFilter") as HTMLSelectElement | null;
+if (viewEl) viewEl.addEventListener("change", () => {
+  view = viewEl.value as View;
+  saveView(view);
+  render();
+});
 $("#refresh").addEventListener("click", load);
 document.querySelectorAll<HTMLButtonElement>(".navitem").forEach((b) =>
   b.addEventListener("click", () => setPage(b.dataset.page || "comments")));
+view = loadView();
+renderViewFilter();
 renderIntegrations();
 setPage(currentPage);
 setInterval(load, 4000); // live board

@@ -27,7 +27,44 @@ var kindFilter = "";
 var deviceFilter = "";
 var priorityFilter = "";
 var typeFilter = "";
+var repoFilter = "";
+var branchFilter = "";
 var sortOrder = "newest";
+var VIEW_KEY = "loupe_board_view";
+var VIEWS = [
+  { key: "all", label: "All feedback" },
+  { key: "needs_you", label: "Needs you (In Review)" },
+  { key: "critical", label: "Critical only" },
+  { key: "unassigned", label: "Not linked to a repo" }
+];
+var view = "all";
+function loadView() {
+  const fromUrl = new URLSearchParams(location.search).get("view");
+  const raw = fromUrl || localStorage.getItem(VIEW_KEY) || "all";
+  return VIEWS.some((v) => v.key === raw) ? raw : "all";
+}
+function saveView(v) {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+  }
+  const u = new URL(location.href);
+  if (v === "all") u.searchParams.delete("view");
+  else u.searchParams.set("view", v);
+  history.replaceState(null, "", u.toString());
+}
+function matchesView(c) {
+  switch (view) {
+    case "needs_you":
+      return normalizeStatus(c.status) === "in_review";
+    case "critical":
+      return normalizePriority(c.priority) === "critical";
+    case "unassigned":
+      return !c.repo;
+    default:
+      return true;
+  }
+}
 var expanded = /* @__PURE__ */ new Set();
 var $ = (sel) => document.querySelector(sel);
 var boardEl = $("#board");
@@ -50,6 +87,8 @@ async function load() {
     statusEl.style.display = "none";
     boardEl.style.display = "grid";
     renderPageFilter();
+    renderRepoFilter();
+    renderBranchFilter();
     render();
   } catch (err) {
     boardEl.style.display = "none";
@@ -68,11 +107,41 @@ function renderPageFilter() {
   }).join("");
   sel.value = current;
 }
+function renderRepoFilter() {
+  const sel = document.getElementById("repoFilter");
+  if (!sel) return;
+  const current = sel.value;
+  const repos = [...new Set(comments.map((c) => c.repo).filter((r) => !!r))];
+  sel.innerHTML = `<option value="">All repos</option>` + repos.sort().map((r) => {
+    const n = comments.filter((c) => c.repo === r).length;
+    return `<option value="${escapeAttr(r)}">${escapeHtml(r)} (${n})</option>`;
+  }).join("");
+  sel.value = current;
+}
+function renderBranchFilter() {
+  const sel = document.getElementById("branchFilter");
+  if (!sel) return;
+  const current = sel.value;
+  const branches = [...new Set(comments.map((c) => c.branch).filter((b) => !!b))];
+  sel.innerHTML = `<option value="">All branches</option>` + branches.sort().map((b) => {
+    const n = comments.filter((c) => c.branch === b).length;
+    return `<option value="${escapeAttr(b)}">${escapeHtml(b)} (${n})</option>`;
+  }).join("");
+  sel.value = current;
+}
+function renderViewFilter() {
+  const sel = document.getElementById("viewFilter");
+  if (!sel) return;
+  if (!sel.options.length) {
+    sel.innerHTML = VIEWS.map((v) => `<option value="${v.key}">${escapeHtml(v.label)}</option>`).join("");
+  }
+  sel.value = view;
+}
 function render() {
   $("#project").textContent = PROJECT;
   const q = search.trim().toLowerCase();
   const visible = comments.filter(
-    (c) => (!pageFilter || c.url === pageFilter) && (!kindFilter || (c.kind ?? "element") === kindFilter) && (!deviceFilter || deviceKey(c) === deviceFilter) && (!priorityFilter || normalizePriority(c.priority) === priorityFilter) && (!typeFilter || normalizeChangeType(c.changeType) === typeFilter) && (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
+    (c) => (!pageFilter || c.url === pageFilter) && (!kindFilter || (c.kind ?? "element") === kindFilter) && (!deviceFilter || deviceKey(c) === deviceFilter) && (!priorityFilter || normalizePriority(c.priority) === priorityFilter) && (!typeFilter || normalizeChangeType(c.changeType) === typeFilter) && (!repoFilter || c.repo === repoFilter) && (!branchFilter || c.branch === branchFilter) && matchesView(c) && (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
   );
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
@@ -443,8 +512,26 @@ if (typeEl) typeEl.addEventListener("change", () => {
   typeFilter = typeEl.value;
   render();
 });
+var repoEl = document.getElementById("repoFilter");
+if (repoEl) repoEl.addEventListener("change", () => {
+  repoFilter = repoEl.value;
+  render();
+});
+var branchEl = document.getElementById("branchFilter");
+if (branchEl) branchEl.addEventListener("change", () => {
+  branchFilter = branchEl.value;
+  render();
+});
+var viewEl = document.getElementById("viewFilter");
+if (viewEl) viewEl.addEventListener("change", () => {
+  view = viewEl.value;
+  saveView(view);
+  render();
+});
 $("#refresh").addEventListener("click", load);
 document.querySelectorAll(".navitem").forEach((b) => b.addEventListener("click", () => setPage(b.dataset.page || "comments")));
+view = loadView();
+renderViewFilter();
 renderIntegrations();
 setPage(currentPage);
 setInterval(load, 4e3);

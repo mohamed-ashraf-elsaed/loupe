@@ -201,6 +201,8 @@ Migration `create_loupe_comments_table` → `loupe_comments`:
 | `status` | string, indexed | `queue` \| `todo` \| `in_progress` \| `in_review` \| `resolved` |
 | `priority` | string | `critical` \| `high` \| `medium` \| `low` (default `medium`) |
 | `change_type` | string | `frontend` \| `backend` \| `api` \| `other` (default `other`) |
+| `repo` | string, nullable | the repository the feedback was filed against |
+| `branch` | string, nullable | the branch in play |
 | `body` | text | the comment |
 | `kind` | string | `element` \| `region` \| `free` (page-level note) |
 | `author` | json | `{ id, name, email? }` |

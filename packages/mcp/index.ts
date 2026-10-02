@@ -128,10 +128,18 @@ const attachmentLines = (c: Comment) =>
 // transport below only runs when this file is the entrypoint).
 
 export async function listComments(
-  { status, priority, changeType, url }: { status?: string; priority?: string; changeType?: string; url?: string },
+  { status, priority, changeType, repo, branch, url }:
+    { status?: string; priority?: string; changeType?: string; repo?: string; branch?: string; url?: string },
 ) {
   const q = new URLSearchParams({ projectKey: PROJECT_KEY });
   if (url) q.set("url", url);
+  // Push the filters to the API so it does the heavy lifting; the checks below
+  // remain as a safety net for a backend that predates them.
+  if (status) q.set("status", status);
+  if (priority) q.set("priority", priority);
+  if (changeType) q.set("changeType", changeType);
+  if (repo) q.set("repo", repo);
+  if (branch) q.set("branch", branch);
   let comments = (await api(`/v1/comments?${q}`)) as Comment[];
   if (status) {
     const want = normalizeStatus(status);
@@ -145,10 +153,13 @@ export async function listComments(
     const want = normalizeChangeType(changeType);
     comments = comments.filter((c) => normalizeChangeType(c.changeType) === want);
   }
+  if (repo) comments = comments.filter((c) => c.repo === repo);
+  if (branch) comments = comments.filter((c) => c.branch === branch);
   if (!comments.length) return wrap("No comments match.");
   const lines = comments.map(
     (c) =>
-      `- [${STAGE_LABELS[normalizeStatus(c.status)]}] ${PRIORITY_LABELS[normalizePriority(c.priority)]} · ${CHANGE_TYPE_LABELS[normalizeChangeType(c.changeType)]} · #${c.id} — ${titleOf(c)}: ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
+      `- [${STAGE_LABELS[normalizeStatus(c.status)]}] ${PRIORITY_LABELS[normalizePriority(c.priority)]} · ${CHANGE_TYPE_LABELS[normalizeChangeType(c.changeType)]} · #${c.id} — ${titleOf(c)}: ${c.body}` +
+      `\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})${c.repo ? ` [${c.repo}${c.branch ? ` @ ${c.branch}` : ""}]` : ""}`,
   );
   return wrap(`${comments.length} comment(s):\n\n${lines.join("\n")}\n\nUse get_comment(id) for the full element context.`);
 }
@@ -234,7 +245,7 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.9" });
+const server = new McpServer({ name: "loupe", version: "0.10.10" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
@@ -242,6 +253,8 @@ server.tool(
     status: STAGE_ARG.optional().describe(`Filter by stage. Omit for all.`),
     priority: PRIORITY_ARG.optional().describe("Filter by priority."),
     changeType: CHANGE_TYPE_ARG.optional().describe("Filter by change type."),
+    repo: z.string().optional().describe('Filter to one repository, e.g. "org/repo".'),
+    branch: z.string().optional().describe('Filter to one branch, e.g. "main".'),
     url: z.string().optional().describe("Filter to a single page path, e.g. /checkout."),
   },
   listComments,

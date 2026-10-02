@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { normalizeUrl, normalizeStatus, normalizePriority, normalizeChangeType, type Comment } from "@loupekit/shared";
+import { normalizeUrl, normalizeStatus, normalizePriority, normalizeChangeType, statusAliases, type Comment } from "@loupekit/shared";
 
 export interface Project {
   project_key: string;
@@ -36,6 +36,8 @@ function rowToComment(r: any): Comment {
     status: normalizeStatus(r.status),
     priority: normalizePriority(r.priority),
     changeType: normalizeChangeType(r.change_type),
+    repo: r.repo ?? undefined,
+    branch: r.branch ?? undefined,
     body: r.body,
     title: r.title ?? undefined,
     kind: r.kind ?? "element",
@@ -53,16 +55,49 @@ function rowToComment(r: any): Comment {
   };
 }
 
-export async function listComments(projectKey: string, url?: string): Promise<Comment[]> {
+/** The filter set `GET /v1/comments` accepts. Every field is optional. */
+export interface CommentFilters {
+  /** Page path — normalized before matching, so query-string variants agree. */
+  url?: string;
+  repo?: string;
+  branch?: string;
+  /** Board stage. The legacy `open` / `done` names are accepted too. */
+  status?: string;
+  priority?: string;
+  changeType?: string;
+  /** "element" | "region" | "free". */
+  kind?: string;
+  /** Free text over the title and body. */
+  q?: string;
+}
+
+/**
+ * List a project's comments, newest first, filtered in SQL so a board with
+ * thousands of rows never ships them all to the client.
+ */
+export async function listComments(projectKey: string, filters: CommentFilters = {}): Promise<Comment[]> {
   const d = await db();
-  if (url) {
-    const { rows } = await d.query(
-      `SELECT * FROM comments WHERE project_key = $1 AND url = $2 ORDER BY created_at DESC`,
-      [projectKey, normalizeUrl(url)],
-    );
-    return rows.map(rowToComment);
+  const where: string[] = ["project_key = $1"];
+  const vals: unknown[] = [projectKey];
+  const push = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+
+  if (filters.url) where.push(`url = ${push(normalizeUrl(filters.url))}`);
+  if (filters.repo) where.push(`repo = ${push(filters.repo)}`);
+  if (filters.branch) where.push(`branch = ${push(filters.branch)}`);
+  // Match the stage AND any legacy alias, so a pre-board row is not missed.
+  if (filters.status) where.push(`status = ANY(${push(statusAliases(normalizeStatus(filters.status)))})`);
+  if (filters.priority) where.push(`priority = ${push(normalizePriority(filters.priority))}`);
+  if (filters.changeType) where.push(`change_type = ${push(normalizeChangeType(filters.changeType))}`);
+  if (filters.kind) where.push(`kind = ${push(filters.kind)}`);
+  if (filters.q) {
+    const like = push(`%${filters.q.toLowerCase()}%`);
+    where.push(`(lower(coalesce(title, '')) LIKE ${like} OR lower(body) LIKE ${like})`);
   }
-  const { rows } = await d.query(`SELECT * FROM comments WHERE project_key = $1 ORDER BY created_at DESC`, [projectKey]);
+
+  const { rows } = await d.query(
+    `SELECT * FROM comments WHERE ${where.join(" AND ")} ORDER BY created_at DESC`,
+    vals,
+  );
   return rows.map(rowToComment);
 }
 
@@ -77,11 +112,12 @@ export async function upsertComment(c: Comment): Promise<Comment> {
   const d = await db();
   const url = normalizeUrl(c.url);
   const { rows } = await d.query(
-    `INSERT INTO comments (id, project_key, url, status, priority, change_type, body, title, kind, author, anchor, context, "offset", region, viewport, screenshot_url, recording_url, attachments, proposal, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, COALESCE($20::timestamptz, now()))
+    `INSERT INTO comments (id, project_key, url, status, priority, change_type, repo, branch, body, title, kind, author, anchor, context, "offset", region, viewport, screenshot_url, recording_url, attachments, proposal, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21, COALESCE($22::timestamptz, now()))
      ON CONFLICT (id) DO UPDATE SET
        url = EXCLUDED.url, status = EXCLUDED.status,
        priority = EXCLUDED.priority, change_type = EXCLUDED.change_type,
+       repo = EXCLUDED.repo, branch = EXCLUDED.branch,
        body = EXCLUDED.body, title = EXCLUDED.title,
        kind = EXCLUDED.kind,
        author = EXCLUDED.author, anchor = EXCLUDED.anchor, context = EXCLUDED.context,
@@ -92,6 +128,7 @@ export async function upsertComment(c: Comment): Promise<Comment> {
     [
       c.id, c.projectKey, url, normalizeStatus(c.status),
       normalizePriority(c.priority), normalizeChangeType(c.changeType),
+      c.repo ?? null, c.branch ?? null,
       c.body, c.title ?? null, c.kind ?? "element",
       JSON.stringify(c.author), JSON.stringify(c.anchor), JSON.stringify(c.context),
       JSON.stringify(c.offset), c.region ? JSON.stringify(c.region) : null,

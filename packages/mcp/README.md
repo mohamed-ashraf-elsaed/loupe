@@ -51,7 +51,7 @@ element, its state, and the page.
 
 | Tool | Description |
 | --- | --- |
-| `list_comments(status?, priority?, changeType?, url?)` | List comments, optionally filtered by stage (`queue` / `todo` / `in_progress` / `in_review` / `resolved`), priority (`critical` / `high` / `medium` / `low`) or change type (`frontend` / `backend` / `api` / `other`) or page URL. The legacy status names `open` / `done` are accepted too. |
+| `list_comments(status?, priority?, changeType?, repo?, branch?, url?)` | List comments, optionally filtered by stage (`queue` / `todo` / `in_progress` / `in_review` / `resolved`), priority (`critical` / `high` / `medium` / `low`), change type (`frontend` / `backend` / `api` / `other`), repository, branch or page URL. The legacy status names `open` / `done` are accepted too. |
 | `get_comment(id)` | The full Claude-ready package for one comment: request + element HTML + computed styles + the **screenshot as an image** + any screen-recording URL. |
 | `propose_change(id, html, css?, notes?)` | Write your **modified HTML/CSS** back onto the comment. The dashboard renders it as code plus a live before/after preview for the dev team. |
 | `update_status(id, status)` | Move a comment along the board (`queue` → `todo` → `in_progress` → `in_review` → `resolved`) so triage state stays in sync. Move to `in_review` when a change is ready — only a person resolves. |

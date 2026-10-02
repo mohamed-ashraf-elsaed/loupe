@@ -2545,7 +2545,7 @@ var Loupe = (() => {
   var DEFAULT_CHANGE_TYPE = "other";
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.9" : "dev";
+  var SDK_VERSION = true ? "0.10.10" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -3515,6 +3515,9 @@ var Loupe = (() => {
         status: "queue",
         priority,
         changeType,
+        // Branch-aware threads: the host declares these once in `init()`.
+        repo: this.cfg.repo,
+        branch: this.cfg.branch,
         kind: target.kind,
         anchor,
         context,

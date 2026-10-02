@@ -75,6 +75,22 @@ class McpToolsTest extends TestCase
         $this->assertSame('b', $frontend['comments'][0]['id']);
     }
 
+    public function test_list_comments_filters_by_repo_and_branch(): void
+    {
+        $this->seedComment('a', ['repo' => 'acme/web', 'branch' => 'main', 'url' => '/p']);
+        $this->seedComment('b', ['repo' => 'acme/api', 'branch' => 'main', 'url' => '/q']);
+
+        $web = json_decode((string) (new ListComments)->handle(new Request(['repo' => 'acme/web']))->content(), true);
+        $this->assertSame(1, $web['count']);
+        $this->assertSame('a', $web['comments'][0]['id']);
+        // The repo and branch travel with the thread.
+        $this->assertSame('acme/web', $web['comments'][0]['repo']);
+        $this->assertSame('main', $web['comments'][0]['branch']);
+
+        $main = json_decode((string) (new ListComments)->handle(new Request(['branch' => 'main']))->content(), true);
+        $this->assertSame(2, $main['count']);
+    }
+
     public function test_list_comments_reports_the_region_target(): void
     {
         $this->seedComment('r', ['kind' => 'region', 'region' => ['x' => 1, 'y' => 2, 'w' => 30, 'h' => 40]]);

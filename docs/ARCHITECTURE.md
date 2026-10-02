@@ -231,6 +231,8 @@ erDiagram
     text status "queue|todo|in_progress|in_review|resolved"
     text priority "critical|high|medium|low"
     text change_type "frontend|backend|api|other"
+    text repo "org/repo (nullable)"
+    text branch "branch (nullable)"
     text body
     text kind "element|region|free"
     jsonb author

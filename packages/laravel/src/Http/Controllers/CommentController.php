@@ -30,6 +30,44 @@ class CommentController extends Controller
             $query->where('url', Url::normalize($url));
         }
 
+        // Filter in SQL, so a board with thousands of rows never ships them all.
+        foreach (['repo', 'branch'] as $column) {
+            $value = $request->query($column);
+            if (is_string($value) && $value !== '') {
+                $query->where($column, $value);
+            }
+        }
+
+        $status = $request->query('status');
+        if (is_string($status) && $status !== '') {
+            // Normalize, and match pre-board rows too (`open` / `done`).
+            $query->whereIn('status', Stages::withLegacy(Stages::normalize($status)));
+        }
+
+        $priority = $request->query('priority');
+        if (is_string($priority) && $priority !== '') {
+            $query->where('priority', Triage::normalizePriority($priority));
+        }
+
+        $changeType = $request->query('changeType');
+        if (is_string($changeType) && $changeType !== '') {
+            $query->where('change_type', Triage::normalizeType($changeType));
+        }
+
+        $kind = $request->query('kind');
+        if (is_string($kind) && $kind !== '') {
+            $query->where('kind', $kind);
+        }
+
+        $q = $request->query('q');
+        if (is_string($q) && $q !== '') {
+            $like = '%'.mb_strtolower($q).'%';
+            $query->where(function ($w) use ($like) {
+                $w->whereRaw("lower(coalesce(title, '')) like ?", [$like])
+                    ->orWhereRaw('lower(body) like ?', [$like]);
+            });
+        }
+
         $comments = $query->get()->map(fn ($c) => $c->toLoupeArray())->all();
 
         return response()->json($comments);
@@ -62,6 +100,9 @@ class CommentController extends Controller
             'status' => Stages::normalize($data['status'] ?? null),
             'priority' => Triage::normalizePriority($data['priority'] ?? null),
             'change_type' => Triage::normalizeType($data['changeType'] ?? null),
+            // Branch-aware threads: which repo/branch this was filed against.
+            'repo' => is_string($data['repo'] ?? null) && $data['repo'] !== '' ? mb_substr($data['repo'], 0, 191) : null,
+            'branch' => is_string($data['branch'] ?? null) && $data['branch'] !== '' ? mb_substr($data['branch'], 0, 191) : null,
             'title' => is_string($data['title'] ?? null) && $data['title'] !== '' ? mb_substr($data['title'], 0, 255) : null,
             'body' => (string) ($data['body'] ?? ''),
             'kind' => $data['kind'] ?? 'element',

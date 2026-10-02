@@ -5,12 +5,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // canned Loupe API. The stdio path is covered separately by mcp.test.ts.
 const C1 = {
   id: "c1", url: "/p", status: "queue", priority: "high", changeType: "frontend",
+  repo: "acme/web", branch: "main",
   body: "fix it", author: { name: "Sara" },
   anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: { a: "1" } },
   screenshot: "http://blob/x", createdAt: "t",
 };
 const C2 = {
   id: "c2", url: "/q", status: "resolved", priority: "critical", changeType: "api",
+  repo: "acme/api", branch: "main",
   body: "other", author: { name: "Bob" },
   anchor: { cssPath: ".foo", testid: null }, context: { html: "<i/>", styles: {} }, createdAt: "t",
 };
@@ -78,6 +80,20 @@ describe("mcp handlers", () => {
     const unknown = text(await mod.listComments({ priority: "nonsense" }));
     expect(unknown).toContain("page is cramped");
     expect(unknown).not.toContain("fix it");
+  });
+
+  it("list_comments filters by repo and branch, and labels them", async () => {
+    // The repo/branch travel with the thread so an agent knows where to look.
+    expect(text(await mod.listComments({}))).toContain("[acme/web @ main]");
+
+    const web = text(await mod.listComments({ repo: "acme/web" }));
+    expect(web).toContain("fix it");
+    expect(web).not.toContain("page is cramped");
+
+    // A comment with no branch is not returned when filtering by one.
+    const onMain = text(await mod.listComments({ branch: "main" }));
+    expect(onMain).toContain("fix it");
+    expect(onMain).not.toContain("page is cramped");
   });
 
   it("list_comments filters by url", async () => {

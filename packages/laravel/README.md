@@ -196,7 +196,7 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
-| `list_comments` | `status?`, `priority?`, `changeType?`, `url?` | the backlog, newest first |
+| `list_comments` | `status?`, `priority?`, `changeType?`, `repo?`, `branch?`, `url?` | the backlog, newest first |
 | `get_comment` | `id` | Claude-ready package: request + element HTML + computed styles + the screenshot as an image + any recording URL |
 | `propose_change` | `id`, `html`, `css?`, `notes?` | stores Claude's modified HTML/CSS on the comment; the dashboard shows code + a live before/after preview |
 | `update_status` | `id`, `status` | moves a comment along the board: queue / todo / in_progress / in_review / resolved |
@@ -290,6 +290,8 @@ Migration `create_loupe_comments_table` → `loupe_comments`:
 | `status` | string, indexed | `queue` · `todo` · `in_progress` · `in_review` · `resolved` |
 | `priority` | string | `critical` · `high` · `medium` · `low` (default `medium`) |
 | `change_type` | string | `frontend` · `backend` · `api` · `other` (default `other`) |
+| `repo` | string, nullable | the repository the feedback was filed against (`org/repo`) |
+| `branch` | string, nullable | the branch in play (branch-aware threads) |
 | `body` | text | the comment |
 | `kind` | string | `element` · `region` · `free` (page-level note) |
 | `author` / `author_id` | json / string | `{id,name,email?}` + denormalized id |

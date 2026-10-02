@@ -54,6 +54,19 @@ export function isOpenStage(stage: CommentStage): boolean {
 }
 
 /**
+ * Every raw `status` value that belongs to this stage — the stage itself plus any
+ * legacy alias that maps onto it. A SQL filter uses this so it still finds rows
+ * written before the five-stage board.
+ */
+export function statusAliases(stage: CommentStage): string[] {
+  const out: string[] = [stage];
+  for (const [legacy, mapped] of Object.entries(LEGACY_STATUS)) {
+    if (mapped === stage && !out.includes(legacy)) out.push(legacy);
+  }
+  return out;
+}
+
+/**
  * How urgent a comment is. Ordered most-urgent first, so a list sorted by
  * `PRIORITY_RANK` puts what needs attention at the top.
  */
@@ -222,6 +235,13 @@ export interface Comment {
   priority?: CommentPriority;
   /** Which part of the product it touches. Absent on older rows; defaults to "other". */
   changeType?: ChangeType;
+  /**
+   * The repository this was filed against, when the host knows it (e.g.
+   * "org/repo"). Absent for a page that isn't linked to a repo yet.
+   */
+  repo?: string;
+  /** The branch in play when the comment was made (e.g. "main", "feature/x"). */
+  branch?: string;
   /** Defaults to "element" when absent (back-compat with pre-region comments). */
   kind?: CommentKind;
   anchor: Anchor;

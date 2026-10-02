@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const now = new Date().toISOString();
 const COMMENTS = [
-  { id: "1", projectKey: "pk", url: "/p", status: "queue", priority: "high", changeType: "frontend", title: "Revenue card", body: "open one", author: { id: "u", name: "Sara Kim" }, anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: {} }, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "2", projectKey: "pk", url: "/p", status: "resolved", priority: "low", changeType: "backend", title: "Sidebar spacing", body: "done one", author: { id: "u", name: "Dev Team" }, anchor: { cssPath: ".y", testid: null }, context: { html: "", styles: {} }, screenshot: "http://blob/x", createdAt: now },
+  { id: "1", projectKey: "pk", url: "/p", status: "queue", priority: "high", changeType: "frontend", repo: "acme/web", branch: "main", title: "Revenue card", body: "open one", author: { id: "u", name: "Sara Kim" }, anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: {} }, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "2", projectKey: "pk", url: "/p", status: "resolved", priority: "low", changeType: "backend", repo: "acme/api", branch: "main", title: "Sidebar spacing", body: "done one", author: { id: "u", name: "Dev Team" }, anchor: { cssPath: ".y", testid: null }, context: { html: "", styles: {} }, screenshot: "http://blob/x", createdAt: now },
   // No triage metadata: reads as the defaults (Medium · Other) and sorts last.
   { id: "3", projectKey: "pk", url: "/p", status: "queue", title: "Tooltip copy", body: "tiny one", author: { id: "u", name: "Ali" }, anchor: { cssPath: ".z", testid: null }, context: { html: "", styles: {} }, createdAt: now },
+  // Waiting on a human, and critical — the "Needs you" / "Critical" saved views.
+  { id: "4", projectKey: "pk", url: "/q", status: "in_review", priority: "critical", changeType: "frontend", repo: "acme/web", branch: "feature/x", title: "Align checkmarks", body: "misaligned", author: { id: "u", name: "Mia" }, anchor: { cssPath: ".w", testid: null }, context: { html: "", styles: {} }, createdAt: now },
 ];
 
 function shell() {
@@ -37,6 +39,9 @@ function shell() {
       <option value="oldest">Oldest</option>
       <option value="priority">Priority</option>
     </select>
+    <select id="repoFilter"></select>
+    <select id="branchFilter"></select>
+    <select id="viewFilter"></select>
     <button id="refresh"></button>
     <div id="board"></div>
     <div id="status"></div>`;
@@ -64,7 +69,7 @@ describe("dashboard", () => {
     expect([...document.querySelectorAll(".col-head h2")].map((h) => h.textContent)).toEqual([
       "Queue", "To Do", "In Progress", "In Review", "Resolved",
     ]);
-    expect(document.querySelectorAll(".card").length).toBe(3);
+    expect(document.querySelectorAll(".card").length).toBe(4);
     expect(document.querySelector(".col.stage-queue .n")!.textContent).toBe("2");
     expect(document.querySelector(".col.stage-resolved .n")!.textContent).toBe("1");
   });
@@ -92,7 +97,7 @@ describe("dashboard", () => {
   it("search narrows the board to matching cards", async () => {
     await import("../app.ts");
     await new Promise((r) => setTimeout(r, 20));
-    expect(document.querySelectorAll(".card").length).toBe(3);
+    expect(document.querySelectorAll(".card").length).toBe(4);
 
     const search = document.querySelector<HTMLInputElement>("#search")!;
     search.value = "sidebar";
@@ -123,12 +128,12 @@ describe("dashboard", () => {
 
     prio.value = "";
     prio.dispatchEvent(new Event("change", { bubbles: true }));
-    expect(cards()).toBe(3);
+    expect(cards()).toBe(4);
 
     const type = document.querySelector<HTMLSelectElement>("#typeFilter")!;
     type.value = "frontend";
     type.dispatchEvent(new Event("change", { bubbles: true }));
-    expect(cards()).toBe(1);
+    expect(cards()).toBe(2); // ids 1 and 4
   });
 
   it("sorts by priority, most urgent first", async () => {
@@ -156,6 +161,61 @@ describe("dashboard", () => {
     const patch = fetchMock.mock.calls.find((c: any[]) => c[1]?.method === "PATCH" && /priority/.test(String(c[1].body)))!;
     expect(patch).toBeTruthy();
     expect(JSON.parse(patch[1].body)).toEqual({ priority: "critical" });
+  });
+
+  it("filters by repo and by branch", async () => {
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+    const cards = () => document.querySelectorAll(".card").length;
+
+    // Options are built from the data, so a newly connected repo just appears.
+    const repo = document.querySelector<HTMLSelectElement>("#repoFilter")!;
+    expect([...repo.options].map((o) => o.value)).toEqual(["", "acme/api", "acme/web"]);
+
+    repo.value = "acme/web";
+    repo.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(2); // ids 1 and 4
+
+    repo.value = "";
+    repo.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const branch = document.querySelector<HTMLSelectElement>("#branchFilter")!;
+    expect([...branch.options].map((o) => o.value)).toEqual(["", "feature/x", "main"]);
+    branch.value = "main";
+    branch.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(2); // ids 1 and 2
+
+    // Compose with the stage board: repo + branch narrow to one card.
+    repo.value = "acme/web";
+    repo.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(1); // id 1 only (id 4 is on feature/x)
+  });
+
+  it("saved views filter the board and persist the choice", async () => {
+    await import("../app.ts");
+    await new Promise((r) => setTimeout(r, 20));
+    const cards = () => document.querySelectorAll(".card").length;
+    const view = document.querySelector<HTMLSelectElement>("#viewFilter")!;
+    expect([...view.options].map((o) => o.value)).toEqual(["all", "needs_you", "critical", "unassigned"]);
+
+    view.value = "needs_you";
+    view.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(1); // id 4 — the only In Review, i.e. waiting on a human
+    expect(localStorage.getItem("loupe_board_view")).toBe("needs_you");
+    expect(location.search).toContain("view=needs_you");
+
+    view.value = "critical";
+    view.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(1);
+
+    view.value = "unassigned";
+    view.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(1); // id 3 has no repo
+
+    view.value = "all";
+    view.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(cards()).toBe(4);
+    expect(location.search).not.toContain("view=");
   });
 
   it("shows an authorization error on 401", async () => {

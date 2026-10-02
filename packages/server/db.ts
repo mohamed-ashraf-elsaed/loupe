@@ -61,6 +61,8 @@ export async function migrate(): Promise<void> {
       status         TEXT NOT NULL DEFAULT 'queue',
       priority       TEXT NOT NULL DEFAULT 'medium',
       change_type    TEXT NOT NULL DEFAULT 'other',
+      repo           TEXT,
+      branch         TEXT,
       body           TEXT NOT NULL,
       author         JSONB NOT NULL,
       anchor         JSONB NOT NULL,
@@ -87,6 +89,9 @@ export async function migrate(): Promise<void> {
   // Triage metadata: how urgent (critical→low) and what it touches (frontend/…).
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium';`);
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'other';`);
+  // Which repo/branch the feedback was filed against (branch-aware threads).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS repo TEXT;`);
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS branch TEXT;`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).

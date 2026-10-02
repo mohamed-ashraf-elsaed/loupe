@@ -24,6 +24,8 @@ class ListComments extends Tool
             'status' => $schema->string()->description('Filter by stage: queue, todo, in_progress, in_review or resolved. The legacy names open and done are accepted too.'),
             'priority' => $schema->string()->description('Filter by priority: critical, high, medium or low.'),
             'changeType' => $schema->string()->description('Filter by change type: frontend, backend, api or other.'),
+            'repo' => $schema->string()->description('Filter to one repository, e.g. org/repo.'),
+            'branch' => $schema->string()->description('Filter to one branch, e.g. main.'),
             'url' => $schema->string()->description('Filter by page URL.'),
         ];
     }
@@ -47,6 +49,11 @@ class ListComments extends Tool
         if ($type = $request->get('changeType')) {
             $query->where('change_type', Triage::normalizeType($type));
         }
+        foreach (['repo', 'branch'] as $column) {
+            if ($value = $request->get($column)) {
+                $query->where($column, $value);
+            }
+        }
 
         $rows = $query->get()->map(fn ($c) => [
             'id' => $c->id,
@@ -54,6 +61,8 @@ class ListComments extends Tool
             'status' => Stages::normalize($c->status),
             'priority' => Triage::normalizePriority($c->priority),
             'changeType' => Triage::normalizeType($c->change_type),
+            'repo' => $c->repo,
+            'branch' => $c->branch,
             'author' => data_get($c->author, 'name'),
             'title' => $this->titleOf($c),
             'body' => $c->body,

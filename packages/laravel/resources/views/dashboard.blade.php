@@ -244,8 +244,17 @@
           <span class="project" id="project">—</span>
           <input id="search" class="search" type="search" placeholder="Search title, text, author…" />
           <span class="spacer"></span>
+          <label class="control">View
+            <select id="viewFilter"></select>
+          </label>
           <label class="control">Page
             <select id="pageFilter"><option value="">All pages</option></select>
+          </label>
+          <label class="control">Repo
+            <select id="repoFilter"><option value="">All repos</option></select>
+          </label>
+          <label class="control">Branch
+            <select id="branchFilter"><option value="">All branches</option></select>
           </label>
           <label class="control">Kind
             <select id="kindFilter">
