@@ -6,6 +6,16 @@ const sr = () => document.getElementById("loupe-root")!.shadowRoot!;
 const fire = (el: Element, type: string, extra: Record<string, number> = {}) =>
   el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, ...extra }));
 
+/**
+ * Fire a pointer event. happy-dom has no PointerEvent, so build a MouseEvent of the
+ * right type and give it a `pointerType` — which is all the widget reads.
+ */
+const firePointer = (el: Element, type: string, extra: Record<string, number> = {}, pointerType = "touch") => {
+  const ev = new MouseEvent(type, { bubbles: true, cancelable: true, ...extra });
+  Object.defineProperty(ev, "pointerType", { value: pointerType });
+  el.dispatchEvent(ev);
+};
+
 /** Fill the composer's Title + Description (both are required to submit). */
 function fillComposer(title: string, body: string) {
   const t = sr().querySelector<HTMLInputElement>(".composer input.title")!;
@@ -71,6 +81,14 @@ describe("LoupeApp", () => {
     expect(sr().querySelector(".count")!.textContent).toBe("1");
   });
 
+  it("offers Record only when the browser can capture the screen", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const offered = !!sr().querySelector('[data-role="record"]');
+    const supported = typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
+    // iOS Safari has no getDisplayMedia — the Record button must not be offered there.
+    expect(offered).toBe(supported);
+  });
+
   it("lists the comment in the panel and can mark it done then delete it", async () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
     await leaveComment("triage me");
@@ -93,11 +111,14 @@ describe("LoupeApp", () => {
       projectKey: "pk", user: { id: "u", name: "U" },
       captureRegion: async () => "data:image/png;base64,REGION",
     });
-    // Enter region mode, then drag a box.
+    // Enter region mode, then drag a box with a FINGER (pointer events) — the case
+    // that used to be impossible on a phone, where touch drags never fire mouse events
+    // and the page scrolled instead of drawing.
     sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
-    fire(document.body, "mousedown", { clientX: 10, clientY: 20, button: 0 });
-    fire(document.body, "mousemove", { clientX: 130, clientY: 110 });
-    fire(document.body, "mouseup", { clientX: 130, clientY: 110, button: 0 });
+    expect(document.documentElement.style.touchAction).toBe("none"); // page scroll locked while dragging
+    firePointer(document.body, "pointerdown", { clientX: 10, clientY: 20, button: 0 });
+    firePointer(document.body, "pointermove", { clientX: 130, clientY: 110 });
+    firePointer(document.body, "pointerup", { clientX: 130, clientY: 110, button: 0 });
     await new Promise((r) => setTimeout(r, 10)); // capture is async
 
     const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
@@ -114,6 +135,18 @@ describe("LoupeApp", () => {
     // The region anchors to the element under its center (survives reflow), so it
     // carries that element's real fingerprint rather than a synthetic one.
     expect(stored[0].anchor.testid).toBe("save");
+  });
+
+  it("touch: inspect highlights on finger-down, and the page is released afterwards", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
+
+    // Touch has no hover — the highlight must appear on finger-down, before the tap.
+    firePointer(document.body, "pointerdown", { clientX: 5, clientY: 5 });
+    expect(sr().querySelector<HTMLElement>(".hl")!.style.display).toBe("block");
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(document.documentElement.style.touchAction).toBe("");
   });
 
   it("free note → click drops a page-level comment with no element or screenshot", async () => {

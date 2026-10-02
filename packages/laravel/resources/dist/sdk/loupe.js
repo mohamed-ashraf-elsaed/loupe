@@ -2487,6 +2487,9 @@ var Loupe = (() => {
       this.floatResize = null;
       this.raf = 0;
       // ---- inspector ------------------------------------------------------------
+      // Pointer Events, not mouse events: a touch drag on a phone never fires
+      // mousemove/mouseup, so Region/Record selection was impossible on touch devices.
+      // Pointer events cover mouse, touch and pen with one handler each.
       this.onMove = (e) => {
         if (this.mode !== "inspect") return;
         const target = this.pick(e.clientX, e.clientY);
@@ -2527,14 +2530,16 @@ var Loupe = (() => {
       };
       // ---- region ("free-size screenshot") selection ----------------------------
       this.onRegionDown = (e) => {
-        if (this.mode !== "region" && this.mode !== "record" || e.button !== 0) return;
+        if (this.mode !== "region" && this.mode !== "record") return;
+        if (e.pointerType !== "touch" && e.pointerType !== "pen" && e.button !== 0) return;
         const t = e.target;
         if (t && (t.id === "loupe-root" || t.closest?.("#loupe-root"))) return;
         e.preventDefault();
         e.stopPropagation();
         this.dragStart = { x: e.clientX, y: e.clientY };
-        document.addEventListener("mousemove", this.onRegionMove, true);
-        document.addEventListener("mouseup", this.onRegionUp, true);
+        document.addEventListener("pointermove", this.onRegionMove, true);
+        document.addEventListener("pointerup", this.onRegionUp, true);
+        document.addEventListener("pointercancel", this.onRegionCancel, true);
         this.drawSelection(e.clientX, e.clientY);
       };
       this.onRegionMove = (e) => {
@@ -2562,6 +2567,11 @@ var Loupe = (() => {
         this.setMode("off");
         if (wasRecord) void this.finishRecording(vp);
         else this.finishRegion(vp);
+      };
+      /** The OS took over the gesture (e.g. a system swipe): drop the selection. */
+      this.onRegionCancel = () => {
+        this.cancelDrag();
+        this.selbox.style.display = "none";
       };
       // ---- free note (drop a comment anywhere, no element / no screenshot) -------
       this.onFreeClick = (e) => {
@@ -2816,7 +2826,8 @@ var Loupe = (() => {
       const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
       recordBtn.title = "Drag a box, record a screen video of it, and comment";
       recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-      tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
+      const canRecord = typeof navigator.mediaDevices?.getDisplayMedia === "function";
+      tools.append(inspectBtn, freeBtn, regionBtn, ...canRecord ? [recordBtn] : []);
       const listHead = el("div", "listhead");
       listHead.append(document.createTextNode("Comments"));
       this.countEl = el("span", "count", "0");
@@ -2937,8 +2948,9 @@ var Loupe = (() => {
     }
     cancelDrag() {
       this.dragStart = null;
-      document.removeEventListener("mousemove", this.onRegionMove, true);
-      document.removeEventListener("mouseup", this.onRegionUp, true);
+      document.removeEventListener("pointermove", this.onRegionMove, true);
+      document.removeEventListener("pointerup", this.onRegionUp, true);
+      document.removeEventListener("pointercancel", this.onRegionCancel, true);
     }
     /**
      * Anchor a dragged viewport rect to the element under its center so it survives
@@ -3040,20 +3052,23 @@ var Loupe = (() => {
       this.dock.querySelector('[data-role="region"]')?.classList.toggle("on", mode === "region");
       this.dock.querySelector('[data-role="record"]')?.classList.toggle("on", mode === "record");
       this.dock.classList.toggle("inspecting", mode !== "off");
-      document.removeEventListener("mousemove", this.onMove, true);
+      document.removeEventListener("pointermove", this.onMove, true);
+      document.removeEventListener("pointerdown", this.onMove, true);
       document.removeEventListener("click", this.onClick, true);
       document.removeEventListener("click", this.onFreeClick, true);
-      document.removeEventListener("mousedown", this.onRegionDown, true);
+      document.removeEventListener("pointerdown", this.onRegionDown, true);
+      document.documentElement.style.touchAction = mode === "region" || mode === "record" ? "none" : "";
       if (mode === "off") return;
       document.addEventListener("keydown", this.onKey, true);
       this.closeComposer();
       if (mode === "inspect") {
-        document.addEventListener("mousemove", this.onMove, true);
+        document.addEventListener("pointermove", this.onMove, true);
+        document.addEventListener("pointerdown", this.onMove, true);
         document.addEventListener("click", this.onClick, true);
       } else if (mode === "free") {
         document.addEventListener("click", this.onFreeClick, true);
       } else if (mode === "region" || mode === "record") {
-        document.addEventListener("mousedown", this.onRegionDown, true);
+        document.addEventListener("pointerdown", this.onRegionDown, true);
       }
     }
     // ---- composer -------------------------------------------------------------
