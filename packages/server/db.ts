@@ -169,6 +169,18 @@ export async function migrate(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       read_at TIMESTAMPTZ
     );`);
+  // One row per (message, emoji, person). The primary key IS the toggle invariant:
+  // reacting twice cannot create two rows, so a count can never drift.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS reactions (
+      thread_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      user_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (thread_id, message_id, emoji, user_id)
+    );`);
   await d.query(`CREATE INDEX IF NOT EXISTS notifications_inbox ON notifications (project_key, recipient_id, created_at);`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to

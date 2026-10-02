@@ -1,4 +1,5 @@
-import type { Attachment, Comment, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import type { Attachment, Comment, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import { toggleReaction } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
@@ -114,6 +115,27 @@ export class LocalStorageAdapter implements StorageAdapter {
     all.push(stored);
     localStorage.setItem(this.msgKey(threadId), JSON.stringify(all));
     return stored;
+  }
+
+  /** Offline reactions, keyed per thread. */
+  async listReactions(threadId: string): Promise<Reaction[]> {
+    try {
+      const raw = localStorage.getItem(`loupe:rxn:${threadId}`);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async toggleReaction(input: { threadId: string; messageId: string; emoji: string; userId: string; userName?: string }): Promise<Reaction[]> {
+    const current = await this.listReactions(input.threadId);
+    // The same pure toggle the server uses, so offline and online behave identically.
+    const next = toggleReaction(current, {
+      messageId: input.messageId, emoji: input.emoji, userId: input.userId, userName: input.userName,
+    });
+    localStorage.setItem(`loupe:rxn:${input.threadId}`, JSON.stringify(next));
+    return next;
   }
 
   /** Offline: the people are whoever has already commented locally. */

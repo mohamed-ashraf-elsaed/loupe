@@ -5,6 +5,7 @@ import {
 import {
   AGENT_STALE_MS, AgentRegistry, agentId,
 } from "../src/bridge/agent-registry.ts";
+import { PresenceRegistry } from "../src/bridge/presence-registry.ts";
 import { EventBus } from "../src/bridge/events.ts";
 import { allowedOrigin, startHttpBridge, MAX_BODY_BYTES } from "../src/bridge/http-bridge.ts";
 
@@ -208,10 +209,11 @@ describe("http bridge", () => {
   const boot = async () => {
     const store = new SelectionStore(10);
     const registry = new AgentRegistry();
+    const presence = new PresenceRegistry();
     const bus = new EventBus();
-    const handle = await startHttpBridge(0, { store, registry, bus });
+    const handle = await startHttpBridge(0, { store, registry, presence, bus });
     if (!handle) throw new Error("bridge did not start");
-    return { handle, store, registry, bus, url: handle.url };
+    return { handle, store, registry, presence, bus, url: handle.url };
   };
 
   it("round-trips a selection through ingest and latest", async () => {

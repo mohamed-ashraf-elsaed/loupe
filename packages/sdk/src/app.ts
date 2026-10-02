@@ -1,4 +1,5 @@
 import { STYLES } from "./styles.js";
+import type { Peer, Reaction } from "@loupekit/shared";
 import { captureAnchor, resolveAnchor } from "./fingerprint.js";
 import { attachmentKind, captureElementContext, captureScreenshot, captureRegionScreenshot, captureRegionRecording } from "./capture.js";
 import { LocalStorageAdapter } from "./store.js";
@@ -30,10 +31,15 @@ import {
   STAGE_LABELS,
   stackLabel,
   threadAsText,
+  initialsOf,
+  PEER_HEARTBEAT_MS,
   mentionSegments,
+  summarizeReactions,
+  toggleReaction,
   mentionSuggestions,
   needsYou,
   parseMentions,
+  REACTION_CHOICES,
   threadConversation,
   threadTimeline,
   summarizeActivity,
@@ -323,6 +329,7 @@ export class LoupeApp {
     this.renderPins();
     this.renderList();
     this.renderHome();
+    this.startPresence();
     void this.loadNotifications();
     // A restored "All" scope needs the project-wide list.
     if (this.scope === "all") void this.loadAllComments();
@@ -514,7 +521,14 @@ export class LoupeApp {
     closeBtn.onclick = () => this.closeDock();
     ctl.append(posWrap, this.themeBtn, setWrap, minBtn, closeBtn);
 
-    head.append(brand, ctl);
+    // Who else has this page open. Hidden entirely when there is no bridge — an empty
+    // cluster would read as "nobody is here", which is a different claim from "we
+    // cannot know who is here".
+    this.peerEl = el("div", "peers");
+    // Hidden from the start when there is no bridge: waiting for the first render to
+    // hide it would show an empty cluster in the meantime.
+    if (!this.cfg.bridge) this.peerEl.style.display = "none";
+    head.append(brand, this.peerEl, ctl);
 
     // The minimize bar: a one-line strip that keeps the panel's context on screen.
     this.minBar = el("div", "minbar");
@@ -3304,6 +3318,35 @@ export class LoupeApp {
       }
       row.append(head, body);
 
+      // Reaction pills. The picker is a popup rather than an always-visible row of six
+      // emoji, because a permanent picker under every message is visual noise for a
+      // thing most people do occasionally.
+      const pills = el("div", "rxns");
+      for (const r of summarizeReactions(this.reactionsOf(c.id, m.id), this.cfg.user.id)) {
+        const pill = el("button", "rxn" + (r.mine ? " mine" : "")) as HTMLButtonElement;
+        pill.append(document.createTextNode(r.emoji), el("span", "rxn-n", String(r.count)));
+        pill.title = r.users.join(", ");
+        pill.onclick = (e) => { e.stopPropagation(); void this.react(c, m.id, r.emoji); };
+        pills.appendChild(pill);
+      }
+      const add = el("button", "rxn-add", "＋") as HTMLButtonElement;
+      add.title = "Add a reaction";
+      add.onclick = (e) => {
+        e.stopPropagation();
+        const open = pills.querySelector(".rxn-pick");
+        pills.querySelectorAll(".rxn-pick").forEach((n) => n.remove());
+        if (open) return;
+        const pick = el("div", "rxn-pick");
+        for (const emoji of REACTION_CHOICES) {
+          const b = el("button", "rxn-opt", emoji) as HTMLButtonElement;
+          b.onclick = (ev) => { ev.stopPropagation(); void this.react(c, m.id, emoji); };
+          pick.appendChild(b);
+        }
+        pills.appendChild(pick);
+      };
+      pills.appendChild(add);
+      row.appendChild(pills);
+
       if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending…"));
       if (this.msgFailed.has(m.id)) {
         const failed = el("div", "msg-state failed");
@@ -3400,6 +3443,118 @@ export class LoupeApp {
     return wrap;
   }
 
+  /** Other people on this page. Empty unless a bridge is configured. */
+  private peers: Peer[] = [];
+  private peerId?: string;
+  private peerEl!: HTMLElement;
+  private peerTimer?: ReturnType<typeof setInterval>;
+
+  /**
+   * Join, then keep talking.
+   *
+   * Presence is a heartbeat, not a flag, because a browser that is closed or crashes
+   * sends no goodbye. The bridge expires anything silent past the TTL, and the panel
+   * re-joins on a 404 rather than assuming it is still known.
+   */
+  private startPresence() {
+    const bridge = this.cfg.bridge;
+    if (!bridge) return;
+    const base = bridge.replace(/\/$/, "");
+    const pageUrl = location.pathname + location.search;
+
+    const tick = async () => {
+      try {
+        if (!this.peerId) {
+          const res = await fetch(`${base}/presence`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ url: pageUrl, userId: this.cfg.user.id, name: this.cfg.user.name }),
+          });
+          if (!res.ok) return;
+          const data = (await res.json()) as { peer?: Peer };
+          this.peerId = data.peer?.id;
+        } else {
+          const res = await fetch(`${base}/presence/${encodeURIComponent(this.peerId)}/heartbeat`, { method: "POST" });
+          // The bridge forgot us (it restarted, or we were swept). Re-join rather than
+          // beating forever against an id it does not know.
+          if (res.status === 404) this.peerId = undefined;
+        }
+        const listed = await fetch(
+          `${base}/presence?url=${encodeURIComponent(pageUrl)}&viewer=${encodeURIComponent(this.peerId ?? "")}`,
+        );
+        if (listed.ok) {
+          const data = (await listed.json()) as { peers?: Peer[] };
+          this.peers = Array.isArray(data.peers) ? data.peers : [];
+          this.renderPeers();
+        }
+      } catch {
+        // A bridge that went away is not an error worth surfacing; the list empties.
+        this.peers = [];
+        this.renderPeers();
+      }
+    };
+
+    void tick();
+    this.peerTimer = setInterval(() => void tick(), PEER_HEARTBEAT_MS);
+  }
+
+  private renderPeers() {
+    if (!this.peerEl) return;
+    this.peerEl.textContent = "";
+    if (!this.peers.length) { this.peerEl.style.display = "none"; return; }
+    this.peerEl.style.display = "";
+    for (const p of this.peers.slice(0, 4)) {
+      const av = el("span", "peer-av", initialsOf(p.name));
+      av.title = `${p.name} is on this page`;
+      this.peerEl.appendChild(av);
+    }
+    if (this.peers.length > 4) this.peerEl.appendChild(el("span", "peer-more", `+${this.peers.length - 4}`));
+  }
+
+  private stopPresence() {
+    if (this.peerTimer) clearInterval(this.peerTimer);
+    this.peerTimer = undefined;
+    // Best-effort goodbye; the TTL covers us if this never lands.
+    if (this.cfg.bridge && this.peerId) {
+      const base = this.cfg.bridge.replace(/\/$/, "");
+      void fetch(`${base}/presence/${encodeURIComponent(this.peerId)}`, { method: "DELETE", keepalive: true }).catch(() => {});
+    }
+    this.peerId = undefined;
+    this.peers = [];
+  }
+
+  /** Reactions per thread, keyed `${threadId}:${messageId}`, so a re-render is free. */
+  private reactions = new Map<string, Reaction[]>();
+
+  private reactionsOf(threadId: string, messageId: string): Reaction[] {
+    return this.reactions.get(`${threadId}:${messageId}`) ?? [];
+  }
+
+  /**
+   * Toggle a reaction.
+   *
+   * Optimistic, then replaced by the server's own set: the server returns the whole
+   * list precisely so the count can never drift from what was stored.
+   */
+  private async react(c: Comment, messageId: string, emoji: string) {
+    const key = `${c.id}:${messageId}`;
+    const before = this.reactionsOf(c.id, messageId);
+    this.reactions.set(key, toggleReaction(before, {
+      messageId, emoji, userId: this.cfg.user.id, userName: this.cfg.user.name,
+    }));
+    this.renderList();
+    try {
+      const next = await this.store.toggleReaction({
+        threadId: c.id, messageId, emoji, userId: this.cfg.user.id, userName: this.cfg.user.name,
+      });
+      this.reactions.set(key, Array.isArray(next) ? next : this.reactionsOf(c.id, messageId));
+    } catch {
+      // Put it back rather than showing a reaction that did not save.
+      this.reactions.set(key, before);
+    }
+    this.renderList();
+  }
+
   /** Everyone who has taken part, for mention autocomplete. Fetched once. */
   private people = new Map<string, { id: string; name: string; email?: string }[]>();
 
@@ -3417,6 +3572,17 @@ export class LoupeApp {
     if (this.messages.has(c.id)) return;
     // A mention needs the people list; fetch it alongside the first thread opened.
     void this.loadPeople();
+    // Reactions are secondary — a failure to load them must not cost us the thread.
+    void this.store.listReactions(c.id).then((all) => {
+      if (!Array.isArray(all)) return;
+      for (const r of all) {
+        const key = `${c.id}:${r.messageId}`;
+        const list = this.reactions.get(key) ?? [];
+        if (!list.some((x) => x.userId === r.userId && x.emoji === r.emoji)) list.push(r);
+        this.reactions.set(key, list);
+      }
+      this.renderList();
+    }).catch(() => {});
     try {
       this.messages.set(c.id, await this.store.listMessages(c.id));
     } catch {
@@ -3563,6 +3729,7 @@ export class LoupeApp {
   }
 
   destroy() {
+    this.stopPresence();
     this.stopRecording?.();
     this.setMode("off");
     this.mo?.disconnect();

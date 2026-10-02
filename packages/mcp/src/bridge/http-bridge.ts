@@ -14,11 +14,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { SelectionStore, validateSelection } from "./selection-store.ts";
 import { AgentRegistry, type AgentRegistration } from "./agent-registry.ts";
+import { PresenceRegistry, type PresenceJoin } from "./presence-registry.ts";
 import { EventBus } from "./events.ts";
 
 export interface BridgeDeps {
   store: SelectionStore;
   registry: AgentRegistry;
+  presence: PresenceRegistry;
   bus: EventBus;
 }
 
@@ -176,6 +178,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
         ok: true,
         selections: deps.store.size(),
         agents: deps.registry.size(),
+        peers: deps.presence.size(),
         subscribers: deps.bus.count(),
       }, origin);
     }
@@ -254,6 +257,44 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
     if (method === "DELETE" && path.startsWith("/agents/")) {
       const id = path.slice("/agents/".length);
       return send(res, 200, { ok: deps.registry.unregister(id) }, origin);
+    }
+
+    // ---- presence ----------------------------------------------------------
+    // Who else has this page open. Ephemeral by design: nothing is persisted, and a
+    // peer that stops talking past the TTL disappears on its own.
+    if (method === "POST" && path === "/presence") {
+      const body = await readBody(req);
+      if (!body.ok) return send(res, 400, { error: body.error }, origin);
+      let parsed: unknown;
+      try { parsed = JSON.parse(body.text); } catch { return send(res, 400, { error: "body is not valid JSON" }, origin); }
+      const join = parsed as Partial<PresenceJoin>;
+      if (!join || typeof join !== "object" || !join.url || !join.userId || !join.name) {
+        return send(res, 400, { error: "url, userId and name are required" }, origin);
+      }
+      const peer = deps.presence.join({ url: join.url, userId: join.userId, name: join.name, tab: join.tab });
+      deps.bus.publish({ type: "presence", data: deps.presence.list(), at: new Date().toISOString() });
+      return send(res, 201, { ok: true, peer, peers: deps.presence.list(join.url, peer.id) }, origin);
+    }
+
+    if (method === "GET" && path === "/presence") {
+      const pageUrl = url.searchParams.get("url") ?? undefined;
+      const viewer = url.searchParams.get("viewer") ?? undefined;
+      return send(res, 200, { peers: deps.presence.list(pageUrl, viewer) }, origin);
+    }
+
+    if (method === "POST" && path.startsWith("/presence/") && path.endsWith("/heartbeat")) {
+      const id = path.slice("/presence/".length, -"/heartbeat".length);
+      const peer = deps.presence.heartbeat(id);
+      // 404 is meaningful here: the client should re-join rather than keep beating.
+      if (!peer) return send(res, 404, { error: "unknown peer" }, origin);
+      return send(res, 200, { ok: true, peer }, origin);
+    }
+
+    if (method === "DELETE" && path.startsWith("/presence/")) {
+      const id = path.slice("/presence/".length);
+      const gone = deps.presence.leave(id);
+      if (gone) deps.bus.publish({ type: "presence", data: deps.presence.list(), at: new Date().toISOString() });
+      return send(res, 200, { ok: gone }, origin);
     }
 
     // ---- events (SSE) ------------------------------------------------------

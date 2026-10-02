@@ -27,6 +27,7 @@ import { z } from "zod";
 import { Buffer } from "node:buffer";
 import { SelectionStore } from "./src/bridge/selection-store.ts";
 import { AgentRegistry, AGENT_SWEEP_MS } from "./src/bridge/agent-registry.ts";
+import { PresenceRegistry } from "./src/bridge/presence-registry.ts";
 import { EventBus } from "./src/bridge/events.ts";
 import { startHttpBridge } from "./src/bridge/http-bridge.ts";
 import { createElementContextTools } from "./src/tools/element-context.ts";
@@ -71,6 +72,8 @@ const BRIDGE_PORT = Number(process.env.LOUPE_BRIDGE_PORT ?? 9800);
 // the panel, it should just mean the browser cannot reach us.
 const store = new SelectionStore(Number(process.env.LOUPE_SELECTION_CAP ?? 50));
 const registry = new AgentRegistry();
+// Peers expire faster than agents — a browser closes quickly, a terminal does not.
+const presence = new PresenceRegistry();
 const bus = new EventBus();
 // The MCP server authenticates to the API as an admin (project secret).
 const ADMIN = process.env.LOUPE_ADMIN_KEY || "";
@@ -266,7 +269,7 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.23" });
+const server = new McpServer({ name: "loupe", version: "0.10.24" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
@@ -471,7 +474,7 @@ function isEntrypoint(): boolean {
 if (isEntrypoint()) {
   // The bridge first: it is how the browser reaches us, and the tools still work
   // without it, so a busy port must not stop the server from connecting.
-  const bridge = BRIDGE_PORT ? await startHttpBridge(BRIDGE_PORT, { store, registry, bus }) : null;
+  const bridge = BRIDGE_PORT ? await startHttpBridge(BRIDGE_PORT, { store, registry, presence, bus }) : null;
 
   // Register this agent so the panel's picker shows it, and keep it alive. The id is
   // derived from the identity, so a restart lands on the same row instead of leaving
@@ -484,6 +487,9 @@ if (isEntrypoint()) {
   });
   const sweep = setInterval(() => {
     if (registry.sweep().length) bus.publish({ type: "agents", data: registry.list(), at: new Date().toISOString() });
+    // A peer going quiet is worth broadcasting too — someone leaving the page matters
+    // as much as someone arriving.
+    if (presence.sweep().length) bus.publish({ type: "presence", data: presence.list(), at: new Date().toISOString() });
     registry.heartbeat(self.id);
   }, AGENT_SWEEP_MS);
   if (typeof sweep.unref === "function") sweep.unref();

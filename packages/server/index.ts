@@ -12,8 +12,9 @@ import {
 import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } from "./blobs.ts";
 import { migrate } from "./db.ts";
 import { addNotification, listNotifications, listPeople, markRead, unreadCount } from "./notifications.ts";
+import { listReactions, toggleReaction } from "./reactions.ts";
 import { addMessage, deleteMessage, listMessages, listParticipants } from "./messages.ts";
-import { resolveMentions } from "@loupekit/shared";
+import { REACTION_CHOICES, resolveMentions } from "@loupekit/shared";
 import type { Comment } from "@loupekit/shared";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -92,12 +93,12 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const auth = await authenticate(body.projectKey, req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       if (!body.repo || !body.branch) return send(res, 400, { error: "repo and branch are required" });
-      return send(res, 201, await upsertWorkingBranch({ ...body, projectKey: auth.projectKey }));
+      return send(res, 201, await upsertWorkingBranch({ ...body, projectKey: auth.project.project_key }));
     }
     if (path === "/v1/working-branches" && req.method === "GET") {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
-      return send(res, 200, await listWorkingBranches(auth.projectKey, url.searchParams.get("repo") ?? undefined));
+      return send(res, 200, await listWorkingBranches(auth.project.project_key, url.searchParams.get("repo") ?? undefined));
     }
     if (path === "/v1/working-branches" && req.method === "DELETE") {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
@@ -105,7 +106,7 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const repo = url.searchParams.get("repo");
       const branch = url.searchParams.get("branch");
       if (!repo || !branch) return send(res, 400, { error: "repo and branch are required" });
-      return send(res, 200, { ok: await deleteWorkingBranch(auth.projectKey, repo, branch) });
+      return send(res, 200, { ok: await deleteWorkingBranch(auth.project.project_key, repo, branch) });
     }
 
     // ---- repo url patterns -------------------------------------------------
@@ -115,20 +116,20 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       if (!body.repo || !body.pattern) return send(res, 400, { error: "repo and pattern are required" });
       return send(res, 201, await addRepoUrl({
-        projectKey: auth.projectKey, repo: body.repo,
+        projectKey: auth.project.project_key, repo: body.repo,
         environment: body.environment ?? "staging", pattern: body.pattern,
       }));
     }
     if (path === "/v1/repo-urls" && req.method === "GET") {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
-      return send(res, 200, await listRepoUrls(auth.projectKey, url.searchParams.get("repo") ?? undefined));
+      return send(res, 200, await listRepoUrls(auth.project.project_key, url.searchParams.get("repo") ?? undefined));
     }
     const repoUrlDelete = path.match(/^\/v1\/repo-urls\/(.+)$/);
     if (repoUrlDelete && req.method === "DELETE") {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
-      return send(res, 200, { ok: await removeRepoUrl(auth.projectKey, decodeURIComponent(repoUrlDelete[1]!)) });
+      return send(res, 200, { ok: await removeRepoUrl(auth.project.project_key, decodeURIComponent(repoUrlDelete[1]!)) });
     }
 
     // ---- thread messages ---------------------------------------------------
@@ -148,19 +149,41 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
         const body = await readBody(req);
         if (typeof body.body !== "string" || !body.body.trim()) return send(res, 400, { error: "body is required" });
         if (!body.author?.id) return send(res, 400, { error: "author.id is required" });
+        const author = {
+          id: String(body.author.id),
+          name: String(body.author.name ?? "Unknown"),
+          email: body.author.email,
+          // Default to a person; an agent has to say so, or every reply would look
+          // like it came from the reporter.
+          type: (body.author.type === "agent" || body.author.type === "guest" ? body.author.type : "user") as "user" | "agent" | "guest",
+        };
         const message = await addMessage(threadId, comment.projectKey, {
-          author: {
-            id: String(body.author.id),
-            name: String(body.author.name ?? "Unknown"),
-            email: body.author.email,
-            // Default to a person; an agent has to say so, or every reply would look
-            // like it came from the reporter.
-            type: body.author.type === "agent" || body.author.type === "guest" ? body.author.type : "user",
-          },
+          author,
           body: body.body,
           attachments: Array.isArray(body.attachments) ? body.attachments : undefined,
         });
-        return send(res, 201, message);
+
+        // Mentions: resolve against everyone who has taken part, notify each person
+        // once, and report the handles that matched nobody rather than dropping them —
+        // a mention that quietly does nothing is the failure this exists to prevent.
+        const resolution = resolveMentions(body.body, await listPeople(comment.projectKey));
+        for (const { user } of resolution.resolved) {
+          if (user.id === author.id) continue; // don't notify someone about their own reply
+          await addNotification({
+            projectKey: comment.projectKey,
+            recipientId: user.id,
+            threadId,
+            kind: "mention",
+            body: `${author.name} mentioned you on “${comment.title || comment.body.split("\n")[0] || "a thread"}”`,
+            actorName: author.name,
+          });
+        }
+
+        return send(res, 201, {
+          ...message,
+          mentions: resolution.resolved.map((r) => r.user.id),
+          unknownMentions: resolution.unknown,
+        });
       }
     }
     const participants = path.match(/^\/v1\/comments\/([^/]+)\/participants$/);
@@ -185,6 +208,40 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, { ok: await deleteMessage(threadId, decodeURIComponent(messageDelete[2]!)) });
     }
 
+    // ---- reactions ---------------------------------------------------------
+    // `…/messages/:messageId/reactions` — toggle for the caller, then return the
+    // full set so the client never has to guess the new count.
+    const reactionMatch = path.match(/^\/v1\/comments\/([^/]+)\/messages\/([^/]+)\/reactions$/);
+    if (reactionMatch) {
+      const comment = await store.getComment(reactionMatch[1]!);
+      if (!comment) return send(res, 404, { error: "comment not found" });
+      const auth = await authenticate(comment.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      const threadId = comment.id;
+      const messageId = reactionMatch[2]!;
+
+      const messages = await listMessages(threadId);
+      if (!messages.some((m) => m.id === messageId)) return send(res, 404, { error: "message not found" });
+
+      if (req.method === "GET") {
+        const viewer = url.searchParams.get("viewer") ?? undefined;
+        return send(res, 200, { reactions: await listReactions(threadId, viewer) });
+      }
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        if (!body.emoji || typeof body.emoji !== "string") return send(res, 400, { error: "emoji is required" });
+        // One grapheme's worth of emoji; anything longer is not an emoji anyone sent.
+        if ([...body.emoji].length > 4) return send(res, 400, { error: "emoji is not an emoji" });
+        const userId = String(body.userId ?? req.headers["x-loupe-user"] ?? "");
+        if (!userId) return send(res, 400, { error: "userId is required" });
+        const { on } = await toggleReaction({
+          threadId, messageId, emoji: body.emoji, userId, userName: body.userName,
+        });
+        return send(res, 200, { on, reactions: await listReactions(threadId, userId) });
+      }
+      return send(res, 405, { error: "method not allowed" });
+    }
+
     // ---- notifications -----------------------------------------------------
     if (path === "/v1/notifications" && req.method === "GET") {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
@@ -193,8 +250,8 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       if (!recipient) return send(res, 400, { error: "recipient is required" });
       const unreadOnly = url.searchParams.get("unread") === "1";
       return send(res, 200, {
-        notifications: await listNotifications(auth.projectKey, recipient, { unreadOnly }),
-        unread: await unreadCount(auth.projectKey, recipient),
+        notifications: await listNotifications(auth.project.project_key, recipient, { unreadOnly }),
+        unread: await unreadCount(auth.project.project_key, recipient),
       });
     }
     if (path === "/v1/notifications/read" && req.method === "POST") {
@@ -203,13 +260,17 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       const recipient = body.recipient ?? String(req.headers["x-loupe-user"] ?? "");
       if (!recipient) return send(res, 400, { error: "recipient is required" });
-      return send(res, 200, { marked: await markRead(auth.projectKey, recipient, body.id) });
+      return send(res, 200, { marked: await markRead(auth.project.project_key, recipient, body.id) });
+    }
+    // The emoji the client may send, so the picker and the server agree on one list.
+    if (path === "/v1/reactions/allowed" && req.method === "GET") {
+      return send(res, 200, { choices: REACTION_CHOICES });
     }
     // Who can be mentioned: everyone who has taken part in this project.
     if (path === "/v1/people" && req.method === "GET") {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
-      return send(res, 200, await listPeople(auth.projectKey));
+      return send(res, 200, await listPeople(auth.project.project_key));
     }
 
     // Is there a preview for this branch yet? Answers, or says "not ready".
@@ -220,7 +281,7 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const branch = url.searchParams.get("branch");
       if (!repo || !branch) return send(res, 400, { error: "repo and branch are required" });
       const pr = url.searchParams.get("pr");
-      return send(res, 200, await resolvePreview(auth.projectKey, repo, branch, pr ? { pr: Number(pr) } : {}));
+      return send(res, 200, await resolvePreview(auth.project.project_key, repo, branch, pr ? { pr: Number(pr) } : {}));
     }
 
     // Public: serve screenshot blobs (unguessable ids). Prod: signed URLs.

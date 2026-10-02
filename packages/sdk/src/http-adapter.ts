@@ -1,4 +1,4 @@
-import type { Attachment, Comment, LoupeUser, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import type { Attachment, Comment, LoupeUser, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
@@ -103,6 +103,27 @@ export class HttpAdapter implements StorageAdapter {
     }));
     if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
     return (await res.json()) as ThreadMessage;
+  }
+
+  async listReactions(threadId: string): Promise<Reaction[]> {
+    const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages/all/reactions`, this.opts({ headers: this.headers() }));
+    // A 404 means the message is gone, which for reactions means there are none.
+    if (res.status === 404) return [];
+    if (!res.ok) throw new Error(`listReactions failed: ${res.status}`);
+    return ((await res.json()) as { reactions: Reaction[] }).reactions;
+  }
+
+  async toggleReaction(input: { threadId: string; messageId: string; emoji: string; userId: string; userName?: string }): Promise<Reaction[]> {
+    const res = await fetch(
+      `${this.base}/v1/comments/${encodeURIComponent(input.threadId)}/messages/${encodeURIComponent(input.messageId)}/reactions`,
+      this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({ emoji: input.emoji, userId: input.userId, userName: input.userName }),
+      }),
+    );
+    if (!res.ok) throw new Error(`toggleReaction failed: ${res.status}`);
+    return ((await res.json()) as { reactions: Reaction[] }).reactions;
   }
 
   /** Everyone who has taken part in this project, for mention resolution. */

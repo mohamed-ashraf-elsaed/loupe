@@ -3,6 +3,7 @@
 export * from "@loupekit/shared";
 
 import type {
+  Reaction,
   ActivityEventInput, Attachment, Comment, Iteration, IterationKind, LoupeUser, RegionRect,
   ThreadAuthor, ThreadMessage,
 } from "@loupekit/shared";
@@ -95,6 +96,13 @@ export interface LoupeConfig {
    * Required in production so users can't spoof identity.
    */
   userHmac?: string;
+  /**
+   * Base URL of the Loupe agent bridge, when one is running. Presence is the only
+   * thing that needs it, and with none configured the panel hides the peer list
+   * entirely rather than showing an empty one — "nobody is here" is a different claim
+   * from "we cannot know who is here".
+   */
+  bridge?: string;
   /** Backend base URL. Omitted → comments persist to localStorage (offline mode). */
   apiBase?: string;
   /** Start with the inspect tool already active (opens the control panel). */
@@ -212,6 +220,10 @@ export interface StorageAdapter {
   /** In-app notifications for this user. */
   listNotifications(projectKey: string, recipient: string): Promise<{ id: string; threadId: string; kind: string; body: string; actorName?: string; createdAt: string; readAt?: string }[]>;
   markNotificationsRead(projectKey: string, recipient: string, id?: string): Promise<void>;
+  /** Every reaction on a thread, so the client can aggregate them itself. */
+  listReactions(threadId: string): Promise<Reaction[]>;
+  /** Toggle one reaction. Returns the whole new set — never guess the new count. */
+  toggleReaction(input: { threadId: string; messageId: string; emoji: string; userId: string; userName?: string }): Promise<Reaction[]>;
 }
 
 /** Result of trying to re-locate an anchored element on the current page. */

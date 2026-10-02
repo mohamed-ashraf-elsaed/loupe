@@ -1602,6 +1602,115 @@ describe("LoupeApp", () => {
     }
   });
 
+  it("shows a reaction pill with its count, and marks your own", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "a1", name: "Claude Code", type: "agent" }, body: "done", createdAt: "2026-01-01T11:00:00.000Z" },
+    ]));
+    localStorage.setItem("loupe:rxn:t1", JSON.stringify([
+      { messageId: "m1", emoji: "👍", userId: "u", userName: "U" },
+      { messageId: "m1", emoji: "👍", userId: "u2", userName: "Jane" },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 30));
+
+    const pill = sr().querySelector<HTMLElement>(".rxn")!;
+    expect(pill.textContent).toContain("👍");
+    expect(pill.querySelector(".rxn-n")!.textContent).toBe("2");
+    // Highlighted, because one of the two is you.
+    expect(pill.classList.contains("mine")).toBe(true);
+    expect(pill.title).toBe("U, Jane");
+  });
+
+  it("toggles a reaction off by clicking its pill", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "done", createdAt: "2026-01-01T11:00:00.000Z" },
+    ]));
+    localStorage.setItem("loupe:rxn:t1", JSON.stringify([{ messageId: "m1", emoji: "👍", userId: "u", userName: "U" }]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 30));
+
+    sr().querySelector<HTMLElement>(".rxn")!.click();
+    await new Promise((r) => setTimeout(r, 40));
+    // Gone — and nothing was left behind in storage either.
+    expect(sr().querySelector(".rxn")).toBeFalsy();
+    expect(JSON.parse(localStorage.getItem("loupe:rxn:t1")!)).toEqual([]);
+  });
+
+  it("adds a reaction from the picker", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "done", createdAt: "2026-01-01T11:00:00.000Z" },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(sr().querySelector(".rxn-pick")).toBeFalsy();
+    sr().querySelector<HTMLElement>(".rxn-add")!.click();
+    const pick = sr().querySelector<HTMLElement>(".rxn-pick")!;
+    expect(pick.querySelectorAll(".rxn-opt").length).toBe(6);
+
+    (pick.querySelectorAll<HTMLElement>(".rxn-opt")[1]!).click();
+    await new Promise((r) => setTimeout(r, 40));
+    expect(sr().querySelector<HTMLElement>(".rxn")!.textContent).toContain("🎉");
+    // The picker closes once a choice is made.
+    expect(sr().querySelector(".rxn-pick")).toBeFalsy();
+  });
+
+  it("hides the peer list entirely when no bridge is configured", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 20));
+    // "Nobody is here" is a different claim from "we cannot know who is here".
+    expect(sr().querySelector<HTMLElement>(".peers")!.style.display).toBe("none");
+  });
+
+  it("shows the others on this page when a bridge is running", async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string) => {
+      const u = String(url);
+      if (u.includes("/presence") && !u.endsWith("/heartbeat")) {
+        if (u.includes("?url=")) {
+          return new Response(JSON.stringify({
+            peers: [
+              { id: "p2", userId: "u2", name: "Jane Doe", url: "/p", lastSeen: Date.now() },
+              { id: "p3", userId: "u3", name: "Ali", url: "/p", lastSeen: Date.now() },
+            ],
+          }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ peer: { id: "p1" } }), { status: 201 });
+      }
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    try {
+      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+      init({ projectKey: "pk", user: { id: "u", name: "Sara" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 60));
+
+      const peers = sr().querySelector<HTMLElement>(".peers")!;
+      expect(peers.style.display).not.toBe("none");
+      const avatars = [...peers.querySelectorAll<HTMLElement>(".peer-av")];
+      expect(avatars.map((a) => a.textContent)).toEqual(["JD", "A"]);
+      expect(avatars[0]!.title).toContain("Jane Doe");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
   it("does not initialize without projectKey or user id", () => {
     init({ projectKey: "", user: { id: "u", name: "U" } } as any);
     expect(document.getElementById("loupe-root")).toBeNull();

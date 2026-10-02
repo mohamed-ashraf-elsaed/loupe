@@ -27,7 +27,11 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 beforeEach(async () => {
   await migrate();
   const d = await db();
-  await d.query("TRUNCATE comments, projects CASCADE");
+  // Every table the routes touch. Truncating only `comments`/`projects` left
+  // working_branches, repo_urls, notifications and reactions behind, so one test saw
+  // another's rows — which is how the preview assertion picked up a registered pattern
+  // it never created.
+  await d.query("TRUNCATE comments, projects, working_branches, repo_urls, notifications, reactions, thread_messages, thread_participants CASCADE");
   await upsertProject({ project_key: "pk", name: "n", secret: SECRET, allowed_origins: [] });
 });
 
@@ -44,6 +48,175 @@ function comment(over: Record<string, unknown> = {}) {
   };
 }
 const post = (body: unknown, headers = userH) => fetch(`${base}/v1/comments`, { method: "POST", headers, body: JSON.stringify(body) });
+
+// Every route that takes a project key from the *authenticated* request rather than
+// from the body. These exist because the server is not typechecked: `auth` carries the
+// project row, not a `projectKey`, so `auth.projectKey` was silently `undefined` — a
+// 500 on write (the not-null constraint) and an empty list on read. The store-level
+// tests passed the whole time because they never crossed the HTTP boundary.
+describe("routes that take the project from auth", () => {
+  const json = (r: Response) => r.json() as Promise<any>;
+
+  it("registers and reads back a working branch", async () => {
+    const created = await fetch(`${base}/v1/working-branches`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ projectKey: "pk", repo: "acme/shop", branch: "loupe/fix" }),
+    });
+    expect(created.status).toBe(201);
+    expect((await json(created)).projectKey).toBe("pk");
+
+    const listed = await json(await fetch(`${base}/v1/working-branches?projectKey=pk&repo=acme/shop`, { headers: adminH }));
+    expect(listed.map((b: any) => b.branch)).toEqual(["loupe/fix"]);
+  });
+
+  it("does not leak a working branch into another project", async () => {
+    await upsertProject({ project_key: "other", name: "o", secret: "other-sec", allowed_origins: [] });
+    await fetch(`${base}/v1/working-branches`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ projectKey: "pk", repo: "acme/shop", branch: "loupe/fix" }),
+    });
+    const otherH = { "X-Loupe-Admin": "other-sec", "Content-Type": "application/json" };
+    const theirs = await json(await fetch(`${base}/v1/working-branches?projectKey=other`, { headers: otherH }));
+    expect(theirs).toEqual([]);
+  });
+
+  it("adds, reads and removes a repo url", async () => {
+    const added = await fetch(`${base}/v1/repo-urls`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ projectKey: "pk", repo: "acme/shop", pattern: "https://preview-*.acme.test" }),
+    });
+    expect(added.status).toBe(201);
+
+    const listed = await json(await fetch(`${base}/v1/repo-urls?projectKey=pk`, { headers: adminH }));
+    expect(listed.map((u: any) => u.pattern)).toEqual(["https://preview-*.acme.test"]);
+
+    // Addressed by the id the API handed back — that is what the store matches on.
+    const id = (await json(await fetch(`${base}/v1/repo-urls?projectKey=pk`, { headers: adminH })))[0].id;
+    const removed = await fetch(`${base}/v1/repo-urls/${encodeURIComponent(id)}?projectKey=pk`, {
+      method: "DELETE", headers: adminH,
+    });
+    expect((await json(removed)).ok).toBe(true);
+    expect(await json(await fetch(`${base}/v1/repo-urls?projectKey=pk`, { headers: adminH }))).toEqual([]);
+  });
+
+  it("does not claim to have removed a repo url it did not find", async () => {
+    const missing = await fetch(`${base}/v1/repo-urls/${encodeURIComponent("pk:acme/shop:staging")}?projectKey=pk`, {
+      method: "DELETE", headers: adminH,
+    });
+    expect((await json(missing)).ok).toBe(false);
+  });
+
+  it("answers a preview request without guessing a URL", async () => {
+    const res = await json(await fetch(`${base}/v1/preview?projectKey=pk&repo=acme/shop&branch=loupe/fix`, { headers: adminH }));
+    expect(res.status).toBe("not_ready");
+    expect(res.candidates).toEqual([]);
+    // It must explain rather than invent one.
+    expect(String(res.reason)).toMatch(/no url patterns are registered/i);
+  });
+
+  it("lists the people who have taken part, from auth's project", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const people = await json(await fetch(`${base}/v1/people?projectKey=pk`, { headers: adminH }));
+    expect(people.map((p: any) => p.id)).toEqual(["u1"]);
+  });
+
+  it("resolves a mention of a known person and reports an unknown one", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const res = await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ author: { id: "bob", name: "Bob Smith" }, body: "cc @U and @nobody" }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.mentions).toEqual(["u1"]);
+    expect(body.unknownMentions).toEqual(["nobody"]);
+  });
+
+  it("notifies a mentioned person and never the author of the reply", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+
+    // bob mentions u1 → u1 is notified.
+    await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ author: { id: "bob", name: "Bob Smith" }, body: "cc @U" }),
+    });
+    const inbox = await json(await fetch(`${base}/v1/notifications?projectKey=pk&recipient=u1`, { headers: adminH }));
+    expect(inbox.unread).toBe(1);
+    expect(inbox.notifications[0].kind).toBe("mention");
+
+    // u1 mentions themselves → no second notification.
+    await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ author: { id: "u1", name: "U" }, body: "me: @U" }),
+    });
+    expect((await json(await fetch(`${base}/v1/notifications?projectKey=pk&recipient=u1`, { headers: adminH }))).unread).toBe(1);
+  });
+
+  it("marks notifications read without losing them", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ author: { id: "bob", name: "Bob Smith" }, body: "@U hi" }),
+    });
+    await fetch(`${base}/v1/notifications/read`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ projectKey: "pk", recipient: "u1" }),
+    });
+    const after = await json(await fetch(`${base}/v1/notifications?projectKey=pk&recipient=u1`, { headers: adminH }));
+    expect(after.unread).toBe(0);
+    expect(after.notifications.length).toBe(1);
+  });
+
+  it("toggles a reaction at the HTTP boundary — the same call twice un-reacts", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "hi" }),
+    }));
+
+    const toggle = () => fetch(`${base}/v1/comments/c1/messages/${msg.id}/reactions`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ emoji: "👍", userId: "u1", userName: "U" }),
+    });
+
+    const first = await json(await toggle());
+    expect(first.on).toBe(true);
+    expect(first.reactions.length).toBe(1);
+
+    const second = await json(await toggle());
+    expect(second.on).toBe(false);
+    expect(second.reactions.length).toBe(0);
+  });
+
+  it("rejects a reaction that is not an emoji, and one on a message that does not exist", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "hi" }),
+    }));
+
+    const bad = await fetch(`${base}/v1/comments/c1/messages/${msg.id}/reactions`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ emoji: "definitely not an emoji", userId: "u1" }),
+    });
+    expect(bad.status).toBe(400);
+
+    const missing = await fetch(`${base}/v1/comments/c1/messages/nope/reactions`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ emoji: "👍", userId: "u1" }),
+    });
+    expect(missing.status).toBe(404);
+  });
+
+  it("keeps reactions to one project's thread only", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "hi" }),
+    }));
+    await fetch(`${base}/v1/comments/c1/messages/${msg.id}/reactions`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ emoji: "👍", userId: "u1" }),
+    });
+    const res = await json(await fetch(`${base}/v1/comments/c1/messages/${msg.id}/reactions`, { headers: adminH }));
+    expect(res.reactions.length).toBe(1);
+  });
+});
 
 describe("api", () => {
   it("health", async () => {

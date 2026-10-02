@@ -14,6 +14,7 @@ export type ThreadEventType = "pr_created" | "preview_live" | "thread_resolved" 
 export type BridgeEvent =
   | { type: "selection"; at: string; data: unknown }
   | { type: "agents"; at: string; data: AgentInfo[] }
+  | { type: "presence"; at: string; data: unknown[] }
   | { type: "thread"; at: string; threadId: string; eventType: ThreadEventType; data?: unknown };
 
 export type Subscriber = (event: BridgeEvent) => void;

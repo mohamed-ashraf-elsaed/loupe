@@ -794,6 +794,43 @@ var Loupe = (() => {
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* reactions */
+.rxns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; position: relative; }
+.rxn {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  color: var(--ink); font-size: 11px; cursor: pointer; line-height: 1.7;
+}
+.rxn:hover { border-color: var(--accent); }
+.rxn.mine { border-color: var(--accent); background: var(--accent-soft); }
+.rxn-n { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.rxn.mine .rxn-n { color: var(--accent); }
+.rxn-add {
+  width: 20px; height: 20px; padding: 0; border: 1px dashed var(--line); border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; line-height: 1;
+}
+.rxn-add:hover { border-color: var(--accent); color: var(--accent); }
+.rxn-pick {
+  display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); box-shadow: 0 4px 14px rgb(0 0 0 / 18%); z-index: 3;
+}
+.rxn-opt {
+  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; font-size: 14px; cursor: pointer; line-height: 1;
+}
+.rxn-opt:hover { background: var(--accent-soft); }
+
+/* who else is here */
+.peers { display: flex; align-items: center; gap: -2px; margin-right: 8px; }
+.peer-av {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; margin-left: -5px; border-radius: 50%;
+  border: 2px solid var(--bg); background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: .02em;
+}
+.peer-av:first-child { margin-left: 0; }
+.peer-more { margin-left: 3px; font-size: 10px; color: var(--muted); }
+
 /* in-app mentions */
 .hnotif { margin-top: 10px; }
 .nf-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11.5px; color: var(--ink); }
@@ -2927,272 +2964,6 @@ var Loupe = (() => {
     });
   }
 
-  // src/store.ts
-  var LocalStorageAdapter = class {
-    key(projectKey, url) {
-      return `loupe:${projectKey}:${url}`;
-    }
-    readAll(projectKey, url) {
-      try {
-        const raw = localStorage.getItem(this.key(projectKey, url));
-        return raw ? JSON.parse(raw) : [];
-      } catch {
-        return [];
-      }
-    }
-    writeAll(projectKey, url, comments) {
-      localStorage.setItem(this.key(projectKey, url), JSON.stringify(comments));
-    }
-    async list(projectKey, url) {
-      return this.readAll(projectKey, url);
-    }
-    /** Every page's comments for this project, newest first — the "All" scope. */
-    async listAll(projectKey) {
-      const prefix = `loupe:${projectKey}:`;
-      const out = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || !k.startsWith(prefix)) continue;
-        try {
-          out.push(...JSON.parse(localStorage.getItem(k) || "[]"));
-        } catch {
-        }
-      }
-      return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    }
-    async save(comment) {
-      const all = this.readAll(comment.projectKey, comment.url);
-      all.push(comment);
-      this.writeAll(comment.projectKey, comment.url, all);
-      return comment;
-    }
-    /**
-     * Offline mode: keep the file inline. localStorage is only a few MB, so refuse
-     * anything that would blow the quota rather than silently dropping it.
-     */
-    async upload(_projectKey, file) {
-      if (file.size > 3e6) throw new Error("attachment too large for offline mode");
-      return {
-        url: await fileToDataUrl(file),
-        name: file.name,
-        mime: file.type || void 0,
-        kind: attachmentKind(file.type),
-        size: file.size
-      };
-    }
-    /**
-     * Keys that hold a comment list. `loupe:dock` (panel state) and `loupe:msgs:*`
-     * (replies) share the prefix but are not comment lists — treating them as one made
-     * update()/remove() throw, and would have it hunt a comment id among messages.
-     */
-    commentKeys() {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith("loupe:") && k !== "loupe:dock" && !k.startsWith("loupe:msgs:")) keys.push(k);
-      }
-      return keys;
-    }
-    parseList(key) {
-      try {
-        const value = JSON.parse(localStorage.getItem(key) || "[]");
-        return Array.isArray(value) ? value : [];
-      } catch {
-        return [];
-      }
-    }
-    /** Replies, kept under their own key so they survive a comment being re-saved. */
-    msgKey(threadId) {
-      return `loupe:msgs:${threadId}`;
-    }
-    async listMessages(threadId) {
-      try {
-        const raw = localStorage.getItem(this.msgKey(threadId));
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-    async addMessage(threadId, message) {
-      const stored = {
-        id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-        threadId,
-        author: message.author,
-        body: message.body,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-      const all = await this.listMessages(threadId);
-      all.push(stored);
-      localStorage.setItem(this.msgKey(threadId), JSON.stringify(all));
-      return stored;
-    }
-    /** Offline: the people are whoever has already commented locally. */
-    async listPeople(projectKey) {
-      const prefix = `loupe:${projectKey}:`;
-      const seen = /* @__PURE__ */ new Map();
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || !k.startsWith(prefix)) continue;
-        for (const c of this.parseList(k)) {
-          if (c.author?.id && !seen.has(c.author.id)) seen.set(c.author.id, c.author);
-        }
-      }
-      return [...seen.values()];
-    }
-    /** Offline mode has no server to notify anyone from. */
-    async listNotifications() {
-      return [];
-    }
-    async markNotificationsRead() {
-    }
-    async update(id, patch) {
-      for (const k of this.commentKeys()) {
-        const list = this.parseList(k);
-        const idx = list.findIndex((c) => c.id === id);
-        if (idx >= 0) {
-          list[idx] = { ...list[idx], ...patch };
-          localStorage.setItem(k, JSON.stringify(list));
-          return;
-        }
-      }
-    }
-    async remove(id) {
-      for (const k of this.commentKeys()) {
-        const list = this.parseList(k);
-        const next = list.filter((c) => c.id !== id);
-        if (next.length !== list.length) {
-          localStorage.setItem(k, JSON.stringify(next));
-          return;
-        }
-      }
-    }
-  };
-
-  // src/http-adapter.ts
-  var HttpAdapter = class {
-    constructor(base, user, userHmac, extraHeaders, credentials) {
-      this.base = base;
-      this.user = user;
-      this.userHmac = userHmac;
-      this.extraHeaders = extraHeaders;
-      this.credentials = credentials;
-      this.base = base.replace(/\/$/, "");
-    }
-    headers() {
-      const h = { "Content-Type": "application/json", "X-Loupe-User": this.user.id };
-      if (this.userHmac) h["X-Loupe-Hmac"] = this.userHmac;
-      if (this.extraHeaders) Object.assign(h, this.extraHeaders);
-      return h;
-    }
-    /** Base fetch options shared by every request (credentials mode, if set). */
-    opts(init2) {
-      return this.credentials ? { credentials: this.credentials, ...init2 } : { ...init2 };
-    }
-    async list(projectKey, url) {
-      const q = new URLSearchParams({ projectKey, url });
-      const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
-      if (!res.ok) throw new Error(`list failed: ${res.status}`);
-      return await res.json();
-    }
-    /** Every comment in the project (no page filter) — the "All" scope. */
-    async listAll(projectKey) {
-      const q = new URLSearchParams({ projectKey });
-      const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
-      if (!res.ok) throw new Error(`listAll failed: ${res.status}`);
-      return await res.json();
-    }
-    /** Upload an inline data-URL asset to object storage; return its URL (or the data URL on failure). */
-    async uploadBlob(projectKey, data) {
-      try {
-        const up = await fetch(`${this.base}/v1/blobs`, this.opts({
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({ projectKey, data })
-        }));
-        if (up.ok) return (await up.json()).url;
-      } catch {
-      }
-      return data;
-    }
-    async save(comment) {
-      if (comment.screenshot?.startsWith("data:")) {
-        comment = { ...comment, screenshot: await this.uploadBlob(comment.projectKey, comment.screenshot) };
-      }
-      if (comment.recording?.startsWith("data:")) {
-        comment = { ...comment, recording: await this.uploadBlob(comment.projectKey, comment.recording) };
-      }
-      const res = await fetch(`${this.base}/v1/comments`, this.opts({
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify(comment)
-      }));
-      if (!res.ok) throw new Error(`save failed: ${res.status}`);
-      return await res.json();
-    }
-    /** Persist one reporter-attached file to object storage and describe it. */
-    async upload(projectKey, file) {
-      const data = await fileToDataUrl(file);
-      return {
-        url: await this.uploadBlob(projectKey, data),
-        name: file.name,
-        mime: file.type || void 0,
-        kind: attachmentKind(file.type),
-        size: file.size
-      };
-    }
-    /** Replies on a thread. The comment's own body is message #1, not returned here. */
-    async listMessages(threadId) {
-      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({ headers: this.headers() }));
-      if (!res.ok) throw new Error(`listMessages failed: ${res.status}`);
-      return await res.json();
-    }
-    async addMessage(threadId, message) {
-      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify(message)
-      }));
-      if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
-      return await res.json();
-    }
-    /** Everyone who has taken part in this project, for mention resolution. */
-    async listPeople(projectKey) {
-      const q = new URLSearchParams({ projectKey });
-      const res = await fetch(`${this.base}/v1/people?${q}`, this.opts({ headers: this.headers() }));
-      if (!res.ok) throw new Error(`listPeople failed: ${res.status}`);
-      return await res.json();
-    }
-    async listNotifications(projectKey, recipient) {
-      const q = new URLSearchParams({ projectKey, recipient });
-      const res = await fetch(`${this.base}/v1/notifications?${q}`, this.opts({ headers: this.headers() }));
-      if (!res.ok) throw new Error(`listNotifications failed: ${res.status}`);
-      return (await res.json()).notifications;
-    }
-    async markNotificationsRead(projectKey, recipient, id) {
-      await fetch(`${this.base}/v1/notifications/read`, this.opts({
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify({ projectKey, recipient, id })
-      }));
-    }
-    async update(id, patch) {
-      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
-        method: "PATCH",
-        headers: this.headers(),
-        body: JSON.stringify(patch)
-      }));
-      if (!res.ok) throw new Error(`update failed: ${res.status}`);
-    }
-    async remove(id) {
-      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
-        method: "DELETE",
-        headers: this.headers()
-      }));
-      if (!res.ok && res.status !== 404) throw new Error(`remove failed: ${res.status}`);
-    }
-  };
-
   // ../shared/dist/activity.js
   var ACTIVITY_STATUS_LABELS = {
     idle: "Idle",
@@ -3565,6 +3336,45 @@ var Loupe = (() => {
     return status;
   }
 
+  // ../shared/dist/reactions.js
+  var REACTION_CHOICES = ["\u{1F44D}", "\u{1F389}", "\u{1F440}", "\u{1F64F}", "\u2764\uFE0F", "\u{1F680}"];
+  function summarizeReactions(reactions, viewerId) {
+    const byEmoji = /* @__PURE__ */ new Map();
+    for (const r of reactions) {
+      const list = byEmoji.get(r.emoji) ?? [];
+      list.push(r);
+      byEmoji.set(r.emoji, list);
+    }
+    const rank = (emoji) => {
+      const at = REACTION_CHOICES.indexOf(emoji);
+      return at < 0 ? REACTION_CHOICES.length : at;
+    };
+    return [...byEmoji.entries()].map(([emoji, list]) => ({
+      emoji,
+      count: list.length,
+      mine: viewerId ? list.some((r) => r.userId === viewerId) : false,
+      users: list.map((r) => r.userName ?? r.userId)
+    })).sort((a, b) => b.count - a.count || rank(a.emoji) - rank(b.emoji) || a.emoji.localeCompare(b.emoji));
+  }
+  function toggleReaction(reactions, next) {
+    const has = reactions.some((r) => r.messageId === next.messageId && r.emoji === next.emoji && r.userId === next.userId);
+    if (has) {
+      return reactions.filter((r) => !(r.messageId === next.messageId && r.emoji === next.emoji && r.userId === next.userId));
+    }
+    return [...reactions, next];
+  }
+
+  // ../shared/dist/presence.js
+  var PEER_HEARTBEAT_MS = 6e3;
+  function initialsOf(name) {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (!words.length)
+      return "?";
+    if (words.length === 1)
+      return words[0].slice(0, 1).toUpperCase();
+    return (words[0].slice(0, 1) + words[words.length - 1].slice(0, 1)).toUpperCase();
+  }
+
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
   var STAGE_LABELS = {
@@ -3611,8 +3421,313 @@ var Loupe = (() => {
     return DEFAULT_PRIORITY;
   }
 
+  // src/store.ts
+  var LocalStorageAdapter = class {
+    key(projectKey, url) {
+      return `loupe:${projectKey}:${url}`;
+    }
+    readAll(projectKey, url) {
+      try {
+        const raw = localStorage.getItem(this.key(projectKey, url));
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
+    writeAll(projectKey, url, comments) {
+      localStorage.setItem(this.key(projectKey, url), JSON.stringify(comments));
+    }
+    async list(projectKey, url) {
+      return this.readAll(projectKey, url);
+    }
+    /** Every page's comments for this project, newest first — the "All" scope. */
+    async listAll(projectKey) {
+      const prefix = `loupe:${projectKey}:`;
+      const out = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        try {
+          out.push(...JSON.parse(localStorage.getItem(k) || "[]"));
+        } catch {
+        }
+      }
+      return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+    async save(comment) {
+      const all = this.readAll(comment.projectKey, comment.url);
+      all.push(comment);
+      this.writeAll(comment.projectKey, comment.url, all);
+      return comment;
+    }
+    /**
+     * Offline mode: keep the file inline. localStorage is only a few MB, so refuse
+     * anything that would blow the quota rather than silently dropping it.
+     */
+    async upload(_projectKey, file) {
+      if (file.size > 3e6) throw new Error("attachment too large for offline mode");
+      return {
+        url: await fileToDataUrl(file),
+        name: file.name,
+        mime: file.type || void 0,
+        kind: attachmentKind(file.type),
+        size: file.size
+      };
+    }
+    /**
+     * Keys that hold a comment list. `loupe:dock` (panel state) and `loupe:msgs:*`
+     * (replies) share the prefix but are not comment lists — treating them as one made
+     * update()/remove() throw, and would have it hunt a comment id among messages.
+     */
+    commentKeys() {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("loupe:") && k !== "loupe:dock" && !k.startsWith("loupe:msgs:")) keys.push(k);
+      }
+      return keys;
+    }
+    parseList(key) {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(value) ? value : [];
+      } catch {
+        return [];
+      }
+    }
+    /** Replies, kept under their own key so they survive a comment being re-saved. */
+    msgKey(threadId) {
+      return `loupe:msgs:${threadId}`;
+    }
+    async listMessages(threadId) {
+      try {
+        const raw = localStorage.getItem(this.msgKey(threadId));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    async addMessage(threadId, message) {
+      const stored = {
+        id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        threadId,
+        author: message.author,
+        body: message.body,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      const all = await this.listMessages(threadId);
+      all.push(stored);
+      localStorage.setItem(this.msgKey(threadId), JSON.stringify(all));
+      return stored;
+    }
+    /** Offline reactions, keyed per thread. */
+    async listReactions(threadId) {
+      try {
+        const raw = localStorage.getItem(`loupe:rxn:${threadId}`);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    async toggleReaction(input) {
+      const current2 = await this.listReactions(input.threadId);
+      const next = toggleReaction(current2, {
+        messageId: input.messageId,
+        emoji: input.emoji,
+        userId: input.userId,
+        userName: input.userName
+      });
+      localStorage.setItem(`loupe:rxn:${input.threadId}`, JSON.stringify(next));
+      return next;
+    }
+    /** Offline: the people are whoever has already commented locally. */
+    async listPeople(projectKey) {
+      const prefix = `loupe:${projectKey}:`;
+      const seen = /* @__PURE__ */ new Map();
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        for (const c of this.parseList(k)) {
+          if (c.author?.id && !seen.has(c.author.id)) seen.set(c.author.id, c.author);
+        }
+      }
+      return [...seen.values()];
+    }
+    /** Offline mode has no server to notify anyone from. */
+    async listNotifications() {
+      return [];
+    }
+    async markNotificationsRead() {
+    }
+    async update(id, patch) {
+      for (const k of this.commentKeys()) {
+        const list = this.parseList(k);
+        const idx = list.findIndex((c) => c.id === id);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...patch };
+          localStorage.setItem(k, JSON.stringify(list));
+          return;
+        }
+      }
+    }
+    async remove(id) {
+      for (const k of this.commentKeys()) {
+        const list = this.parseList(k);
+        const next = list.filter((c) => c.id !== id);
+        if (next.length !== list.length) {
+          localStorage.setItem(k, JSON.stringify(next));
+          return;
+        }
+      }
+    }
+  };
+
+  // src/http-adapter.ts
+  var HttpAdapter = class {
+    constructor(base, user, userHmac, extraHeaders, credentials) {
+      this.base = base;
+      this.user = user;
+      this.userHmac = userHmac;
+      this.extraHeaders = extraHeaders;
+      this.credentials = credentials;
+      this.base = base.replace(/\/$/, "");
+    }
+    headers() {
+      const h = { "Content-Type": "application/json", "X-Loupe-User": this.user.id };
+      if (this.userHmac) h["X-Loupe-Hmac"] = this.userHmac;
+      if (this.extraHeaders) Object.assign(h, this.extraHeaders);
+      return h;
+    }
+    /** Base fetch options shared by every request (credentials mode, if set). */
+    opts(init2) {
+      return this.credentials ? { credentials: this.credentials, ...init2 } : { ...init2 };
+    }
+    async list(projectKey, url) {
+      const q = new URLSearchParams({ projectKey, url });
+      const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`list failed: ${res.status}`);
+      return await res.json();
+    }
+    /** Every comment in the project (no page filter) — the "All" scope. */
+    async listAll(projectKey) {
+      const q = new URLSearchParams({ projectKey });
+      const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listAll failed: ${res.status}`);
+      return await res.json();
+    }
+    /** Upload an inline data-URL asset to object storage; return its URL (or the data URL on failure). */
+    async uploadBlob(projectKey, data) {
+      try {
+        const up = await fetch(`${this.base}/v1/blobs`, this.opts({
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({ projectKey, data })
+        }));
+        if (up.ok) return (await up.json()).url;
+      } catch {
+      }
+      return data;
+    }
+    async save(comment) {
+      if (comment.screenshot?.startsWith("data:")) {
+        comment = { ...comment, screenshot: await this.uploadBlob(comment.projectKey, comment.screenshot) };
+      }
+      if (comment.recording?.startsWith("data:")) {
+        comment = { ...comment, recording: await this.uploadBlob(comment.projectKey, comment.recording) };
+      }
+      const res = await fetch(`${this.base}/v1/comments`, this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(comment)
+      }));
+      if (!res.ok) throw new Error(`save failed: ${res.status}`);
+      return await res.json();
+    }
+    /** Persist one reporter-attached file to object storage and describe it. */
+    async upload(projectKey, file) {
+      const data = await fileToDataUrl(file);
+      return {
+        url: await this.uploadBlob(projectKey, data),
+        name: file.name,
+        mime: file.type || void 0,
+        kind: attachmentKind(file.type),
+        size: file.size
+      };
+    }
+    /** Replies on a thread. The comment's own body is message #1, not returned here. */
+    async listMessages(threadId) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listMessages failed: ${res.status}`);
+      return await res.json();
+    }
+    async addMessage(threadId, message) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(message)
+      }));
+      if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
+      return await res.json();
+    }
+    async listReactions(threadId) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages/all/reactions`, this.opts({ headers: this.headers() }));
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error(`listReactions failed: ${res.status}`);
+      return (await res.json()).reactions;
+    }
+    async toggleReaction(input) {
+      const res = await fetch(
+        `${this.base}/v1/comments/${encodeURIComponent(input.threadId)}/messages/${encodeURIComponent(input.messageId)}/reactions`,
+        this.opts({
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({ emoji: input.emoji, userId: input.userId, userName: input.userName })
+        })
+      );
+      if (!res.ok) throw new Error(`toggleReaction failed: ${res.status}`);
+      return (await res.json()).reactions;
+    }
+    /** Everyone who has taken part in this project, for mention resolution. */
+    async listPeople(projectKey) {
+      const q = new URLSearchParams({ projectKey });
+      const res = await fetch(`${this.base}/v1/people?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listPeople failed: ${res.status}`);
+      return await res.json();
+    }
+    async listNotifications(projectKey, recipient) {
+      const q = new URLSearchParams({ projectKey, recipient });
+      const res = await fetch(`${this.base}/v1/notifications?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listNotifications failed: ${res.status}`);
+      return (await res.json()).notifications;
+    }
+    async markNotificationsRead(projectKey, recipient, id) {
+      await fetch(`${this.base}/v1/notifications/read`, this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({ projectKey, recipient, id })
+      }));
+    }
+    async update(id, patch) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
+        method: "PATCH",
+        headers: this.headers(),
+        body: JSON.stringify(patch)
+      }));
+      if (!res.ok) throw new Error(`update failed: ${res.status}`);
+    }
+    async remove(id) {
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
+        method: "DELETE",
+        headers: this.headers()
+      }));
+      if (!res.ok && res.status !== 404) throw new Error(`remove failed: ${res.status}`);
+    }
+  };
+
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.23" : "dev";
+  var SDK_VERSION = true ? "0.10.24" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -4030,6 +4145,10 @@ var Loupe = (() => {
       /** Optimistic replies the store rejected — offered for retry rather than lost. */
       this.msgFailed = /* @__PURE__ */ new Set();
       this.msgErr = /* @__PURE__ */ new Map();
+      /** Other people on this page. Empty unless a bridge is configured. */
+      this.peers = [];
+      /** Reactions per thread, keyed `${threadId}:${messageId}`, so a re-render is free. */
+      this.reactions = /* @__PURE__ */ new Map();
       /** Everyone who has taken part, for mention autocomplete. Fetched once. */
       this.people = /* @__PURE__ */ new Map();
       this.cfg = cfg;
@@ -4049,6 +4168,7 @@ var Loupe = (() => {
       this.renderPins();
       this.renderList();
       this.renderHome();
+      this.startPresence();
       void this.loadNotifications();
       if (this.scope === "all") void this.loadAllComments();
       this.observe();
@@ -4198,7 +4318,9 @@ var Loupe = (() => {
       closeBtn.innerHTML = I_CLOSE;
       closeBtn.onclick = () => this.closeDock();
       ctl.append(posWrap, this.themeBtn, setWrap, minBtn, closeBtn);
-      head.append(brand, ctl);
+      this.peerEl = el("div", "peers");
+      if (!this.cfg.bridge) this.peerEl.style.display = "none";
+      head.append(brand, this.peerEl, ctl);
       this.minBar = el("div", "minbar");
       this.minBar.onclick = () => this.setMinimized(false);
       this.tabList = [...BUILTIN_TABS, ...(this.cfg.tabs ?? []).map((t) => ({ id: t.id, label: t.label }))];
@@ -6358,6 +6480,37 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
           else body.appendChild(document.createTextNode(seg.text));
         }
         row.append(head, body);
+        const pills = el("div", "rxns");
+        for (const r of summarizeReactions(this.reactionsOf(c.id, m.id), this.cfg.user.id)) {
+          const pill = el("button", "rxn" + (r.mine ? " mine" : ""));
+          pill.append(document.createTextNode(r.emoji), el("span", "rxn-n", String(r.count)));
+          pill.title = r.users.join(", ");
+          pill.onclick = (e) => {
+            e.stopPropagation();
+            void this.react(c, m.id, r.emoji);
+          };
+          pills.appendChild(pill);
+        }
+        const add = el("button", "rxn-add", "\uFF0B");
+        add.title = "Add a reaction";
+        add.onclick = (e) => {
+          e.stopPropagation();
+          const open = pills.querySelector(".rxn-pick");
+          pills.querySelectorAll(".rxn-pick").forEach((n) => n.remove());
+          if (open) return;
+          const pick = el("div", "rxn-pick");
+          for (const emoji of REACTION_CHOICES) {
+            const b = el("button", "rxn-opt", emoji);
+            b.onclick = (ev) => {
+              ev.stopPropagation();
+              void this.react(c, m.id, emoji);
+            };
+            pick.appendChild(b);
+          }
+          pills.appendChild(pick);
+        };
+        pills.appendChild(add);
+        row.appendChild(pills);
         if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending\u2026"));
         if (this.msgFailed.has(m.id)) {
           const failed = el("div", "msg-state failed");
@@ -6469,6 +6622,108 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       wrap.appendChild(copyRow);
       return wrap;
     }
+    /**
+     * Join, then keep talking.
+     *
+     * Presence is a heartbeat, not a flag, because a browser that is closed or crashes
+     * sends no goodbye. The bridge expires anything silent past the TTL, and the panel
+     * re-joins on a 404 rather than assuming it is still known.
+     */
+    startPresence() {
+      const bridge = this.cfg.bridge;
+      if (!bridge) return;
+      const base = bridge.replace(/\/$/, "");
+      const pageUrl = location.pathname + location.search;
+      const tick = async () => {
+        try {
+          if (!this.peerId) {
+            const res = await fetch(`${base}/presence`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ url: pageUrl, userId: this.cfg.user.id, name: this.cfg.user.name })
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            this.peerId = data.peer?.id;
+          } else {
+            const res = await fetch(`${base}/presence/${encodeURIComponent(this.peerId)}/heartbeat`, { method: "POST" });
+            if (res.status === 404) this.peerId = void 0;
+          }
+          const listed = await fetch(
+            `${base}/presence?url=${encodeURIComponent(pageUrl)}&viewer=${encodeURIComponent(this.peerId ?? "")}`
+          );
+          if (listed.ok) {
+            const data = await listed.json();
+            this.peers = Array.isArray(data.peers) ? data.peers : [];
+            this.renderPeers();
+          }
+        } catch {
+          this.peers = [];
+          this.renderPeers();
+        }
+      };
+      void tick();
+      this.peerTimer = setInterval(() => void tick(), PEER_HEARTBEAT_MS);
+    }
+    renderPeers() {
+      if (!this.peerEl) return;
+      this.peerEl.textContent = "";
+      if (!this.peers.length) {
+        this.peerEl.style.display = "none";
+        return;
+      }
+      this.peerEl.style.display = "";
+      for (const p of this.peers.slice(0, 4)) {
+        const av = el("span", "peer-av", initialsOf(p.name));
+        av.title = `${p.name} is on this page`;
+        this.peerEl.appendChild(av);
+      }
+      if (this.peers.length > 4) this.peerEl.appendChild(el("span", "peer-more", `+${this.peers.length - 4}`));
+    }
+    stopPresence() {
+      if (this.peerTimer) clearInterval(this.peerTimer);
+      this.peerTimer = void 0;
+      if (this.cfg.bridge && this.peerId) {
+        const base = this.cfg.bridge.replace(/\/$/, "");
+        void fetch(`${base}/presence/${encodeURIComponent(this.peerId)}`, { method: "DELETE", keepalive: true }).catch(() => {
+        });
+      }
+      this.peerId = void 0;
+      this.peers = [];
+    }
+    reactionsOf(threadId, messageId) {
+      return this.reactions.get(`${threadId}:${messageId}`) ?? [];
+    }
+    /**
+     * Toggle a reaction.
+     *
+     * Optimistic, then replaced by the server's own set: the server returns the whole
+     * list precisely so the count can never drift from what was stored.
+     */
+    async react(c, messageId, emoji) {
+      const key = `${c.id}:${messageId}`;
+      const before = this.reactionsOf(c.id, messageId);
+      this.reactions.set(key, toggleReaction(before, {
+        messageId,
+        emoji,
+        userId: this.cfg.user.id,
+        userName: this.cfg.user.name
+      }));
+      this.renderList();
+      try {
+        const next = await this.store.toggleReaction({
+          threadId: c.id,
+          messageId,
+          emoji,
+          userId: this.cfg.user.id,
+          userName: this.cfg.user.name
+        });
+        this.reactions.set(key, Array.isArray(next) ? next : this.reactionsOf(c.id, messageId));
+      } catch {
+        this.reactions.set(key, before);
+      }
+      this.renderList();
+    }
     async loadPeople() {
       if (this.people.has(this.cfg.projectKey)) return;
       try {
@@ -6481,6 +6736,17 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
     async loadMessages(c) {
       if (this.messages.has(c.id)) return;
       void this.loadPeople();
+      void this.store.listReactions(c.id).then((all) => {
+        if (!Array.isArray(all)) return;
+        for (const r of all) {
+          const key = `${c.id}:${r.messageId}`;
+          const list = this.reactions.get(key) ?? [];
+          if (!list.some((x) => x.userId === r.userId && x.emoji === r.emoji)) list.push(r);
+          this.reactions.set(key, list);
+        }
+        this.renderList();
+      }).catch(() => {
+      });
       try {
         this.messages.set(c.id, await this.store.listMessages(c.id));
       } catch {
@@ -6627,6 +6893,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       if (elx) elx.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     destroy() {
+      this.stopPresence();
       this.stopRecording?.();
       this.setMode("off");
       this.mo?.disconnect();

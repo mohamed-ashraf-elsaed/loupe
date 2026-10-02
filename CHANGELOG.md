@@ -11,6 +11,57 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.24] — 2026-10-02
+
+### Added
+
+- **Reactions** (milestone 0.13; #22). Emoji on a reply, with counts and per-user state.
+  - **The primary key is the toggle invariant.** `reactions(thread_id, message_id, emoji, user_id)` means
+    reacting twice *cannot* create two rows, so a count can never drift from what was stored — the
+    uniqueness rule is the database's, not the client's.
+  - The toggle is a pure function in `@loupekit/shared` (`toggleReaction`) that the server, the offline
+    adapter and the panel all use, so all three agree. **Idempotent in both directions**, because a
+    flaky network resends: applying the same toggle twice adds one and then removes it, never two.
+  - Pills under each message with a count, highlighted when one of them is you, and a tooltip naming who
+    reacted. The picker is a popup, not a permanent row of six emoji — a permanent picker under every
+    message is noise for something most people do occasionally. Optimistic, then replaced by the
+    server's own set; a failed request puts it back rather than showing a reaction that did not save.
+  - Boundaries: an empty emoji and anything longer than a few code points are refused (400), and a
+    reaction on a message that does not exist is a 404.
+- **Multiplayer presence** (milestone 0.13; #22). Who else has this page open.
+  - The rules are pure and in `@loupekit/shared` (`joinPresence`, `sweepPresence`, `throttleDelay`,
+    `initialsOf`), used by both the bridge and the panel. A peer is identified by **page + user**, so a
+    reload or a second tab is the same person rather than two.
+  - **Liveness is a heartbeat, not a flag** — a closed tab or a crashed browser sends no goodbye, so
+    silence past a 20 s TTL means gone. Without it the peer list fills with ghosts and stops being
+    believed. A peer *vanishing* is broadcast too, not just one arriving.
+  - On the bridge: `POST /presence`, `GET /presence?url=`, `POST /presence/:id/heartbeat`,
+    `DELETE /presence/:id`, and a `peers` count in `/health`. A 404 from a heartbeat means the bridge
+    forgot you, so the panel re-joins rather than beating forever against an unknown id.
+  - In the panel: a small avatar cluster in the header, capped at four plus a count. **Hidden entirely
+    when no bridge is configured**, because "nobody is here" is a different claim from "we cannot know
+    who is here".
+  - Cursor broadcasting is throttled (`throttleDelay`, 80 ms, first move never delayed) but collaborative
+    cursors are not rendered yet.
+
+### Fixed
+
+- **`auth.projectKey` was `undefined` on every route that took its project from the authenticated
+  request** — a 500 on write and a silent empty list on read. `Auth` carries the project *row*, so the
+  field is `auth.project.project_key`. This shipped in **v0.10.20** and broke: registering and reading
+  back a working branch, listing and deleting repo URL patterns, and the preview lookup — plus the new
+  notification and people routes, which would have made the in-app mentions block permanently empty.
+  - It was invisible because **the server has no `tsconfig` and is never typechecked**, and because the
+    existing tests called the store functions directly and never crossed the HTTP boundary. Route-level
+    tests now cover every one of these endpoints, and a **source scan** fails with the exact file and
+    line if `auth.projectKey` reappears (verified by reintroducing it).
+- **Deleting a repo URL never matched.** The route passed the URL *pattern* to a store function that
+  matches on `id`, so it deleted nothing and reported `ok: false` for a successful-looking call.
+- **Mentions were parsed but never wired to the message endpoint** — `resolveMentions` and the
+  notification fan-out were written and tested, but the edit that connected them to `POST
+  /v1/comments/:id/messages` had failed silently, so `mentions`/`unknownMentions` never came back over
+  HTTP. Caught by driving the real endpoint rather than by the unit tests, which passed throughout.
+
 ## [0.10.23] — 2026-10-02
 
 ### Added

@@ -758,6 +758,43 @@ export const STYLES = /* css */ `
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* reactions */
+.rxns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; position: relative; }
+.rxn {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  color: var(--ink); font-size: 11px; cursor: pointer; line-height: 1.7;
+}
+.rxn:hover { border-color: var(--accent); }
+.rxn.mine { border-color: var(--accent); background: var(--accent-soft); }
+.rxn-n { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.rxn.mine .rxn-n { color: var(--accent); }
+.rxn-add {
+  width: 20px; height: 20px; padding: 0; border: 1px dashed var(--line); border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; line-height: 1;
+}
+.rxn-add:hover { border-color: var(--accent); color: var(--accent); }
+.rxn-pick {
+  display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); box-shadow: 0 4px 14px rgb(0 0 0 / 18%); z-index: 3;
+}
+.rxn-opt {
+  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; font-size: 14px; cursor: pointer; line-height: 1;
+}
+.rxn-opt:hover { background: var(--accent-soft); }
+
+/* who else is here */
+.peers { display: flex; align-items: center; gap: -2px; margin-right: 8px; }
+.peer-av {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; margin-left: -5px; border-radius: 50%;
+  border: 2px solid var(--bg); background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: .02em;
+}
+.peer-av:first-child { margin-left: 0; }
+.peer-more { margin-left: 3px; font-size: 10px; color: var(--muted); }
+
 /* in-app mentions */
 .hnotif { margin-top: 10px; }
 .nf-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11.5px; color: var(--ink); }
