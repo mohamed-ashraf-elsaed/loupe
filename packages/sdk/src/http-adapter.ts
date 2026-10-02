@@ -35,6 +35,14 @@ export class HttpAdapter implements StorageAdapter {
     return (await res.json()) as Comment[];
   }
 
+  /** Every comment in the project (no page filter) — the "All" scope. */
+  async listAll(projectKey: string): Promise<Comment[]> {
+    const q = new URLSearchParams({ projectKey });
+    const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
+    if (!res.ok) throw new Error(`listAll failed: ${res.status}`);
+    return (await res.json()) as Comment[];
+  }
+
   /** Upload an inline data-URL asset to object storage; return its URL (or the data URL on failure). */
   private async uploadBlob(projectKey: string, data: string): Promise<string> {
     try {

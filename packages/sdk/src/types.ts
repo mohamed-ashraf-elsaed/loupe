@@ -65,6 +65,11 @@ export interface LoupeConfig {
 
 export interface StorageAdapter {
   list(projectKey: string, url: string): Promise<Comment[]>;
+  /**
+   * Every comment for the project, across pages — powers the panel's "All"
+   * scope and the timeline. Newest first.
+   */
+  listAll(projectKey: string): Promise<Comment[]>;
   save(comment: Comment): Promise<Comment>;
   update(id: string, patch: Partial<Comment>): Promise<void>;
   remove(id: string): Promise<void>;

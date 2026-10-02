@@ -90,7 +90,8 @@ init({
 });
 ```
 
-A dockable control panel appears with a two-page sidebar — **Comments** (with the
+A dockable control panel appears with a three-page sidebar — **Home** (stat tiles, a this-page ↔
+whole-project scope switch, and the most recent feedback), **Comments** (with the
 **Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
 **Connect Claude** (MCP setup steps). Pass `repo` and `branch` to `init()` to make
 threads branch-aware — the board can then be filtered by repository and branch.

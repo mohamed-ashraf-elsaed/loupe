@@ -50,6 +50,14 @@ async function leaveComment(text: string) {
   await new Promise((r) => setTimeout(r, 10));
 }
 
+/** A comment row for the offline store, so Home/Timeline have data to show. */
+const seeded = (over: Record<string, unknown> = {}) => ({
+  id: "x", projectKey: "pk", url: "/", status: "queue", body: "b", author: { id: "u", name: "U" },
+  anchor: { tag: "div", cssPath: ".x", xpath: "", testid: null, text: "", attrs: {}, nthOfType: 1, rect: { x: 0, y: 0, w: 0, h: 0 }, viewport: { w: 0, h: 0 } },
+  context: { html: "", styles: {} }, offset: { x: 0, y: 0 }, createdAt: new Date().toISOString(), ...over,
+});
+const keyFor = (url: string) => `loupe:pk:${url}`;
+
 beforeEach(() => {
   localStorage.clear();
   setPointer("fine"); // tests assume a desktop pointer unless they say otherwise
@@ -482,6 +490,84 @@ describe("LoupeApp", () => {
 
     sr().querySelector<HTMLElement>(".item")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(sr().querySelector(".item")!.classList.contains("collapsed")).toBe(false);
+  });
+
+  it("opens on the Home overview with the four stat tiles", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "old", status: "queue", title: "Old one", createdAt: "2020-01-01T00:00:00.000Z" }),
+      seeded({ id: "done", status: "resolved", title: "Done one" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelector(".dock")!.classList.contains("tab-home")).toBe(true);
+    const tiles = [...sr().querySelectorAll<HTMLElement>(".hstat-b")];
+    expect(tiles.map((t) => t.querySelector(".hstat-l")!.textContent))
+      .toEqual(["Open", "Needs you", "Resolved", "Stale"]);
+    expect(tiles[0]!.querySelector(".hstat-n")!.textContent).toBe("1"); // Open
+    expect(tiles[1]!.querySelector(".hstat-n")!.textContent).toBe("0"); // Needs you
+    expect(tiles[2]!.querySelector(".hstat-n")!.textContent).toBe("1"); // Resolved
+    expect(tiles[3]!.querySelector(".hstat-n")!.textContent).toBe("1"); // Stale (the 2020 one)
+    expect(sr().querySelectorAll(".hfeed-i").length).toBe(2);
+  });
+
+  it("clicking a stat tile narrows the list, and clicking it again clears", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "a", status: "queue", title: "Queue one" }),
+      seeded({ id: "b", status: "resolved", title: "Resolved one" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    sr().querySelectorAll<HTMLElement>(".hstat-b")[2]!.click(); // Resolved
+    expect(sr().querySelector(".dock")!.classList.contains("tab-comments")).toBe(true);
+    expect(sr().querySelectorAll(".item").length).toBe(1);
+
+    // Back to Home, clear the bucket, and the list is whole again.
+    sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
+    sr().querySelectorAll<HTMLElement>(".hstat-b")[2]!.click();
+    expect(sr().querySelectorAll(".item").length).toBe(2);
+  });
+
+  it("the All scope builds a timeline grouped by day, across pages", async () => {
+    // Two pages: one today, one long ago.
+    localStorage.setItem(keyFor("/a"), JSON.stringify([seeded({ id: "today", url: "/a", title: "Today one" })]));
+    localStorage.setItem(keyFor("/b"), JSON.stringify([seeded({ id: "old", url: "/b", title: "Ancient one", createdAt: "2020-01-01T00:00:00.000Z" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Page scope only knows about this page's comments.
+    expect(sr().querySelectorAll(".item").length).toBe(0);
+    expect(sr().querySelector("#loupe-hstats .hstat-n")!.textContent).toBe("0");
+
+    sr().querySelector<HTMLElement>('.hscope-b[data-scope="all"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Both pages are visible, newest first, under day headers.
+    const labels = [...sr().querySelectorAll<HTMLElement>(".daylabel")].map((d) => d.textContent);
+    expect(labels[0]).toBe("Today");
+    expect(labels.length).toBe(2);
+
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    expect(sr().querySelectorAll(".item").length).toBe(2);
+  });
+
+  it("updates and removes a comment after the panel has persisted its state", async () => {
+    // Regression: loupe:dock is an OBJECT under the same `loupe:` prefix as the
+    // comment lists, so update()/remove() used to throw the moment the panel
+    // saved any state.
+    localStorage.setItem("loupe:dock", JSON.stringify({ mode: "right", open: true }));
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    await leaveComment("survives");
+
+    sr().querySelector<HTMLElement>(".item .actions button")!.click(); // Resolve
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector(".pin")!.classList.contains("done")).toBe(true);
+
+    const del = [...sr().querySelectorAll<HTMLElement>(".item .actions button")].find((b) => b.textContent === "Delete")!;
+    del.click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelectorAll(".pin").length).toBe(0);
   });
 
   it("does not initialize without projectKey or user id", () => {

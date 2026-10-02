@@ -11,6 +11,29 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.12] — 2026-10-02
+
+### Added
+
+- **The panel opens on a Home overview.** The widget's sidebar is now three pages — **Home · Comments ·
+  Connect Claude** — and it leads with Home: four stat tiles (**Open**, **Needs you** (`in_review`),
+  **Resolved**, **Stale** = open for over a week), each a button that narrows the list; a **scope
+  switch** between this page and the whole project; a one-click **Pin feedback**; and the most recent
+  feedback with author, age and stage. (Milestones 0.20; #57.)
+- **The project scope is a timeline.** Switching to **All** lists the whole project's feedback, newest
+  first and **grouped by day** (`Today`, `Yesterday`, …), with a repo filter that appears once there is
+  more than one repo in play. (Milestones 0.20; #58.)
+- **`StorageAdapter.listAll()`** — every comment in a project, across pages. Implemented for both the
+  HTTP adapter (`GET /v1/comments` with no page filter) and offline `localStorage`.
+
+### Fixed
+
+- **Offline mode could not update or delete a comment once the panel had saved its state.**
+  `LocalStorageAdapter.update()/remove()` treated every `loupe:` key as a comment list, but
+  `loupe:dock` holds the panel state as an object — so `JSON.parse` returned an object and
+  `.findIndex` threw. The scan now skips the dock key and tolerates any non-array value. (Found by
+  the new Home tab, which is the first thing to persist state before a comment is resolved.)
+
 ## [0.10.11] — 2026-10-02
 
 ### Added

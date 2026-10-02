@@ -9,8 +9,10 @@ import {
   COMMENT_PRIORITIES,
   DEFAULT_CHANGE_TYPE,
   DEFAULT_PRIORITY,
+  normalizePriority,
   normalizeStatus,
   PRIORITY_LABELS,
+  STAGE_LABELS,
 } from "./types.js";
 import type {
   Anchor, Attachment, ChangeType, Comment, CommentPriority, LoupeConfig, RegionRect, StorageAdapter,
@@ -24,7 +26,11 @@ type Mode = "off" | "inspect" | "region" | "free" | "record";
 /** Where the control panel is anchored. */
 type DockMode = "left" | "right" | "bottom" | "float";
 /** Which sidebar page is showing in the dock. */
-type Tab = "comments" | "connect";
+type Tab = "home" | "comments" | "connect";
+/** Which comments the panel is looking at: just this page, or the whole project. */
+type Scope = "page" | "all";
+/** A stat tile the user clicked — narrows the list to that bucket. */
+type StatFilter = "" | "open" | "needs_you" | "resolved" | "stale";
 /** What the composer is about to attach a comment to. */
 type ComposeTarget =
   | { kind: "element"; element: Element }
@@ -148,7 +154,18 @@ export class LoupeApp {
   private dockMode: DockMode = "right";
   private open = true;
   private theme: "dark" | "light" = "dark";
-  private tab: Tab = "comments";
+  private tab: Tab = "home";
+  /** "page" = this URL only; "all" = the whole project (the timeline scope). */
+  private scope: Scope = "page";
+  /** Every-page comments, fetched the first time the "All" scope is opened. */
+  private allComments: Comment[] = [];
+  /** A clicked stat tile, which narrows the list. */
+  private statFilter: StatFilter = "";
+  /** Repo filter, offered once the scope is "all". */
+  private repoFilter = "";
+  private repoSel!: HTMLSelectElement;
+  /** The Home overview container (stat tiles + activity), rebuilt on render. */
+  private homeEl!: HTMLElement;
   /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
   private floatRect = { x: 0, y: 0, w: 380, h: 540 };
   private floatDrag: { px: number; py: number; ox: number; oy: number } | null = null;
@@ -177,6 +194,9 @@ export class LoupeApp {
     this.comments = await this.store.list(this.cfg.projectKey, this.url);
     this.renderPins();
     this.renderList();
+    this.renderHome();
+    // A restored "All" scope needs the project-wide list.
+    if (this.scope === "all") void this.loadAllComments();
     this.observe();
     this.watchNavigation();
     if (this.cfg.autoOpen) this.setMode("inspect");
@@ -288,15 +308,15 @@ export class LoupeApp {
 
     head.append(brand, ctl);
 
-    // tabs (the two sidebar pages) --------------------------------------------
+    // tabs (the three sidebar pages) ------------------------------------------
     const tabs = el("div", "tabs");
-    const commentsTab = el("button", "tab", "Comments") as HTMLButtonElement;
-    commentsTab.dataset.tab = "comments";
-    commentsTab.onclick = () => this.setTab("comments");
-    const connectTab = el("button", "tab", "Connect Claude") as HTMLButtonElement;
-    connectTab.dataset.tab = "connect";
-    connectTab.onclick = () => this.setTab("connect");
-    tabs.append(commentsTab, connectTab);
+    const tabBtn = (key: Tab, label: string) => {
+      const b = el("button", "tab", label) as HTMLButtonElement;
+      b.dataset.tab = key;
+      b.onclick = () => this.setTab(key);
+      return b;
+    };
+    tabs.append(tabBtn("home", "Home"), tabBtn("comments", "Comments"), tabBtn("connect", "Connect Claude"));
 
     // tools -------------------------------------------------------------------
     const tools = el("div", "tools");
@@ -344,7 +364,18 @@ export class LoupeApp {
     search.value = this.search;
     search.oninput = () => { this.search = search.value; this.renderList(); };
     listHead.appendChild(search);
+    // Repo filter — shown only in the project scope (see renderRepoFilter).
+    this.repoSel = el("select", "reposel") as HTMLSelectElement;
+    this.repoSel.title = "Filter by repository";
+    this.repoSel.setAttribute("aria-label", "Filter by repository");
+    this.repoSel.onchange = () => { this.repoFilter = this.repoSel.value; this.renderList(); };
+    this.repoSel.style.display = "none";
+    listHead.appendChild(this.repoSel);
     this.listEl = el("div", "list");
+
+    // Home view = the overview surface the panel opens on.
+    const homeView = el("div", "view home-view");
+    this.homeEl = homeView;
 
     // Comments view = tools + list + the "integrates with" footer.
     const commentsView = el("div", "view comments-view");
@@ -356,8 +387,134 @@ export class LoupeApp {
     const resize = el("div", "resize");
     resize.addEventListener("pointerdown", this.onResizeDown);
 
-    dock.append(head, tabs, commentsView, connectView, resize);
+    dock.append(head, tabs, homeView, commentsView, connectView, resize);
+    this.buildHomePanel();
     return dock;
+  }
+
+  /**
+   * The Home overview: four stat tiles over the current scope, a scope switch
+   * (this page ↔ the whole project), a one-click way into capture, and the
+   * most recent feedback. Every tile is a button that narrows the list.
+   */
+  private buildHomePanel() {
+    const title = this.cfg.label ?? "Loupe";
+    this.homeEl.innerHTML =
+      `<div class="hstat" id="loupe-hstats"></div>` +
+      `<div class="hscope">` +
+      `<button class="hscope-b" data-scope="page">This page</button>` +
+      `<button class="hscope-b" data-scope="all">All</button>` +
+      `<button class="hrefresh" title="Refresh" aria-label="Refresh">⟳</button>` +
+      `</div>` +
+      `<button class="hpin" data-role="home-pin">✛ Pin feedback on this page</button>` +
+      `<div class="hlabel">Recent</div>` +
+      `<div class="hfeed" id="loupe-hfeed"></div>` +
+      `<div class="hfoot">${escapeHtml(title)} · ${escapeHtml(this.cfg.repo ?? "no repo linked")}</div>`;
+
+    this.homeEl.querySelectorAll<HTMLElement>(".hscope-b").forEach((b) => {
+      b.onclick = () => this.setScope(b.dataset.scope === "all" ? "all" : "page");
+    });
+    (this.homeEl.querySelector('[data-role="home-pin"]') as HTMLElement | null)!.onclick = () => {
+      this.setTab("comments");
+      this.setMode("inspect");
+    };
+    (this.homeEl.querySelector(".hrefresh") as HTMLElement | null)!.onclick = () => {
+      void this.reloadComments();
+      if (this.scope === "all") void this.loadAllComments();
+    };
+  }
+
+  /** The comments the panel is currently looking at (page scope or project scope). */
+  private get visibleComments(): Comment[] {
+    return this.scope === "all" ? this.allComments : this.comments;
+  }
+
+  /** Switch the panel between "this page" and the whole project. */
+  private setScope(scope: Scope) {
+    this.scope = scope;
+    this.saveState();
+    // The project scope costs a fetch; do it once, then keep it fresh.
+    if (scope === "all" && !this.allComments.length) void this.loadAllComments();
+    this.renderHome();
+    this.renderList();
+  }
+
+  private async loadAllComments() {
+    try {
+      this.allComments = await this.store.listAll(this.cfg.projectKey);
+      this.renderHome();
+      this.renderList();
+    } catch { /* keep whatever we have */ }
+  }
+
+  /**
+   * The four buckets a triager actually asks about. "Stale" is open work older
+   * than a week — the thing that quietly rots on a board.
+   */
+  private homeStats(): { key: StatFilter; label: string; n: number }[] {
+    const list = this.visibleComments;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return [
+      { key: "open", label: "Open", n: list.filter((c) => normalizeStatus(c.status) !== "resolved").length },
+      { key: "needs_you", label: "Needs you", n: list.filter((c) => normalizeStatus(c.status) === "in_review").length },
+      { key: "resolved", label: "Resolved", n: list.filter((c) => normalizeStatus(c.status) === "resolved").length },
+      {
+        key: "stale",
+        label: "Stale",
+        n: list.filter((c) => normalizeStatus(c.status) !== "resolved" && Date.parse(c.createdAt) < weekAgo).length,
+      },
+    ];
+  }
+
+  private renderHome() {
+    if (!this.homeEl) return;
+    const stats = this.homeStats();
+    const statsEl = this.homeEl.querySelector("#loupe-hstats") as HTMLElement | null;
+    if (statsEl) {
+      statsEl.innerHTML = stats
+        .map((s) =>
+          `<button class="hstat-b${this.statFilter === s.key ? " on" : ""}" data-stat="${s.key}">` +
+          `<span class="hstat-n">${s.n}</span><span class="hstat-l">${s.label}</span></button>`)
+        .join("");
+      statsEl.querySelectorAll<HTMLElement>(".hstat-b").forEach((b) => {
+        b.onclick = () => {
+          const key = b.dataset.stat as StatFilter;
+          // Clicking the active tile clears the filter.
+          this.statFilter = this.statFilter === key ? "" : key;
+          this.setTab("comments");
+        };
+      });
+    }
+
+    this.homeEl.querySelectorAll<HTMLElement>(".hscope-b").forEach((b) =>
+      b.classList.toggle("on", b.dataset.scope === this.scope));
+
+    const feed = this.homeEl.querySelector("#loupe-hfeed") as HTMLElement | null;
+    if (!feed) return;
+    const recent = [...this.visibleComments]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 8);
+    feed.innerHTML = recent.length
+      ? recent.map((c) => {
+          const stage = STAGE_LABELS[normalizeStatus(c.status)];
+          const prio = normalizePriority(c.priority);
+          return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}">` +
+            `<span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span>` +
+            `<span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} · ${fmtAgo(c.createdAt)} · ` +
+            `<span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span>` +
+            `<span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
+        }).join("")
+      : `<div class="hempty">Nothing here yet.</div>`;
+    feed.querySelectorAll<HTMLElement>(".hfeed-i").forEach((b) => {
+      b.onclick = () => {
+        const id = b.dataset.id!;
+        this.statFilter = "";
+        this.setTab("comments");
+        this.expanded.add(id);
+        this.renderList();
+        this.flash(id);
+      };
+    });
   }
 
   /** The "INTEGRATES WITH" footer on the Comments page (visual only for now). */
@@ -1095,9 +1252,9 @@ export class LoupeApp {
     this.position();
   }
 
-  private updateCount() {
+  private updateCount(shown = this.comments.length) {
+    this.countEl.textContent = String(shown);
     const n = this.comments.length;
-    this.countEl.textContent = String(n);
     this.fabBadge.textContent = n ? String(n) : "";
   }
 
@@ -1226,15 +1383,19 @@ export class LoupeApp {
     this.applyDockLayout();
   }
 
-  /** Switch the sidebar page (Comments ↔ Connect Claude). */
+  /** Switch the sidebar page (Home ↔ Comments ↔ Connect Claude). */
   private setTab(tab: Tab) {
     if (this.tab === tab) return;
     // Leaving the Comments page cancels any active picking tool.
     if (tab !== "comments") this.setMode("off");
     this.tab = tab;
     this.saveState();
-    this.applyDockLayout();
+    if (tab === "home") {
+      this.renderHome();
+      if (this.scope === "all" && !this.allComments.length) void this.loadAllComments();
+    }
     if (tab === "comments") this.renderList();
+    this.applyDockLayout();
   }
 
   private toggleTheme() {
@@ -1256,7 +1417,10 @@ export class LoupeApp {
       if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
       if (typeof p?.open === "boolean") this.open = p.open;
       if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
-      if (p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
+      if (p?.tab === "home" || p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
+      if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
+      if (typeof p?.statFilter === "string") this.statFilter = p.statFilter as StatFilter;
+      if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
       if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
     } catch { /* storage unavailable → defaults */ }
@@ -1267,6 +1431,7 @@ export class LoupeApp {
       localStorage.setItem("loupe:dock", JSON.stringify({
         mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
         markersHidden: this.markersHidden,
+        scope: this.scope, statFilter: this.statFilter, repoFilter: this.repoFilter,
       }));
     } catch { /* ignore */ }
   }
@@ -1280,9 +1445,11 @@ export class LoupeApp {
     const d = this.dock;
     d.classList.toggle("open", this.open);
     for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
-    // Which sidebar page is active (Comments vs Connect Claude).
+    // Which sidebar page is active (Home / Comments / Connect Claude).
+    d.classList.toggle("tab-home", this.tab === "home");
     d.classList.toggle("tab-comments", this.tab === "comments");
     d.classList.toggle("tab-connect", this.tab === "connect");
+    this.renderHome();
     d.querySelectorAll<HTMLElement>(".tabs .tab").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === this.tab));
 
@@ -1386,16 +1553,58 @@ export class LoupeApp {
   private renderList() {
     this.listEl.innerHTML = "";
     const q = this.search.trim().toLowerCase();
-    const items = q
-      ? this.comments.filter((c) => `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
-      : this.comments;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    let items = this.visibleComments.filter((c) => {
+      const stage = normalizeStatus(c.status);
+      if (this.statFilter === "open" && stage === "resolved") return false;
+      if (this.statFilter === "needs_you" && stage !== "in_review") return false;
+      if (this.statFilter === "resolved" && stage !== "resolved") return false;
+      if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
+      if (this.repoFilter && c.repo !== this.repoFilter) return false;
+      return !q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q);
+    });
+
+    // The project scope is a timeline — newest first, grouped by day. The page
+    // scope keeps file order, which follows the pins down the page.
+    if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    this.renderRepoFilter();
+
     if (!items.length) {
       this.listEl.appendChild(el("div", "empty",
-        q ? "No comments match your search."
-          : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."));
+        this.statFilter
+          ? "Nothing in this bucket."
+          : q
+            ? "No comments match your search."
+            : this.scope === "all"
+              ? "No feedback in this project yet."
+              : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."));
     }
-    items.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
-    this.updateCount();
+
+    let lastDay = "";
+    items.forEach((c, i) => {
+      if (this.scope === "all") {
+        const day = dayLabel(c.createdAt);
+        if (day !== lastDay) {
+          this.listEl.appendChild(el("div", "daylabel", day));
+          lastDay = day;
+        }
+      }
+      this.listEl.appendChild(this.itemView(c, i));
+    });
+    this.updateCount(items.length);
+  }
+
+  /** Repo filter — only offered in the project scope, where it means something. */
+  private renderRepoFilter() {
+    if (!this.repoSel) return;
+    const repos = [...new Set(this.visibleComments.map((c) => c.repo).filter((r): r is string => !!r))].sort();
+    this.repoSel.style.display = this.scope === "all" && repos.length > 1 ? "" : "none";
+    const current = this.repoFilter;
+    this.repoSel.innerHTML = `<option value="">All repos</option>` +
+      repos.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+    this.repoSel.value = current;
   }
 
   private itemView(c: Comment, i: number): HTMLElement {
@@ -1557,6 +1766,30 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
   return n;
 }
 function clamp(n: number) { return Math.max(0, Math.min(1, n)); }
+/** "just now" / "3m ago" / "2d ago" for the Home feed. */
+function fmtAgo(iso: string): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const s = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+/** The day bucket a comment falls in, for the All-scope timeline grouping. */
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Earlier";
+  const today = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOf(today) - startOf(d)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 function clampPx(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
 /** An `<option>`. Built as an element rather than `new Option(...)`, which some
  *  DOM implementations (and the test environment) do not provide. */
@@ -1569,6 +1802,10 @@ function optionEl(text: string, value: string, selected: boolean): HTMLOptionEle
 }
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
+}
+/** Escape for a double-quoted attribute value (escapeHtml already covers the rest). */
+function escapeAttr(s: string): string {
+  return escapeHtml(s);
 }
 
 // ---- inline icons (font-independent, currentColor) --------------------------

@@ -327,10 +327,62 @@ var Loupe = (() => {
 .tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
 .tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* Two sidebar pages: only the active one shows. */
+/* Three sidebar pages: only the active one shows. */
 .view { display: none; }
+.dock.tab-home .home-view { display: block; flex: 1; min-height: 0; overflow-y: auto; }
 .dock.tab-comments .comments-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .dock.tab-connect .connect-view { display: block; flex: 1; overflow-y: auto; }
+
+/* ------------------------------------------------------------- Home overview */
+.home-view { padding: 12px 12px 18px; }
+.hstat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.hstat-b {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); color: var(--ink); cursor: pointer;
+}
+.hstat-b:hover { border-color: var(--accent); }
+.hstat-b.on { border-color: var(--accent); background: var(--bg-3); }
+.hstat-n { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hstat-l { font-size: 11px; color: var(--muted); }
+.hscope { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.hscope-b {
+  flex: 1; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.hscope-b.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hrefresh {
+  flex: none; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); cursor: pointer; font-size: 14px;
+}
+.hrefresh:hover { border-color: var(--accent); color: var(--ink); }
+.hpin {
+  margin-top: 10px; width: 100%; padding: 9px; border: 0; border-radius: 9px;
+  background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.hlabel { margin-top: 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.hfeed { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.hfeed-i {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--ink); cursor: pointer;
+}
+.hfeed-i:hover { border-color: var(--accent); }
+.hfeed-t { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hfeed-m { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.hfeed-s { font-weight: 700; }
+.hfeed-s-resolved { color: #34c281; }
+.hfeed-p { font-weight: 700; }
+.hfeed-p-critical { color: var(--pin); }
+.hfeed-p-high { color: #e0a92c; }
+.hempty { padding: 14px; text-align: center; color: var(--muted); font-size: 12px; }
+.hfoot { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); text-align: center; }
+
+/* Timeline grouping (project scope) + the repo filter. */
+.daylabel { margin: 8px 2px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.listhead .reposel {
+  margin-left: 6px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--bg-2); color: var(--ink);
+  text-transform: none; letter-spacing: 0; max-width: 130px;
+}
 
 /* recording marker + video in the list */
 .item .rectag { font-size: 10px; font-weight: 700; color: var(--pin); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
@@ -2382,6 +2434,20 @@ var Loupe = (() => {
     async list(projectKey, url) {
       return this.readAll(projectKey, url);
     }
+    /** Every page's comments for this project, newest first — the "All" scope. */
+    async listAll(projectKey) {
+      const prefix = `loupe:${projectKey}:`;
+      const out = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        try {
+          out.push(...JSON.parse(localStorage.getItem(k) || "[]"));
+        } catch {
+        }
+      }
+      return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
     async save(comment) {
       const all = this.readAll(comment.projectKey, comment.url);
       all.push(comment);
@@ -2402,11 +2468,30 @@ var Loupe = (() => {
         size: file.size
       };
     }
-    async update(id, patch) {
+    /**
+     * Keys that hold a comment list. `loupe:dock` also lives under `loupe:` but
+     * holds an OBJECT (panel state), so treating every `loupe:` key as a list made
+     * update()/remove() throw as soon as the panel persisted anything.
+     */
+    commentKeys() {
+      const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (!k || !k.startsWith("loupe:")) continue;
-        const list = JSON.parse(localStorage.getItem(k) || "[]");
+        if (k && k.startsWith("loupe:") && k !== "loupe:dock") keys.push(k);
+      }
+      return keys;
+    }
+    parseList(key) {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(value) ? value : [];
+      } catch {
+        return [];
+      }
+    }
+    async update(id, patch) {
+      for (const k of this.commentKeys()) {
+        const list = this.parseList(k);
         const idx = list.findIndex((c) => c.id === id);
         if (idx >= 0) {
           list[idx] = { ...list[idx], ...patch };
@@ -2416,10 +2501,8 @@ var Loupe = (() => {
       }
     }
     async remove(id) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || !k.startsWith("loupe:")) continue;
-        const list = JSON.parse(localStorage.getItem(k) || "[]");
+      for (const k of this.commentKeys()) {
+        const list = this.parseList(k);
         const next = list.filter((c) => c.id !== id);
         if (next.length !== list.length) {
           localStorage.setItem(k, JSON.stringify(next));
@@ -2453,6 +2536,13 @@ var Loupe = (() => {
       const q = new URLSearchParams({ projectKey, url });
       const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
       if (!res.ok) throw new Error(`list failed: ${res.status}`);
+      return await res.json();
+    }
+    /** Every comment in the project (no page filter) — the "All" scope. */
+    async listAll(projectKey) {
+      const q = new URLSearchParams({ projectKey });
+      const res = await fetch(`${this.base}/v1/comments?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listAll failed: ${res.status}`);
       return await res.json();
     }
     /** Upload an inline data-URL asset to object storage; return its URL (or the data URL on failure). */
@@ -2513,6 +2603,13 @@ var Loupe = (() => {
 
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
+  var STAGE_LABELS = {
+    queue: "Queue",
+    todo: "To Do",
+    in_progress: "In Progress",
+    in_review: "In Review",
+    resolved: "Resolved"
+  };
   var LEGACY_STATUS = {
     open: "queue",
     in_progress: "in_progress",
@@ -2543,9 +2640,15 @@ var Loupe = (() => {
   };
   var DEFAULT_PRIORITY = "medium";
   var DEFAULT_CHANGE_TYPE = "other";
+  function normalizePriority(value) {
+    if (typeof value === "string" && COMMENT_PRIORITIES.includes(value)) {
+      return value;
+    }
+    return DEFAULT_PRIORITY;
+  }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.11" : "dev";
+  var SDK_VERSION = true ? "0.10.12" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -2615,7 +2718,15 @@ var Loupe = (() => {
       this.dockMode = "right";
       this.open = true;
       this.theme = "dark";
-      this.tab = "comments";
+      this.tab = "home";
+      /** "page" = this URL only; "all" = the whole project (the timeline scope). */
+      this.scope = "page";
+      /** Every-page comments, fetched the first time the "All" scope is opened. */
+      this.allComments = [];
+      /** A clicked stat tile, which narrows the list. */
+      this.statFilter = "";
+      /** Repo filter, offered once the scope is "all". */
+      this.repoFilter = "";
       /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
       this.floatRect = { x: 0, y: 0, w: 380, h: 540 };
       this.floatDrag = null;
@@ -2844,6 +2955,8 @@ var Loupe = (() => {
       this.comments = await this.store.list(this.cfg.projectKey, this.url);
       this.renderPins();
       this.renderList();
+      this.renderHome();
+      if (this.scope === "all") void this.loadAllComments();
       this.observe();
       this.watchNavigation();
       if (this.cfg.autoOpen) this.setMode("inspect");
@@ -2941,13 +3054,13 @@ var Loupe = (() => {
       ctl.append(this.themeBtn, closeBtn);
       head.append(brand, ctl);
       const tabs = el("div", "tabs");
-      const commentsTab = el("button", "tab", "Comments");
-      commentsTab.dataset.tab = "comments";
-      commentsTab.onclick = () => this.setTab("comments");
-      const connectTab = el("button", "tab", "Connect Claude");
-      connectTab.dataset.tab = "connect";
-      connectTab.onclick = () => this.setTab("connect");
-      tabs.append(commentsTab, connectTab);
+      const tabBtn = (key, label) => {
+        const b = el("button", "tab", label);
+        b.dataset.tab = key;
+        b.onclick = () => this.setTab(key);
+        return b;
+      };
+      tabs.append(tabBtn("home", "Home"), tabBtn("comments", "Comments"), tabBtn("connect", "Connect Claude"));
       const tools = el("div", "tools");
       const inspectBtn = this.toolBtn("\u271B", "Inspect", "inspect");
       inspectBtn.title = "Inspect an element and comment on it";
@@ -2984,14 +3097,118 @@ var Loupe = (() => {
         this.renderList();
       };
       listHead.appendChild(search);
+      this.repoSel = el("select", "reposel");
+      this.repoSel.title = "Filter by repository";
+      this.repoSel.setAttribute("aria-label", "Filter by repository");
+      this.repoSel.onchange = () => {
+        this.repoFilter = this.repoSel.value;
+        this.renderList();
+      };
+      this.repoSel.style.display = "none";
+      listHead.appendChild(this.repoSel);
       this.listEl = el("div", "list");
+      const homeView = el("div", "view home-view");
+      this.homeEl = homeView;
       const commentsView = el("div", "view comments-view");
       commentsView.append(tools, listHead, this.listEl, this.buildIntegrations());
       const connectView = this.buildConnectPanel();
       const resize = el("div", "resize");
       resize.addEventListener("pointerdown", this.onResizeDown);
-      dock.append(head, tabs, commentsView, connectView, resize);
+      dock.append(head, tabs, homeView, commentsView, connectView, resize);
+      this.buildHomePanel();
       return dock;
+    }
+    /**
+     * The Home overview: four stat tiles over the current scope, a scope switch
+     * (this page ↔ the whole project), a one-click way into capture, and the
+     * most recent feedback. Every tile is a button that narrows the list.
+     */
+    buildHomePanel() {
+      const title = this.cfg.label ?? "Loupe";
+      this.homeEl.innerHTML = `<div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page</button><button class="hscope-b" data-scope="all">All</button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 ${escapeHtml(this.cfg.repo ?? "no repo linked")}</div>`;
+      this.homeEl.querySelectorAll(".hscope-b").forEach((b) => {
+        b.onclick = () => this.setScope(b.dataset.scope === "all" ? "all" : "page");
+      });
+      this.homeEl.querySelector('[data-role="home-pin"]').onclick = () => {
+        this.setTab("comments");
+        this.setMode("inspect");
+      };
+      this.homeEl.querySelector(".hrefresh").onclick = () => {
+        void this.reloadComments();
+        if (this.scope === "all") void this.loadAllComments();
+      };
+    }
+    /** The comments the panel is currently looking at (page scope or project scope). */
+    get visibleComments() {
+      return this.scope === "all" ? this.allComments : this.comments;
+    }
+    /** Switch the panel between "this page" and the whole project. */
+    setScope(scope) {
+      this.scope = scope;
+      this.saveState();
+      if (scope === "all" && !this.allComments.length) void this.loadAllComments();
+      this.renderHome();
+      this.renderList();
+    }
+    async loadAllComments() {
+      try {
+        this.allComments = await this.store.listAll(this.cfg.projectKey);
+        this.renderHome();
+        this.renderList();
+      } catch {
+      }
+    }
+    /**
+     * The four buckets a triager actually asks about. "Stale" is open work older
+     * than a week — the thing that quietly rots on a board.
+     */
+    homeStats() {
+      const list = this.visibleComments;
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
+      return [
+        { key: "open", label: "Open", n: list.filter((c) => normalizeStatus(c.status) !== "resolved").length },
+        { key: "needs_you", label: "Needs you", n: list.filter((c) => normalizeStatus(c.status) === "in_review").length },
+        { key: "resolved", label: "Resolved", n: list.filter((c) => normalizeStatus(c.status) === "resolved").length },
+        {
+          key: "stale",
+          label: "Stale",
+          n: list.filter((c) => normalizeStatus(c.status) !== "resolved" && Date.parse(c.createdAt) < weekAgo).length
+        }
+      ];
+    }
+    renderHome() {
+      if (!this.homeEl) return;
+      const stats = this.homeStats();
+      const statsEl = this.homeEl.querySelector("#loupe-hstats");
+      if (statsEl) {
+        statsEl.innerHTML = stats.map((s) => `<button class="hstat-b${this.statFilter === s.key ? " on" : ""}" data-stat="${s.key}"><span class="hstat-n">${s.n}</span><span class="hstat-l">${s.label}</span></button>`).join("");
+        statsEl.querySelectorAll(".hstat-b").forEach((b) => {
+          b.onclick = () => {
+            const key = b.dataset.stat;
+            this.statFilter = this.statFilter === key ? "" : key;
+            this.setTab("comments");
+          };
+        });
+      }
+      this.homeEl.querySelectorAll(".hscope-b").forEach((b) => b.classList.toggle("on", b.dataset.scope === this.scope));
+      const feed = this.homeEl.querySelector("#loupe-hfeed");
+      if (!feed) return;
+      const recent = [...this.visibleComments].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
+      feed.innerHTML = recent.length ? recent.map((c) => {
+        const stage = STAGE_LABELS[normalizeStatus(c.status)];
+        const prio = normalizePriority(c.priority);
+        return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}"><span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span><span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} \xB7 ${fmtAgo(c.createdAt)} \xB7 <span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span><span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
+      }).join("") : `<div class="hempty">Nothing here yet.</div>`;
+      feed.querySelectorAll(".hfeed-i").forEach((b) => {
+        b.onclick = () => {
+          const id = b.dataset.id;
+          this.statFilter = "";
+          this.setTab("comments");
+          this.expanded.add(id);
+          this.renderList();
+          this.flash(id);
+        };
+      });
     }
     /** The "INTEGRATES WITH" footer on the Comments page (visual only for now). */
     buildIntegrations() {
@@ -3585,9 +3802,9 @@ var Loupe = (() => {
       this.updateCount();
       this.position();
     }
-    updateCount() {
+    updateCount(shown = this.comments.length) {
+      this.countEl.textContent = String(shown);
       const n = this.comments.length;
-      this.countEl.textContent = String(n);
       this.fabBadge.textContent = n ? String(n) : "";
     }
     /**
@@ -3646,14 +3863,18 @@ var Loupe = (() => {
       this.saveState();
       this.applyDockLayout();
     }
-    /** Switch the sidebar page (Comments ↔ Connect Claude). */
+    /** Switch the sidebar page (Home ↔ Comments ↔ Connect Claude). */
     setTab(tab) {
       if (this.tab === tab) return;
       if (tab !== "comments") this.setMode("off");
       this.tab = tab;
       this.saveState();
-      this.applyDockLayout();
+      if (tab === "home") {
+        this.renderHome();
+        if (this.scope === "all" && !this.allComments.length) void this.loadAllComments();
+      }
       if (tab === "comments") this.renderList();
+      this.applyDockLayout();
     }
     toggleTheme() {
       this.theme = this.theme === "dark" ? "light" : "dark";
@@ -3672,7 +3893,10 @@ var Loupe = (() => {
         if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
         if (typeof p?.open === "boolean") this.open = p.open;
         if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
-        if (p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
+        if (p?.tab === "home" || p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
+        if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
+        if (typeof p?.statFilter === "string") this.statFilter = p.statFilter;
+        if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
         if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
       } catch {
@@ -3686,7 +3910,10 @@ var Loupe = (() => {
           theme: this.theme,
           tab: this.tab,
           float: this.floatRect,
-          markersHidden: this.markersHidden
+          markersHidden: this.markersHidden,
+          scope: this.scope,
+          statFilter: this.statFilter,
+          repoFilter: this.repoFilter
         }));
       } catch {
       }
@@ -3699,8 +3926,10 @@ var Loupe = (() => {
       const d = this.dock;
       d.classList.toggle("open", this.open);
       for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
+      d.classList.toggle("tab-home", this.tab === "home");
       d.classList.toggle("tab-comments", this.tab === "comments");
       d.classList.toggle("tab-connect", this.tab === "connect");
+      this.renderHome();
       d.querySelectorAll(".tabs .tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === this.tab));
       if (this.dockMode === "float") {
         const vw = window.innerWidth, vh = window.innerHeight;
@@ -3746,16 +3975,46 @@ var Loupe = (() => {
     renderList() {
       this.listEl.innerHTML = "";
       const q = this.search.trim().toLowerCase();
-      const items = q ? this.comments.filter((c) => `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q)) : this.comments;
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
+      let items = this.visibleComments.filter((c) => {
+        const stage = normalizeStatus(c.status);
+        if (this.statFilter === "open" && stage === "resolved") return false;
+        if (this.statFilter === "needs_you" && stage !== "in_review") return false;
+        if (this.statFilter === "resolved" && stage !== "resolved") return false;
+        if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
+        if (this.repoFilter && c.repo !== this.repoFilter) return false;
+        return !q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q);
+      });
+      if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      this.renderRepoFilter();
       if (!items.length) {
         this.listEl.appendChild(el(
           "div",
           "empty",
-          q ? "No comments match your search." : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
+          this.statFilter ? "Nothing in this bucket." : q ? "No comments match your search." : this.scope === "all" ? "No feedback in this project yet." : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
         ));
       }
-      items.forEach((c, i) => this.listEl.appendChild(this.itemView(c, i)));
-      this.updateCount();
+      let lastDay = "";
+      items.forEach((c, i) => {
+        if (this.scope === "all") {
+          const day = dayLabel(c.createdAt);
+          if (day !== lastDay) {
+            this.listEl.appendChild(el("div", "daylabel", day));
+            lastDay = day;
+          }
+        }
+        this.listEl.appendChild(this.itemView(c, i));
+      });
+      this.updateCount(items.length);
+    }
+    /** Repo filter — only offered in the project scope, where it means something. */
+    renderRepoFilter() {
+      if (!this.repoSel) return;
+      const repos = [...new Set(this.visibleComments.map((c) => c.repo).filter((r) => !!r))].sort();
+      this.repoSel.style.display = this.scope === "all" && repos.length > 1 ? "" : "none";
+      const current = this.repoFilter;
+      this.repoSel.innerHTML = `<option value="">All repos</option>` + repos.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+      this.repoSel.value = current;
     }
     itemView(c, i) {
       const detached = this.pins.get(c.id)?.classList.contains("detached") && !isResolved(c);
@@ -3898,6 +4157,28 @@ var Loupe = (() => {
   function clamp(n) {
     return Math.max(0, Math.min(1, n));
   }
+  function fmtAgo(iso) {
+    const then = Date.parse(iso);
+    if (Number.isNaN(then)) return "";
+    const s = Math.max(0, Math.round((Date.now() - then) / 1e3));
+    if (s < 60) return "just now";
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.round(h / 24)}d ago`;
+  }
+  function dayLabel(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "Earlier";
+    const today = /* @__PURE__ */ new Date();
+    const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const days = Math.round((startOf(today) - startOf(d)) / 864e5);
+    if (days <= 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    return d.toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" });
+  }
   function clampPx(n, min, max) {
     return Math.max(min, Math.min(max, n));
   }
@@ -3910,6 +4191,9 @@ var Loupe = (() => {
   }
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s);
   }
   var svg = (inner) => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">${inner}</svg>`;
   var DOCK_FRAME = `<rect x="1.5" y="2.5" width="13" height="11" rx="1.6" stroke="currentColor" stroke-width="1.3"/>`;

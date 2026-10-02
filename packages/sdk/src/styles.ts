@@ -298,10 +298,62 @@ export const STYLES = /* css */ `
 .tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
 .tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* Two sidebar pages: only the active one shows. */
+/* Three sidebar pages: only the active one shows. */
 .view { display: none; }
+.dock.tab-home .home-view { display: block; flex: 1; min-height: 0; overflow-y: auto; }
 .dock.tab-comments .comments-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .dock.tab-connect .connect-view { display: block; flex: 1; overflow-y: auto; }
+
+/* ------------------------------------------------------------- Home overview */
+.home-view { padding: 12px 12px 18px; }
+.hstat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.hstat-b {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); color: var(--ink); cursor: pointer;
+}
+.hstat-b:hover { border-color: var(--accent); }
+.hstat-b.on { border-color: var(--accent); background: var(--bg-3); }
+.hstat-n { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hstat-l { font-size: 11px; color: var(--muted); }
+.hscope { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.hscope-b {
+  flex: 1; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.hscope-b.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hrefresh {
+  flex: none; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); cursor: pointer; font-size: 14px;
+}
+.hrefresh:hover { border-color: var(--accent); color: var(--ink); }
+.hpin {
+  margin-top: 10px; width: 100%; padding: 9px; border: 0; border-radius: 9px;
+  background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.hlabel { margin-top: 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.hfeed { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.hfeed-i {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--ink); cursor: pointer;
+}
+.hfeed-i:hover { border-color: var(--accent); }
+.hfeed-t { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hfeed-m { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.hfeed-s { font-weight: 700; }
+.hfeed-s-resolved { color: #34c281; }
+.hfeed-p { font-weight: 700; }
+.hfeed-p-critical { color: var(--pin); }
+.hfeed-p-high { color: #e0a92c; }
+.hempty { padding: 14px; text-align: center; color: var(--muted); font-size: 12px; }
+.hfoot { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); text-align: center; }
+
+/* Timeline grouping (project scope) + the repo filter. */
+.daylabel { margin: 8px 2px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.listhead .reposel {
+  margin-left: 6px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--bg-2); color: var(--ink);
+  text-transform: none; letter-spacing: 0; max-width: 130px;
+}
 
 /* recording marker + video in the list */
 .item .rectag { font-size: 10px; font-weight: 700; color: var(--pin); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }

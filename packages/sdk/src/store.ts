@@ -28,6 +28,20 @@ export class LocalStorageAdapter implements StorageAdapter {
     return this.readAll(projectKey, url);
   }
 
+  /** Every page's comments for this project, newest first — the "All" scope. */
+  async listAll(projectKey: string): Promise<Comment[]> {
+    const prefix = `loupe:${projectKey}:`;
+    const out: Comment[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      try {
+        out.push(...(JSON.parse(localStorage.getItem(k) || "[]") as Comment[]));
+      } catch { /* skip an unreadable key */ }
+    }
+    return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   async save(comment: Comment): Promise<Comment> {
     const all = this.readAll(comment.projectKey, comment.url);
     all.push(comment);
@@ -50,12 +64,33 @@ export class LocalStorageAdapter implements StorageAdapter {
     };
   }
 
-  async update(id: string, patch: Partial<Comment>): Promise<void> {
-    // We don't know the url here, so scan the loupe:* keys for the id.
+  /**
+   * Keys that hold a comment list. `loupe:dock` also lives under `loupe:` but
+   * holds an OBJECT (panel state), so treating every `loupe:` key as a list made
+   * update()/remove() throw as soon as the panel persisted anything.
+   */
+  private commentKeys(): string[] {
+    const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (!k || !k.startsWith("loupe:")) continue;
-      const list = JSON.parse(localStorage.getItem(k) || "[]") as Comment[];
+      if (k && k.startsWith("loupe:") && k !== "loupe:dock") keys.push(k);
+    }
+    return keys;
+  }
+
+  private parseList(key: string): Comment[] {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(value) ? (value as Comment[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async update(id: string, patch: Partial<Comment>): Promise<void> {
+    // We don't know the url here, so scan the loupe:* list keys for the id.
+    for (const k of this.commentKeys()) {
+      const list = this.parseList(k);
       const idx = list.findIndex((c) => c.id === id);
       if (idx >= 0) {
         list[idx] = { ...list[idx]!, ...patch };
@@ -66,10 +101,8 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 
   async remove(id: string): Promise<void> {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k || !k.startsWith("loupe:")) continue;
-      const list = JSON.parse(localStorage.getItem(k) || "[]") as Comment[];
+    for (const k of this.commentKeys()) {
+      const list = this.parseList(k);
       const next = list.filter((c) => c.id !== id);
       if (next.length !== list.length) {
         localStorage.setItem(k, JSON.stringify(next));
