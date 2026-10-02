@@ -112,8 +112,25 @@ export interface Comment {
   offset: { x: number; y: number };
   /** Present for region comments: the dragged rectangle in document coords. */
   region?: RegionRect;
-  /** The viewport the feedback was captured on — use deviceType(viewport.w) for the device class. */
-  viewport?: { w: number; h: number };
+  /**
+   * The viewport the feedback was captured on — use deviceType(viewport.w) for the
+   * device class. The rest is diagnostic: which SDK build reported it, and what the
+   * browser could do (`touch`/`coarse` decide the capture flow, `gdm` whether screen
+   * recording is possible at all). Kept so a support question can be answered from the
+   * row itself instead of guessing at the reporter's device.
+   */
+  viewport?: {
+    w: number;
+    h: number;
+    /** SDK version that created the comment, e.g. "0.10.2". */
+    v?: string;
+    /** The browser reports a touch-capable screen. */
+    touch?: boolean;
+    /** `(pointer: coarse)` matched. */
+    coarse?: boolean;
+    /** `getDisplayMedia` exists (screen recording is possible). */
+    gdm?: boolean;
+  };
   /** A URL (object storage) in server mode, or an inline data URL in offline mode. */
   screenshot?: string;
   /**
