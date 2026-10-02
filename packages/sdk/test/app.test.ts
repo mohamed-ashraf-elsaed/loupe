@@ -245,23 +245,25 @@ describe("LoupeApp", () => {
     delete (navigator as any).maxTouchPoints;
   });
 
-  it("touch without a screen recorder (every iOS browser): a Camera tool attaches a filmed clip", () => {
+  it("touch without a screen recorder (no mobile browser has one): a Video tool attaches a clip — never the camera", () => {
     setPointer("coarse");
-    delete (navigator as any).mediaDevices; // iOS: no getDisplayMedia
+    delete (navigator as any).mediaDevices; // getDisplayMedia is desktop-only
 
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
-    const cam = sr().querySelector<HTMLElement>('[data-role="camera"]');
-    expect(cam).not.toBeNull();
+    const btn = sr().querySelector<HTMLElement>('[data-role="video"]');
+    expect(btn).not.toBeNull();
 
-    cam!.click();
-    const input = sr().querySelector<HTMLInputElement>('input[type="file"][capture]')!;
+    btn!.click();
+    const input = sr().querySelector<HTMLInputElement>('input[type="file"]')!;
     expect(input.accept).toBe("video/*");
+    // No `capture`: forcing the camera would film the room, not the screen.
+    expect(input.hasAttribute("capture")).toBe(false);
 
-    // The native recorder hands back a clip → it lands in the composer, pre-attached.
-    Object.defineProperty(input, "files", { value: [new File(["x"], "clip.mp4", { type: "video/mp4" })] });
+    // The reporter picks the clip their phone's screen recorder produced.
+    Object.defineProperty(input, "files", { value: [new File(["x"], "screen-recording.mp4", { type: "video/mp4" })] });
     input.dispatchEvent(new Event("change"));
 
-    expect(sr().querySelector(".composer .chips .chip")!.textContent).toContain("clip.mp4");
+    expect(sr().querySelector(".composer .chips .chip")!.textContent).toContain("screen-recording.mp4");
   });
 
   it("records the SDK version and device capabilities on every comment", async () => {
