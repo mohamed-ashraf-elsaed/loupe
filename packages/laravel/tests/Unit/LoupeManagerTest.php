@@ -99,4 +99,45 @@ class LoupeManagerTest extends TestCase
 
         $this->assertSame(['id' => 'x', 'name' => 'Custom'], $this->loupe->describeUser($this->makeUser()));
     }
+
+    public function test_describe_user_honors_a_class_string_resolver(): void
+    {
+        // The serializable form: a class-string survives `php artisan config:cache`,
+        // which a Closure does not.
+        config()->set('loupe.user_resolver', StubLoupeUserResolver::class);
+
+        $this->assertSame(['id' => 'imp-1', 'name' => 'Admin'], $this->loupe->describeUser($this->makeUser()));
+    }
+
+    public function test_describe_user_honors_a_class_method_resolver(): void
+    {
+        config()->set('loupe.user_resolver', [StubLoupeUserResolver::class, 'resolve']);
+
+        $this->assertSame(['id' => 'imp-1', 'name' => 'Admin'], $this->loupe->describeUser($this->makeUser()));
+    }
+
+    public function test_describe_user_ignores_a_resolver_that_is_not_callable(): void
+    {
+        config()->set('loupe.user_resolver', 'Not\\A\\Real\\Resolver');
+
+        $user = $this->makeUser(['name' => 'Sara', 'email' => 'sara@example.com']);
+
+        $this->assertSame('Sara', $this->loupe->describeUser($user)['name']);
+    }
+}
+
+/** A stub resolver in the serializable (class-string) form. */
+class StubLoupeUserResolver
+{
+    /** @param  object  $user */
+    public function __invoke($user): array
+    {
+        return ['id' => 'imp-1', 'name' => 'Admin'];
+    }
+
+    /** @param  object  $user */
+    public static function resolve($user): array
+    {
+        return ['id' => 'imp-1', 'name' => 'Admin'];
+    }
 }
