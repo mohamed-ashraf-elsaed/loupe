@@ -294,17 +294,20 @@ export class LoupeApp {
       : "Drag a box, record a screen video of it, and comment";
     recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
 
-    // Video: the screen recorder where it exists (desktop everywhere; Android Chrome on
-    // touch, where tapping it records the whole screen). No iOS browser has
-    // getDisplayMedia — so on touch without it, offer the camera instead. A filmed clip
-    // beats a button that can never work.
+    // Screen recording is desktop-only: NO mobile browser supports getDisplayMedia
+    // (iOS Safari never has; Chrome/Firefox on Android expose it in old versions but every
+    // call fails — recorded as unsupported). So on a phone we cannot record the screen
+    // from the page at all. What we can do is take the clip the phone already recorded
+    // with its own screen recorder — so open the picker for it, and deliberately WITHOUT
+    // a `capture` attribute: that would open the camera, and filming the room is not a
+    // screen recording.
     if (canShareScreen()) {
       tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
     } else if (isTouchDevice()) {
-      const cameraBtn = this.toolBtn(CAMERA_ICON, "Camera", "camera");
-      cameraBtn.title = "Record a video with the camera and comment";
-      cameraBtn.onclick = () => this.pickCameraVideo();
-      tools.append(inspectBtn, freeBtn, regionBtn, cameraBtn);
+      const videoBtn = this.toolBtn(VIDEO_ICON, "Video", "video");
+      videoBtn.title = "Attach a video — record your screen with your phone, then pick it here";
+      videoBtn.onclick = () => this.pickVideo();
+      tools.append(inspectBtn, freeBtn, regionBtn, videoBtn);
     } else {
       tools.append(inspectBtn, freeBtn, regionBtn);
     }
@@ -582,16 +585,16 @@ export class LoupeApp {
   }
 
   /**
-   * Touch devices with no screen recorder (every iOS browser) can still report a video:
-   * record one with the camera. Opens the native recorder and hands the clip to the
-   * composer exactly like the screen capture does.
+   * Attach a video on a phone, where the page cannot record the screen: the reporter
+   * records it with the phone's own screen recorder first, then picks the clip here. No
+   * `capture` attribute on purpose — that would force the camera open, and a video of the
+   * room is not a screen recording.
    */
-  private pickCameraVideo() {
+  private pickVideo() {
     this.setMode("off");
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "video/*";
-    input.setAttribute("capture", "environment");
     input.style.display = "none";
     input.onchange = () => {
       const file = input.files?.[0];
@@ -603,7 +606,7 @@ export class LoupeApp {
       const docH = Math.max(1, document.documentElement.scrollHeight);
       const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
       this.openComposer(
-        { kind: "free", offset, point: { x: docX, y: docY }, label: "Camera video · attached" },
+        { kind: "free", offset, point: { x: docX, y: docY }, label: "Video · attached" },
         8,
         window.innerHeight / 2,
         [file]
@@ -1470,11 +1473,11 @@ const RECORD_ICON =
   `<circle cx="7.5" cy="7.5" r="2.4" fill="currentColor"/>` +
   `</svg>`;
 
-/** Camera icon for the "Camera" button — used where no screen recorder exists (iOS). */
-const CAMERA_ICON =
+/** Video icon for the "Video" button — attach a screen recording made on the phone. */
+const VIDEO_ICON =
   `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
-  `<rect x="1.2" y="3.8" width="9.2" height="7.4" rx="1.6" stroke="currentColor" stroke-width="1.3"/>` +
-  `<path d="M10.4 7.3l3.4-2v4.4l-3.4-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `<rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/>` +
+  `<path d="M6.3 5.5l3.9 2.2-3.9 2.2z" fill="currentColor"/>` +
   `</svg>`;
 
 // ---- integration icons (brand marks for the "Integrates with" footer) -------
