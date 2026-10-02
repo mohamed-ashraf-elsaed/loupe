@@ -21,8 +21,12 @@ var Loupe = (() => {
   // src/index.ts
   var src_exports = {};
   __export(src_exports, {
+    clearActivity: () => clearActivity,
+    connectTab: () => connectTab,
     destroy: () => destroy,
-    init: () => init
+    init: () => init,
+    setActivityStatus: () => setActivityStatus,
+    trackActivity: () => trackActivity
   });
 
   // src/styles.ts
@@ -329,11 +333,11 @@ var Loupe = (() => {
 .tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
 .tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* Three sidebar pages: only the active one shows. */
+/* Only the active page shows. Driven by an "on" class rather than a .tab-<id>
+   selector, so host-registered tab ids need no CSS of their own. */
 .view { display: none; }
-.dock.tab-home .home-view { display: block; flex: 1; min-height: 0; overflow-y: auto; }
-.dock.tab-comments .comments-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.dock.tab-connect .connect-view { display: block; flex: 1; overflow-y: auto; }
+.view.on { display: block; flex: 1; min-height: 0; overflow-y: auto; }
+.view.on.comments-view { display: flex; flex-direction: column; }
 
 /* ------------------------------------------------------------- Home overview */
 .home-view { padding: 12px 12px 18px; }
@@ -482,6 +486,131 @@ var Loupe = (() => {
 .minbar .mtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 .minbar .mtext b { color: var(--ink); }
 .minbar .mrestore { flex: none; padding: 0 2px; border: 0; background: transparent; color: var(--accent); font-size: 14px; cursor: pointer; }
+
+/* ---------------------------------------------------------------- activity monitor */
+.activity-view { padding: 10px 12px 16px; }
+.mon-status { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.mon-spacer { flex: 1; }
+.mon-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.mon-status.st-working .mon-dot { background: var(--accent); animation: loupe-pulse 1.4s ease-in-out infinite; }
+.mon-status.st-error .mon-dot { background: var(--pin); }
+.mon-status.st-idle .mon-dot { background: var(--muted); }
+@keyframes loupe-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .mon-status.st-working .mon-dot { animation: none; } }
+.mon-clear {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg-2); color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.mon-clear:hover { border-color: var(--accent); color: var(--ink); }
+
+.mon-summary { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); overflow: hidden; }
+.mon-sum-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px;
+  border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer;
+}
+.mon-sum-title { font-size: 12px; font-weight: 700; }
+.mon-sum-peek { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
+.mon-caret { color: var(--muted); font-size: 11px; }
+.mon-sum-body { padding: 2px 10px 10px; }
+.mon-kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 11.5px; color: var(--muted); }
+.mon-kv b { color: var(--ink); font-weight: 600; text-align: right; }
+.mon-preview {
+  margin-top: 8px; padding: 7px 8px; border-radius: 7px; background: var(--bg);
+  font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mon-micro { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mon-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.mon-chip {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg-2); color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.mon-chip:hover { border-color: var(--accent); color: var(--ink); }
+.mon-chip.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.mon-feed {
+  margin-top: 8px; max-height: 46vh; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+}
+.mon-row {
+  display: grid; grid-template-columns: 58px 88px 1fr; gap: 6px;
+  padding: 5px 8px; border-bottom: 1px solid var(--line); font-size: 11px; line-height: 1.4;
+}
+.mon-row:last-child { border-bottom: 0; }
+.mon-time { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.mon-kind { color: var(--accent); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mon-label { color: var(--ink); overflow-wrap: anywhere; }
+.mon-detail { display: block; color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; overflow-wrap: anywhere; }
+.mon-row.lv-warn .mon-label { color: #e0a92c; }
+.mon-row.lv-error .mon-label { color: var(--pin); }
+.mon-empty { padding: 16px 12px; text-align: center; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+.mon-empty code { font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--ink); }
+
+/* ---------------------------------------------- project manager (repo + environments) */
+.projbar { display: flex; align-items: center; gap: 8px; margin-top: 12px; position: relative; }
+.proj-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--muted); }
+.proj-chip {
+  display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; padding: 5px 9px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2);
+  color: var(--ink); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace; cursor: pointer;
+}
+.proj-chip:hover { border-color: var(--accent); }
+.proj-chip .proj-repo { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.proj-chip.unset .proj-repo { color: var(--muted); font-style: italic; }
+.proj-caret { color: var(--muted); font-family: inherit; }
+.proj-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 25;
+  display: none; max-height: 60vh; overflow-y: auto; padding: 10px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.proj-pop.open { display: block; }
+.pp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pp-x { padding: 0 4px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; }
+.pp-x:hover { background: var(--bg-3); color: var(--ink); }
+.pp-cur { margin-bottom: 8px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.pp-cur b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; }
+.pp-search {
+  width: 100%; margin-bottom: 6px; padding: 6px 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 12px;
+}
+.pp-search:focus { outline: none; border-color: var(--accent); }
+.pp-list { display: flex; flex-direction: column; gap: 2px; max-height: 30vh; overflow-y: auto; }
+.pp-item {
+  padding: 6px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent;
+  color: var(--ink); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace;
+  text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pp-item:hover { background: var(--bg-3); }
+.pp-item.on { border-color: var(--accent); color: var(--accent); }
+.pp-empty { padding: 8px 6px; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.pp-empty code { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
+.pp-clear {
+  margin-top: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.pp-clear:hover { border-color: var(--pin); color: var(--pin); }
+.pp-sep { height: 1px; margin: 10px 0; background: var(--line); }
+.pp-env { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 7px; }
+.pp-env:hover { background: var(--bg-3); }
+.pp-env-u { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--ink); }
+.pp-add { display: flex; gap: 6px; margin-top: 6px; }
+.pp-env-url {
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink); font-size: 11.5px;
+}
+.pp-env-url:focus { outline: none; border-color: var(--accent); }
+.pp-add-b {
+  flex: none; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.pp-err { margin-top: 6px; font-size: 11px; color: var(--pin); }
+.hver { font-family: ui-monospace, Menlo, monospace; }
+.menu-ver {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 8px 4px 2px; padding-top: 8px; border-top: 1px solid var(--line);
+  font-size: 10.5px; color: var(--muted);
+}
+.menu-ver b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+.menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
 
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {
@@ -2703,6 +2832,50 @@ var Loupe = (() => {
     }
   };
 
+  // ../shared/dist/activity.js
+  var ACTIVITY_STATUS_LABELS = {
+    idle: "Idle",
+    working: "Working",
+    error: "Error"
+  };
+  function formatDuration(ms) {
+    if (!ms || ms < 0)
+      return "\u2014";
+    const s = Math.round(ms / 1e3);
+    if (s < 60)
+      return `${s}s`;
+    const m = Math.floor(s / 60);
+    const rest = s % 60;
+    if (m < 60)
+      return rest ? `${m}m ${rest}s` : `${m}m`;
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
+  }
+  function summarizeActivity(events, status = "idle", now = Date.now()) {
+    const files = /* @__PURE__ */ new Set();
+    const kinds = /* @__PURE__ */ new Map();
+    let errors = 0;
+    let first = Infinity;
+    for (const e of events) {
+      for (const f of e.files ?? [])
+        files.add(f);
+      kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);
+      if (e.level === "error")
+        errors++;
+      const t = Date.parse(e.at);
+      if (!Number.isNaN(t))
+        first = Math.min(first, t);
+    }
+    return {
+      status,
+      events: events.length,
+      errors,
+      files: files.size,
+      durationMs: events.length && first !== Infinity ? Math.max(0, now - first) : 0,
+      byKind: [...kinds.entries()].map(([kind, count]) => ({ kind, count })).sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind))
+    };
+  }
+
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
   var STAGE_LABELS = {
@@ -2750,7 +2923,7 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.13" : "dev";
+  var SDK_VERSION = true ? "0.10.14" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -2781,17 +2954,28 @@ var Loupe = (() => {
       body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one."
     },
     {
-      sel: '.tabs [data-tab="connect"]',
-      tab: "connect",
-      title: "Hand it to Claude",
-      body: "Connect Claude wires up the MCP server so an agent reads this feedback with its element context."
+      sel: '.tabs [data-tab="activity"]',
+      tab: "activity",
+      title: "Watch the work happen",
+      body: "Anything an agent bridge or your app reports lands here \u2014 with tool chips to filter it, and Loupe's own operations alongside."
+    },
+    {
+      sel: '.dctl [data-role="settings"]',
+      tab: "activity",
+      title: "Make it yours",
+      body: "Accents, the visibility switches, and Restart tour all live here."
     }
   ];
   var HINTS = {
     home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
     comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
-    connect: { title: "Claude reads these", body: "Add the MCP server to your client and it can list, read and answer this feedback \u2014 screenshot included." }
+    activity: { title: "Watch the work happen", body: "Every event the bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." }
   };
+  var BUILTIN_TABS = [
+    { id: "home", label: "Home" },
+    { id: "comments", label: "Comments" },
+    { id: "activity", label: "Activity" }
+  ];
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -2884,11 +3068,38 @@ var Loupe = (() => {
       this.tourStep = -1;
       /** The first-run tour has been finished or skipped. */
       this.tourDone = false;
+      /** The live Activity feed — in memory only; it is a monitor, not an archive. */
+      this.activityEvents = [];
+      this.activityStatus = "idle";
+      /** A tool chip the user clicked, which narrows the feed to that kind. */
+      this.activityFilter = "";
+      /** Auto-scroll the feed to the newest event (off while the user is reading). */
+      this.activityFollow = true;
+      /** The summary card's key/value rows are behind this toggle. */
+      this.summaryOpen = false;
+      /** Per-browser project settings: a repo override and the environment URLs. */
+      this.project = { environments: [] };
+      this.projSearch = "";
+      this.projOpen = false;
+      this.projResults = [];
+      this.projError = "";
+      this.envDraft = "";
+      /** Guards against a slow repo search overwriting a newer one. */
+      this.repoSeq = 0;
       /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
       this.floatRect = { x: 0, y: 0, w: 380, h: 540 };
       this.floatDrag = null;
       this.floatResize = null;
       this.raf = 0;
+      /** Tab id → its hint slot (custom tabs only; the built-ins have named fields). */
+      this.customHintSlots = /* @__PURE__ */ new Map();
+      /** The tab strip, in order. */
+      this.tabList = [];
+      /**
+       * Each page's container, keyed by tab id. Display is driven by an "on" class
+       * rather than a `.tab-<id>` selector, so host-registered ids need no CSS.
+       */
+      this.viewEls = /* @__PURE__ */ new Map();
       // ---- inspector ------------------------------------------------------------
       // Pointer Events, not mouse events: a touch drag on a phone never fires
       // mousemove/mouseup, so Region/Record selection was impossible on touch devices.
@@ -3112,6 +3323,7 @@ var Loupe = (() => {
     }
     async start() {
       this.loadState();
+      this.loadProject();
       this.buildDom();
       if (this.cfg.autoOpen) this.open = true;
       this.applyDockLayout();
@@ -3233,7 +3445,7 @@ var Loupe = (() => {
       setBtn.innerHTML = I_GEAR;
       setBtn.onclick = () => this.toggleMenu(this.settingsMenu);
       this.settingsMenu = el("div", "menu");
-      this.settingsMenu.innerHTML = `<div class="menu-label">Appearance</div><div class="acc-dots">` + ACCENTS.map((a) => `<button class="acc-dot" data-accent="${a.id}" style="background:${a.dark}" title="${a.id}" aria-label="${a.id} accent"></button>`).join("") + `</div><div class="menu-sep"></div><div class="menu-label">Show</div><button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button><button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button><button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button><div class="menu-sep"></div><button class="menu-row" data-set="tour"><span>Restart tour</span></button>`;
+      this.settingsMenu.innerHTML = `<div class="menu-label">Appearance</div><div class="acc-dots">` + ACCENTS.map((a) => `<button class="acc-dot" data-accent="${a.id}" style="background:${a.dark}" title="${a.id}" aria-label="${a.id} accent"></button>`).join("") + `</div><div class="menu-sep"></div><div class="menu-label">Show</div><button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button><button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button><button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button><div class="menu-sep"></div><button class="menu-row" data-set="tour"><span>Restart tour</span></button><div class="menu-ver">Loupe <b>v${escapeHtml(SDK_VERSION)}</b><span class="menu-mode">${this.cfg.apiBase ? "server" : "offline"}</span></div>`;
       this.settingsMenu.querySelectorAll("[data-accent]").forEach((b) => {
         b.onclick = () => this.setAccent(b.dataset.accent);
       });
@@ -3265,14 +3477,14 @@ var Loupe = (() => {
       head.append(brand, ctl);
       this.minBar = el("div", "minbar");
       this.minBar.onclick = () => this.setMinimized(false);
+      this.tabList = [...BUILTIN_TABS, ...(this.cfg.tabs ?? []).map((t) => ({ id: t.id, label: t.label }))];
       const tabs = el("div", "tabs");
-      const tabBtn = (key, label) => {
-        const b = el("button", "tab", label);
-        b.dataset.tab = key;
-        b.onclick = () => this.setTab(key);
-        return b;
-      };
-      tabs.append(tabBtn("home", "Home"), tabBtn("comments", "Comments"), tabBtn("connect", "Connect Claude"));
+      for (const t of this.tabList) {
+        const b = el("button", "tab", t.label);
+        b.dataset.tab = t.id;
+        b.onclick = () => this.setTab(t.id);
+        tabs.appendChild(b);
+      }
       const tools = el("div", "tools");
       const inspectBtn = this.toolBtn("\u271B", "Inspect", "inspect");
       inspectBtn.title = "Inspect an element and comment on it";
@@ -3324,14 +3536,159 @@ var Loupe = (() => {
       const commentsView = el("div", "view comments-view");
       this.commentsHint = el("div", "hint-slot");
       commentsView.append(this.commentsHint, tools, listHead, this.listEl, this.buildIntegrations());
-      const connectView = this.buildConnectPanel();
-      this.connectHint = el("div", "hint-slot");
-      connectView.prepend(this.connectHint);
+      const activityView = el("div", "view activity-view");
+      this.activityEl = activityView;
+      const customViews = (this.cfg.tabs ?? []).map((t) => {
+        const view = el("div", "view custom-view");
+        const slot = el("div", "hint-slot");
+        view.appendChild(slot);
+        this.customHintSlots.set(t.id, slot);
+        try {
+          const out = t.render({
+            projectKey: this.cfg.projectKey,
+            apiBase: this.cfg.apiBase,
+            user: this.cfg.user,
+            comments: this.comments,
+            url: this.url,
+            version: SDK_VERSION,
+            track: (event) => this.addActivity(event),
+            open: (id) => this.setTab(id),
+            close: () => this.closeDock()
+          });
+          if (typeof out === "string") {
+            const wrap = el("div", "tab-body");
+            wrap.innerHTML = out;
+            view.append(...Array.from(wrap.childNodes));
+          } else if (out) view.appendChild(out);
+        } catch (e) {
+          view.appendChild(el("div", "empty", `This tab failed to render: ${e instanceof Error ? e.message : String(e)}`));
+        }
+        return view;
+      });
       const resize = el("div", "resize");
       resize.addEventListener("pointerdown", this.onResizeDown);
-      dock.append(head, this.minBar, tabs, homeView, commentsView, connectView, resize);
+      dock.append(head, this.minBar, tabs, homeView, commentsView, activityView, ...customViews, resize);
+      for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView]]) {
+        this.viewEls.set(id, view);
+      }
+      customViews.forEach((v, i) => this.viewEls.set((this.cfg.tabs ?? [])[i].id, v));
       this.buildHomePanel();
+      this.buildActivityPanel();
       return dock;
+    }
+    /**
+     * The Activity view: a status row, a collapsible summary, the tool chips and the
+     * live feed. Everything is re-derived from `activityEvents` on render, so the
+     * summary and the micro-stats can never disagree with the feed below them.
+     */
+    buildActivityPanel() {
+      this.activityEl.innerHTML = `<div class="hint-slot" id="loupe-ahint"></div><div class="mon-status" id="loupe-mon-status"><span class="mon-dot"></span><span class="mon-status-label"></span><span class="mon-spacer"></span><button class="mon-clear" data-role="mon-clear" title="Clear the feed">Clear</button></div><div class="mon-summary" id="loupe-mon-summary"></div><div class="mon-micro" id="loupe-mon-micro"></div><div class="mon-chips" id="loupe-mon-chips"></div><div class="mon-feed" id="loupe-mon-feed"></div>`;
+      this.feedEl = this.activityEl.querySelector("#loupe-mon-feed");
+      this.activityHint = this.activityEl.querySelector("#loupe-ahint");
+      this.activityEl.querySelector('[data-role="mon-clear"]').onclick = () => this.clearActivity();
+      this.feedEl.addEventListener("scroll", () => {
+        const el2 = this.feedEl;
+        this.activityFollow = el2.scrollHeight - el2.scrollTop - el2.clientHeight < 24;
+        this.renderActivityChrome();
+      });
+      this.renderActivity();
+    }
+    // ---- activity feed --------------------------------------------------------
+    /** Push one event. Called by Loupe itself and by the public trackActivity(). */
+    addActivity(input) {
+      const event = {
+        id: input.id ?? `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        at: input.at ?? (/* @__PURE__ */ new Date()).toISOString(),
+        kind: input.kind,
+        label: input.label,
+        detail: input.detail,
+        level: input.level ?? "info",
+        files: input.files
+      };
+      this.activityEvents.push(event);
+      if (this.activityEvents.length > 500) this.activityEvents = this.activityEvents.slice(-500);
+      this.activityStatus = event.level === "error" ? "error" : "working";
+      this.renderActivity();
+    }
+    setActivityStatus(status) {
+      this.activityStatus = status;
+      this.renderActivity();
+    }
+    clearActivity() {
+      this.activityEvents = [];
+      this.activityFilter = "";
+      this.activityStatus = "idle";
+      this.renderActivity();
+    }
+    /** The summary, status row, micro-stats and chips — derived, never stored. */
+    renderActivityChrome() {
+      if (!this.activityEl) return;
+      const status = this.activityEl.querySelector("#loupe-mon-status");
+      if (!status) return;
+      const s = summarizeActivity(this.activityEvents, this.activityStatus);
+      status.querySelector(".mon-status-label").textContent = ACTIVITY_STATUS_LABELS[s.status];
+      status.className = `mon-status st-${s.status}`;
+      const summary = this.activityEl.querySelector("#loupe-mon-summary");
+      if (!s.events) {
+        summary.innerHTML = "";
+        summary.style.display = "none";
+      } else {
+        summary.style.display = "";
+        const rows = [
+          ["Status", ACTIVITY_STATUS_LABELS[s.status]],
+          ["Events", String(s.events)],
+          ["Duration", formatDuration(s.durationMs)],
+          ["Files touched", String(s.files)],
+          ["Errors", String(s.errors)],
+          ["Tools", s.byKind.map((k) => `${k.kind} \xD7${k.count}`).join(", ") || "\u2014"]
+        ];
+        summary.innerHTML = `<button class="mon-sum-head" data-role="mon-toggle" aria-expanded="${this.summaryOpen}"><span class="mon-sum-title">Session summary</span><span class="mon-sum-peek">${s.events} events \xB7 ${formatDuration(s.durationMs)} \xB7 ${s.files} files</span><span class="mon-caret">${this.summaryOpen ? "\u25BE" : "\u25B8"}</span></button><div class="mon-sum-body"${this.summaryOpen ? "" : ' style="display:none"'}>` + rows.map(([k, v]) => `<div class="mon-kv"><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("") + `<div class="mon-preview"></div></div>`;
+        summary.querySelector(".mon-preview").textContent = this.activityEvents[this.activityEvents.length - 1]?.label ?? "";
+        summary.querySelector('[data-role="mon-toggle"]').onclick = () => {
+          this.summaryOpen = !this.summaryOpen;
+          this.renderActivityChrome();
+        };
+      }
+      const micro = this.activityEl.querySelector("#loupe-mon-micro");
+      micro.textContent = "";
+      if (s.events) {
+        micro.append(
+          el("span", "mon-micro-i", `\u23F1 ${formatDuration(s.durationMs)}`),
+          el("span", "mon-micro-i", `\u25E6 ${s.events} events`),
+          el("span", "mon-micro-i", `\u29C9 ${s.files} files`)
+        );
+      }
+      const chips = this.activityEl.querySelector("#loupe-mon-chips");
+      chips.textContent = "";
+      if (s.events) {
+        const chip = (kind, label, count) => {
+          const b = el("button", "mon-chip" + (this.activityFilter === kind ? " on" : ""), `${label} ${count}`);
+          b.dataset.kind = kind;
+          b.onclick = () => {
+            this.activityFilter = this.activityFilter === kind ? "" : kind;
+            this.renderActivity();
+          };
+          return b;
+        };
+        chips.appendChild(chip("", "All", s.events));
+        for (const { kind, count } of s.byKind) chips.appendChild(chip(kind, kind, count));
+      }
+    }
+    /** The feed itself, newest last (so it grows downward like a log). */
+    renderActivity() {
+      if (!this.activityEl) return;
+      this.renderActivityChrome();
+      if (!this.feedEl) return;
+      const events = this.activityFilter ? this.activityEvents.filter((e) => e.kind === this.activityFilter) : this.activityEvents;
+      if (!events.length) {
+        this.feedEl.innerHTML = `<div class="mon-empty">` + (this.activityEvents.length ? `Nothing from <b>${escapeHtml(this.activityFilter)}</b> yet.` : `<b>Monitor unavailable.</b> Nothing is feeding this view yet.<br>A bridge or your app can push events with <code>Loupe.trackActivity({ kind, label })</code>, and Loupe reports its own operations here as you work.`) + `</div>`;
+        return;
+      }
+      this.feedEl.innerHTML = events.map((e) => {
+        const time = new Date(e.at).toLocaleTimeString(void 0, { hour12: false });
+        return `<div class="mon-row lv-${e.level ?? "info"}"><span class="mon-time">${escapeHtml(time)}</span><span class="mon-kind">${escapeHtml(e.kind)}</span><span class="mon-label">${escapeHtml(e.label)}` + (e.detail ? `<span class="mon-detail">${escapeHtml(e.detail)}</span>` : "") + `</span></div>`;
+      }).join("");
+      if (this.activityFollow) this.feedEl.scrollTop = this.feedEl.scrollHeight;
     }
     /**
      * The Home overview: four stat tiles over the current scope, a scope switch
@@ -3340,7 +3697,11 @@ var Loupe = (() => {
      */
     buildHomePanel() {
       const title = this.cfg.label ?? "Loupe";
-      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page</button><button class="hscope-b" data-scope="all">All</button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 ${escapeHtml(this.cfg.repo ?? "no repo linked")}</div>`;
+      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-repo"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
+      this.homeEl.querySelector('[data-role="proj-open"]').onclick = (e) => {
+        e.stopPropagation();
+        this.setProjectOpen(!this.projOpen);
+      };
       this.homeEl.querySelectorAll(".hscope-b").forEach((b) => {
         b.onclick = () => this.setScope(b.dataset.scope === "all" ? "all" : "page");
       });
@@ -3405,7 +3766,20 @@ var Loupe = (() => {
           };
         });
       }
-      this.homeEl.querySelectorAll(".hscope-b").forEach((b) => b.classList.toggle("on", b.dataset.scope === this.scope));
+      const allKnown = this.allComments.length > 0 || this.scope === "all";
+      const counts = {
+        page: String(this.comments.length),
+        all: allKnown ? String(this.allComments.length) : "\u22EF"
+      };
+      const labels = { page: "This page", all: "All" };
+      this.homeEl.querySelectorAll(".hscope-b").forEach((b) => {
+        const scope = b.dataset.scope === "all" ? "all" : "page";
+        b.classList.toggle("on", scope === this.scope);
+        b.setAttribute("aria-pressed", String(scope === this.scope));
+        b.setAttribute("aria-label", `${labels[scope]} \u2014 ${counts[scope]} comments`);
+        b.querySelector(".hscope-n").textContent = counts[scope];
+      });
+      this.renderProject();
       const feed = this.homeEl.querySelector("#loupe-hfeed");
       if (!feed) return;
       const recent = [...this.visibleComments].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
@@ -3424,6 +3798,165 @@ var Loupe = (() => {
           this.flash(id);
         };
       });
+    }
+    // ---- project manager (#60) ------------------------------------------------
+    /** The repo new comments are filed against: the panel's choice, else the config. */
+    effectiveRepo() {
+      return this.project.repo || this.cfg.repo || void 0;
+    }
+    setProjectOpen(open) {
+      this.projOpen = open;
+      this.projError = "";
+      if (open) {
+        this.projSearch = "";
+        void this.refreshRepos();
+      }
+      this.renderProject();
+    }
+    /** Repositories to offer — a fixed list, or the host's search function. */
+    async repoChoices() {
+      const source = this.cfg.repos;
+      if (!source) return [];
+      if (Array.isArray(source)) {
+        const q = this.projSearch.trim().toLowerCase();
+        const all = q ? source.filter((r) => r.toLowerCase().includes(q)) : source;
+        return all.slice(0, 50);
+      }
+      try {
+        const out = await source(this.projSearch);
+        return (Array.isArray(out) ? out : []).slice(0, 50);
+      } catch (e) {
+        this.projError = e instanceof Error ? e.message : "Could not load repositories.";
+        return [];
+      }
+    }
+    /**
+     * Re-run the repo search. The sequence guard matters: typing fires overlapping
+     * requests, and without it a slow early reply would overwrite a newer one.
+     */
+    async refreshRepos() {
+      this.projError = "";
+      const seq = ++this.repoSeq;
+      const out = await this.repoChoices();
+      if (seq !== this.repoSeq) return;
+      this.projResults = out;
+      this.renderRepoList();
+      this.renderProjectError();
+    }
+    /** Only the list is rewritten on search, so the input keeps focus while typing. */
+    renderRepoList() {
+      const list = this.homeEl?.querySelector("#loupe-pp-repos");
+      if (!list) return;
+      const repo = this.effectiveRepo();
+      list.innerHTML = this.projResults.length ? this.projResults.map((r) => `<button class="pp-item${r === repo ? " on" : ""}" data-repo="${escapeAttr(r)}" title="${escapeAttr(r)}">${escapeHtml(r)}</button>`).join("") : `<div class="pp-empty">No repositories match.</div>`;
+      list.querySelectorAll("[data-repo]").forEach((b) => {
+        b.onclick = () => {
+          this.project.repo = b.dataset.repo;
+          this.saveProject();
+          this.renderProject();
+          this.renderPins();
+          this.renderList();
+          this.addActivity({ kind: "repo.link", label: `Linked this page to ${b.dataset.repo}` });
+        };
+      });
+    }
+    renderProjectError() {
+      const box = this.homeEl?.querySelector("#loupe-pp-err");
+      if (!box) return;
+      box.textContent = this.projError;
+      box.style.display = this.projError ? "" : "none";
+    }
+    renderProject() {
+      if (!this.homeEl) return;
+      const chip = this.homeEl.querySelector(".proj-chip");
+      const pop = this.homeEl.querySelector("#loupe-proj");
+      if (!chip || !pop) return;
+      const repo = this.effectiveRepo();
+      chip.querySelector(".proj-repo").textContent = repo ?? "no repo linked";
+      chip.classList.toggle("unset", !repo);
+      chip.setAttribute("aria-expanded", String(this.projOpen));
+      if (!this.projOpen) {
+        pop.classList.remove("open");
+        pop.innerHTML = "";
+        return;
+      }
+      pop.classList.add("open");
+      const envs = this.project.environments;
+      pop.innerHTML = `<div class="pp-head"><span>Repository</span><button class="pp-x" data-role="pp-close" aria-label="Close">\u2715</button></div><div class="pp-cur">${repo ? `New comments are filed against <b>${escapeHtml(repo)}</b>.` : "This page is not linked to a repository yet."}</div>` + (this.cfg.repos ? `<input class="pp-search" type="search" placeholder="Search repositories\u2026" value="${escapeAttr(this.projSearch)}" aria-label="Search repositories"><div class="pp-list" id="loupe-pp-repos"></div>` : `<div class="pp-empty">No repository list to search. Pass <code>repos</code> to <code>init()</code> \u2014 a string array, or a function the panel calls with the search text.</div>`) + (repo ? `<button class="pp-clear" data-role="pp-clear">Unlink this page</button>` : "") + `<div class="pp-sep"></div><div class="pp-head"><span>Environments</span></div><div class="pp-list">` + (envs.length ? envs.map((u, i) => `<div class="pp-env"><span class="pp-env-u" title="${escapeAttr(u)}">${escapeHtml(u)}</span><button class="pp-x" data-env-rm="${i}" aria-label="Remove environment">\u2715</button></div>`).join("") : `<div class="pp-empty">No environment URLs yet.</div>`) + `</div><div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" value="${escapeAttr(this.envDraft)}" aria-label="Environment URL"><button class="pp-add-b" data-role="env-add">Add</button></div><div class="pp-err" id="loupe-pp-err"></div>`;
+      this.renderRepoList();
+      this.renderProjectError();
+      pop.querySelector('[data-role="pp-close"]').onclick = () => this.setProjectOpen(false);
+      pop.querySelector('[data-role="pp-clear"]')?.addEventListener("click", () => {
+        this.project.repo = void 0;
+        this.saveProject();
+        this.renderProject();
+        this.renderPins();
+        this.renderList();
+      });
+      const search = pop.querySelector(".pp-search");
+      if (search) {
+        search.addEventListener("click", (e) => e.stopPropagation());
+        search.oninput = () => {
+          this.projSearch = search.value;
+          void this.refreshRepos();
+        };
+      }
+      pop.querySelectorAll("[data-env-rm]").forEach((b) => {
+        b.onclick = () => {
+          const i = Number(b.dataset.envRm);
+          this.project.environments = this.project.environments.filter((_, n) => n !== i);
+          this.saveProject();
+          this.renderProject();
+        };
+      });
+      const url = pop.querySelector(".pp-env-url");
+      if (url) {
+        url.addEventListener("click", (e) => e.stopPropagation());
+        url.oninput = () => {
+          this.envDraft = url.value;
+        };
+        url.onkeydown = (e) => {
+          if (e.key === "Enter") pop.querySelector('[data-role="env-add"]').click();
+        };
+      }
+      pop.querySelector('[data-role="env-add"]').onclick = () => {
+        const normalized = normalizeEnvUrl(this.envDraft);
+        if (!normalized) {
+          this.projError = "Enter a full http:// or https:// URL.";
+          this.renderProjectError();
+          return;
+        }
+        if (this.project.environments.includes(normalized)) {
+          this.projError = "That environment is already listed.";
+          this.renderProjectError();
+          return;
+        }
+        this.project.environments = [...this.project.environments, normalized];
+        this.envDraft = "";
+        this.projError = "";
+        this.saveProject();
+        this.renderProject();
+        pop.querySelector(".pp-env-url")?.focus();
+      };
+    }
+    /** Per-browser project settings, keyed separately from the dock's UI state. */
+    loadProject() {
+      const fromConfig = (this.cfg.environments ?? []).filter((u) => typeof u === "string");
+      try {
+        const raw = localStorage.getItem(`loupe:project:${this.cfg.projectKey}`);
+        const p = raw ? JSON.parse(raw) : null;
+        const repo = typeof p?.repo === "string" && p.repo ? p.repo : void 0;
+        const stored = Array.isArray(p?.environments) ? p.environments.filter((u) => typeof u === "string") : null;
+        this.project = { repo, environments: stored ?? fromConfig };
+      } catch {
+        this.project = { environments: fromConfig };
+      }
+    }
+    saveProject() {
+      try {
+        localStorage.setItem(`loupe:project:${this.cfg.projectKey}`, JSON.stringify(this.project));
+      } catch {
+      }
     }
     /** The "INTEGRATES WITH" footer on the Comments page (visual only for now). */
     buildIntegrations() {
@@ -3445,46 +3978,6 @@ var Loupe = (() => {
       }
       wrap.appendChild(row);
       return wrap;
-    }
-    /** The "Connect Claude" onboarding page: how to wire the MCP server to this project. */
-    buildConnectPanel() {
-      const view = el("div", "view connect-view");
-      const key = this.cfg.projectKey;
-      const apiHint = this.cfg.apiBase ?? "http://localhost:8787";
-      const config = JSON.stringify(
-        {
-          mcpServers: {
-            loupe: {
-              command: "npx",
-              args: ["-y", "@loupekit/mcp"],
-              env: { LOUPE_API: apiHint, LOUPE_PROJECT_KEY: key, LOUPE_ADMIN_KEY: "<your project secret>" }
-            }
-          }
-        },
-        null,
-        2
-      );
-      const steps = [
-        ["Pin your feedback", "Use Inspect, Region, Record, or Note to leave comments right on the live app."],
-        ["Add the Loupe MCP server", "Drop this into your Claude Code config so Claude can read this project's backlog:"],
-        ["Let Claude fix it", "Claude reads each comment (with the screenshot, HTML & CSS), rewrites the UI, and calls propose_change \u2014 the modified HTML/CSS then shows up for your dev team in the dashboard."]
-      ];
-      const hero = el("div", "connect-hero");
-      hero.innerHTML = `<div class="chero-logo">\u25CE</div><div class="chero-title">Hand your feedback to <span class="accentink">Claude</span></div><div class="chero-sub">Every pinned comment becomes an actionable, fully-contextualized task Claude Code can act on.</div>`;
-      view.appendChild(hero);
-      const list = el("ol", "connect-steps");
-      steps.forEach(([t, d], i) => {
-        const li = el("li");
-        li.innerHTML = `<div class="cstep-t">${i + 1}. ${escapeHtml(t)}</div><div class="cstep-d">${escapeHtml(d)}</div>`;
-        if (i === 1) {
-          const pre = el("pre", "cstep-code");
-          pre.textContent = config;
-          li.appendChild(pre);
-        }
-        list.appendChild(li);
-      });
-      view.appendChild(list);
-      return view;
     }
     /** The floating "recording…" pill with a Stop button (shown only while recording). */
     buildRecBar() {
@@ -3526,13 +4019,16 @@ var Loupe = (() => {
       };
       const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
       markers.onclick = () => this.toggleMarkers();
-      const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
-      connect.onclick = () => {
-        this.collapseFab();
-        this.openDock();
-        this.setTab("connect");
-      };
-      minis.append(comment, note, markers, connect);
+      minis.append(comment, note, markers);
+      if (this.tabList.some((t) => t.id === "connect")) {
+        const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
+        connect.onclick = () => {
+          this.collapseFab();
+          this.openDock();
+          this.setTab("connect");
+        };
+        minis.appendChild(connect);
+      }
       const primary = el("button", "launcher");
       primary.title = `Open ${this.cfg.label ?? "Loupe"}`;
       primary.setAttribute("aria-label", `${this.cfg.label ?? "Loupe"} \u2014 quick actions`);
@@ -3947,8 +4443,9 @@ var Loupe = (() => {
         status: "queue",
         priority,
         changeType,
-        // Branch-aware threads: the host declares these once in `init()`.
-        repo: this.cfg.repo,
+        // Branch-aware threads: the host declares these once in `init()`, and the
+        // panel's project manager can override the repo per browser.
+        repo: this.effectiveRepo(),
         branch: this.cfg.branch,
         kind: target.kind,
         anchor,
@@ -3977,6 +4474,12 @@ var Loupe = (() => {
       this.renderPins();
       this.renderList();
       this.flash(comment.id);
+      this.addActivity({
+        kind: "comment.create",
+        label: `Created \u201C${comment.title || comment.body.split("\n")[0] || "comment"}\u201D`,
+        detail: [normalizePriority(comment.priority), comment.kind ?? "element", comment.repo].filter(Boolean).join(" \xB7 "),
+        files: comment.repo ? [`${comment.repo}/${shortPath(comment.url)}`] : []
+      });
     }
     /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
     async uploadAttachments(files) {
@@ -4090,6 +4593,7 @@ var Loupe = (() => {
         if (this.scope === "all" && !this.allComments.length) void this.loadAllComments();
       }
       if (tab === "comments") this.renderList();
+      if (tab === "activity") this.renderActivity();
       this.applyDockLayout();
     }
     toggleTheme() {
@@ -4154,19 +4658,21 @@ var Loupe = (() => {
      */
     renderHints() {
       if (!this.homeEl) return;
+      if (this.hintFor === this.tab) return;
+      this.hintFor = this.tab;
       const slots = {
         home: this.homeEl.querySelector("#loupe-hhint"),
         comments: this.commentsHint ?? null,
-        connect: this.connectHint ?? null
+        activity: this.activityHint ?? null
       };
+      for (const [id, slot2] of this.customHintSlots) slots[id] = slot2;
       const slot = slots[this.tab];
-      if (!slot || this.hintFor === this.tab) return;
-      this.hintFor = this.tab;
+      if (!slot) return;
       slot.innerHTML = "";
-      if (!this.hoverHints || this.minimized || this.hintsSeen.has(this.tab)) return;
+      const hint = this.hintForTab(this.tab);
+      if (!hint || !this.hoverHints || this.minimized || this.hintsSeen.has(this.tab)) return;
       this.hintsSeen.add(this.tab);
       this.saveState();
-      const hint = HINTS[this.tab];
       slot.innerHTML = `<div class="hint"><div class="hint-t">${escapeHtml(hint.title)}</div><div class="hint-b">${escapeHtml(hint.body)}</div><button class="hint-off" data-role="hint-off">Turn off hints</button><button class="hint-x" aria-label="Dismiss hint">\u2715</button></div>`;
       slot.querySelector('[data-role="hint-off"]').onclick = () => {
         this.hoverHints = false;
@@ -4177,6 +4683,11 @@ var Loupe = (() => {
       slot.querySelector(".hint-x").onclick = () => {
         slot.innerHTML = "";
       };
+    }
+    /** The built-in hints, plus any a registered tab declared for itself. */
+    hintForTab(id) {
+      if (id in HINTS) return HINTS[id];
+      return (this.cfg.tabs ?? []).find((t) => t.id === id)?.hint;
     }
     // ---- guided tour ----------------------------------------------------------
     startTour() {
@@ -4263,7 +4774,8 @@ var Loupe = (() => {
         if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
         if (typeof p?.open === "boolean") this.open = p.open;
         if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
-        if (p?.tab === "home" || p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
+        const known = [...BUILTIN_TABS.map((t) => t.id), ...(this.cfg.tabs ?? []).map((t) => t.id)];
+        if (typeof p?.tab === "string" && known.includes(p.tab)) this.tab = p.tab;
         if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
         if (typeof p?.statFilter === "string") this.statFilter = p.statFilter;
         if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
@@ -4314,9 +4826,8 @@ var Loupe = (() => {
       d.classList.toggle("minimized", this.minimized);
       const openCount = this.comments.filter((c) => !isResolved(c)).length;
       this.minBar.innerHTML = `<span class="logo">\u25CE</span><span class="mtext"><b>${openCount}</b> open ${this.scope === "all" ? "in this project" : "on this page"}</span><span class="mrestore" aria-hidden="true">\u25B8</span>`;
-      d.classList.toggle("tab-home", this.tab === "home");
-      d.classList.toggle("tab-comments", this.tab === "comments");
-      d.classList.toggle("tab-connect", this.tab === "connect");
+      for (const t of this.tabList) d.classList.toggle(`tab-${t.id}`, this.tab === t.id);
+      for (const [id, view] of this.viewEls) view.classList.toggle("on", id === this.tab);
       this.renderHome();
       d.querySelectorAll(".tabs .tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === this.tab));
       this.posMenu.querySelectorAll("[data-pos]").forEach((b) => b.classList.toggle("on", b.dataset.pos === this.dockMode));
@@ -4468,6 +4979,10 @@ var Loupe = (() => {
         await this.store.update(c.id, { status });
         this.renderPins();
         this.renderList();
+        this.addActivity({
+          kind: status === "resolved" ? "comment.resolve" : "comment.reopen",
+          label: `${status === "resolved" ? "Resolved" : "Reopened"} \u201C${c.title || c.body.split("\n")[0] || "comment"}\u201D`
+        });
       };
       const del = el("button", "", "Delete");
       del.onclick = async (e) => {
@@ -4477,6 +4992,11 @@ var Loupe = (() => {
         this.resolved.delete(c.id);
         this.renderPins();
         this.renderList();
+        this.addActivity({
+          kind: "comment.delete",
+          label: `Deleted \u201C${c.title || c.body.split("\n")[0] || "comment"}\u201D`,
+          level: "warn"
+        });
       };
       actions.append(doneBtn, del);
       detail.appendChild(actions);
@@ -4567,6 +5087,19 @@ var Loupe = (() => {
       return new URL(url, location.origin).pathname || "/";
     } catch {
       return url;
+    }
+  }
+  function normalizeEnvUrl(raw) {
+    const s = raw.trim();
+    if (!s) return null;
+    try {
+      const u = new URL(s);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+      if (!u.hostname) return null;
+      const path = u.pathname.replace(/\/+$/, "");
+      return u.origin + path;
+    } catch {
+      return null;
     }
   }
   function dayLabel(iso) {
@@ -4685,6 +5218,41 @@ var Loupe = (() => {
     return normalizeStatus(c.status) === "resolved";
   }
 
+  // src/connect.ts
+  var escapeHtml2 = (s) => s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
+  function connectTab() {
+    return {
+      id: "connect",
+      label: "Connect",
+      hint: {
+        title: "Hand it to Claude",
+        body: "Add the MCP server to your client and it can list, read and answer this feedback \u2014 screenshot included."
+      },
+      render: (ctx) => {
+        const apiHint = ctx.apiBase ?? "http://localhost:8787";
+        const config = JSON.stringify(
+          {
+            mcpServers: {
+              loupe: {
+                command: "npx",
+                args: ["-y", "@loupekit/mcp"],
+                env: { LOUPE_API: apiHint, LOUPE_PROJECT_KEY: ctx.projectKey, LOUPE_ADMIN_KEY: "<your project secret>" }
+              }
+            }
+          },
+          null,
+          2
+        );
+        const steps = [
+          ["Pin your feedback", "Use Inspect, Region, Record, or Note to leave comments right on the live app."],
+          ["Add the Loupe MCP server", "Drop this into your Claude Code config so Claude can read this project's backlog:"],
+          ["Let Claude fix it", "Claude reads each comment (with the screenshot, HTML & CSS), rewrites the UI, and calls propose_change \u2014 the modified HTML/CSS then shows up for your dev team in the dashboard."]
+        ];
+        return `<div class="connect-hero"><div class="chero-logo">\u25CE</div><div class="chero-title">Hand your feedback to <span class="accentink">Claude</span></div><div class="chero-sub">Every pinned comment becomes an actionable, fully-contextualized task Claude Code can act on.</div></div><ol class="connect-steps">` + steps.map(([title, body], i) => `<li><div class="cstep-t">${i + 1}. ${escapeHtml2(title)}</div><div class="cstep-d">${escapeHtml2(body)}</div>` + (i === 1 ? `<pre class="cstep-code">${escapeHtml2(config)}</pre>` : "") + `</li>`).join("") + `</ol>`;
+      }
+    };
+  }
+
   // src/index.ts
   var app = null;
   function init(config) {
@@ -4705,6 +5273,15 @@ var Loupe = (() => {
   function destroy() {
     app?.destroy();
     app = null;
+  }
+  function trackActivity(event) {
+    app?.addActivity(event);
+  }
+  function setActivityStatus(status) {
+    app?.setActivityStatus(status);
+  }
+  function clearActivity() {
+    app?.clearActivity();
   }
   return __toCommonJS(src_exports);
 })();

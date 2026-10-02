@@ -4,18 +4,22 @@ import { attachmentKind, captureElementContext, captureScreenshot, captureRegion
 import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
 import {
+  ACTIVITY_STATUS_LABELS,
   CHANGE_TYPES,
   CHANGE_TYPE_LABELS,
   COMMENT_PRIORITIES,
   DEFAULT_CHANGE_TYPE,
   DEFAULT_PRIORITY,
+  formatDuration,
   normalizePriority,
   normalizeStatus,
   PRIORITY_LABELS,
   STAGE_LABELS,
+  summarizeActivity,
 } from "./types.js";
 import type {
-  Anchor, Attachment, ChangeType, Comment, CommentPriority, LoupeConfig, RegionRect, ResolveResult, StorageAdapter,
+  ActivityEvent, ActivityEventInput, ActivityStatus, Anchor, Attachment, ChangeType, Comment,
+  CommentPriority, LoupeConfig, RegionRect, ResolveResult, StorageAdapter,
 } from "./types.js";
 
 declare const __LOUPE_VERSION__: string | undefined;
@@ -46,21 +50,30 @@ const TOUR: { sel: string; tab: Tab; title: string; body: string }[] = [
     body: "Switch to All to see every page's feedback as a day-grouped timeline, with a repo filter." },
   { sel: ".tools", tab: "comments", title: "Pin feedback anywhere",
     body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one." },
-  { sel: '.tabs [data-tab="connect"]', tab: "connect", title: "Hand it to Claude",
-    body: "Connect Claude wires up the MCP server so an agent reads this feedback with its element context." },
+  { sel: '.tabs [data-tab="activity"]', tab: "activity", title: "Watch the work happen",
+    body: "Anything an agent bridge or your app reports lands here — with tool chips to filter it, and Loupe's own operations alongside." },
+  { sel: '.dctl [data-role="settings"]', tab: "activity", title: "Make it yours",
+    body: "Accents, the visibility switches, and Restart tour all live here." },
 ];
 
-/** One contextual hint per view, shown once (unless hints are switched off). */
-const HINTS: Record<Tab, { title: string; body: string }> = {
+/** One contextual hint per built-in view, shown once (unless hints are switched off). */
+const HINTS: Record<BuiltinTab, { title: string; body: string }> = {
   home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
   comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
-  connect: { title: "Claude reads these", body: "Add the MCP server to your client and it can list, read and answer this feedback — screenshot included." },
+  activity: { title: "Watch the work happen", body: "Every event the bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." },
 };
 
 /** Where the control panel is anchored — the four layouts the position menu offers. */
 type DockMode = "left" | "right" | "bottom" | "float";
-/** Which sidebar page is showing in the dock. */
-type Tab = "home" | "comments" | "connect";
+/** The pages that ship with the panel. Hosts can add more via `init({ tabs })`. */
+type BuiltinTab = "home" | "comments" | "activity";
+const BUILTIN_TABS: { id: BuiltinTab; label: string }[] = [
+  { id: "home", label: "Home" },
+  { id: "comments", label: "Comments" },
+  { id: "activity", label: "Activity" },
+];
+/** A tab id — built-in or host-registered. */
+type Tab = string;
 /** Which comments the panel is looking at: just this page, or the whole project. */
 type Scope = "page" | "all";
 /** A stat tile the user clicked — narrows the list to that bucket. */
@@ -220,6 +233,28 @@ export class LoupeApp {
   private tourEl!: HTMLElement;
   private tourSpot!: HTMLElement;
   private tourCard!: HTMLElement;
+  /** The live Activity feed — in memory only; it is a monitor, not an archive. */
+  private activityEvents: ActivityEvent[] = [];
+  private activityStatus: ActivityStatus = "idle";
+  /** A tool chip the user clicked, which narrows the feed to that kind. */
+  private activityFilter = "";
+  /** Auto-scroll the feed to the newest event (off while the user is reading). */
+  private activityFollow = true;
+  /** The summary card's key/value rows are behind this toggle. */
+  private summaryOpen = false;
+  private activityEl!: HTMLElement;
+  private feedEl!: HTMLElement;
+  /** Per-browser project settings: a repo override and the environment URLs. */
+  private project: { repo?: string; environments: string[] } = { environments: [] };
+  /** The project manager popover, and its search box. */
+  private projMenu!: HTMLElement;
+  private projSearch = "";
+  private projOpen = false;
+  private projResults: string[] = [];
+  private projError = "";
+  private envDraft = "";
+  /** Guards against a slow repo search overwriting a newer one. */
+  private repoSeq = 0;
   /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
   private floatRect = { x: 0, y: 0, w: 380, h: 540 };
   private floatDrag: { px: number; py: number; ox: number; oy: number } | null = null;
@@ -241,6 +276,7 @@ export class LoupeApp {
 
   async start() {
     this.loadState();
+    this.loadProject();
     this.buildDom();
     if (this.cfg.autoOpen) this.open = true;
     this.applyDockLayout();
@@ -402,7 +438,9 @@ export class LoupeApp {
       `<button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button>` +
       `<button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button>` +
       `<div class="menu-sep"></div>` +
-      `<button class="menu-row" data-set="tour"><span>Restart tour</span></button>`;
+      `<button class="menu-row" data-set="tour"><span>Restart tour</span></button>` +
+      `<div class="menu-ver">Loupe <b>v${escapeHtml(SDK_VERSION)}</b>` +
+      `<span class="menu-mode">${this.cfg.apiBase ? "server" : "offline"}</span></div>`;
     this.settingsMenu.querySelectorAll<HTMLElement>("[data-accent]").forEach((b) => {
       b.onclick = () => this.setAccent(b.dataset.accent!);
     });
@@ -436,15 +474,15 @@ export class LoupeApp {
     this.minBar = el("div", "minbar");
     this.minBar.onclick = () => this.setMinimized(false);
 
-    // tabs (the three sidebar pages) ------------------------------------------
+    // tabs (built-in pages, then whatever the host registered) -----------------
+    this.tabList = [...BUILTIN_TABS, ...(this.cfg.tabs ?? []).map((t) => ({ id: t.id, label: t.label }))];
     const tabs = el("div", "tabs");
-    const tabBtn = (key: Tab, label: string) => {
-      const b = el("button", "tab", label) as HTMLButtonElement;
-      b.dataset.tab = key;
-      b.onclick = () => this.setTab(key);
-      return b;
-    };
-    tabs.append(tabBtn("home", "Home"), tabBtn("comments", "Comments"), tabBtn("connect", "Connect Claude"));
+    for (const t of this.tabList) {
+      const b = el("button", "tab", t.label) as HTMLButtonElement;
+      b.dataset.tab = t.id;
+      b.onclick = () => this.setTab(t.id);
+      tabs.appendChild(b);
+    }
 
     // tools -------------------------------------------------------------------
     const tools = el("div", "tools");
@@ -510,22 +548,243 @@ export class LoupeApp {
     this.commentsHint = el("div", "hint-slot");
     commentsView.append(this.commentsHint, tools, listHead, this.listEl, this.buildIntegrations());
 
-    // Connect view = the Claude/MCP onboarding page.
-    const connectView = this.buildConnectPanel();
-    this.connectHint = el("div", "hint-slot");
-    connectView.prepend(this.connectHint);
+    // Activity view = the live monitor (status, summary, chips, feed). The hint slot
+    // is part of this panel's own markup — appending it beforehand would be wiped by
+    // the innerHTML below.
+    const activityView = el("div", "view activity-view");
+    this.activityEl = activityView;
+
+    // Host-registered tabs. `render` runs once, here, and gets a context object —
+    // the panel never reaches into a tab, and a tab never reaches into the panel.
+    const customViews = (this.cfg.tabs ?? []).map((t) => {
+      const view = el("div", "view custom-view");
+      const slot = el("div", "hint-slot");
+      view.appendChild(slot);
+      this.customHintSlots.set(t.id, slot);
+      try {
+        const out = t.render({
+          projectKey: this.cfg.projectKey,
+          apiBase: this.cfg.apiBase,
+          user: this.cfg.user,
+          comments: this.comments,
+          url: this.url,
+          version: SDK_VERSION,
+          track: (event) => this.addActivity(event),
+          open: (id) => this.setTab(id),
+          close: () => this.closeDock(),
+        });
+        if (typeof out === "string") {
+          // Built through innerHTML on a throwaway wrapper rather than
+          // insertAdjacentHTML, which not every DOM implementation provides.
+          const wrap = el("div", "tab-body");
+          wrap.innerHTML = out;
+          view.append(...Array.from(wrap.childNodes));
+        } else if (out) view.appendChild(out);
+      } catch (e) {
+        // A broken tab must not take the panel with it.
+        view.appendChild(el("div", "empty", `This tab failed to render: ${e instanceof Error ? e.message : String(e)}`));
+      }
+      return view;
+    });
 
     const resize = el("div", "resize");
     resize.addEventListener("pointerdown", this.onResizeDown);
 
-    dock.append(head, this.minBar, tabs, homeView, commentsView, connectView, resize);
+    dock.append(head, this.minBar, tabs, homeView, commentsView, activityView, ...customViews, resize);
+    for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView]] as [string, HTMLElement][]) {
+      this.viewEls.set(id, view);
+    }
+    customViews.forEach((v, i) => this.viewEls.set((this.cfg.tabs ?? [])[i]!.id, v));
     this.buildHomePanel();
+    this.buildActivityPanel();
     return dock;
   }
 
   /** The contextual hint cards live in a slot at the top of each view. */
   private commentsHint!: HTMLElement;
-  private connectHint!: HTMLElement;
+  private activityHint!: HTMLElement;
+  /** Tab id → its hint slot (custom tabs only; the built-ins have named fields). */
+  private customHintSlots = new Map<string, HTMLElement>();
+  /** The tab strip, in order. */
+  private tabList: { id: string; label: string }[] = [];
+  /**
+   * Each page's container, keyed by tab id. Display is driven by an "on" class
+   * rather than a `.tab-<id>` selector, so host-registered ids need no CSS.
+   */
+  private viewEls = new Map<string, HTMLElement>();
+
+  /**
+   * The Activity view: a status row, a collapsible summary, the tool chips and the
+   * live feed. Everything is re-derived from `activityEvents` on render, so the
+   * summary and the micro-stats can never disagree with the feed below them.
+   */
+  private buildActivityPanel() {
+    this.activityEl.innerHTML =
+      `<div class="hint-slot" id="loupe-ahint"></div>` +
+      `<div class="mon-status" id="loupe-mon-status">` +
+      `<span class="mon-dot"></span><span class="mon-status-label"></span>` +
+      `<span class="mon-spacer"></span>` +
+      `<button class="mon-clear" data-role="mon-clear" title="Clear the feed">Clear</button>` +
+      `</div>` +
+      `<div class="mon-summary" id="loupe-mon-summary"></div>` +
+      `<div class="mon-micro" id="loupe-mon-micro"></div>` +
+      `<div class="mon-chips" id="loupe-mon-chips"></div>` +
+      `<div class="mon-feed" id="loupe-mon-feed"></div>`;
+    this.feedEl = this.activityEl.querySelector("#loupe-mon-feed") as HTMLElement;
+    this.activityHint = this.activityEl.querySelector("#loupe-ahint") as HTMLElement;
+
+    (this.activityEl.querySelector('[data-role="mon-clear"]') as HTMLElement).onclick = () => this.clearActivity();
+    // Reading back through the feed stops it jumping to the bottom; scrolling to the
+    // end starts following again. That is the "pause on scroll" behaviour, without a
+    // separate pause button to forget about.
+    this.feedEl.addEventListener("scroll", () => {
+      const el = this.feedEl;
+      this.activityFollow = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+      this.renderActivityChrome();
+    });
+
+    // Paint anything reported before this panel existed (e.g. by a tab's render()).
+    this.renderActivity();
+  }
+
+  // ---- activity feed --------------------------------------------------------
+
+  /** Push one event. Called by Loupe itself and by the public trackActivity(). */
+  addActivity(input: ActivityEventInput) {
+    const event: ActivityEvent = {
+      id: input.id ?? `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      at: input.at ?? new Date().toISOString(),
+      kind: input.kind,
+      label: input.label,
+      detail: input.detail,
+      level: input.level ?? "info",
+      files: input.files,
+    };
+    this.activityEvents.push(event);
+    // Cap the ring so a long session cannot grow without bound.
+    if (this.activityEvents.length > 500) this.activityEvents = this.activityEvents.slice(-500);
+    // A reported error flips the status dot; progress resets it to working.
+    this.activityStatus = event.level === "error" ? "error" : "working";
+    this.renderActivity();
+  }
+
+  setActivityStatus(status: ActivityStatus) {
+    this.activityStatus = status;
+    this.renderActivity();
+  }
+
+  clearActivity() {
+    this.activityEvents = [];
+    this.activityFilter = "";
+    this.activityStatus = "idle";
+    this.renderActivity();
+  }
+
+  /** The summary, status row, micro-stats and chips — derived, never stored. */
+  private renderActivityChrome() {
+    if (!this.activityEl) return;
+    const status = this.activityEl.querySelector("#loupe-mon-status") as HTMLElement | null;
+    // A host tab's render() may report events while the panel is still being built,
+    // before this markup exists. Those events are kept and painted once it does.
+    if (!status) return;
+    const s = summarizeActivity(this.activityEvents, this.activityStatus);
+
+    status.querySelector(".mon-status-label")!.textContent = ACTIVITY_STATUS_LABELS[s.status];
+    status.className = `mon-status st-${s.status}`;
+
+    const summary = this.activityEl.querySelector("#loupe-mon-summary") as HTMLElement;
+    if (!s.events) {
+      summary.innerHTML = "";
+      summary.style.display = "none";
+    } else {
+      summary.style.display = "";
+      const rows: [string, string][] = [
+        ["Status", ACTIVITY_STATUS_LABELS[s.status]],
+        ["Events", String(s.events)],
+        ["Duration", formatDuration(s.durationMs)],
+        ["Files touched", String(s.files)],
+        ["Errors", String(s.errors)],
+        ["Tools", s.byKind.map((k) => `${k.kind} ×${k.count}`).join(", ") || "—"],
+      ];
+      summary.innerHTML =
+        `<button class="mon-sum-head" data-role="mon-toggle" aria-expanded="${this.summaryOpen}">` +
+        `<span class="mon-sum-title">Session summary</span>` +
+        `<span class="mon-sum-peek">${s.events} events · ${formatDuration(s.durationMs)} · ${s.files} files</span>` +
+        `<span class="mon-caret">${this.summaryOpen ? "▾" : "▸"}</span></button>` +
+        `<div class="mon-sum-body"${this.summaryOpen ? "" : ' style="display:none"'}>` +
+        rows.map(([k, v]) => `<div class="mon-kv"><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("") +
+        `<div class="mon-preview"></div></div>`;
+
+      // Last event as the preview line. (`.at(-1)` is ES2022; the SDK targets ES2020.)
+      summary.querySelector(".mon-preview")!.textContent =
+        this.activityEvents[this.activityEvents.length - 1]?.label ?? "";
+      (summary.querySelector('[data-role="mon-toggle"]') as HTMLElement).onclick = () => {
+        this.summaryOpen = !this.summaryOpen;
+        this.renderActivityChrome();
+      };
+    }
+
+    const micro = this.activityEl.querySelector("#loupe-mon-micro") as HTMLElement;
+    micro.textContent = "";
+    if (s.events) {
+      micro.append(
+        el("span", "mon-micro-i", `⏱ ${formatDuration(s.durationMs)}`),
+        el("span", "mon-micro-i", `◦ ${s.events} events`),
+        el("span", "mon-micro-i", `⧉ ${s.files} files`),
+      );
+    }
+
+    const chips = this.activityEl.querySelector("#loupe-mon-chips") as HTMLElement;
+    chips.textContent = "";
+    if (s.events) {
+      const chip = (kind: string, label: string, count: number) => {
+        const b = el("button", "mon-chip" + (this.activityFilter === kind ? " on" : ""), `${label} ${count}`);
+        b.dataset.kind = kind;
+        b.onclick = () => {
+          this.activityFilter = this.activityFilter === kind ? "" : kind;
+          this.renderActivity();
+        };
+        return b;
+      };
+      chips.appendChild(chip("", "All", s.events));
+      for (const { kind, count } of s.byKind) chips.appendChild(chip(kind, kind, count));
+    }
+  }
+
+  /** The feed itself, newest last (so it grows downward like a log). */
+  private renderActivity() {
+    if (!this.activityEl) return;
+    this.renderActivityChrome();
+    if (!this.feedEl) return;
+
+    const events = this.activityFilter
+      ? this.activityEvents.filter((e) => e.kind === this.activityFilter)
+      : this.activityEvents;
+
+    if (!events.length) {
+      this.feedEl.innerHTML =
+        `<div class="mon-empty">` +
+        (this.activityEvents.length
+          ? `Nothing from <b>${escapeHtml(this.activityFilter)}</b> yet.`
+          : `<b>Monitor unavailable.</b> Nothing is feeding this view yet.<br>` +
+            `A bridge or your app can push events with <code>Loupe.trackActivity({ kind, label })</code>, ` +
+            `and Loupe reports its own operations here as you work.`) +
+        `</div>`;
+      return;
+    }
+
+    this.feedEl.innerHTML = events.map((e) => {
+      const time = new Date(e.at).toLocaleTimeString(undefined, { hour12: false });
+      return `<div class="mon-row lv-${e.level ?? "info"}">` +
+        `<span class="mon-time">${escapeHtml(time)}</span>` +
+        `<span class="mon-kind">${escapeHtml(e.kind)}</span>` +
+        `<span class="mon-label">${escapeHtml(e.label)}` +
+        (e.detail ? `<span class="mon-detail">${escapeHtml(e.detail)}</span>` : "") +
+        `</span></div>`;
+    }).join("");
+
+    if (this.activityFollow) this.feedEl.scrollTop = this.feedEl.scrollHeight;
+  }
 
   /**
    * The Home overview: four stat tiles over the current scope, a scope switch
@@ -538,14 +797,28 @@ export class LoupeApp {
       `<div class="hint-slot" id="loupe-hhint"></div>` +
       `<div class="hstat" id="loupe-hstats"></div>` +
       `<div class="hscope">` +
-      `<button class="hscope-b" data-scope="page">This page</button>` +
-      `<button class="hscope-b" data-scope="all">All</button>` +
+      `<button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button>` +
+      `<button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button>` +
       `<button class="hrefresh" title="Refresh" aria-label="Refresh">⟳</button>` +
       `</div>` +
       `<button class="hpin" data-role="home-pin">✛ Pin feedback on this page</button>` +
+      `<div class="projbar">` +
+      `<span class="proj-label">Project</span>` +
+      `<button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false">` +
+      `<span class="proj-repo"></span><span class="proj-caret">▾</span></button>` +
+      // The popover lives INSIDE .projbar: absolute positioning resolves against the
+      // nearest positioned ancestor, and as a sibling it anchored to the panel
+      // instead — landing off the bottom of the view.
+      `<div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div>` +
+      `</div>` +
       `<div class="hlabel">Recent</div>` +
       `<div class="hfeed" id="loupe-hfeed"></div>` +
-      `<div class="hfoot">${escapeHtml(title)} · ${escapeHtml(this.cfg.repo ?? "no repo linked")}</div>`;
+      `<div class="hfoot">${escapeHtml(title)} · <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
+
+    (this.homeEl.querySelector('[data-role="proj-open"]') as HTMLElement).onclick = (e) => {
+      e.stopPropagation();
+      this.setProjectOpen(!this.projOpen);
+    };
 
     this.homeEl.querySelectorAll<HTMLElement>(".hscope-b").forEach((b) => {
       b.onclick = () => this.setScope(b.dataset.scope === "all" ? "all" : "page");
@@ -622,8 +895,23 @@ export class LoupeApp {
       });
     }
 
-    this.homeEl.querySelectorAll<HTMLElement>(".hscope-b").forEach((b) =>
-      b.classList.toggle("on", b.dataset.scope === this.scope));
+    // Scope chips carry the counts, so "All" is a decision, not a guess. The project
+    // total is only known once the project list has been read; until then it shows ⋯
+    // rather than a number we would be inventing.
+    const allKnown = this.allComments.length > 0 || this.scope === "all";
+    const counts: Record<Scope, string> = {
+      page: String(this.comments.length),
+      all: allKnown ? String(this.allComments.length) : "⋯",
+    };
+    const labels: Record<Scope, string> = { page: "This page", all: "All" };
+    this.homeEl.querySelectorAll<HTMLElement>(".hscope-b").forEach((b) => {
+      const scope = (b.dataset.scope === "all" ? "all" : "page") as Scope;
+      b.classList.toggle("on", scope === this.scope);
+      b.setAttribute("aria-pressed", String(scope === this.scope));
+      b.setAttribute("aria-label", `${labels[scope]} — ${counts[scope]} comments`);
+      (b.querySelector(".hscope-n") as HTMLElement).textContent = counts[scope];
+    });
+    this.renderProject();
 
     const feed = this.homeEl.querySelector("#loupe-hfeed") as HTMLElement | null;
     if (!feed) return;
@@ -653,6 +941,197 @@ export class LoupeApp {
     });
   }
 
+  // ---- project manager (#60) ------------------------------------------------
+
+  /** The repo new comments are filed against: the panel's choice, else the config. */
+  private effectiveRepo(): string | undefined {
+    return this.project.repo || this.cfg.repo || undefined;
+  }
+
+  private setProjectOpen(open: boolean) {
+    this.projOpen = open;
+    this.projError = "";
+    if (open) { this.projSearch = ""; void this.refreshRepos(); }
+    this.renderProject();
+  }
+
+  /** Repositories to offer — a fixed list, or the host's search function. */
+  private async repoChoices(): Promise<string[]> {
+    const source = this.cfg.repos;
+    if (!source) return [];
+    if (Array.isArray(source)) {
+      const q = this.projSearch.trim().toLowerCase();
+      const all = q ? source.filter((r) => r.toLowerCase().includes(q)) : source;
+      return all.slice(0, 50);
+    }
+    try {
+      const out = await source(this.projSearch);
+      return (Array.isArray(out) ? out : []).slice(0, 50);
+    } catch (e) {
+      this.projError = e instanceof Error ? e.message : "Could not load repositories.";
+      return [];
+    }
+  }
+
+  /**
+   * Re-run the repo search. The sequence guard matters: typing fires overlapping
+   * requests, and without it a slow early reply would overwrite a newer one.
+   */
+  private async refreshRepos() {
+    this.projError = "";
+    const seq = ++this.repoSeq;
+    const out = await this.repoChoices();
+    if (seq !== this.repoSeq) return;
+    this.projResults = out;
+    this.renderRepoList();
+    this.renderProjectError();
+  }
+
+  /** Only the list is rewritten on search, so the input keeps focus while typing. */
+  private renderRepoList() {
+    const list = this.homeEl?.querySelector("#loupe-pp-repos") as HTMLElement | null;
+    if (!list) return;
+    const repo = this.effectiveRepo();
+    list.innerHTML = this.projResults.length
+      ? this.projResults.map((r) =>
+          `<button class="pp-item${r === repo ? " on" : ""}" data-repo="${escapeAttr(r)}" ` +
+          `title="${escapeAttr(r)}">${escapeHtml(r)}</button>`).join("")
+      : `<div class="pp-empty">No repositories match.</div>`;
+    list.querySelectorAll<HTMLElement>("[data-repo]").forEach((b) => {
+      b.onclick = () => {
+        this.project.repo = b.dataset.repo;
+        this.saveProject();
+        this.renderProject();
+        this.renderPins();
+        this.renderList();
+        this.addActivity({ kind: "repo.link", label: `Linked this page to ${b.dataset.repo}` });
+      };
+    });
+  }
+
+  private renderProjectError() {
+    const box = this.homeEl?.querySelector("#loupe-pp-err") as HTMLElement | null;
+    if (!box) return;
+    box.textContent = this.projError;
+    box.style.display = this.projError ? "" : "none";
+  }
+
+  private renderProject() {
+    if (!this.homeEl) return;
+    const chip = this.homeEl.querySelector(".proj-chip") as HTMLElement | null;
+    const pop = this.homeEl.querySelector("#loupe-proj") as HTMLElement | null;
+    if (!chip || !pop) return;
+    const repo = this.effectiveRepo();
+
+    (chip.querySelector(".proj-repo") as HTMLElement).textContent = repo ?? "no repo linked";
+    chip.classList.toggle("unset", !repo);
+    chip.setAttribute("aria-expanded", String(this.projOpen));
+
+    if (!this.projOpen) { pop.classList.remove("open"); pop.innerHTML = ""; return; }
+    pop.classList.add("open");
+
+    const envs = this.project.environments;
+    pop.innerHTML =
+      `<div class="pp-head"><span>Repository</span><button class="pp-x" data-role="pp-close" aria-label="Close">✕</button></div>` +
+      `<div class="pp-cur">${repo
+        ? `New comments are filed against <b>${escapeHtml(repo)}</b>.`
+        : "This page is not linked to a repository yet."}</div>` +
+      (this.cfg.repos
+        ? `<input class="pp-search" type="search" placeholder="Search repositories…" ` +
+          `value="${escapeAttr(this.projSearch)}" aria-label="Search repositories">` +
+          `<div class="pp-list" id="loupe-pp-repos"></div>`
+        : `<div class="pp-empty">No repository list to search. Pass <code>repos</code> to ` +
+          `<code>init()</code> — a string array, or a function the panel calls with the search text.</div>`) +
+      (repo ? `<button class="pp-clear" data-role="pp-clear">Unlink this page</button>` : "") +
+      `<div class="pp-sep"></div>` +
+      `<div class="pp-head"><span>Environments</span></div>` +
+      `<div class="pp-list">` + (envs.length
+        ? envs.map((u, i) =>
+            `<div class="pp-env"><span class="pp-env-u" title="${escapeAttr(u)}">${escapeHtml(u)}</span>` +
+            `<button class="pp-x" data-env-rm="${i}" aria-label="Remove environment">✕</button></div>`).join("")
+        : `<div class="pp-empty">No environment URLs yet.</div>`) + `</div>` +
+      `<div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" ` +
+      `value="${escapeAttr(this.envDraft)}" aria-label="Environment URL">` +
+      `<button class="pp-add-b" data-role="env-add">Add</button></div>` +
+      `<div class="pp-err" id="loupe-pp-err"></div>`;
+
+    this.renderRepoList();
+    this.renderProjectError();
+
+    (pop.querySelector('[data-role="pp-close"]') as HTMLElement).onclick = () => this.setProjectOpen(false);
+    (pop.querySelector('[data-role="pp-clear"]') as HTMLElement | null)?.addEventListener("click", () => {
+      this.project.repo = undefined;
+      this.saveProject();
+      this.renderProject();
+      this.renderPins();
+      this.renderList();
+    });
+
+    const search = pop.querySelector(".pp-search") as HTMLInputElement | null;
+    if (search) {
+      // Keep clicks inside the popover from reaching the panel's dismiss handler.
+      search.addEventListener("click", (e) => e.stopPropagation());
+      search.oninput = () => { this.projSearch = search.value; void this.refreshRepos(); };
+    }
+
+    pop.querySelectorAll<HTMLElement>("[data-env-rm]").forEach((b) => {
+      b.onclick = () => {
+        const i = Number(b.dataset.envRm);
+        this.project.environments = this.project.environments.filter((_, n) => n !== i);
+        this.saveProject();
+        this.renderProject();
+      };
+    });
+
+    const url = pop.querySelector(".pp-env-url") as HTMLInputElement | null;
+    if (url) {
+      url.addEventListener("click", (e) => e.stopPropagation());
+      url.oninput = () => { this.envDraft = url.value; };
+      url.onkeydown = (e) => { if (e.key === "Enter") (pop.querySelector('[data-role="env-add"]') as HTMLElement).click(); };
+    }
+    (pop.querySelector('[data-role="env-add"]') as HTMLElement).onclick = () => {
+      const normalized = normalizeEnvUrl(this.envDraft);
+      if (!normalized) {
+        this.projError = "Enter a full http:// or https:// URL.";
+        this.renderProjectError();
+        return;
+      }
+      if (this.project.environments.includes(normalized)) {
+        this.projError = "That environment is already listed.";
+        this.renderProjectError();
+        return;
+      }
+      this.project.environments = [...this.project.environments, normalized];
+      this.envDraft = "";
+      this.projError = "";
+      this.saveProject();
+      this.renderProject();
+      (pop.querySelector(".pp-env-url") as HTMLInputElement | null)?.focus();
+    };
+  }
+
+  /** Per-browser project settings, keyed separately from the dock's UI state. */
+  private loadProject() {
+    const fromConfig = (this.cfg.environments ?? []).filter((u): u is string => typeof u === "string");
+    try {
+      const raw = localStorage.getItem(`loupe:project:${this.cfg.projectKey}`);
+      const p = raw ? JSON.parse(raw) : null;
+      const repo = typeof p?.repo === "string" && p.repo ? p.repo : undefined;
+      const stored = Array.isArray(p?.environments)
+        ? (p.environments as unknown[]).filter((u): u is string => typeof u === "string")
+        : null;
+      this.project = { repo, environments: stored ?? fromConfig };
+    } catch {
+      this.project = { environments: fromConfig };
+    }
+  }
+
+  private saveProject() {
+    try {
+      localStorage.setItem(`loupe:project:${this.cfg.projectKey}`, JSON.stringify(this.project));
+    } catch { /* storage unavailable */ }
+  }
+
   /** The "INTEGRATES WITH" footer on the Comments page (visual only for now). */
   private buildIntegrations(): HTMLElement {
     const wrap = el("div", "integrations");
@@ -673,50 +1152,6 @@ export class LoupeApp {
     }
     wrap.appendChild(row);
     return wrap;
-  }
-
-  /** The "Connect Claude" onboarding page: how to wire the MCP server to this project. */
-  private buildConnectPanel(): HTMLElement {
-    const view = el("div", "view connect-view");
-    const key = this.cfg.projectKey;
-    const apiHint = this.cfg.apiBase ?? "http://localhost:8787";
-    const config = JSON.stringify(
-      {
-        mcpServers: {
-          loupe: {
-            command: "npx",
-            args: ["-y", "@loupekit/mcp"],
-            env: { LOUPE_API: apiHint, LOUPE_PROJECT_KEY: key, LOUPE_ADMIN_KEY: "<your project secret>" },
-          },
-        },
-      },
-      null,
-      2,
-    );
-    const steps: [string, string][] = [
-      ["Pin your feedback", "Use Inspect, Region, Record, or Note to leave comments right on the live app."],
-      ["Add the Loupe MCP server", "Drop this into your Claude Code config so Claude can read this project's backlog:"],
-      ["Let Claude fix it", "Claude reads each comment (with the screenshot, HTML & CSS), rewrites the UI, and calls propose_change — the modified HTML/CSS then shows up for your dev team in the dashboard."],
-    ];
-    const hero = el("div", "connect-hero");
-    hero.innerHTML =
-      `<div class="chero-logo">◎</div>` +
-      `<div class="chero-title">Hand your feedback to <span class="accentink">Claude</span></div>` +
-      `<div class="chero-sub">Every pinned comment becomes an actionable, fully-contextualized task Claude Code can act on.</div>`;
-    view.appendChild(hero);
-    const list = el("ol", "connect-steps");
-    steps.forEach(([t, d], i) => {
-      const li = el("li");
-      li.innerHTML = `<div class="cstep-t">${i + 1}. ${escapeHtml(t)}</div><div class="cstep-d">${escapeHtml(d)}</div>`;
-      if (i === 1) {
-        const pre = el("pre", "cstep-code");
-        pre.textContent = config;
-        li.appendChild(pre);
-      }
-      list.appendChild(li);
-    });
-    view.appendChild(list);
-    return view;
   }
 
   /** The floating "recording…" pill with a Stop button (shown only while recording). */
@@ -753,9 +1188,14 @@ export class LoupeApp {
     note.onclick = () => { this.collapseFab(); this.openDock(); this.setMode("free"); };
     const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
     markers.onclick = () => this.toggleMarkers();
-    const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
-    connect.onclick = () => { this.collapseFab(); this.openDock(); this.setTab("connect"); };
-    minis.append(comment, note, markers, connect);
+    minis.append(comment, note, markers);
+    // The Connect shortcut only exists when a "connect" tab is registered — the
+    // panel no longer ships one, so it is opt-in via connectTab().
+    if (this.tabList.some((t) => t.id === "connect")) {
+      const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
+      connect.onclick = () => { this.collapseFab(); this.openDock(); this.setTab("connect"); };
+      minis.appendChild(connect);
+    }
 
     const primary = el("button", "launcher") as HTMLButtonElement;
     primary.title = `Open ${this.cfg.label ?? "Loupe"}`;
@@ -1319,8 +1759,9 @@ export class LoupeApp {
       status: "queue",
       priority,
       changeType,
-      // Branch-aware threads: the host declares these once in `init()`.
-      repo: this.cfg.repo,
+      // Branch-aware threads: the host declares these once in `init()`, and the
+      // panel's project manager can override the repo per browser.
+      repo: this.effectiveRepo(),
       branch: this.cfg.branch,
       kind: target.kind,
       anchor,
@@ -1349,6 +1790,13 @@ export class LoupeApp {
     this.renderPins();
     this.renderList();
     this.flash(comment.id);
+    // Loupe's own work joins the same feed an agent bridge writes to.
+    this.addActivity({
+      kind: "comment.create",
+      label: `Created “${comment.title || comment.body.split("\n")[0] || "comment"}”`,
+      detail: [normalizePriority(comment.priority), comment.kind ?? "element", comment.repo].filter(Boolean).join(" · "),
+      files: comment.repo ? [`${comment.repo}/${shortPath(comment.url)}`] : [],
+    });
   }
 
   /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
@@ -1535,6 +1983,7 @@ export class LoupeApp {
       if (this.scope === "all" && !this.allComments.length) void this.loadAllComments();
     }
     if (tab === "comments") this.renderList();
+    if (tab === "activity") this.renderActivity();
     this.applyDockLayout();
   }
 
@@ -1608,21 +2057,23 @@ export class LoupeApp {
    */
   private renderHints() {
     if (!this.homeEl) return;
-    const slots: Record<Tab, HTMLElement | null> = {
+    if (this.hintFor === this.tab) return;
+    this.hintFor = this.tab;
+    const slots: Record<string, HTMLElement | null> = {
       home: this.homeEl.querySelector("#loupe-hhint"),
       comments: this.commentsHint ?? null,
-      connect: this.connectHint ?? null,
+      activity: this.activityHint ?? null,
     };
+    for (const [id, slot] of this.customHintSlots) slots[id] = slot;
     const slot = slots[this.tab];
-    if (!slot || this.hintFor === this.tab) return;
-    this.hintFor = this.tab;
+    if (!slot) return;
     slot.innerHTML = "";
-    if (!this.hoverHints || this.minimized || this.hintsSeen.has(this.tab)) return;
+    const hint = this.hintForTab(this.tab);
+    if (!hint || !this.hoverHints || this.minimized || this.hintsSeen.has(this.tab)) return;
 
     // Mark it seen the moment it is painted, so a reload does not replay it.
     this.hintsSeen.add(this.tab);
     this.saveState();
-    const hint = HINTS[this.tab];
     slot.innerHTML =
       `<div class="hint"><div class="hint-t">${escapeHtml(hint.title)}</div>` +
       `<div class="hint-b">${escapeHtml(hint.body)}</div>` +
@@ -1641,6 +2092,12 @@ export class LoupeApp {
 
   /** Which view's hint has been handled this session (so it is not re-painted). */
   private hintFor: Tab | null = null;
+
+  /** The built-in hints, plus any a registered tab declared for itself. */
+  private hintForTab(id: string): { title: string; body: string } | undefined {
+    if (id in HINTS) return HINTS[id as BuiltinTab];
+    return (this.cfg.tabs ?? []).find((t) => t.id === id)?.hint;
+  }
 
   // ---- guided tour ----------------------------------------------------------
 
@@ -1741,7 +2198,8 @@ export class LoupeApp {
       if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
       if (typeof p?.open === "boolean") this.open = p.open;
       if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
-      if (p?.tab === "home" || p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
+      const known = [...BUILTIN_TABS.map((t) => t.id), ...(this.cfg.tabs ?? []).map((t) => t.id)];
+      if (typeof p?.tab === "string" && known.includes(p.tab)) this.tab = p.tab;
       if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
       if (typeof p?.statFilter === "string") this.statFilter = p.statFilter as StatFilter;
       if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
@@ -1790,10 +2248,8 @@ export class LoupeApp {
       `<span class="logo">◎</span>` +
       `<span class="mtext"><b>${openCount}</b> open ${this.scope === "all" ? "in this project" : "on this page"}</span>` +
       `<span class="mrestore" aria-hidden="true">▸</span>`;
-    // Which sidebar page is active (Home / Comments / Connect Claude).
-    d.classList.toggle("tab-home", this.tab === "home");
-    d.classList.toggle("tab-comments", this.tab === "comments");
-    d.classList.toggle("tab-connect", this.tab === "connect");
+    for (const t of this.tabList) d.classList.toggle(`tab-${t.id}`, this.tab === t.id);
+    for (const [id, view] of this.viewEls) view.classList.toggle("on", id === this.tab);
     this.renderHome();
     d.querySelectorAll<HTMLElement>(".tabs .tab").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === this.tab));
@@ -2026,6 +2482,10 @@ export class LoupeApp {
       const status = isResolved(c) ? "queue" : "resolved";
       c.status = status; await this.store.update(c.id, { status });
       this.renderPins(); this.renderList();
+      this.addActivity({
+        kind: status === "resolved" ? "comment.resolve" : "comment.reopen",
+        label: `${status === "resolved" ? "Resolved" : "Reopened"} “${c.title || c.body.split("\n")[0] || "comment"}”`,
+      });
     };
     const del = el("button", "", "Delete") as HTMLButtonElement;
     del.onclick = async (e) => {
@@ -2034,6 +2494,11 @@ export class LoupeApp {
       this.comments = this.comments.filter((x) => x.id !== c.id);
       this.resolved.delete(c.id);
       this.renderPins(); this.renderList();
+      this.addActivity({
+        kind: "comment.delete",
+        label: `Deleted “${c.title || c.body.split("\n")[0] || "comment"}”`,
+        level: "warn",
+      });
     };
     actions.append(doneBtn, del);
     detail.appendChild(actions);
@@ -2134,6 +2599,24 @@ function fmtAgo(iso: string): string {
 /** "https://x.test/a/b?q=1" → "/a/b" — what the page-path tag shows. */
 function shortPath(url: string): string {
   try { return new URL(url, location.origin).pathname || "/"; } catch { return url; }
+}
+/**
+ * Validate and normalize an environment URL. Only absolute http(s) URLs qualify —
+ * a bare "staging.example.com" is a typo, not an environment, and normalizing away
+ * a trailing slash keeps two spellings of the same place from both being listed.
+ */
+function normalizeEnvUrl(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname) return null;
+    const path = u.pathname.replace(/\/+$/, "");
+    return u.origin + path;
+  } catch {
+    return null;
+  }
 }
 /** The day bucket a comment falls in, for the All-scope timeline grouping. */
 function dayLabel(iso: string): string {

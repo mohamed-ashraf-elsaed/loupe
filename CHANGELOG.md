@@ -11,6 +11,59 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.14] — 2026-10-02
+
+### Added
+
+- **A reusable tab API — the panel is now extensible without forking it.** `init({ tabs: [...] })`
+  registers your own sidebar pages. Each tab gets a `LoupeTabContext` (project key, apiBase, user,
+  the page's comments, the page URL, the running version, plus `track` / `open` / `close`) and returns
+  markup or an element, so a tab never reaches into the panel and the panel never reaches into a tab.
+  A tab that throws is caught and shown as an error card instead of taking the panel down. (#59.)
+- **The Connect Claude page is now an opt-in tab.** The panel no longer ships it: register it with
+  `init({ tabs: [connectTab()] })`, which also brings back the FAB's Connect shortcut. It doubles as
+  the worked example of the tab API. (Requested change.)
+- **An in-panel Activity Monitor** — a status dot (idle / working / error), a collapsible session
+  summary (status, events, duration, files touched, errors, per-tool counts), a micro-stat row, tool
+  chips that filter the feed, and a live event feed. The feed pauses as you scroll back through it and
+  resumes when you return to the end. With nothing connected it says *Monitor unavailable* and explains
+  how to feed it, rather than erroring. (Milestone 0.20; #59.)
+- **A public activity seam** — `trackActivity(event)`, `setActivityStatus(status)` and
+  `clearActivity()`, exported from the package. An agent bridge or the host app pushes through them;
+  Loupe's own operations (create, resolve, reopen, delete, link a repo) feed the same stream, so the
+  view is useful before a bridge exists. `summarizeActivity` / `formatDuration` are shared, so any
+  other consumer derives the same numbers. (#59.)
+- **The running package version is visible in the UI** — in the Home footer (`Acme · v0.10.14`) and in
+  the settings dropdown, which also shows whether the panel is in `server` or `offline` mode.
+  (Requested change.)
+- **A project manager** in the Home view — link the current page to a repository, searching a list the
+  host supplies (`repos`: a string array, or a function the panel calls with the search text, so a host
+  can back it with its own API). Overlapping searches are sequence-guarded, the list is re-rendered
+  without rebuilding the input so typing keeps focus, and the choice persists per browser and is filed
+  on new comments. (Milestone 0.20; #60.)
+- **Environment URLs** — add, validate and remove the environments for a project. Only absolute
+  `http(s)` URLs are accepted (a bare `staging.example.com` is a typo, not an environment), they are
+  normalized so two spellings of one place cannot both be listed, and duplicates are refused with an
+  inline message. (Milestone 0.20; #60.)
+- **Scope chips carry counts** — *This page 3* / *All 14*, with the project total showing `⋯` until it
+  has been read rather than a number we would be inventing. (Milestone 0.20; #60.)
+
+### Changed
+
+- The sidebar is `Home · Comments · Activity` by default, plus whatever the host registers. The
+  guided tour is five steps now (it covers the Activity view and the settings menu).
+
+### Fixed
+
+- **A host tab could be swallowed by a startup ordering bug.** `render()` runs while the panel is
+  still being built, so a tab that reported an event hit the Activity view before its own markup
+  existed — and the exception silently replaced the whole tab with an error card. The monitor now
+  keeps events reported before it was built and paints them when it is. Found by the tab test.
+- **The project popover rendered off the bottom of the panel.** It was a sibling of the row it
+  anchors to, so its `top: 100%` resolved against the panel instead of the row — it landed at y=866
+  in an 860px-tall window. It is now a child of that row. Found by measuring the rect instead of
+  eyeballing the screenshot.
+
 ## [0.10.13] — 2026-10-02
 
 ### Added

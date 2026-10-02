@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { destroy, init } from "../src/index.ts";
+import { destroy, init, trackActivity, setActivityStatus, clearActivity, connectTab } from "../src/index.ts";
 
 const sr = () => document.getElementById("loupe-root")!.shadowRoot!;
 const fire = (el: Element, type: string, extra: Record<string, number> = {}) =>
@@ -364,12 +364,25 @@ describe("LoupeApp", () => {
     expect(sr().querySelector(".overlay")!.classList.contains("hide-pins")).toBe(false);
   });
 
-  it("quick action: Connect Claude opens the panel straight on the connect page", () => {
+  it("has no Connect tab unless the host registers one", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const ids = [...sr().querySelectorAll<HTMLElement>(".tabs .tab")].map((b) => b.dataset.tab);
+    expect(ids).toEqual(["home", "comments", "activity"]);
+    // …and no dangling shortcut for it in the FAB cluster.
+    expect(sr().querySelector('[data-fab="connect"]')).toBeFalsy();
+  });
+
+  it("quick action: a registered connect tab is one click from the FAB", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, tabs: [connectTab()] });
+    expect([...sr().querySelectorAll<HTMLElement>(".tabs .tab")].map((b) => b.dataset.tab))
+      .toEqual(["home", "comments", "activity", "connect"]);
     sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
     sr().querySelector<HTMLElement>('[data-fab="connect"]')!.click();
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
     expect(sr().querySelector(".dock")!.classList.contains("tab-connect")).toBe(true);
+    // The tab rendered its own content.
+    expect(sr().querySelector(".chero-title")!.textContent).toContain("Claude");
+    expect(sr().querySelector(".cstep-code")!.textContent).toContain("@loupekit/mcp");
   });
 
   it("the primary FAB badge tracks the comment count", async () => {
@@ -640,11 +653,11 @@ describe("LoupeApp", () => {
     // start() is async — the tour begins once the first list load settles.
     await new Promise((r) => setTimeout(r, 10));
     expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(true);
-    expect(sr().querySelectorAll(".tour-dots i").length).toBe(4);
+    expect(sr().querySelectorAll(".tour-dots i").length).toBe(5);
     // It starts where the user already is — no tab switch on the first step.
     expect(sr().querySelector(".dock")!.classList.contains("tab-home")).toBe(true);
 
-    for (let i = 0; i < 3; i++) sr().querySelector<HTMLElement>(".tour .t-next")!.click();
+    for (let i = 0; i < 4; i++) sr().querySelector<HTMLElement>(".tour .t-next")!.click();
     expect(sr().querySelector(".tour .t-next")!.textContent).toBe("Done");
     sr().querySelector<HTMLElement>(".tour .t-back")!.click();
     expect(sr().querySelector(".tour .t-next")!.textContent).toBe("Next");
@@ -663,7 +676,7 @@ describe("LoupeApp", () => {
     sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
     sr().querySelector<HTMLElement>('[data-set="tour"]')!.click();
     expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(true);
-    expect(sr().querySelectorAll(".tour-dots i").length).toBe(4);
+    expect(sr().querySelectorAll(".tour-dots i").length).toBe(5);
   });
 
   it("shows a hint once per view, and Turn off hints silences them for good", async () => {
@@ -683,9 +696,9 @@ describe("LoupeApp", () => {
     // The card's own switch turns the whole help layer off, and it sticks.
     sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
     expect(sr().querySelector(".comments-view .hint")).toBeFalsy();
-    sr().querySelector<HTMLElement>('.tabs [data-tab="connect"]')!.click();
+    sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
     sr().querySelector<HTMLElement>(".hint-off")!.click();
-    expect(sr().querySelector(".connect-view .hint")).toBeFalsy();
+    expect(sr().querySelector(".activity-view .hint")).toBeFalsy();
     expect(JSON.parse(localStorage.getItem("loupe:dock")!).hoverHints).toBe(false);
 
     destroy();
@@ -742,6 +755,209 @@ describe("LoupeApp", () => {
     expect(sr().querySelector(".pin")).toBeTruthy();
     // The tour still runs — the throw used to happen before it ever started.
     expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(true);
+  });
+
+  it("shows the running version in the panel", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    // Baked in by tsup; "dev" when running from source without a build.
+    const version = sr().querySelector(".hfoot .hver")!.textContent!;
+    expect(version).toMatch(/^v/);
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    expect(sr().querySelector(".menu-ver b")!.textContent).toBe(version);
+    // Offline because this init has no apiBase.
+    expect(sr().querySelector(".menu-mode")!.textContent).toBe("offline");
+  });
+
+  it("renders a host-registered tab, with a usable context", async () => {
+    const seen: any = {};
+    init({
+      projectKey: "pk",
+      user: { id: "u", name: "U" },
+      tabs: [{
+        id: "build",
+        label: "Build",
+        hint: { title: "Custom hint", body: "This tab declared its own." },
+        render: (ctx) => {
+          seen.projectKey = ctx.projectKey;
+          seen.version = ctx.version;
+          seen.url = ctx.url;
+          seen.user = ctx.user.id;
+          ctx.track({ kind: "custom", label: "Reported from a custom tab" });
+          return `<div class="mine">hello ${ctx.projectKey}</div>`;
+        },
+      }],
+    });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect([...sr().querySelectorAll<HTMLElement>(".tabs .tab")].map((b) => b.textContent))
+      .toEqual(["Home", "Comments", "Activity", "Build"]);
+    expect(sr().querySelector(".mine")!.textContent).toBe("hello pk");
+    expect(seen.projectKey).toBe("pk");
+    expect(seen.user).toBe("u");
+    expect(seen.version).toMatch(/^v|^dev$/);
+
+    // Its own hint card renders, and the tab is reachable.
+    sr().querySelector<HTMLElement>('.tabs [data-tab="build"]')!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("tab-build")).toBe(true);
+    expect(sr().querySelector(".custom-view .hint-t")!.textContent).toBe("Custom hint");
+    // The event it reported reached the Activity feed.
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Reported from a custom tab");
+  });
+
+  it("a tab that throws does not take the panel down", async () => {
+    init({
+      projectKey: "pk",
+      user: { id: "u", name: "U" },
+      tabs: [{ id: "boom", label: "Boom", render: () => { throw new Error("nope"); } }],
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelectorAll(".tabs .tab").length).toBe(4);
+    expect(sr().querySelector(".custom-view .empty")!.textContent).toContain("nope");
+    // And the rest of the panel still works.
+    sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("tab-home")).toBe(true);
+  });
+
+  it("derives the activity summary, chips and feed from the stream", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+
+    // Degraded state first — it explains rather than erroring.
+    expect(sr().querySelector(".mon-feed .mon-empty")!.textContent).toContain("Monitor unavailable");
+    expect(sr().querySelector(".mon-status-label")!.textContent).toBe("Idle");
+
+    trackActivity({ kind: "Read", label: "Read src/app.ts", files: ["src/app.ts"] });
+    trackActivity({ kind: "Read", label: "Read src/server.ts", files: ["src/server.ts"] });
+    trackActivity({ kind: "Edit", label: "Edited src/app.ts", files: ["src/app.ts"] });
+
+    expect(sr().querySelector(".mon-status-label")!.textContent).toBe("Working");
+    expect(sr().querySelectorAll(".mon-row").length).toBe(3);
+    // Micro-stats: 3 events, 2 distinct files.
+    const micro = sr().querySelector(".mon-micro")!.textContent!;
+    expect(micro).toContain("3 events");
+    expect(micro).toContain("2 files");
+    // Chips: All + one per kind, most frequent first.
+    expect([...sr().querySelectorAll<HTMLElement>(".mon-chip")].map((c) => c.textContent))
+      .toEqual(["All 3", "Read 2", "Edit 1"]);
+
+    // A chip filters the feed; clicking it again clears the filter.
+    sr().querySelectorAll<HTMLElement>(".mon-chip")[1]!.click();
+    expect(sr().querySelectorAll(".mon-row").length).toBe(2);
+    expect(sr().querySelector(".mon-feed")!.textContent).not.toContain("Edited");
+    sr().querySelectorAll<HTMLElement>(".mon-chip")[0]!.click();
+    expect(sr().querySelectorAll(".mon-row").length).toBe(3);
+
+    // The summary card expands to its key/value rows (hidden, not absent, until then).
+    const body = () => (sr().querySelector(".mon-sum-body") as HTMLElement).style.display;
+    expect(body()).toBe("none");
+    sr().querySelector<HTMLElement>('[data-role="mon-toggle"]')!.click();
+    expect(body()).toBe("");
+    const kvs = [...sr().querySelectorAll<HTMLElement>(".mon-kv")].map((k) => k.textContent);
+    expect(kvs[0]).toContain("Status");
+    expect(kvs[1]).toContain("3");
+    expect(kvs[3]).toContain("2"); // files touched
+  });
+
+  it("an error event flips the status dot, and clearing resets the view", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+
+    setActivityStatus("working");
+    expect(sr().querySelector(".mon-status")!.classList.contains("st-working")).toBe(true);
+
+    trackActivity({ kind: "Bash", label: "Command failed", detail: "exit 1", level: "error" });
+    expect(sr().querySelector(".mon-status")!.classList.contains("st-error")).toBe(true);
+    expect(sr().querySelectorAll(".mon-row.lv-error").length).toBe(1);
+
+    clearActivity();
+    expect(sr().querySelectorAll(".mon-row").length).toBe(0);
+    expect(sr().querySelector(".mon-status")!.classList.contains("st-idle")).toBe(true);
+    expect(sr().querySelector(".mon-feed .mon-empty")!.textContent).toContain("Monitor unavailable");
+  });
+
+  it("the scope chips carry live counts for this page and the project", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "p1", url: location.pathname })]));
+    localStorage.setItem(keyFor("/b"), JSON.stringify([seeded({ id: "p2", url: "/b" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const chips = () => [...sr().querySelectorAll<HTMLElement>(".hscope-b")].map((b) => b.textContent!.replace(/\s+/g, " ").trim());
+    // The project total is unknown until the project list has been read — it says so
+    // rather than inventing a number.
+    expect(chips()).toEqual(["This page 1", "All ⋯"]);
+    expect(sr().querySelector(".hscope-b")!.getAttribute("aria-pressed")).toBe("true");
+
+    sr().querySelectorAll<HTMLElement>(".hscope-b")[1]!.click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(chips()).toEqual(["This page 1", "All 2"]);
+    expect(sr().querySelectorAll<HTMLElement>(".hscope-b")[1]!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("links a repo from the project manager, searching a host-supplied list", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, repos: ["acme/web", "acme/api", "other/thing"] });
+    expect(sr().querySelector(".proj-repo")!.textContent).toBe("no repo linked");
+
+    sr().querySelector<HTMLElement>('.proj-chip')!.click();
+    // The first list is fetched asynchronously, like a real repo search would be.
+    await new Promise((r) => setTimeout(r, 10));
+    const items = () => [...sr().querySelectorAll<HTMLElement>(".pp-item")].map((b) => b.dataset.repo);
+    expect(items()).toEqual(["acme/web", "acme/api", "other/thing"]);
+
+    // The list narrows as you type, without the input losing focus.
+    const search = sr().querySelector<HTMLInputElement>(".pp-search")!;
+    search.value = "acme";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(items()).toEqual(["acme/web", "acme/api"]);
+    expect(sr().querySelector(".pp-search")).toBe(search);
+
+    sr().querySelectorAll<HTMLElement>(".pp-item")[1]!.click();
+    expect(sr().querySelector(".proj-repo")!.textContent).toBe("acme/api");
+    expect(JSON.parse(localStorage.getItem("loupe:project:pk")!).repo).toBe("acme/api");
+
+    // A new comment is filed against it.
+    expect(sr().querySelector(".hscope-b")).toBeTruthy();
+    sr().querySelector<HTMLElement>('.dctl [data-role="min"]')!.click();
+    const stored = JSON.parse(localStorage.getItem("loupe:project:pk")!);
+    expect(stored.repo).toBe("acme/api");
+  });
+
+  it("validates environment URLs before storing them", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, environments: ["https://staging.example.com"] });
+    sr().querySelector<HTMLElement>('.proj-chip')!.click();
+    expect(sr().querySelector(".pp-env-u")!.textContent).toBe("https://staging.example.com");
+
+    const url = () => sr().querySelector<HTMLInputElement>(".pp-env-url")!;
+    const err = () => sr().querySelector("#loupe-pp-err")!.textContent;
+
+    // A bare host is a typo, not an environment.
+    url().value = "staging.example.com";
+    url().dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>('[data-role="env-add"]')!.click();
+    expect(err()).toContain("http:// or https://");
+    expect(sr().querySelectorAll(".pp-env").length).toBe(1);
+
+    // A duplicate is refused, in its normalized spelling.
+    url().value = "https://staging.example.com/";
+    url().dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>('[data-role="env-add"]')!.click();
+    expect(err()).toContain("already listed");
+    expect(sr().querySelectorAll(".pp-env").length).toBe(1);
+
+    // A real one is added, normalized, and persisted.
+    url().value = "https://staging.example.com/checkout/?utm=1";
+    url().dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>('[data-role="env-add"]')!.click();
+    expect(err()).toBe("");
+    expect([...sr().querySelectorAll<HTMLElement>(".pp-env-u")].map((e) => e.textContent))
+      .toEqual(["https://staging.example.com", "https://staging.example.com/checkout"]);
+    expect(JSON.parse(localStorage.getItem("loupe:project:pk")!).environments.length).toBe(2);
+
+    // Removing one sticks too.
+    sr().querySelectorAll<HTMLElement>("[data-env-rm]")[0]!.click();
+    expect(sr().querySelectorAll(".pp-env").length).toBe(1);
+    expect(JSON.parse(localStorage.getItem("loupe:project:pk")!).environments.length).toBe(1);
   });
 
   it("does not initialize without projectKey or user id", () => {

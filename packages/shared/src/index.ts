@@ -1,5 +1,7 @@
 // Canonical types + pure helpers shared across the SDK, server, dashboard, and MCP.
 
+export * from "./activity.js";
+
 /**
  * Where a comment sits on the triage board. Five stages rather than three: the
  * extra ones (Queue, In Review) let a team tell "not triaged yet" apart from

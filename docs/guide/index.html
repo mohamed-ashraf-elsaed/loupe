@@ -1217,9 +1217,31 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.13</strong> (2026-10-02).</p>
+          release: <strong>0.10.14</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.14</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Bring your own tabs.</strong> <code>init({ tabs: [...] })</code> adds your own
+              sidebar pages. A tab gets a context object (project key, apiBase, user, the page's comments,
+              the URL, the running version, plus <code>track</code>/<code>open</code>/<code>close</code>)
+              and returns markup or an element — so a tab never reaches into the panel, and a tab that
+              throws shows an error card instead of taking the panel down.</li>
+            <li><strong>Connect Claude is now opt-in.</strong> The panel no longer ships that page; add it
+              back with <code>tabs: [connectTab()]</code>, which also restores the FAB shortcut.</li>
+            <li><strong>An Activity Monitor.</strong> A status dot, a collapsible session summary, tool
+              chips that filter the feed, and a live event feed that pauses as you scroll back. Feed it
+              from an agent bridge or your app with <code>trackActivity()</code> — Loupe's own operations
+              land in the same stream.</li>
+            <li><strong>The version is in the UI</strong> — in the Home footer and the settings menu, which
+              also shows whether the panel is in server or offline mode.</li>
+            <li><strong>A project manager.</strong> Link the page to a repository from a searchable list
+              you supply (<code>repos</code>), and manage the project's environment URLs with real
+              validation. Scope chips now carry counts (<em>This page 3</em> / <em>All 14</em>).</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.13</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
           <ul class="bul">
             <li><strong>The panel gained a shell.</strong> The header now has a <strong>position menu</strong>

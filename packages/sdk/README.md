@@ -90,14 +90,15 @@ init({
 });
 ```
 
-A dockable control panel appears with a three-page sidebar — **Home** (stat tiles, a this-page ↔
-whole-project scope switch, and the most recent feedback), **Comments** (with the
+A dockable control panel appears with a three-page sidebar — **Home** (stat tiles, scope chips with
+counts, the project manager, and the most recent feedback), **Comments** (with the
 **Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
-**Connect Claude** (MCP setup steps). The header carries a position menu
-(left / bottom / right / float), a theme toggle, a settings dropdown — five accent colours, plus
-switches for hover hints, markers and page paths — and a minimize button that collapses the panel
-to a one-line context bar. A four-step guided tour runs once on first open (skippable, replayable
-from Settings), and each view shows a one-time hint card with a **Turn off hints** link.
+**Activity** (a live monitor fed by `trackActivity()`). The header carries a position menu
+(left / bottom / right / float), a theme toggle, a settings dropdown — five accent colours, switches
+for hover hints, markers and page paths, plus the running package version — and a minimize button
+that collapses the panel to a one-line context bar. A five-step guided tour runs once on first open
+(skippable, replayable from Settings), and each view shows a one-time hint card with a **Turn off
+hints** link.
 Pass `repo` and `branch` to `init()` to make
 threads branch-aware — the board can then be filtered by repository and branch.
 Use the header's dock controls to dock it left / right /
@@ -106,6 +107,51 @@ FAB cluster — the primary button carries the comment count and expands four qu
 (pin a comment, drop a note, hide the markers, open the Claude setup). Call `destroy()` to
 tear it down. `init()` is idempotent — safe to call more
 than once. Pass `label` to change the brand name shown in the header.
+
+### Adding your own tab
+
+The panel is extensible without forking it. Register as many sidebar pages as you like:
+
+```ts
+import { init, connectTab } from "@loupekit/sdk";
+
+init({
+  projectKey: "pk_live_…",
+  user: { id: "u_1", name: "Ada" },
+  repo: "acme/web",
+  repos: ["acme/web", "acme/api"],          // powers the panel's repo picker
+  environments: ["https://staging.acme.test"],
+  tabs: [
+    connectTab(),                            // the Claude/MCP page, now opt-in
+    {
+      id: "build",
+      label: "Build",
+      hint: { title: "Build health", body: "Straight from our CI." },
+      render: (ctx) => `<p>Project <b>${ctx.projectKey}</b> — SDK v${ctx.version}</p>`,
+    },
+  ],
+});
+```
+
+`render` runs once, when the panel is built, and may return markup or an element. It receives a
+context with `projectKey`, `apiBase`, `user`, `comments`, `url`, `version` and the helpers
+`track` (push an event into the Activity feed), `open` (switch tab) and `close`. A tab that throws
+is caught and rendered as an error card rather than taking the panel down.
+
+### Reporting agent activity
+
+Anything an agent bridge or your app does can show up in the panel's Activity view:
+
+```ts
+import { trackActivity, setActivityStatus } from "@loupekit/sdk";
+
+setActivityStatus("working");
+trackActivity({ kind: "Read", label: "Read src/app.ts", files: ["src/app.ts"] });
+trackActivity({ kind: "Bash", label: "pnpm test", detail: "exit 1", level: "error" });
+```
+
+Loupe's own operations feed the same stream, so the view is never empty. With nothing connected it
+says *Monitor unavailable* and explains how to wire it up.
 
 ### Offline mode (no backend)
 
