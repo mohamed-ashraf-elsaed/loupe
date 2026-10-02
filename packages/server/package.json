@@ -1,6 +1,6 @@
 {
   "name": "@loupekit/server",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Loupe comment API — node:http, Postgres (PGlite locally / pg in prod), object storage for screenshots.",
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",
-    "@loupekit/shared": "0.9.1",
+    "@loupekit/shared": "0.9.2",
     "pg": "^8.13.1"
   }
 }

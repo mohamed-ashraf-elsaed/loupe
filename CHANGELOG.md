@@ -11,6 +11,20 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.9.2] — 2026-10-02
+
+### Fixed
+
+- **The widget is usable by touch, not just with a mouse.** Inspect, Region and Record
+  listened for `mousemove`/`mousedown`/`mouseup`, which a touch drag never fires — so on a
+  phone a region could not be drawn and Inspect gave no highlight to aim with. The
+  selection layer now uses **Pointer Events** (one path for mouse, touch and pen, with
+  `pointercancel` handled); `touch-action: none` is applied to the page only while a
+  drag-select tool is active so it cannot scroll mid-drag; and Inspect highlights on
+  **finger-down**, since touch has no hover.
+- **Record is hidden where `getDisplayMedia` is unavailable** (e.g. iOS Safari) instead of
+  offering a tool that can never work.
+
 ## [0.9.1] — 2026-10-01
 
 ### Fixed
