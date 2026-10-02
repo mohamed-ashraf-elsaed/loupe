@@ -1217,9 +1217,23 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.16</strong> (2026-10-02).</p>
+          release: <strong>0.10.17</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.17</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>A local bridge.</strong> The MCP server now hosts a bridge on
+              <code>127.0.0.1</code> so your browser and your agent can see each other: element selections
+              are posted in and read back by tools, agents register with a heartbeat and drop out after
+              30s of silence, and thread updates stream to the panel over SSE — so "sent to agent… PR
+              opened" arrives without a refresh.</li>
+            <li><strong>Fixed:</strong> the MCP server could not start from a source checkout at all —
+              two classes used constructor parameter properties, which Node's strip-only TypeScript mode
+              rejects.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.16</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>Generate a change and iterate on it.</strong> Pass <code>generate</code> to

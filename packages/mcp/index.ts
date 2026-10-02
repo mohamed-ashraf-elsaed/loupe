@@ -25,6 +25,10 @@ import { z } from "zod";
  */
 
 import { Buffer } from "node:buffer";
+import { SelectionStore } from "./src/bridge/selection-store.ts";
+import { AgentRegistry, AGENT_SWEEP_MS } from "./src/bridge/agent-registry.ts";
+import { EventBus } from "./src/bridge/events.ts";
+import { startHttpBridge } from "./src/bridge/http-bridge.ts";
 import {
   CHANGE_TYPE_LABELS,
   CHANGE_TYPES,
@@ -55,6 +59,15 @@ const CHANGE_TYPE_ARG = z.string().describe(`Change type: ${CHANGE_TYPES.join(" 
 
 const API = (process.env.LOUPE_API || "http://localhost:8787").replace(/\/$/, "");
 const PROJECT_KEY = process.env.LOUPE_PROJECT_KEY || "pk_demo_acme";
+/** Where the browser hands us selections. 0 disables the bridge entirely. */
+const BRIDGE_PORT = Number(process.env.LOUPE_BRIDGE_PORT ?? 9800);
+
+// The bridge's shared state. Created eagerly so the tool handlers below can publish
+// to it whether or not the listener ever came up — a busy port should not silence
+// the panel, it should just mean the browser cannot reach us.
+const store = new SelectionStore(Number(process.env.LOUPE_SELECTION_CAP ?? 50));
+const registry = new AgentRegistry();
+const bus = new EventBus();
 // The MCP server authenticates to the API as an admin (project secret).
 const ADMIN = process.env.LOUPE_ADMIN_KEY || "";
 
@@ -230,6 +243,9 @@ export async function updateStatus({ id, status }: { id: string; status: string 
   // Accept the legacy names too, and store the canonical stage.
   const stage = normalizeStatus(status);
   await api(`/v1/comments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status: stage }) });
+  // Tell any open panel. Best-effort: a browser that is not listening must never
+  // make this tool call fail.
+  bus.publishThread(id, stage === "resolved" ? "thread_resolved" : "status_changed", { status: stage });
   return wrap(`#${id} → ${STAGE_LABELS[stage]}`);
 }
 
@@ -242,10 +258,11 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
     createdAt: new Date().toISOString(),
   };
   await api(`/v1/comments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ proposal }) });
+  bus.publishThread(id, "preview_live", { author: proposal.author });
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.16" });
+const server = new McpServer({ name: "loupe", version: "0.10.17" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
@@ -294,6 +311,37 @@ function isEntrypoint(): boolean {
   }
 }
 if (isEntrypoint()) {
+  // The bridge first: it is how the browser reaches us, and the tools still work
+  // without it, so a busy port must not stop the server from connecting.
+  const bridge = BRIDGE_PORT ? await startHttpBridge(BRIDGE_PORT, { store, registry, bus }) : null;
+
+  // Register this agent so the panel's picker shows it, and keep it alive. The id is
+  // derived from the identity, so a restart lands on the same row instead of leaving
+  // a ghost behind for 30s.
+  const self = registry.register({
+    name: process.env.LOUPE_AGENT_NAME || "loupe-mcp",
+    type: process.env.LOUPE_AGENT_TYPE || "claude-code",
+    workspace: process.env.LOUPE_WORKSPACE || process.cwd(),
+    cwd: process.cwd(),
+  });
+  const sweep = setInterval(() => {
+    if (registry.sweep().length) bus.publish({ type: "agents", data: registry.list(), at: new Date().toISOString() });
+    registry.heartbeat(self.id);
+  }, AGENT_SWEEP_MS);
+  if (typeof sweep.unref === "function") sweep.unref();
+
+  const shutdown = async () => {
+    clearInterval(sweep);
+    registry.unregister(self.id);
+    await bridge?.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
+
   await server.connect(new StdioServerTransport());
-  console.error(`[loupe-mcp] connected · project=${PROJECT_KEY} · api=${API}`);
+  console.error(
+    `[loupe-mcp] connected · project=${PROJECT_KEY} · api=${API}` +
+    (bridge ? ` · bridge=${bridge.url}` : " · bridge=disabled"),
+  );
 }

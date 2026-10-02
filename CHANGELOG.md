@@ -11,6 +11,51 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.17] — 2026-10-02
+
+### Added
+
+- **A local bridge in the MCP server** (`packages/mcp/src/bridge/`). A browser tab and an agent process
+  have no way to see each other; this is the seam that fixes it. `startHttpBridge()` binds **127.0.0.1
+  only** — this is a hand-off between two programs on one machine, and putting it on a LAN interface
+  would turn "the page you are looking at" into something anyone on the network could read or forge.
+  (Milestone 0.11; #11.)
+  - **A selection store** — a bounded ring (default 50) of element payloads with `latest()`,
+    `history()` and `correlationId` lookup. Bounded deliberately: an agent that has not looked in fifty
+    selections is not going to want the first one.
+  - **Strict ingest validation.** A half-formed selection is worse than a rejected one — the agent
+    would act on a payload silently missing the selector it needs — so required fields are required,
+    optional fields are still type-checked, and unknown keys are dropped rather than passed through as
+    "element context".
+  - **Routes**: `POST /selection`, `GET /selection/latest`, `GET /selection/history`, `GET /selection`,
+    `DELETE /selection`, `GET /health`, the agent routes below, and the SSE streams.
+  - **CORS limited to `chrome-extension://` and loopback origins** — a random site cannot read what you
+    have selected.
+  - **A busy port is not fatal.** `EADDRINUSE` is retried five times, 1.5s apart, then logged and the
+    server continues with `bridge=disabled`; the MCP tools work without it, they just cannot see the
+    browser.
+  - Request bodies are capped, and `SIGINT`/`SIGTERM` close the listener cleanly.
+- **An agent registry with heartbeat and an SSE channel.** Agents register with `(name, type,
+  workspace)`, heartbeat, and are evicted after 30s of silence (swept every 10s). Ids are **derived
+  from the identity** rather than random, so an agent that restarts lands on the same row instead of
+  leaving a ghost in the picker until its TTL expires. (Milestone 0.11; #12.)
+  - **SSE** on `/events`, with `/thread-updates` as the thread-only view. A 15s keep-alive comment keeps
+    proxies and browsers from dropping an idle stream; disconnects remove the subscriber.
+  - **`emitThreadUpdate` is wired into the tools** — `update_status` publishes `status_changed` /
+    `thread_resolved` and `propose_change` publishes `preview_live`, so an open panel can update in
+    place. Publishing is best-effort and never throws into a tool call: a dead browser tab is not a
+    reason for `update_status` to fail.
+  - The MCP process **registers itself on startup** and unregisters on exit, so the picker is accurate
+    without any extra configuration.
+
+### Fixed
+
+- **The MCP server could not start from source at all.** `SelectionStore` and `AgentRegistry` used
+  constructor parameter properties (`constructor(private readonly capacity = 50)`), which Node's
+  strip-only TypeScript mode rejects — `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Caught by the existing
+  MCP test suite, which spawns the server as a child process; without it this would have shipped as a
+  server that dies on launch for anyone running from a checkout.
+
 ## [0.10.16] — 2026-10-02
 
 ### Added
