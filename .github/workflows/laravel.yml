@@ -67,8 +67,13 @@ jobs:
   # the "Route [login] not defined" 500, which the unit suite could not see because its
   # testbench app always registers a login route.
   #
-  # Run at both ends of the support matrix: the floor (PHP 8.2 / Laravel 11) and the
-  # newest (PHP 8.4 / Laravel 13).
+  # Run at both ends of the support matrix: the PHP floor (8.2, on Laravel 12 — the newest
+  # line that supports it) and the newest (8.4 / Laravel 13).
+  #
+  # Why not Laravel 11 on 8.2: composer 2.9+ blocks any package with a known advisory, and
+  # EVERY Laravel 11 release (v11.31 … v11.57) is currently flagged — so a brand-new
+  # Laravel 11 app cannot be installed at all, on any PHP. That is the skeleton's problem,
+  # not this package's; Laravel 11 support is still covered by the unit matrix above.
   stranger:
     runs-on: ubuntu-latest
 
@@ -77,7 +82,7 @@ jobs:
       matrix:
         include:
           - php: '8.2'
-            laravel: 11
+            laravel: 12
           - php: '8.4'
             laravel: 13
 
