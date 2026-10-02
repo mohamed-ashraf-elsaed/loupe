@@ -59,6 +59,8 @@ export async function migrate(): Promise<void> {
       project_key    TEXT NOT NULL REFERENCES projects(project_key) ON DELETE CASCADE,
       url            TEXT NOT NULL,
       status         TEXT NOT NULL DEFAULT 'queue',
+      priority       TEXT NOT NULL DEFAULT 'medium',
+      change_type    TEXT NOT NULL DEFAULT 'other',
       body           TEXT NOT NULL,
       author         JSONB NOT NULL,
       anchor         JSONB NOT NULL,
@@ -82,6 +84,9 @@ export async function migrate(): Promise<void> {
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS title TEXT;`);
   // Files the reporter attached — a JSONB array of the shared `Attachment` type.
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS attachments JSONB;`);
+  // Triage metadata: how urgent (critical→low) and what it touches (frontend/…).
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium';`);
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS change_type TEXT NOT NULL DEFAULT 'other';`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).

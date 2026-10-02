@@ -58,6 +58,23 @@ class McpToolsTest extends TestCase
         $this->assertSame('a', $byUrl['comments'][0]['id']);
     }
 
+    public function test_list_comments_filters_by_priority_and_change_type(): void
+    {
+        $this->seedComment('a', ['status' => 'queue', 'priority' => 'critical', 'change_type' => 'api', 'url' => '/p']);
+        $this->seedComment('b', ['status' => 'queue', 'priority' => 'low', 'change_type' => 'frontend', 'url' => '/q']);
+
+        $urgent = json_decode((string) (new ListComments)->handle(new Request(['priority' => 'critical']))->content(), true);
+        $this->assertSame(1, $urgent['count']);
+        $this->assertSame('a', $urgent['comments'][0]['id']);
+        // Both are reported so an agent can rank the work.
+        $this->assertSame('critical', $urgent['comments'][0]['priority']);
+        $this->assertSame('api', $urgent['comments'][0]['changeType']);
+
+        $frontend = json_decode((string) (new ListComments)->handle(new Request(['changeType' => 'frontend']))->content(), true);
+        $this->assertSame(1, $frontend['count']);
+        $this->assertSame('b', $frontend['comments'][0]['id']);
+    }
+
     public function test_list_comments_reports_the_region_target(): void
     {
         $this->seedComment('r', ['kind' => 'region', 'region' => ['x' => 1, 'y' => 2, 'w' => 30, 'h' => 40]]);

@@ -53,7 +53,10 @@ class CommentApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('id', 'c1')
             ->assertJsonPath('projectKey', 'app')
-            ->assertJsonPath('status', 'queue');
+            ->assertJsonPath('status', 'queue')
+            // A comment filed without triage metadata reads as the defaults.
+            ->assertJsonPath('priority', 'medium')
+            ->assertJsonPath('changeType', 'other');
 
         $this->assertDatabaseHas('loupe_comments', ['id' => 'c1', 'author_id' => (string) $user->id]);
     }
@@ -216,6 +219,24 @@ class CommentApiTest extends TestCase
         $this->patchJson('/loupe/v1/comments/c1', ['status' => 'done'])
             ->assertOk()
             ->assertJsonPath('status', 'resolved');
+    }
+
+    public function test_it_updates_triage_metadata(): void
+    {
+        $this->actingAsAllowed();
+        $this->seedComment('c1');
+
+        // The API speaks camelCase `changeType`; the column is snake.
+        $this->patchJson('/loupe/v1/comments/c1', ['priority' => 'critical', 'changeType' => 'api'])
+            ->assertOk()
+            ->assertJsonPath('priority', 'critical')
+            ->assertJsonPath('changeType', 'api');
+
+        // An unknown value is coerced rather than stored raw.
+        $this->patchJson('/loupe/v1/comments/c1', ['priority' => 'urgent', 'changeType' => 'css'])
+            ->assertOk()
+            ->assertJsonPath('priority', 'medium')
+            ->assertJsonPath('changeType', 'other');
     }
 
     public function test_update_with_no_patchable_fields_is_a_noop(): void

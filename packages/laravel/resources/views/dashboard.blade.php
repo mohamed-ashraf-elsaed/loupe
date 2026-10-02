@@ -105,6 +105,27 @@
     .linkbtn { border: 0; background: none; color: var(--accent-ink); font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
     .linkbtn:hover { background: var(--surface-2); }
     .linkbtn.danger { color: var(--pin); }
+    /* Priority + change-type chips on the card face. */
+    .chips { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+    .chip { font-size: 10.5px; font-weight: 700; letter-spacing: .02em; border-radius: 999px; padding: 2px 8px; white-space: nowrap; background: var(--surface-2); color: var(--ink-2); }
+    .chip.prio-critical { background: #fde7e4; color: #b3261e; }
+    .chip.prio-high { background: #fdeedc; color: #a2570a; }
+    .chip.prio-medium { background: #e8ecfb; color: #3742b8; }
+    .chip.prio-low { background: var(--surface-2); color: var(--ink-3); }
+    /* Compact selects in the card's action row. */
+    select.mini {
+      font-size: 11.5px; padding: 5px 6px; border-radius: 7px;
+      border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2);
+    }
+    select.mini:hover { border-color: var(--accent); }
+    @media (prefers-color-scheme: dark) {
+      .chip.prio-critical { background: #3a1a19; color: #ff9a90; }
+      .chip.prio-high { background: #372312; color: #f0b76a; }
+      .chip.prio-medium { background: #1e2440; color: #aab2f7; }
+    }
+    :root[data-theme="dark"] .chip.prio-critical { background: #3a1a19; color: #ff9a90; }
+    :root[data-theme="dark"] .chip.prio-high { background: #372312; color: #f0b76a; }
+    :root[data-theme="dark"] .chip.prio-medium { background: #1e2440; color: #aab2f7; }
 
     /* ---- search + filters ---- */
     .top .search {
@@ -242,10 +263,29 @@
               <option value="mobile">Mobile</option>
             </select>
           </label>
+          <label class="control">Priority
+            <select id="priorityFilter">
+              <option value="">All</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label class="control">Type
+            <select id="typeFilter">
+              <option value="">All</option>
+              <option value="frontend">Frontend</option>
+              <option value="backend">Backend</option>
+              <option value="api">API</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
           <label class="control">Sort
             <select id="sortOrder">
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
+              <option value="priority">Priority</option>
             </select>
           </label>
           <span class="live"><span class="dot"></span><span id="liveText">live</span></span>

@@ -4,12 +4,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // Exercises the exported tool handlers in-process (counted coverage), against a
 // canned Loupe API. The stdio path is covered separately by mcp.test.ts.
 const C1 = {
-  id: "c1", url: "/p", status: "queue", body: "fix it", author: { name: "Sara" },
+  id: "c1", url: "/p", status: "queue", priority: "high", changeType: "frontend",
+  body: "fix it", author: { name: "Sara" },
   anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: { a: "1" } },
   screenshot: "http://blob/x", createdAt: "t",
 };
 const C2 = {
-  id: "c2", url: "/q", status: "resolved", body: "other", author: { name: "Bob" },
+  id: "c2", url: "/q", status: "resolved", priority: "critical", changeType: "api",
+  body: "other", author: { name: "Bob" },
   anchor: { cssPath: ".foo", testid: null }, context: { html: "<i/>", styles: {} }, createdAt: "t",
 };
 const C3 = {
@@ -56,6 +58,26 @@ describe("mcp handlers", () => {
     // `done` is the pre-board name for Resolved — an agent may still send it.
     expect(text(await mod.listComments({ status: "done" }))).toContain("other");
     expect(text(await mod.listComments({ status: "in_review" }))).toContain("No comments");
+  });
+
+  it("list_comments surfaces priority and change type, and filters by them", async () => {
+    const all = text(await mod.listComments({}));
+    expect(all).toContain("High · Frontend");
+    expect(all).toContain("Critical · API");
+    // A comment filed without triage metadata reads as the defaults.
+    expect(all).toContain("Medium · Other");
+
+    const urgent = text(await mod.listComments({ priority: "critical" }));
+    expect(urgent).toContain("other");
+    expect(urgent).not.toContain("fix it");
+
+    const api = text(await mod.listComments({ changeType: "api" }));
+    expect(api).not.toContain("fix it");
+
+    // An unrecognised priority falls back to the default instead of matching nothing.
+    const unknown = text(await mod.listComments({ priority: "nonsense" }));
+    expect(unknown).toContain("page is cramped");
+    expect(unknown).not.toContain("fix it");
   });
 
   it("list_comments filters by url", async () => {

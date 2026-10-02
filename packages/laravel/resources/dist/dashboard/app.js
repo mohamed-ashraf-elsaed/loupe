@@ -1,5 +1,16 @@
 // app.ts
-import { COMMENT_STAGES, normalizeStatus, STAGE_LABELS } from "@loupekit/shared";
+import {
+  CHANGE_TYPE_LABELS,
+  CHANGE_TYPES,
+  COMMENT_PRIORITIES,
+  COMMENT_STAGES,
+  normalizeChangeType,
+  normalizePriority,
+  normalizeStatus,
+  PRIORITY_LABELS,
+  PRIORITY_RANK,
+  STAGE_LABELS
+} from "@loupekit/shared";
 var injected = window.__LOUPE__;
 var params = new URLSearchParams(location.search);
 var API = (injected?.api || params.get("api") || location.origin).replace(/\/$/, "");
@@ -14,6 +25,8 @@ var pageFilter = "";
 var search = "";
 var kindFilter = "";
 var deviceFilter = "";
+var priorityFilter = "";
+var typeFilter = "";
 var sortOrder = "newest";
 var expanded = /* @__PURE__ */ new Set();
 var $ = (sel) => document.querySelector(sel);
@@ -59,11 +72,18 @@ function render() {
   $("#project").textContent = PROJECT;
   const q = search.trim().toLowerCase();
   const visible = comments.filter(
-    (c) => (!pageFilter || c.url === pageFilter) && (!kindFilter || (c.kind ?? "element") === kindFilter) && (!deviceFilter || deviceKey(c) === deviceFilter) && (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
+    (c) => (!pageFilter || c.url === pageFilter) && (!kindFilter || (c.kind ?? "element") === kindFilter) && (!deviceFilter || deviceKey(c) === deviceFilter) && (!priorityFilter || normalizePriority(c.priority) === priorityFilter) && (!typeFilter || normalizeChangeType(c.changeType) === typeFilter) && (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q))
   );
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
-    const items = visible.filter((c) => normalizeStatus(c.status) === col.key).sort((a, b) => sortOrder === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt));
+    const items = visible.filter((c) => normalizeStatus(c.status) === col.key).sort((a, b) => {
+      if (sortOrder === "priority") {
+        const d = PRIORITY_RANK[normalizePriority(a.priority)] - PRIORITY_RANK[normalizePriority(b.priority)];
+        if (d !== 0) return d;
+        return b.createdAt.localeCompare(a.createdAt);
+      }
+      return sortOrder === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt);
+    });
     const colEl = document.createElement("section");
     colEl.className = `col stage-${col.key}`;
     colEl.innerHTML = `<div class="col-head"><span class="swatch"></span><h2>${col.label}</h2><span class="n">${items.length}</span></div>`;
@@ -93,9 +113,11 @@ function card(c) {
   const target = c.kind === "free" ? "Free note \xB7 page-level" : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "\u2014";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const device = deviceBadge(c);
+  const prio = normalizePriority(c.priority);
+  const ctype = normalizeChangeType(c.changeType);
   const body = document.createElement("div");
   body.className = "cbody";
-  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="caret">${open ? "\u25BE" : "\u25B8"}</span><span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p>`;
+  body.innerHTML = `<div class="row1"><span class="avatar">${escapeHtml(initials)}</span><span class="who">${escapeHtml(c.author.name)}</span>` + (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") + `<span class="caret">${open ? "\u25BE" : "\u25B8"}</span><span class="when">${fmtTime(c.createdAt)}</span></div><p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p><div class="chips"><span class="chip prio prio-${prio}" title="Priority">${PRIORITY_LABELS[prio]}</span><span class="chip ctype" title="Change type">${CHANGE_TYPE_LABELS[ctype]}</span></div>`;
   const detail = document.createElement("div");
   detail.className = "detail";
   detail.innerHTML = `<p class="ctext">${escapeHtml(c.body)}</p><span class="target" title="${escapeAttr(target)}">${escapeHtml(target)}</span><span class="page">${escapeHtml(c.url)}</span>`;
@@ -157,7 +179,19 @@ function card(c) {
       btn.textContent = "Delete";
     }, 3e3);
   });
-  actions.append(move, grow, del);
+  const prioSel = miniSelect(
+    "Priority",
+    COMMENT_PRIORITIES.map((p) => [p, PRIORITY_LABELS[p]]),
+    prio,
+    (v) => setPriority(c, v)
+  );
+  const typeSel = miniSelect(
+    "Change type",
+    CHANGE_TYPES.map((t) => [t, CHANGE_TYPE_LABELS[t]]),
+    ctype,
+    (v) => setChangeType(c, v)
+  );
+  actions.append(move, prioSel, typeSel, grow, del);
   el.appendChild(actions);
   el.onclick = (e) => {
     if (e.target.closest("button, video, img, a, details, iframe")) return;
@@ -182,6 +216,43 @@ function linkBtn(label, danger, onClick) {
   b.textContent = label;
   b.onclick = () => onClick(b);
   return b;
+}
+function miniSelect(label, options, value, onChange) {
+  const s = document.createElement("select");
+  s.className = "mini";
+  s.title = label;
+  s.setAttribute("aria-label", label);
+  for (const [v, text] of options) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = text;
+    o.selected = v === value;
+    s.append(o);
+  }
+  s.onchange = () => onChange(s.value);
+  return s;
+}
+async function setPriority(c, priority) {
+  if (normalizePriority(c.priority) === priority) return;
+  const prev = c.priority;
+  c.priority = priority;
+  render();
+  const res = await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "PATCH", body: JSON.stringify({ priority }) });
+  if (!res.ok) {
+    c.priority = prev;
+    render();
+  }
+}
+async function setChangeType(c, changeType) {
+  if (normalizeChangeType(c.changeType) === changeType) return;
+  const prev = c.changeType;
+  c.changeType = changeType;
+  render();
+  const res = await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "PATCH", body: JSON.stringify({ changeType }) });
+  if (!res.ok) {
+    c.changeType = prev;
+    render();
+  }
 }
 async function setStatus(c, status) {
   const prev = c.status;
@@ -359,7 +430,17 @@ if (deviceEl) deviceEl.addEventListener("change", () => {
 });
 var sortEl = document.getElementById("sortOrder");
 if (sortEl) sortEl.addEventListener("change", () => {
-  sortOrder = sortEl.value === "oldest" ? "oldest" : "newest";
+  sortOrder = sortEl.value === "oldest" ? "oldest" : sortEl.value === "priority" ? "priority" : "newest";
+  render();
+});
+var priorityEl = document.getElementById("priorityFilter");
+if (priorityEl) priorityEl.addEventListener("change", () => {
+  priorityFilter = priorityEl.value;
+  render();
+});
+var typeEl = document.getElementById("typeFilter");
+if (typeEl) typeEl.addEventListener("change", () => {
+  typeFilter = typeEl.value;
   render();
 });
 $("#refresh").addEventListener("click", load);

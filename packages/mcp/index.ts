@@ -25,7 +25,17 @@ import { z } from "zod";
  */
 
 import { Buffer } from "node:buffer";
-import { COMMENT_STAGES, normalizeStatus, STAGE_LABELS } from "@loupekit/shared";
+import {
+  CHANGE_TYPE_LABELS,
+  CHANGE_TYPES,
+  COMMENT_PRIORITIES,
+  COMMENT_STAGES,
+  normalizeChangeType,
+  normalizePriority,
+  normalizeStatus,
+  PRIORITY_LABELS,
+  STAGE_LABELS,
+} from "@loupekit/shared";
 import type { Comment, Proposal } from "@loupekit/shared";
 
 /**
@@ -36,6 +46,12 @@ import type { Comment, Proposal } from "@loupekit/shared";
 const STAGE_ARG = z
   .string()
   .describe(`Stage: ${COMMENT_STAGES.join(" / ")}. Legacy "open" and "done" are accepted too.`);
+
+/** Accepted values for a priority argument. */
+const PRIORITY_ARG = z.string().describe(`Priority, most urgent first: ${COMMENT_PRIORITIES.join(" / ")}.`);
+
+/** Accepted values for a change-type argument. */
+const CHANGE_TYPE_ARG = z.string().describe(`Change type: ${CHANGE_TYPES.join(" / ")}.`);
 
 const API = (process.env.LOUPE_API || "http://localhost:8787").replace(/\/$/, "");
 const PROJECT_KEY = process.env.LOUPE_PROJECT_KEY || "pk_demo_acme";
@@ -111,7 +127,9 @@ const attachmentLines = (c: Comment) =>
 // Tool handlers are exported so they can be unit-tested in-process (the stdio
 // transport below only runs when this file is the entrypoint).
 
-export async function listComments({ status, url }: { status?: string; url?: string }) {
+export async function listComments(
+  { status, priority, changeType, url }: { status?: string; priority?: string; changeType?: string; url?: string },
+) {
   const q = new URLSearchParams({ projectKey: PROJECT_KEY });
   if (url) q.set("url", url);
   let comments = (await api(`/v1/comments?${q}`)) as Comment[];
@@ -119,10 +137,18 @@ export async function listComments({ status, url }: { status?: string; url?: str
     const want = normalizeStatus(status);
     comments = comments.filter((c) => normalizeStatus(c.status) === want);
   }
+  if (priority) {
+    const want = normalizePriority(priority);
+    comments = comments.filter((c) => normalizePriority(c.priority) === want);
+  }
+  if (changeType) {
+    const want = normalizeChangeType(changeType);
+    comments = comments.filter((c) => normalizeChangeType(c.changeType) === want);
+  }
   if (!comments.length) return wrap("No comments match.");
   const lines = comments.map(
     (c) =>
-      `- [${STAGE_LABELS[normalizeStatus(c.status)]}] #${c.id} — ${titleOf(c)}: ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
+      `- [${STAGE_LABELS[normalizeStatus(c.status)]}] ${PRIORITY_LABELS[normalizePriority(c.priority)]} · ${CHANGE_TYPE_LABELS[normalizeChangeType(c.changeType)]} · #${c.id} — ${titleOf(c)}: ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
   );
   return wrap(`${comments.length} comment(s):\n\n${lines.join("\n")}\n\nUse get_comment(id) for the full element context.`);
 }
@@ -134,6 +160,7 @@ export async function getComment({ id }: { id: string }) {
     const text = [
       `# Feedback #${c.id} from ${c.author.name} (${STAGE_LABELS[normalizeStatus(c.status)]})`,
       ``,
+      `**Priority:** ${PRIORITY_LABELS[normalizePriority(c.priority)]} · **Change type:** ${CHANGE_TYPE_LABELS[normalizeChangeType(c.changeType)]}`,
       `**Title:** ${titleOf(c)}`,
       `**Note:** ${c.body}`,
       `**Page:** ${c.url}`,
@@ -207,12 +234,14 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.8" });
+const server = new McpServer({ name: "loupe", version: "0.10.9" });
 server.tool(
   "list_comments",
-  "List Loupe product-feedback comments for the project as a task backlog. Use this to see what a PM has flagged, then work through the items.",
+  "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
   {
     status: STAGE_ARG.optional().describe(`Filter by stage. Omit for all.`),
+    priority: PRIORITY_ARG.optional().describe("Filter by priority."),
+    changeType: CHANGE_TYPE_ARG.optional().describe("Filter by change type."),
     url: z.string().optional().describe("Filter to a single page path, e.g. /checkout."),
   },
   listComments,

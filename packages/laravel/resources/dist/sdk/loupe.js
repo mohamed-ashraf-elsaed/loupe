@@ -309,6 +309,14 @@ var Loupe = (() => {
 .composer .err { color: var(--pin); font-size: 11px; margin-top: 4px; }
 .composer .err:empty { display: none; }
 
+/* Priority + change-type pickers, side by side under the attachments. */
+.composer .meta2 { display: flex; gap: 6px; margin-top: 8px; }
+.composer select.mini {
+  flex: 1; min-width: 0; font-size: 12px; padding: 6px 7px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink); outline: none;
+}
+.composer select.mini:focus { border-color: var(--accent); }
+
 /* ------------------------------------------------------------ sidebar tabs */
 .tabs { display: flex; gap: 4px; flex: none; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
 .tabs .tab {
@@ -2519,9 +2527,25 @@ var Loupe = (() => {
     }
     return "queue";
   }
+  var COMMENT_PRIORITIES = ["critical", "high", "medium", "low"];
+  var PRIORITY_LABELS = {
+    critical: "Critical",
+    high: "High",
+    medium: "Medium",
+    low: "Low"
+  };
+  var CHANGE_TYPES = ["frontend", "backend", "api", "other"];
+  var CHANGE_TYPE_LABELS = {
+    frontend: "Frontend",
+    backend: "Backend",
+    api: "API",
+    other: "Other"
+  };
+  var DEFAULT_PRIORITY = "medium";
+  var DEFAULT_CHANGE_TYPE = "other";
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.8" : "dev";
+  var SDK_VERSION = true ? "0.10.9" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -3382,6 +3406,22 @@ var Loupe = (() => {
       attach.append(pick, input, chips, err);
       if (files.length) drawChips();
       const row = el("div", "row");
+      const meta = el("div", "meta2");
+      const prioSel = document.createElement("select");
+      prioSel.className = "mini";
+      prioSel.title = "Priority";
+      prioSel.setAttribute("aria-label", "Priority");
+      for (const p of COMMENT_PRIORITIES) {
+        prioSel.append(optionEl(PRIORITY_LABELS[p], p, p === DEFAULT_PRIORITY));
+      }
+      const typeSel = document.createElement("select");
+      typeSel.className = "mini";
+      typeSel.title = "Change type";
+      typeSel.setAttribute("aria-label", "Change type");
+      for (const t of CHANGE_TYPES) {
+        typeSel.append(optionEl(CHANGE_TYPE_LABELS[t], t, t === DEFAULT_CHANGE_TYPE));
+      }
+      meta.append(prioSel, typeSel);
       let box = null;
       if (target.kind !== "free" && !isRecording) {
         const chk = el("label", "chk");
@@ -3404,11 +3444,19 @@ var Loupe = (() => {
       title.oninput = sync;
       ta.oninput = sync;
       sync();
-      save.onclick = () => this.submit(target, title.value.trim(), ta.value.trim(), box ? box.checked : false, files.slice());
+      save.onclick = () => this.submit(
+        target,
+        title.value.trim(),
+        ta.value.trim(),
+        box ? box.checked : false,
+        files.slice(),
+        prioSel.value,
+        typeSel.value
+      );
       btns.append(cancel, save);
       row.append(btns);
-      c.append(label, title, ta, attach, row);
-      const w = 320, h = 340;
+      c.append(label, title, ta, attach, meta, row);
+      const w = 320, h = 380;
       const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
       const top = Math.min(Math.max(8, y + 12), window.innerHeight - h - 8);
       Object.assign(c.style, { display: "block", left: left + "px", top: top + "px" });
@@ -3419,7 +3467,7 @@ var Loupe = (() => {
       this.pending = null;
       this.pendingShot = void 0;
     }
-    async submit(target, title, body, withShot, files) {
+    async submit(target, title, body, withShot, files, priority = DEFAULT_PRIORITY, changeType = DEFAULT_CHANGE_TYPE) {
       if (!title || !body) return;
       const saveBtn = this.composer.querySelector(".primary");
       if (saveBtn) {
@@ -3465,6 +3513,8 @@ var Loupe = (() => {
         title,
         body,
         status: "queue",
+        priority,
+        changeType,
         kind: target.kind,
         anchor,
         context,
@@ -3847,6 +3897,13 @@ var Loupe = (() => {
   }
   function clampPx(n, min, max) {
     return Math.max(min, Math.min(max, n));
+  }
+  function optionEl(text, value, selected) {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = text;
+    o.selected = selected;
+    return o;
   }
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);

@@ -1,7 +1,18 @@
 // Loupe feedback board — reads the backend API and renders a Kanban of comments.
 // Vanilla TS to match the SDK's zero-framework footprint.
-import { COMMENT_STAGES, normalizeStatus, STAGE_LABELS } from "@loupekit/shared";
-import type { Comment, CommentStatus as Status } from "@loupekit/shared";
+import {
+  CHANGE_TYPE_LABELS,
+  CHANGE_TYPES,
+  COMMENT_PRIORITIES,
+  COMMENT_STAGES,
+  normalizeChangeType,
+  normalizePriority,
+  normalizeStatus,
+  PRIORITY_LABELS,
+  PRIORITY_RANK,
+  STAGE_LABELS,
+} from "@loupekit/shared";
+import type { ChangeType, Comment, CommentPriority, CommentStatus as Status } from "@loupekit/shared";
 
 // Config resolution. A host that embeds the board behind its own authenticated
 // session (e.g. the Laravel package) injects `window.__LOUPE__` server-side;
@@ -31,7 +42,9 @@ let pageFilter = "";
 let search = "";
 let kindFilter = "";   // "" | element | region | free
 let deviceFilter = ""; // "" | desktop | tablet | mobile
-let sortOrder: "newest" | "oldest" = "newest";
+let priorityFilter = ""; // "" | critical | high | medium | low
+let typeFilter = "";     // "" | frontend | backend | api | other
+let sortOrder: "newest" | "oldest" | "priority" = "newest";
 /** Ids of cards the user expanded — cards are collapsed to a summary by default. */
 const expanded = new Set<string>();
 
@@ -91,15 +104,23 @@ function render() {
     (!pageFilter || c.url === pageFilter) &&
     (!kindFilter || (c.kind ?? "element") === kindFilter) &&
     (!deviceFilter || deviceKey(c) === deviceFilter) &&
+    (!priorityFilter || normalizePriority(c.priority) === priorityFilter) &&
+    (!typeFilter || normalizeChangeType(c.changeType) === typeFilter) &&
     (!q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q)),
   );
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
     const items = visible
       .filter((c) => normalizeStatus(c.status) === col.key)
-      .sort((a, b) => (sortOrder === "newest"
-        ? b.createdAt.localeCompare(a.createdAt)
-        : a.createdAt.localeCompare(b.createdAt)));
+      .sort((a, b) => {
+        // "Priority" is its own sort: most urgent first, then newest within a priority.
+        if (sortOrder === "priority") {
+          const d = PRIORITY_RANK[normalizePriority(a.priority)] - PRIORITY_RANK[normalizePriority(b.priority)];
+          if (d !== 0) return d;
+          return b.createdAt.localeCompare(a.createdAt);
+        }
+        return sortOrder === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt);
+      });
     const colEl = document.createElement("section");
     colEl.className = `col stage-${col.key}`;
     colEl.innerHTML =
@@ -136,6 +157,8 @@ function card(c: Comment): HTMLElement {
     : c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath || "—";
   const initials = c.author.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const device = deviceBadge(c);
+  const prio = normalizePriority(c.priority);
+  const ctype = normalizeChangeType(c.changeType);
 
   const body = document.createElement("div");
   body.className = "cbody";
@@ -146,7 +169,11 @@ function card(c: Comment): HTMLElement {
     (device ? `<span class="device" title="Captured on ${escapeAttr(device.title)}">${device.icon} ${escapeHtml(device.kind)}</span>` : "") +
     `<span class="caret">${open ? "▾" : "▸"}</span>` +
     `<span class="when">${fmtTime(c.createdAt)}</span></div>` +
-    `<p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p>`;
+    `<p class="ctitle">${escapeHtml(c.title || firstLine(c.body))}</p>` +
+    `<div class="chips">` +
+    `<span class="chip prio prio-${prio}" title="Priority">${PRIORITY_LABELS[prio]}</span>` +
+    `<span class="chip ctype" title="Change type">${CHANGE_TYPE_LABELS[ctype]}</span>` +
+    `</div>`;
 
   const detail = document.createElement("div");
   detail.className = "detail";
@@ -215,7 +242,21 @@ function card(c: Comment): HTMLElement {
     setTimeout(() => { delete btn.dataset.armed; btn.textContent = "Delete"; }, 3000);
   });
 
-  actions.append(move, grow, del);
+  // Re-triage without opening the card.
+  const prioSel = miniSelect(
+    "Priority",
+    COMMENT_PRIORITIES.map((p) => [p as string, PRIORITY_LABELS[p]] as [string, string]),
+    prio,
+    (v) => setPriority(c, v as CommentPriority),
+  );
+  const typeSel = miniSelect(
+    "Change type",
+    CHANGE_TYPES.map((t) => [t as string, CHANGE_TYPE_LABELS[t]] as [string, string]),
+    ctype,
+    (v) => setChangeType(c, v as ChangeType),
+  );
+
+  actions.append(move, prioSel, typeSel, grow, del);
   el.appendChild(actions);
 
   // Clicking the card (but not its controls/media) expands it.
@@ -243,6 +284,47 @@ function linkBtn(label: string, danger: boolean, onClick: (btn: HTMLButtonElemen
   b.textContent = label;
   b.onclick = () => onClick(b);
   return b;
+}
+
+/** A compact labelled `<select>` for the card's action row (priority / change type). */
+function miniSelect(
+  label: string,
+  options: [string, string][],
+  value: string,
+  onChange: (value: string) => void,
+): HTMLSelectElement {
+  const s = document.createElement("select");
+  s.className = "mini";
+  s.title = label;
+  s.setAttribute("aria-label", label);
+  for (const [v, text] of options) {
+    // Built as an element rather than `new Option(...)`, which the test DOM lacks.
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = text;
+    o.selected = v === value;
+    s.append(o);
+  }
+  s.onchange = () => onChange(s.value);
+  return s;
+}
+
+async function setPriority(c: Comment, priority: CommentPriority) {
+  if (normalizePriority(c.priority) === priority) return;
+  const prev = c.priority;
+  c.priority = priority; // optimistic
+  render();
+  const res = await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "PATCH", body: JSON.stringify({ priority }) });
+  if (!res.ok) { c.priority = prev; render(); }
+}
+
+async function setChangeType(c: Comment, changeType: ChangeType) {
+  if (normalizeChangeType(c.changeType) === changeType) return;
+  const prev = c.changeType;
+  c.changeType = changeType; // optimistic
+  render();
+  const res = await api(`/v1/comments/${encodeURIComponent(c.id)}`, { method: "PATCH", body: JSON.stringify({ changeType }) });
+  if (!res.ok) { c.changeType = prev; render(); }
 }
 
 async function setStatus(c: Comment, status: Status) {
@@ -429,7 +511,14 @@ if (kindEl) kindEl.addEventListener("change", () => { kindFilter = kindEl.value;
 const deviceEl = document.getElementById("deviceFilter") as HTMLSelectElement | null;
 if (deviceEl) deviceEl.addEventListener("change", () => { deviceFilter = deviceEl.value; render(); });
 const sortEl = document.getElementById("sortOrder") as HTMLSelectElement | null;
-if (sortEl) sortEl.addEventListener("change", () => { sortOrder = sortEl.value === "oldest" ? "oldest" : "newest"; render(); });
+if (sortEl) sortEl.addEventListener("change", () => {
+  sortOrder = sortEl.value === "oldest" ? "oldest" : sortEl.value === "priority" ? "priority" : "newest";
+  render();
+});
+const priorityEl = document.getElementById("priorityFilter") as HTMLSelectElement | null;
+if (priorityEl) priorityEl.addEventListener("change", () => { priorityFilter = priorityEl.value; render(); });
+const typeEl = document.getElementById("typeFilter") as HTMLSelectElement | null;
+if (typeEl) typeEl.addEventListener("change", () => { typeFilter = typeEl.value; render(); });
 $("#refresh").addEventListener("click", load);
 document.querySelectorAll<HTMLButtonElement>(".navitem").forEach((b) =>
   b.addEventListener("click", () => setPage(b.dataset.page || "comments")));

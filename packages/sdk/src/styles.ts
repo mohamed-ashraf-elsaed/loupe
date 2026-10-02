@@ -280,6 +280,14 @@ export const STYLES = /* css */ `
 .composer .err { color: var(--pin); font-size: 11px; margin-top: 4px; }
 .composer .err:empty { display: none; }
 
+/* Priority + change-type pickers, side by side under the attachments. */
+.composer .meta2 { display: flex; gap: 6px; margin-top: 8px; }
+.composer select.mini {
+  flex: 1; min-width: 0; font-size: 12px; padding: 6px 7px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink); outline: none;
+}
+.composer select.mini:focus { border-color: var(--accent); }
+
 /* ------------------------------------------------------------ sidebar tabs */
 .tabs { display: flex; gap: 4px; flex: none; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
 .tabs .tab {

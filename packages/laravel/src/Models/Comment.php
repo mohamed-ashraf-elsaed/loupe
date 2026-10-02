@@ -4,6 +4,7 @@ namespace Loupekit\Loupe\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Loupekit\Loupe\Support\Stages;
+use Loupekit\Loupe\Support\Triage;
 
 /**
  * A single piece of visual feedback.
@@ -70,6 +71,9 @@ class Comment extends Model
             // Normalize on read too, so a row written before the five-stage board
             // still lands on a column even if the data migration has not run.
             'status' => Stages::normalize($this->status),
+            // Triage metadata, defaulted for rows written before it existed.
+            'priority' => Triage::normalizePriority($this->priority),
+            'changeType' => Triage::normalizeType($this->change_type),
             'kind' => $this->kind ?: 'element',
             'anchor' => $this->anchor,
             'context' => $this->context,

@@ -3,8 +3,18 @@ import { captureAnchor, resolveAnchor } from "./fingerprint.js";
 import { attachmentKind, captureElementContext, captureScreenshot, captureRegionScreenshot, captureRegionRecording } from "./capture.js";
 import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
-import { normalizeStatus } from "./types.js";
-import type { Anchor, Attachment, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
+import {
+  CHANGE_TYPES,
+  CHANGE_TYPE_LABELS,
+  COMMENT_PRIORITIES,
+  DEFAULT_CHANGE_TYPE,
+  DEFAULT_PRIORITY,
+  normalizeStatus,
+  PRIORITY_LABELS,
+} from "./types.js";
+import type {
+  Anchor, Attachment, ChangeType, Comment, CommentPriority, LoupeConfig, RegionRect, StorageAdapter,
+} from "./types.js";
 
 declare const __LOUPE_VERSION__: string | undefined;
 /** The build that produced this bundle (baked in by tsup); recorded on every comment. */
@@ -890,6 +900,24 @@ export class LoupeApp {
     if (files.length) drawChips();
 
     const row = el("div", "row");
+    // Triage metadata. Both default sensibly so a reporter can ignore them and
+    // still file something the team can find and rank.
+    const meta = el("div", "meta2");
+    const prioSel = document.createElement("select");
+    prioSel.className = "mini";
+    prioSel.title = "Priority";
+    prioSel.setAttribute("aria-label", "Priority");
+    for (const p of COMMENT_PRIORITIES) {
+      prioSel.append(optionEl(PRIORITY_LABELS[p], p, p === DEFAULT_PRIORITY));
+    }
+    const typeSel = document.createElement("select");
+    typeSel.className = "mini";
+    typeSel.title = "Change type";
+    typeSel.setAttribute("aria-label", "Change type");
+    for (const t of CHANGE_TYPES) {
+      typeSel.append(optionEl(CHANGE_TYPE_LABELS[t], t, t === DEFAULT_CHANGE_TYPE));
+    }
+    meta.append(prioSel, typeSel);
     // Free notes carry nothing; recordings always attach the video — both skip the checkbox.
     let box: HTMLInputElement | null = null;
     if (target.kind !== "free" && !isRecording) {
@@ -912,13 +940,16 @@ export class LoupeApp {
     title.oninput = sync;
     ta.oninput = sync;
     sync();
-    save.onclick = () => this.submit(target, title.value.trim(), ta.value.trim(), box ? box.checked : false, files.slice());
+    save.onclick = () => this.submit(
+      target, title.value.trim(), ta.value.trim(), box ? box.checked : false, files.slice(),
+      prioSel.value as CommentPriority, typeSel.value as ChangeType,
+    );
     btns.append(cancel, save);
     row.append(btns);
-    c.append(label, title, ta, attach, row);
+    c.append(label, title, ta, attach, meta, row);
 
     // Position near the click, clamped to the viewport.
-    const w = 320, h = 340;
+    const w = 320, h = 380;
     const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
     const top = Math.min(Math.max(8, y + 12), window.innerHeight - h - 8);
     Object.assign(c.style, { display: "block", left: left + "px", top: top + "px" });
@@ -933,7 +964,15 @@ export class LoupeApp {
     this.pendingShot = undefined;
   }
 
-  private async submit(target: ComposeTarget, title: string, body: string, withShot: boolean, files: File[]) {
+  private async submit(
+    target: ComposeTarget,
+    title: string,
+    body: string,
+    withShot: boolean,
+    files: File[],
+    priority: CommentPriority = DEFAULT_PRIORITY,
+    changeType: ChangeType = DEFAULT_CHANGE_TYPE,
+  ) {
     if (!title || !body) return;
     const saveBtn = this.composer.querySelector(".primary") as HTMLButtonElement;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
@@ -985,6 +1024,8 @@ export class LoupeApp {
       title,
       body,
       status: "queue",
+      priority,
+      changeType,
       kind: target.kind,
       anchor,
       context,
@@ -1514,6 +1555,15 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 function clamp(n: number) { return Math.max(0, Math.min(1, n)); }
 function clampPx(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
+/** An `<option>`. Built as an element rather than `new Option(...)`, which some
+ *  DOM implementations (and the test environment) do not provide. */
+function optionEl(text: string, value: string, selected: boolean): HTMLOptionElement {
+  const o = document.createElement("option");
+  o.value = value;
+  o.textContent = text;
+  o.selected = selected;
+  return o;
+}
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
 }

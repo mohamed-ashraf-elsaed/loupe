@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { normalizeUrl, normalizeStatus, type Comment } from "@loupekit/shared";
+import { normalizeUrl, normalizeStatus, normalizePriority, normalizeChangeType, type Comment } from "@loupekit/shared";
 
 export interface Project {
   project_key: string;
@@ -34,6 +34,8 @@ function rowToComment(r: any): Comment {
     projectKey: r.project_key,
     url: r.url,
     status: normalizeStatus(r.status),
+    priority: normalizePriority(r.priority),
+    changeType: normalizeChangeType(r.change_type),
     body: r.body,
     title: r.title ?? undefined,
     kind: r.kind ?? "element",
@@ -75,10 +77,12 @@ export async function upsertComment(c: Comment): Promise<Comment> {
   const d = await db();
   const url = normalizeUrl(c.url);
   const { rows } = await d.query(
-    `INSERT INTO comments (id, project_key, url, status, body, title, kind, author, anchor, context, "offset", region, viewport, screenshot_url, recording_url, attachments, proposal, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, COALESCE($18::timestamptz, now()))
+    `INSERT INTO comments (id, project_key, url, status, priority, change_type, body, title, kind, author, anchor, context, "offset", region, viewport, screenshot_url, recording_url, attachments, proposal, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, COALESCE($20::timestamptz, now()))
      ON CONFLICT (id) DO UPDATE SET
-       url = EXCLUDED.url, status = EXCLUDED.status, body = EXCLUDED.body, title = EXCLUDED.title,
+       url = EXCLUDED.url, status = EXCLUDED.status,
+       priority = EXCLUDED.priority, change_type = EXCLUDED.change_type,
+       body = EXCLUDED.body, title = EXCLUDED.title,
        kind = EXCLUDED.kind,
        author = EXCLUDED.author, anchor = EXCLUDED.anchor, context = EXCLUDED.context,
        "offset" = EXCLUDED."offset", region = EXCLUDED.region, viewport = EXCLUDED.viewport,
@@ -86,7 +90,9 @@ export async function upsertComment(c: Comment): Promise<Comment> {
        attachments = EXCLUDED.attachments, proposal = EXCLUDED.proposal
      RETURNING *`,
     [
-      c.id, c.projectKey, url, normalizeStatus(c.status), c.body, c.title ?? null, c.kind ?? "element",
+      c.id, c.projectKey, url, normalizeStatus(c.status),
+      normalizePriority(c.priority), normalizeChangeType(c.changeType),
+      c.body, c.title ?? null, c.kind ?? "element",
       JSON.stringify(c.author), JSON.stringify(c.anchor), JSON.stringify(c.context),
       JSON.stringify(c.offset), c.region ? JSON.stringify(c.region) : null,
       c.viewport ? JSON.stringify(c.viewport) : null,
@@ -104,6 +110,8 @@ export async function patchComment(id: string, patch: Partial<Comment>): Promise
   const vals: unknown[] = [];
   let i = 1;
   if (patch.status !== undefined) { sets.push(`status = $${i++}`); vals.push(normalizeStatus(patch.status)); }
+  if (patch.priority !== undefined) { sets.push(`priority = $${i++}`); vals.push(normalizePriority(patch.priority)); }
+  if (patch.changeType !== undefined) { sets.push(`change_type = $${i++}`); vals.push(normalizeChangeType(patch.changeType)); }
   if (patch.body !== undefined) { sets.push(`body = $${i++}`); vals.push(patch.body); }
   if (patch.title !== undefined) { sets.push(`title = $${i++}`); vals.push(patch.title); }
   // Claude writes its modified UI back here (via MCP propose_change / the API).

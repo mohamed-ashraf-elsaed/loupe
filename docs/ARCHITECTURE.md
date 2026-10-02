@@ -229,6 +229,8 @@ erDiagram
     text project_key FK
     text url "normalized"
     text status "queue|todo|in_progress|in_review|resolved"
+    text priority "critical|high|medium|low"
+    text change_type "frontend|backend|api|other"
     text body
     text kind "element|region|free"
     jsonb author

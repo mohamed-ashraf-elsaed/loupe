@@ -53,6 +53,68 @@ export function isOpenStage(stage: CommentStage): boolean {
   return stage !== "resolved";
 }
 
+/**
+ * How urgent a comment is. Ordered most-urgent first, so a list sorted by
+ * `PRIORITY_RANK` puts what needs attention at the top.
+ */
+export type CommentPriority = "critical" | "high" | "medium" | "low";
+
+/** Priorities, most urgent first. */
+export const COMMENT_PRIORITIES: readonly CommentPriority[] = ["critical", "high", "medium", "low"];
+
+/** Human labels for the priority chips. */
+export const PRIORITY_LABELS: Record<CommentPriority, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+/** Sort key: 0 is the most urgent, so `a - b` sorts correctly. */
+export const PRIORITY_RANK: Record<CommentPriority, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+/**
+ * Which part of the product a change touches, so a team can route the work
+ * (and an agent can tell a component tweak from an endpoint change).
+ */
+export type ChangeType = "frontend" | "backend" | "api" | "other";
+
+/** Change types. */
+export const CHANGE_TYPES: readonly ChangeType[] = ["frontend", "backend", "api", "other"];
+
+/** Human labels for the change-type chips. */
+export const CHANGE_TYPE_LABELS: Record<ChangeType, string> = {
+  frontend: "Frontend",
+  backend: "Backend",
+  api: "API",
+  other: "Other",
+};
+
+/** Defaults applied when a comment does not say. */
+export const DEFAULT_PRIORITY: CommentPriority = "medium";
+export const DEFAULT_CHANGE_TYPE: ChangeType = "other";
+
+/** Coerce any value into a priority, falling back to the default. */
+export function normalizePriority(value: unknown): CommentPriority {
+  if (typeof value === "string" && (COMMENT_PRIORITIES as readonly string[]).includes(value)) {
+    return value as CommentPriority;
+  }
+  return DEFAULT_PRIORITY;
+}
+
+/** Coerce any value into a change type, falling back to the default. */
+export function normalizeChangeType(value: unknown): ChangeType {
+  if (typeof value === "string" && (CHANGE_TYPES as readonly string[]).includes(value)) {
+    return value as ChangeType;
+  }
+  return DEFAULT_CHANGE_TYPE;
+}
+
 export interface LoupeUser {
   id: string;
   name: string;
@@ -156,6 +218,10 @@ export interface Comment {
   /** The reporter's description of the issue. */
   body: string;
   status: CommentStatus;
+  /** How urgent this is. Absent on rows written before priorities; defaults to "medium". */
+  priority?: CommentPriority;
+  /** Which part of the product it touches. Absent on older rows; defaults to "other". */
+  changeType?: ChangeType;
   /** Defaults to "element" when absent (back-compat with pre-region comments). */
   kind?: CommentKind;
   anchor: Anchor;

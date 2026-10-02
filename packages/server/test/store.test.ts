@@ -84,6 +84,29 @@ describe("store", () => {
     expect(patched!.status).toBe("resolved");
   });
 
+  it("round-trips priority and change type, defaulting when absent", async () => {
+    const set = await store.upsertComment(make({ id: "t1", priority: "critical", changeType: "api" }));
+    expect(set.priority).toBe("critical");
+    expect(set.changeType).toBe("api");
+
+    // A comment filed without triage metadata reads as the defaults, not undefined.
+    const bare = await store.upsertComment(make({ id: "t2" }));
+    expect(bare.priority).toBe("medium");
+    expect(bare.changeType).toBe("other");
+
+    // Unknown values are coerced rather than stored raw.
+    const junk = await store.upsertComment(make({ id: "t3", priority: "urgent" as any, changeType: "css" as any }));
+    expect(junk.priority).toBe("medium");
+    expect(junk.changeType).toBe("other");
+  });
+
+  it("patches priority and change type", async () => {
+    await store.upsertComment(make());
+    const p = await store.patchComment("c1", { priority: "low" as any, changeType: "backend" as any });
+    expect(p!.priority).toBe("low");
+    expect(p!.changeType).toBe("backend");
+  });
+
   it("round-trips a screen recording URL", async () => {
     const c = await store.upsertComment(make({
       id: "c3", kind: "region", recording: "http://x/rec.webm",

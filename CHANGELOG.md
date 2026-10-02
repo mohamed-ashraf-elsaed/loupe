@@ -11,6 +11,27 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.9] — 2026-10-02
+
+### Added
+
+- **Priorities and change types on every comment.** A comment now carries a **priority**
+  (critical → low, default medium) and a **change type** (frontend / backend / api / other, default
+  other). The reporter picks both in the widget's composer; the board renders them as chips and lets
+  you re-triage straight from the card. `COMMENT_PRIORITIES`, `PRIORITY_RANK`, `CHANGE_TYPES` and the
+  `normalize*` helpers in `@loupekit/shared` are the single source of truth, mirrored in the Laravel
+  package by `Loupekit\Loupe\Support\Triage`. (Milestone 0.14; #24.)
+- **Filter and sort by both.** The board gains Priority and Type filters and a **Priority** sort
+  (most urgent first, newest within a priority). Both MCP servers report priority and change type for
+  every comment — `list_comments` prints them and accepts them as filters — so an agent can start
+  with what actually matters.
+
+### Changed
+
+- **Existing rows need no backfill.** A comment written before this release has no triage columns;
+  every read path defaults it to **Medium · Other** rather than leaving it blank, and an unrecognised
+  value is coerced the same way instead of being stored raw.
+
 ## [0.10.8] — 2026-10-02
 
 ### Added

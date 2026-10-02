@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Loupekit\Loupe\Loupe;
 use Loupekit\Loupe\Support\Hub;
 use Loupekit\Loupe\Support\Stages;
+use Loupekit\Loupe\Support\Triage;
 use Loupekit\Loupe\Support\Url;
 
 /**
@@ -59,6 +60,8 @@ class CommentController extends Controller
             'project_key' => $this->projectKey(),
             'url' => Url::normalize((string) ($data['url'] ?? '/')),
             'status' => Stages::normalize($data['status'] ?? null),
+            'priority' => Triage::normalizePriority($data['priority'] ?? null),
+            'change_type' => Triage::normalizeType($data['changeType'] ?? null),
             'title' => is_string($data['title'] ?? null) && $data['title'] !== '' ? mb_substr($data['title'], 0, 255) : null,
             'body' => (string) ($data['body'] ?? ''),
             'kind' => $data['kind'] ?? 'element',
@@ -118,6 +121,13 @@ class CommentController extends Controller
                     ? Stages::normalize($request->input($field))
                     : $request->input($field);
             }
+        }
+        // Triage metadata. The API speaks camelCase `changeType`; the column is snake.
+        if ($request->has('priority')) {
+            $patch['priority'] = Triage::normalizePriority($request->input('priority'));
+        }
+        if ($request->has('changeType')) {
+            $patch['change_type'] = Triage::normalizeType($request->input('changeType'));
         }
         if ($patch !== []) {
             $comment->fill($patch)->save();

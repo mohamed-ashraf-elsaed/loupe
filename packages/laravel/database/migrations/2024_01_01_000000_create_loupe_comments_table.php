@@ -17,6 +17,10 @@ return new class extends Migration
             $table->string('project_key', 191)->index();
             $table->string('url', 500);
             $table->string('status')->default('queue')->index();
+            // Triage metadata: how urgent, and which part of the product it touches.
+            // Deliberately unindexed — comments are already scoped by (project_key, url).
+            $table->string('priority', 16)->default('medium');
+            $table->string('change_type', 16)->default('other');
             $table->text('body');
             // "element" (anchored to a DOM node) or "region" (a dragged rectangle).
             $table->string('kind')->default('element');
