@@ -98,6 +98,8 @@ jobs:
         run: composer install --prefer-dist --no-interaction --no-progress
 
       - name: Run the stranger test
+        # The workflow sets working-directory: packages/laravel, and the script works out
+        # its own absolute paths from there.
         env:
           STRANGER_LARAVEL: ${{ matrix.laravel }}
-        run: packages/laravel/bin/stranger-test.sh
+        run: bin/stranger-test.sh
