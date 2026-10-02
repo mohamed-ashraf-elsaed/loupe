@@ -18,6 +18,10 @@ const safeExt = (ext: string) => (ext || "png").toLowerCase().replace(/[^a-z0-9]
 const MIME: Record<string, string> = {
   png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp",
   gif: "image/gif", webm: "video/webm", mp4: "video/mp4",
+  // QuickTime: what an iPhone's screen recorder produces. Without it the clip would fall
+  // through to "png" and be served as an image — a broken video in the ticket.
+  mov: "video/quicktime",
+  heic: "image/heic", heif: "image/heif",
 };
 
 /** Map a data: URL's declared MIME to a file extension (screenshot → png, recording → webm). */

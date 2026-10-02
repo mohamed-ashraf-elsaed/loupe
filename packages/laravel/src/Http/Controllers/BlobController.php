@@ -19,12 +19,16 @@ class BlobController extends Controller
     private const MIME_EXT = [
         'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp',
         'image/gif' => 'gif', 'video/webm' => 'webm', 'video/mp4' => 'mp4',
+        // What an iPhone's screen recorder and camera produce. Unmapped MIMEs fall back
+        // to "png", which would serve the clip as an image — a broken video in the ticket.
+        'video/quicktime' => 'mov', 'image/heic' => 'heic', 'image/heif' => 'heif',
     ];
 
     /** File extension → content type served back on GET. */
     private const EXT_MIME = [
         'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp',
         'gif' => 'image/gif', 'webm' => 'video/webm', 'mp4' => 'video/mp4',
+        'mov' => 'video/quicktime', 'heic' => 'image/heic', 'heif' => 'image/heif',
     ];
 
     /** POST /{path}/v1/blobs — accept a data URL, store the media, return its URL. */
