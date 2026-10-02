@@ -11,6 +11,26 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.2] — 2026-10-02
+
+### Fixed
+
+- **A phone in "Request Desktop Site" mode is recognised as touch again.** Detection keyed
+  off `(pointer: coarse)` alone, and a desktop-mode phone reports a **fine** pointer — so
+  those users got the mouse path: a composer that grabbed the focus (keyboard over the
+  page) and a drag-select that fought the page scroll. It now also accepts `(hover: none)`
+  and a touch-capable screen (`maxTouchPoints` / `ontouchstart`).
+- **Video is possible on iOS again — via the camera.** Every iOS browser is WebKit, which
+  has no `getDisplayMedia`, so screen recording cannot work there and the tool was hidden.
+  Touch devices without it now get a **Camera** tool: one tap opens the phone's video
+  recorder and the clip is attached to the composer, like the screen-capture flows.
+
+### Added
+
+- Every comment records `viewport.{v, touch, coarse, gdm}` — the SDK build that produced it
+  and what the browser could do. A "still broken" report can then be checked against the
+  build that actually ran instead of guessed at.
+
 ## [0.10.1] — 2026-10-02
 
 ### Fixed
