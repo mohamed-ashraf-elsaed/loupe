@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Loupekit\Loupe\Loupe;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -41,8 +42,16 @@ class Authenticate
             }
         }
 
-        // Mirrors the framework's `auth` middleware: 401 for JSON, redirect to
-        // login for web requests.
+        // Mirrors the framework's `auth` middleware: 401 for JSON, redirect to login for
+        // web requests. A fresh Laravel 11+ app ships NO auth scaffolding, so it has no
+        // `login` route — and the redirect then throws "Route [login] not defined", i.e. a
+        // 500 on the very page `loupe:install` tells you to visit. Abort with a 403 that
+        // says what to do instead.
+        if (! $request->expectsJson() && ! Route::has('login')) {
+            abort(403, 'Unauthenticated. This app has no [login] route to redirect to — sign in '
+                .'your own way, then open the Loupe dashboard.');
+        }
+
         throw new AuthenticationException('Unauthenticated.', array_values(array_filter($this->loupe->guards())));
     }
 }
