@@ -11,6 +11,20 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.3] — 2026-10-02
+
+### Fixed
+
+- **The Camera tool is gone.** It opened the phone's camera, so the clip filmed the room
+  instead of the screen — wrong by design. It was added on the belief that `getDisplayMedia`
+  was an iOS gap; it is not. **No mobile browser supports it** (iOS Safari never has;
+  Chrome/Firefox on Android exposed the method in old versions but every call fails), so
+  in-page screen recording is desktop-only.
+- Record is therefore offered where the API genuinely exists (desktop, including Safari on
+  macOS) and nowhere else. On a phone — which cannot record the screen from a page at all —
+  the **Video** tool opens the picker for a clip the phone's own screen recorder produced,
+  with **no `capture` attribute**, because that is what was forcing the camera open.
+
 ## [0.10.2] — 2026-10-02
 
 ### Fixed
