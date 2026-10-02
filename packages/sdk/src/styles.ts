@@ -758,6 +758,43 @@ export const STYLES = /* css */ `
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* in-app mentions */
+.hnotif { margin-top: 10px; }
+.nf-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11.5px; color: var(--ink); }
+.nf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.nf-i {
+  display: flex; align-items: baseline; gap: 7px; width: 100%; text-align: left;
+  padding: 6px 8px; margin-bottom: 4px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.nf-i:hover { background: var(--bg-3); }
+.nf-b { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-w { flex: none; color: var(--muted); font-size: 10.5px; }
+.nf-read {
+  margin-top: 2px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--muted); font-size: 10.5px; cursor: pointer;
+}
+.nf-read:hover { border-color: var(--accent); color: var(--ink); }
+
+/* mention highlighting + autocomplete */
+.mention { color: var(--accent); font-weight: 600; }
+.mention-list {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+  padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2);
+}
+.mention-pick {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.mention-pick:hover { border-color: var(--accent); color: var(--accent); }
+/* "needs you" — the two reasons the stage cannot express */
+.needsline {
+  display: flex; align-items: center; gap: 7px; margin: 8px 0; padding: 7px 9px;
+  border: 1px solid #e0a92c; border-radius: 9px; background: var(--bg-2);
+  font-size: 11.5px; font-weight: 600; color: var(--ink);
+}
+.needs-dot { width: 7px; height: 7px; border-radius: 50%; background: #e0a92c; flex: none; }
+
 /* ------------------------------------------------------------- conversation */
 .convo { margin-top: 8px; }
 .convo-loading { padding: 10px; text-align: center; font-size: 11.5px; color: var(--muted); }

@@ -105,6 +105,29 @@ export class HttpAdapter implements StorageAdapter {
     return (await res.json()) as ThreadMessage;
   }
 
+  /** Everyone who has taken part in this project, for mention resolution. */
+  async listPeople(projectKey: string): Promise<{ id: string; name: string; email?: string }[]> {
+    const q = new URLSearchParams({ projectKey });
+    const res = await fetch(`${this.base}/v1/people?${q}`, this.opts({ headers: this.headers() }));
+    if (!res.ok) throw new Error(`listPeople failed: ${res.status}`);
+    return (await res.json()) as { id: string; name: string; email?: string }[];
+  }
+
+  async listNotifications(projectKey: string, recipient: string): Promise<any[]> {
+    const q = new URLSearchParams({ projectKey, recipient });
+    const res = await fetch(`${this.base}/v1/notifications?${q}`, this.opts({ headers: this.headers() }));
+    if (!res.ok) throw new Error(`listNotifications failed: ${res.status}`);
+    return ((await res.json()) as { notifications: any[] }).notifications;
+  }
+
+  async markNotificationsRead(projectKey: string, recipient: string, id?: string): Promise<void> {
+    await fetch(`${this.base}/v1/notifications/read`, this.opts({
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ projectKey, recipient, id }),
+    }));
+  }
+
   async update(id: string, patch: Partial<Comment>): Promise<void> {
     const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
       method: "PATCH",

@@ -11,6 +11,45 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.23] — 2026-10-02
+
+### Added
+
+- **Mentions** (milestone 0.13; #21). `@name` in a reply is parsed, resolved and acted on.
+  - **`parseMentions` / `resolveMentions` in `@loupekit/shared`** — conservative on purpose, because
+    the failure that matters is a *silent* one. An email address is not a mention (`sara@acme.test`
+    is preceded by a word character, which no mention ever is); a name inside a code span or a fenced
+    block is not one either; trailing punctuation is not part of the handle, so `@sara,` mentions
+    `sara` while `@jane.doe` keeps its dot. The same person mentioned twice is one mention.
+  - **Unresolved handles are returned, not dropped.** `resolveMentions` reports them and the message
+    endpoint returns `unknownMentions`, so the client can say "no such person" rather than leaving a
+    mention that quietly did nothing — which is the acceptance criterion.
+  - **Highlighting uses segments** rather than re-scanning the body, so the highlight lands on the
+    right occurrence and the rendered text is provably identical to the original.
+  - **Autocomplete** while a handle is being typed, matching on name, squashed name, email local part
+    or id, capped at six. The list is replaced in place, so the caret never moves.
+- **In-app notifications.** A `notifications` table with `GET /v1/notifications`,
+  `POST /v1/notifications/read` and an unread count. A mention creates one per person (never for the
+  author of the reply), and the panel shows a **"N mentions waiting"** block in Home — rendered only
+  when there are unread ones, since a permanent "0 unread" is noise — with a click through to the
+  thread and a *Mark as read* action.
+- **"Needs you", centralised.** `needsYou()` in `@loupekit/shared` is the one predicate, so the panel
+  and the dashboard cannot disagree about it. It flags a thread **in review**, an **agent's unanswered
+  question**, and a **failed agent run** — and, as importantly, it does *not* flag a thread an agent is
+  still working on, because counting those would train people to ignore the filter. A failure outranks
+  a question, and both outrank a routine review. Ten truth-table rows are asserted.
+  - The predicate has two levels: the board filter uses the stage (all it can see), and the thread
+    detail — where the messages are loaded — additionally catches an agent's question and a failed run.
+- **`GET /v1/people`** — who can be mentioned, derived from who has actually taken part rather than a
+  members table. There is no membership model yet (that is 0.17); inventing one here would be either a
+  stub or a lie.
+
+### Fixed
+
+- **The same person could appear twice in the mention list**, which would have notified them twice. A
+  comment carries the author's email and a reply may not, so `UNION` kept both rows. It uses
+  `DISTINCT ON (id)` preferring the row with an email.
+
 ## [0.10.22] — 2026-10-02
 
 ### Added

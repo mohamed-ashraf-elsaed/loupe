@@ -794,6 +794,43 @@ var Loupe = (() => {
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* in-app mentions */
+.hnotif { margin-top: 10px; }
+.nf-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11.5px; color: var(--ink); }
+.nf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.nf-i {
+  display: flex; align-items: baseline; gap: 7px; width: 100%; text-align: left;
+  padding: 6px 8px; margin-bottom: 4px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--bg-2); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.nf-i:hover { background: var(--bg-3); }
+.nf-b { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-w { flex: none; color: var(--muted); font-size: 10.5px; }
+.nf-read {
+  margin-top: 2px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--muted); font-size: 10.5px; cursor: pointer;
+}
+.nf-read:hover { border-color: var(--accent); color: var(--ink); }
+
+/* mention highlighting + autocomplete */
+.mention { color: var(--accent); font-weight: 600; }
+.mention-list {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+  padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2);
+}
+.mention-pick {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.mention-pick:hover { border-color: var(--accent); color: var(--accent); }
+/* "needs you" \u2014 the two reasons the stage cannot express */
+.needsline {
+  display: flex; align-items: center; gap: 7px; margin: 8px 0; padding: 7px 9px;
+  border: 1px solid #e0a92c; border-radius: 9px; background: var(--bg-2);
+  font-size: 11.5px; font-weight: 600; color: var(--ink);
+}
+.needs-dot { width: 7px; height: 7px; border-radius: 50%; background: #e0a92c; flex: none; }
+
 /* ------------------------------------------------------------- conversation */
 .convo { margin-top: 8px; }
 .convo-loading { padding: 10px; text-align: center; font-size: 11.5px; color: var(--muted); }
@@ -2990,6 +3027,25 @@ var Loupe = (() => {
       localStorage.setItem(this.msgKey(threadId), JSON.stringify(all));
       return stored;
     }
+    /** Offline: the people are whoever has already commented locally. */
+    async listPeople(projectKey) {
+      const prefix = `loupe:${projectKey}:`;
+      const seen = /* @__PURE__ */ new Map();
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        for (const c of this.parseList(k)) {
+          if (c.author?.id && !seen.has(c.author.id)) seen.set(c.author.id, c.author);
+        }
+      }
+      return [...seen.values()];
+    }
+    /** Offline mode has no server to notify anyone from. */
+    async listNotifications() {
+      return [];
+    }
+    async markNotificationsRead() {
+    }
     async update(id, patch) {
       for (const k of this.commentKeys()) {
         const list = this.parseList(k);
@@ -3099,6 +3155,26 @@ var Loupe = (() => {
       }));
       if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
       return await res.json();
+    }
+    /** Everyone who has taken part in this project, for mention resolution. */
+    async listPeople(projectKey) {
+      const q = new URLSearchParams({ projectKey });
+      const res = await fetch(`${this.base}/v1/people?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listPeople failed: ${res.status}`);
+      return await res.json();
+    }
+    async listNotifications(projectKey, recipient) {
+      const q = new URLSearchParams({ projectKey, recipient });
+      const res = await fetch(`${this.base}/v1/notifications?${q}`, this.opts({ headers: this.headers() }));
+      if (!res.ok) throw new Error(`listNotifications failed: ${res.status}`);
+      return (await res.json()).notifications;
+    }
+    async markNotificationsRead(projectKey, recipient, id) {
+      await fetch(`${this.base}/v1/notifications/read`, this.opts({
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({ projectKey, recipient, id })
+      }));
     }
     async update(id, patch) {
       const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
@@ -3384,6 +3460,111 @@ var Loupe = (() => {
     return lines.join("\n");
   }
 
+  // ../shared/dist/mentions.js
+  var HANDLE = /^[A-Za-z0-9][A-Za-z0-9._-]*/;
+  function excludedRanges(body) {
+    const ranges = [];
+    for (const m of body.matchAll(/```[\s\S]*?```/g))
+      ranges.push([m.index, m.index + m[0].length]);
+    const fenced = (i) => ranges.some(([a, b]) => i >= a && i < b);
+    for (const m of body.matchAll(/`[^`\n]*`/g)) {
+      if (!fenced(m.index))
+        ranges.push([m.index, m.index + m[0].length]);
+    }
+    return ranges;
+  }
+  function parseMentions(body) {
+    if (!body)
+      return [];
+    const excluded = excludedRanges(body);
+    const inExcluded = (i) => excluded.some(([a, b]) => i >= a && i < b);
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (let i = 0; i < body.length; i++) {
+      if (body[i] !== "@")
+        continue;
+      if (inExcluded(i))
+        continue;
+      const prev = i > 0 ? body[i - 1] : "";
+      if (prev && !/[\s([{<"'*_~]/.test(prev))
+        continue;
+      const match = HANDLE.exec(body.slice(i + 1));
+      if (!match)
+        continue;
+      const raw = match[0];
+      const handle = raw.replace(/[._-]+$/, "");
+      if (!handle)
+        continue;
+      const key = handle.toLowerCase();
+      if (seen.has(key))
+        continue;
+      seen.add(key);
+      out.push({ handle, start: i, length: handle.length + 1 });
+    }
+    return out;
+  }
+  function mentionSegments(body, mentions) {
+    if (!mentions.length)
+      return [{ text: body, mention: false }];
+    const sorted = [...mentions].sort((a, b) => a.start - b.start);
+    const out = [];
+    let at = 0;
+    for (const m of sorted) {
+      if (m.start > at)
+        out.push({ text: body.slice(at, m.start), mention: false });
+      out.push({ text: body.slice(m.start, m.start + m.length), mention: true });
+      at = m.start + m.length;
+    }
+    if (at < body.length)
+      out.push({ text: body.slice(at), mention: false });
+    return out;
+  }
+  function mentionSuggestions(body, caret, candidates) {
+    const before = body.slice(0, caret);
+    const at = before.lastIndexOf("@");
+    if (at < 0)
+      return [];
+    const typed = before.slice(at + 1);
+    if (/\s/.test(typed))
+      return [];
+    const q = typed.toLowerCase();
+    return candidates.filter((c) => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)).slice(0, 6);
+  }
+
+  // ../shared/dist/needs-you.js
+  var NEEDS_YOU_LABELS = {
+    review: "Waiting on your review",
+    question: "The agent asked you something",
+    failed: "The agent's run failed"
+  };
+  function looksLikeQuestion(body) {
+    const lines = body.split("\n").map((l) => l.trim()).filter(Boolean);
+    const last = lines[lines.length - 1];
+    if (!last)
+      return false;
+    return /\?["')\]]*$/.test(last);
+  }
+  function needsYou(input) {
+    const stage = normalizeStage2(input.status);
+    if (stage === "resolved")
+      return { needs: false };
+    if (input.agentFailed)
+      return { needs: true, reason: "failed", label: NEEDS_YOU_LABELS.failed };
+    if (input.last?.fromAgent && looksLikeQuestion(input.last.body)) {
+      return { needs: true, reason: "question", label: NEEDS_YOU_LABELS.question };
+    }
+    if (stage === "in_review")
+      return { needs: true, reason: "review", label: NEEDS_YOU_LABELS.review };
+    return { needs: false };
+  }
+  function normalizeStage2(status) {
+    if (status === "open")
+      return "queue";
+    if (status === "done")
+      return "resolved";
+    return status;
+  }
+
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
   var STAGE_LABELS = {
@@ -3431,7 +3612,7 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.22" : "dev";
+  var SDK_VERSION = true ? "0.10.23" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -3620,6 +3801,8 @@ var Loupe = (() => {
        * rather than a `.tab-<id>` selector, so host-registered ids need no CSS.
        */
       this.viewEls = /* @__PURE__ */ new Map();
+      /** In-app notifications: mentions of you, newest first. */
+      this.notifications = [];
       // ---- inspector ------------------------------------------------------------
       // Pointer Events, not mouse events: a touch drag on a phone never fires
       // mousemove/mouseup, so Region/Record selection was impossible on touch devices.
@@ -3847,6 +4030,8 @@ var Loupe = (() => {
       /** Optimistic replies the store rejected — offered for retry rather than lost. */
       this.msgFailed = /* @__PURE__ */ new Set();
       this.msgErr = /* @__PURE__ */ new Map();
+      /** Everyone who has taken part, for mention autocomplete. Fetched once. */
+      this.people = /* @__PURE__ */ new Map();
       this.cfg = cfg;
       this.store = cfg.apiBase ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac, cfg.headers, cfg.credentials) : new LocalStorageAdapter();
     }
@@ -3864,6 +4049,7 @@ var Loupe = (() => {
       this.renderPins();
       this.renderList();
       this.renderHome();
+      void this.loadNotifications();
       if (this.scope === "all") void this.loadAllComments();
       this.observe();
       this.watchNavigation();
@@ -4239,7 +4425,7 @@ var Loupe = (() => {
      */
     buildHomePanel() {
       const title = this.cfg.label ?? "Loupe";
-      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-repo"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
+      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-repo"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hnotif" id="loupe-hnotif"></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
       this.homeEl.querySelector('[data-role="proj-open"]').onclick = (e) => {
         e.stopPropagation();
         this.setProjectOpen(!this.projOpen);
@@ -4285,7 +4471,10 @@ var Loupe = (() => {
       const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
       return [
         { key: "open", label: "Open", n: list.filter((c) => normalizeStatus(c.status) !== "resolved").length },
-        { key: "needs_you", label: "Needs you", n: list.filter((c) => normalizeStatus(c.status) === "in_review").length },
+        // The shared predicate, so the panel and the dashboard cannot disagree about
+        // what "needs you" means. Only the stage is available here — the reasons that
+        // depend on the last message are computed where the messages are loaded.
+        { key: "needs_you", label: "Needs you", n: list.filter((c) => needsYou({ status: c.status }).needs).length },
         { key: "resolved", label: "Resolved", n: list.filter((c) => normalizeStatus(c.status) === "resolved").length },
         {
           key: "stale",
@@ -4322,6 +4511,7 @@ var Loupe = (() => {
         b.querySelector(".hscope-n").textContent = counts[scope];
       });
       this.renderProject();
+      this.renderNotifications();
       const feed = this.homeEl.querySelector("#loupe-hfeed");
       if (!feed) return;
       const recent = [...this.visibleComments].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
@@ -4340,6 +4530,50 @@ var Loupe = (() => {
           this.flash(id);
         };
       });
+    }
+    async loadNotifications() {
+      try {
+        const list = await this.store.listNotifications(this.cfg.projectKey, this.cfg.user.id);
+        this.notifications = Array.isArray(list) ? list : [];
+      } catch {
+        this.notifications = [];
+      }
+      this.renderNotifications();
+    }
+    /**
+     * The mentions block. Rendered only when there are unread ones — a permanent empty
+     * "0 unread" is noise, and the whole point is that it appears when it matters.
+     */
+    renderNotifications() {
+      const box = this.homeEl?.querySelector("#loupe-hnotif");
+      if (!box) return;
+      const unread = this.notifications.filter((n) => !n.readAt);
+      if (!unread.length) {
+        box.innerHTML = "";
+        box.style.display = "none";
+        return;
+      }
+      box.style.display = "";
+      box.innerHTML = `<div class="nf-head"><span class="nf-dot"></span><b>${unread.length}</b> mention${unread.length === 1 ? "" : "s"} waiting</div>` + unread.slice(0, 3).map((n) => `<button class="nf-i" data-thread="${escapeAttr(n.threadId)}"><span class="nf-b">${escapeHtml(n.body)}</span><span class="nf-w">${escapeHtml(fmtAgo(n.createdAt))}</span></button>`).join("") + `<button class="nf-read">Mark as read</button>`;
+      box.querySelectorAll(".nf-i").forEach((b) => {
+        b.onclick = () => {
+          const id = b.dataset.thread;
+          this.scope = "all";
+          if (!this.allComments.length) void this.loadAllComments();
+          this.statFilter = "";
+          this.setTab("comments");
+          this.expanded.add(id);
+          this.renderList();
+          this.flash(id);
+        };
+      });
+      box.querySelector(".nf-read").onclick = async () => {
+        try {
+          await this.store.markNotificationsRead(this.cfg.projectKey, this.cfg.user.id);
+        } catch {
+        }
+        void this.loadNotifications();
+      };
     }
     // ---- project manager (#60) ------------------------------------------------
     /** The repo new comments are filed against: the panel's choice, else the config. */
@@ -5444,7 +5678,7 @@ var Loupe = (() => {
       let items = this.visibleComments.filter((c) => {
         const stage = normalizeStatus(c.status);
         if (this.statFilter === "open" && stage === "resolved") return false;
-        if (this.statFilter === "needs_you" && stage !== "in_review") return false;
+        if (this.statFilter === "needs_you" && !needsYou({ status: c.status }).needs) return false;
         if (this.statFilter === "resolved" && stage !== "resolved") return false;
         if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
         if (this.repoFilter && c.repo !== this.repoFilter) return false;
@@ -5546,6 +5780,18 @@ var Loupe = (() => {
       const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
       item.appendChild(el("div", "summary", summary));
       const detail = el("div", "detail");
+      const repliesForState = this.messages.get(c.id) ?? [];
+      const lastMsg = repliesForState.length ? repliesForState[repliesForState.length - 1] : void 0;
+      const attention = needsYou({
+        status: c.status,
+        last: lastMsg ? { fromAgent: lastMsg.author.type === "agent", body: lastMsg.body } : null,
+        agentFailed: this.msgFailed.has(lastMsg?.id ?? "")
+      });
+      if (c.status !== "resolved" && attention.needs && attention.reason !== "review") {
+        const line = el("div", "needsline");
+        line.append(el("span", "needs-dot"), el("span", "", attention.label ?? "Needs you"));
+        detail.appendChild(line);
+      }
       if (c.status === "in_review") detail.appendChild(this.reviewBanner(c));
       if (c.proposal) detail.appendChild(this.proposalView(c));
       if (c.title || c.body.includes("\n")) detail.appendChild(el("div", "body", c.body));
@@ -6106,7 +6352,12 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
           el("span", "msg-when", fmtAgo(m.createdAt))
         );
         if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
-        row.append(head, el("div", "msg-body", m.body));
+        const body = el("div", "msg-body");
+        for (const seg of mentionSegments(m.body, parseMentions(m.body))) {
+          if (seg.mention) body.appendChild(el("span", "mention", seg.text));
+          else body.appendChild(document.createTextNode(seg.text));
+        }
+        row.append(head, body);
         if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending\u2026"));
         if (this.msgFailed.has(m.id)) {
           const failed = el("div", "msg-state failed");
@@ -6143,7 +6394,40 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
         void this.sendReply(c, input.value);
       };
       foot.append(el("span", "reply-hint", "@ to mention"), send);
-      reply.append(input, foot);
+      const suggest = el("div", "mention-list");
+      suggest.style.display = "none";
+      const refreshSuggestions = () => {
+        const matches = mentionSuggestions(input.value, input.selectionStart ?? input.value.length, this.people.get(this.cfg.projectKey) ?? []);
+        suggest.textContent = "";
+        if (!matches.length) {
+          suggest.style.display = "none";
+          return;
+        }
+        suggest.style.display = "";
+        for (const person of matches) {
+          const b = el("button", "mention-pick", person.name);
+          b.onclick = (e) => {
+            e.stopPropagation();
+            const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+            const at = before.lastIndexOf("@");
+            const after = input.value.slice(input.selectionStart ?? input.value.length);
+            input.value = `${before.slice(0, at)}@${person.name.replace(/\s+/g, "")} ${after}`;
+            this.msgDrafts.set(c.id, input.value);
+            suggest.style.display = "none";
+            input.focus();
+          };
+          suggest.appendChild(b);
+        }
+      };
+      input.oninput = () => {
+        this.msgDrafts.set(c.id, input.value);
+        refreshSuggestions();
+      };
+      input.onkeyup = () => refreshSuggestions();
+      input.onblur = () => setTimeout(() => {
+        suggest.style.display = "none";
+      }, 150);
+      reply.append(input, suggest, foot);
       wrap.appendChild(reply);
       const timeline = threadTimeline(c, asRows);
       const tl = el("div", "tl");
@@ -6185,9 +6469,18 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       wrap.appendChild(copyRow);
       return wrap;
     }
+    async loadPeople() {
+      if (this.people.has(this.cfg.projectKey)) return;
+      try {
+        this.people.set(this.cfg.projectKey, await this.store.listPeople(this.cfg.projectKey));
+      } catch {
+        this.people.set(this.cfg.projectKey, []);
+      }
+    }
     /** Fetch replies once, when a card is first expanded. */
     async loadMessages(c) {
       if (this.messages.has(c.id)) return;
+      void this.loadPeople();
       try {
         this.messages.set(c.id, await this.store.listMessages(c.id));
       } catch {

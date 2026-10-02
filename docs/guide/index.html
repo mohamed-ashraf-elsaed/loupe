@@ -1217,9 +1217,28 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.22</strong> (2026-10-02).</p>
+          release: <strong>0.10.23</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.23</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Mentions.</strong> <code>@name</code> in a reply is parsed, resolved and acted on.
+              An email address is not a mention, nor is a name inside a code span, and trailing
+              punctuation is not part of the handle. A handle that matches nobody is <em>reported</em>
+              rather than dropped — a mention that quietly does nothing is the failure worth avoiding.</li>
+            <li><strong>In-app notifications</strong> — a mention notifies each person once (never the
+              author), and Home shows a <em>“N mentions waiting”</em> block with a click through to the
+              thread and <em>Mark as read</em>.</li>
+            <li><strong>“Needs you”, centralised.</strong> One predicate flags a thread in review, an
+              agent's unanswered question and a failed run — and deliberately does <em>not</em> flag a
+              thread an agent is still working on, because counting those would train people to ignore
+              the filter.</li>
+            <li><strong>Fixed:</strong> the same person could appear twice in the mention list, which
+              would have notified them twice.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.22</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
           <ul class="bul">
             <li><strong>The conversation is in the panel.</strong> Expanding a thread shows its replies, a

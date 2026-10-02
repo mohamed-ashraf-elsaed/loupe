@@ -156,6 +156,20 @@ export async function migrate(): Promise<void> {
       last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (thread_id, author_id)
     );`);
+  // In-app notifications. Created when someone is mentioned; read state is per person.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      project_key TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      body TEXT NOT NULL,
+      actor_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      read_at TIMESTAMPTZ
+    );`);
+  await d.query(`CREATE INDEX IF NOT EXISTS notifications_inbox ON notifications (project_key, recipient_id, created_at);`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).

@@ -11,7 +11,9 @@ import {
 } from "./branches.ts";
 import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } from "./blobs.ts";
 import { migrate } from "./db.ts";
+import { addNotification, listNotifications, listPeople, markRead, unreadCount } from "./notifications.ts";
 import { addMessage, deleteMessage, listMessages, listParticipants } from "./messages.ts";
+import { resolveMentions } from "@loupekit/shared";
 import type { Comment } from "@loupekit/shared";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -181,6 +183,33 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const auth = await authenticate(comment.projectKey, req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       return send(res, 200, { ok: await deleteMessage(threadId, decodeURIComponent(messageDelete[2]!)) });
+    }
+
+    // ---- notifications -----------------------------------------------------
+    if (path === "/v1/notifications" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      const recipient = url.searchParams.get("recipient") ?? String(req.headers["x-loupe-user"] ?? "");
+      if (!recipient) return send(res, 400, { error: "recipient is required" });
+      const unreadOnly = url.searchParams.get("unread") === "1";
+      return send(res, 200, {
+        notifications: await listNotifications(auth.projectKey, recipient, { unreadOnly }),
+        unread: await unreadCount(auth.projectKey, recipient),
+      });
+    }
+    if (path === "/v1/notifications/read" && req.method === "POST") {
+      const body = await readBody(req);
+      const auth = await authenticate(body.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      const recipient = body.recipient ?? String(req.headers["x-loupe-user"] ?? "");
+      if (!recipient) return send(res, 400, { error: "recipient is required" });
+      return send(res, 200, { marked: await markRead(auth.projectKey, recipient, body.id) });
+    }
+    // Who can be mentioned: everyone who has taken part in this project.
+    if (path === "/v1/people" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      return send(res, 200, await listPeople(auth.projectKey));
     }
 
     // Is there a preview for this branch yet? Answers, or says "not ready".

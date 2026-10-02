@@ -1399,6 +1399,7 @@ describe("LoupeApp", () => {
         return new Response(JSON.stringify({ error: "boom" }), { status: 500 });
       }
       if (url.includes("/messages")) return new Response("[]", { status: 200 });
+      if (url.includes("/notifications")) return new Response(JSON.stringify({ notifications: [], unread: 0 }), { status: 200 });
       if (url.includes("/v1/comments")) return new Response(JSON.stringify([comment]), { status: 200 });
       return new Response("[]", { status: 200 });
     }) as unknown as typeof fetch;
@@ -1468,6 +1469,137 @@ describe("LoupeApp", () => {
     expect(text).toContain("- Target: `.x`");
     expect(text).toContain("It is too small.");
     expect(sr().querySelector<HTMLElement>(".copy-b")!.textContent).toBe("Copied ✓");
+  });
+
+  it("highlights a mentioned name in a reply", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "a1", name: "Claude Code", type: "agent" }, body: "cc @sara on this", createdAt: "2026-01-01T11:00:00.000Z" },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const body = [...sr().querySelectorAll<HTMLElement>(".msg-body")].find((b) => b.textContent!.includes("@sara"))!;
+    const mention = body.querySelector(".mention")!;
+    expect(mention.textContent).toBe("@sara");
+    // The body still reads as the original text — nothing is lost to highlighting.
+    expect(body.textContent).toBe("cc @sara on this");
+  });
+
+  it("does not highlight an email address in a reply", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "u1", name: "Sara", type: "user" }, body: "mail sara@acme.test", createdAt: "2026-01-01T11:00:00.000Z" },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelector(".mention")).toBeFalsy();
+  });
+
+  it("suggests people while a handle is being typed", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", author: { id: "u1", name: "Sara Ahmed" } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const input = sr().querySelector<HTMLTextAreaElement>(".reply-in")!;
+    // The offline adapter derives people from who has already commented.
+    input.value = "hi @sar";
+    input.setSelectionRange(7, 7);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 10));
+
+    const picks = [...sr().querySelectorAll<HTMLElement>(".mention-pick")];
+    expect(picks.map((p) => p.textContent)).toEqual(["Sara Ahmed"]);
+
+    // Choosing one inserts the handle and hides the list.
+    picks[0]!.click();
+    expect(input.value).toBe("hi @SaraAhmed ");
+    expect((sr().querySelector<HTMLElement>(".mention-list") as HTMLElement).style.display).toBe("none");
+  });
+
+  it("does not offer suggestions outside a handle", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const input = sr().querySelector<HTMLTextAreaElement>(".reply-in")!;
+    input.value = "no mention here";
+    input.setSelectionRange(16, 16);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 10));
+    expect((sr().querySelector<HTMLElement>(".mention-list") as HTMLElement).style.display).toBe("none");
+  });
+
+  it("needs-you counts what a human must act on, using the shared predicate", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "a", title: "queued", status: "queue" }),
+      seeded({ id: "b", title: "working", status: "in_progress" }),
+      seeded({ id: "c", title: "review", status: "in_review" }),
+      seeded({ id: "d", title: "done", status: "resolved" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const tile = [...sr().querySelectorAll<HTMLElement>(".hstat-b")].find((b) => b.querySelector(".hstat-l")!.textContent === "Needs you")!;
+    expect(tile.querySelector(".hstat-n")!.textContent).toBe("1");
+
+    // The tile filters to exactly those, and excludes what an agent is working on.
+    tile.click();
+    expect(sr().querySelectorAll(".item").length).toBe(1);
+    expect(sr().querySelector(".item .summary")!.textContent).toBe("review");
+  });
+
+  it("shows an in-app mention, and can mark it read", async () => {
+    const comment = seeded({ id: "t1", title: "The CTA", body: "b" });
+    const realFetch = globalThis.fetch;
+    let marked = false;
+    globalThis.fetch = (async (url: string, init: any = {}) => {
+      if (url.includes("/notifications/read")) { marked = true; return new Response("{}", { status: 200 }); }
+      if (url.includes("/notifications")) {
+        // Unread until the client says otherwise, so the assertion has a before/after.
+        const list = marked ? [] : [
+          { id: "n1", threadId: "t1", kind: "mention", body: "Sara mentioned you", actorName: "Sara", createdAt: new Date().toISOString() },
+        ];
+        return new Response(JSON.stringify({ notifications: list, unread: list.length }), { status: 200 });
+      }
+      if (url.includes("/v1/comments")) return new Response(JSON.stringify([comment]), { status: 200 });
+      return new Response("[]", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 40));
+
+      const box = sr().querySelector<HTMLElement>("#loupe-hnotif")!;
+      expect(box.style.display).not.toBe("none");
+      expect(box.textContent).toContain("1 mention waiting");
+      expect(box.textContent).toContain("Sara mentioned you");
+
+      (box.querySelector(".nf-read") as HTMLElement).click();
+      await new Promise((r) => setTimeout(r, 40));
+      expect(marked).toBe(true);
+      // Gone once read — a permanent "0 unread" is noise.
+      expect((sr().querySelector<HTMLElement>("#loupe-hnotif") as HTMLElement).style.display).toBe("none");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
   it("does not initialize without projectKey or user id", () => {

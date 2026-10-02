@@ -30,6 +30,10 @@ import {
   STAGE_LABELS,
   stackLabel,
   threadAsText,
+  mentionSegments,
+  mentionSuggestions,
+  needsYou,
+  parseMentions,
   threadConversation,
   threadTimeline,
   summarizeActivity,
@@ -319,6 +323,7 @@ export class LoupeApp {
     this.renderPins();
     this.renderList();
     this.renderHome();
+    void this.loadNotifications();
     // A restored "All" scope needs the project-wide list.
     if (this.scope === "all") void this.loadAllComments();
     this.observe();
@@ -861,6 +866,7 @@ export class LoupeApp {
       // instead — landing off the bottom of the view.
       `<div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div>` +
       `</div>` +
+      `<div class="hnotif" id="loupe-hnotif"></div>` +
       `<div class="hlabel">Recent</div>` +
       `<div class="hfeed" id="loupe-hfeed"></div>` +
       `<div class="hfoot">${escapeHtml(title)} · <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
@@ -915,7 +921,10 @@ export class LoupeApp {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return [
       { key: "open", label: "Open", n: list.filter((c) => normalizeStatus(c.status) !== "resolved").length },
-      { key: "needs_you", label: "Needs you", n: list.filter((c) => normalizeStatus(c.status) === "in_review").length },
+      // The shared predicate, so the panel and the dashboard cannot disagree about
+      // what "needs you" means. Only the stage is available here — the reasons that
+      // depend on the last message are computed where the messages are loaded.
+      { key: "needs_you", label: "Needs you", n: list.filter((c) => needsYou({ status: c.status }).needs).length },
       { key: "resolved", label: "Resolved", n: list.filter((c) => normalizeStatus(c.status) === "resolved").length },
       {
         key: "stale",
@@ -962,6 +971,7 @@ export class LoupeApp {
       (b.querySelector(".hscope-n") as HTMLElement).textContent = counts[scope];
     });
     this.renderProject();
+    this.renderNotifications();
 
     const feed = this.homeEl.querySelector("#loupe-hfeed") as HTMLElement | null;
     if (!feed) return;
@@ -989,6 +999,61 @@ export class LoupeApp {
         this.flash(id);
       };
     });
+  }
+
+  /** In-app notifications: mentions of you, newest first. */
+  private notifications: { id: string; threadId: string; body: string; actorName?: string; createdAt: string; readAt?: string }[] = [];
+
+
+  private async loadNotifications() {
+    try {
+      // Guarded at the boundary rather than trusted: an adapter (or a server) that
+      // answers with something other than a list must not leave `notifications`
+      // undefined and take the whole Home render down with it.
+      const list = await this.store.listNotifications(this.cfg.projectKey, this.cfg.user.id);
+      this.notifications = Array.isArray(list) ? list : [];
+    } catch {
+      this.notifications = [];
+    }
+    this.renderNotifications();
+  }
+
+  /**
+   * The mentions block. Rendered only when there are unread ones — a permanent empty
+   * "0 unread" is noise, and the whole point is that it appears when it matters.
+   */
+  private renderNotifications() {
+    const box = this.homeEl?.querySelector("#loupe-hnotif") as HTMLElement | null;
+    if (!box) return;
+    const unread = this.notifications.filter((n) => !n.readAt);
+    if (!unread.length) { box.innerHTML = ""; box.style.display = "none"; return; }
+    box.style.display = "";
+    box.innerHTML =
+      `<div class="nf-head"><span class="nf-dot"></span><b>${unread.length}</b> mention${unread.length === 1 ? "" : "s"} waiting</div>` +
+      unread.slice(0, 3).map((n) =>
+        `<button class="nf-i" data-thread="${escapeAttr(n.threadId)}">` +
+        `<span class="nf-b">${escapeHtml(n.body)}</span>` +
+        `<span class="nf-w">${escapeHtml(fmtAgo(n.createdAt))}</span></button>`).join("") +
+      `<button class="nf-read">Mark as read</button>`;
+
+    box.querySelectorAll<HTMLElement>(".nf-i").forEach((b) => {
+      b.onclick = () => {
+        const id = b.dataset.thread!;
+        this.scope = "all";
+        if (!this.allComments.length) void this.loadAllComments();
+        this.statFilter = "";
+        this.setTab("comments");
+        this.expanded.add(id);
+        this.renderList();
+        this.flash(id);
+      };
+    });
+    (box.querySelector(".nf-read") as HTMLElement).onclick = async () => {
+      try {
+        await this.store.markNotificationsRead(this.cfg.projectKey, this.cfg.user.id);
+      } catch { /* the badge will clear on the next load if this failed */ }
+      void this.loadNotifications();
+    };
   }
 
   // ---- project manager (#60) ------------------------------------------------
@@ -2450,7 +2515,7 @@ export class LoupeApp {
     let items = this.visibleComments.filter((c) => {
       const stage = normalizeStatus(c.status);
       if (this.statFilter === "open" && stage === "resolved") return false;
-      if (this.statFilter === "needs_you" && stage !== "in_review") return false;
+      if (this.statFilter === "needs_you" && !needsYou({ status: c.status }).needs) return false;
       if (this.statFilter === "resolved" && stage !== "resolved") return false;
       if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
       if (this.repoFilter && c.repo !== this.repoFilter) return false;
@@ -2585,6 +2650,21 @@ export class LoupeApp {
     item.appendChild(el("div", "summary", summary));
 
     const detail = el("div", "detail");
+    // With the messages loaded, the predicate can see the two reasons the stage cannot
+    // express: an agent's unanswered question, and a failed run. A routine review
+    // needs no line — it has the banner below.
+    const repliesForState = this.messages.get(c.id) ?? [];
+    const lastMsg = repliesForState.length ? repliesForState[repliesForState.length - 1] : undefined;
+    const attention = needsYou({
+      status: c.status,
+      last: lastMsg ? { fromAgent: lastMsg.author.type === "agent", body: lastMsg.body } : null,
+      agentFailed: this.msgFailed.has(lastMsg?.id ?? ""),
+    });
+    if (c.status !== "resolved" && attention.needs && attention.reason !== "review") {
+      const line = el("div", "needsline");
+      line.append(el("span", "needs-dot"), el("span", "", attention.label ?? "Needs you"));
+      detail.appendChild(line);
+    }
     // A thread in review leads with its banner: this is the one place a human is
     // being asked to decide something, so it goes above everything else.
     if (c.status === "in_review") detail.appendChild(this.reviewBanner(c));
@@ -3215,7 +3295,14 @@ export class LoupeApp {
         el("span", "msg-when", fmtAgo(m.createdAt)),
       );
       if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
-      row.append(head, el("div", "msg-body", m.body));
+      // The body is rendered as segments so a mentioned name is highlightable — and
+      // so the highlight lands on the right occurrence rather than the first.
+      const body = el("div", "msg-body");
+      for (const seg of mentionSegments(m.body, parseMentions(m.body))) {
+        if (seg.mention) body.appendChild(el("span", "mention", seg.text));
+        else body.appendChild(document.createTextNode(seg.text));
+      }
+      row.append(head, body);
 
       if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending…"));
       if (this.msgFailed.has(m.id)) {
@@ -3247,7 +3334,35 @@ export class LoupeApp {
     send.setAttribute("aria-label", "Send reply");
     send.onclick = (e) => { e.stopPropagation(); void this.sendReply(c, input.value); };
     foot.append(el("span", "reply-hint", "@ to mention"), send);
-    reply.append(input, foot);
+    // Autocomplete: shown while a handle is being typed, hidden otherwise. The list is
+    // replaced in place rather than re-rendering the card, so the caret never moves.
+    const suggest = el("div", "mention-list");
+    suggest.style.display = "none";
+    const refreshSuggestions = () => {
+      const matches = mentionSuggestions(input.value, input.selectionStart ?? input.value.length, this.people.get(this.cfg.projectKey) ?? []);
+      suggest.textContent = "";
+      if (!matches.length) { suggest.style.display = "none"; return; }
+      suggest.style.display = "";
+      for (const person of matches) {
+        const b = el("button", "mention-pick", person.name) as HTMLButtonElement;
+        b.onclick = (e) => {
+          e.stopPropagation();
+          const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+          const at = before.lastIndexOf("@");
+          const after = input.value.slice(input.selectionStart ?? input.value.length);
+          // Insert the squashed name so it resolves against the same person later.
+          input.value = `${before.slice(0, at)}@${person.name.replace(/\s+/g, "")} ${after}`;
+          this.msgDrafts.set(c.id, input.value);
+          suggest.style.display = "none";
+          input.focus();
+        };
+        suggest.appendChild(b);
+      }
+    };
+    input.oninput = () => { this.msgDrafts.set(c.id, input.value); refreshSuggestions(); };
+    input.onkeyup = () => refreshSuggestions();
+    input.onblur = () => setTimeout(() => { suggest.style.display = "none"; }, 150);
+    reply.append(input, suggest, foot);
     wrap.appendChild(reply);
 
     // ---- timeline ----------------------------------------------------------
@@ -3285,9 +3400,23 @@ export class LoupeApp {
     return wrap;
   }
 
+  /** Everyone who has taken part, for mention autocomplete. Fetched once. */
+  private people = new Map<string, { id: string; name: string; email?: string }[]>();
+
+  private async loadPeople() {
+    if (this.people.has(this.cfg.projectKey)) return;
+    try {
+      this.people.set(this.cfg.projectKey, await this.store.listPeople(this.cfg.projectKey));
+    } catch {
+      this.people.set(this.cfg.projectKey, []);
+    }
+  }
+
   /** Fetch replies once, when a card is first expanded. */
   private async loadMessages(c: Comment) {
     if (this.messages.has(c.id)) return;
+    // A mention needs the people list; fetch it alongside the first thread opened.
+    void this.loadPeople();
     try {
       this.messages.set(c.id, await this.store.listMessages(c.id));
     } catch {

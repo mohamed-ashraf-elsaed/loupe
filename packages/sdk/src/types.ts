@@ -198,7 +198,20 @@ export interface StorageAdapter {
   upload(projectKey: string, file: File): Promise<Attachment>;
   /** Replies on a thread, oldest first. The comment's own body is message #1. */
   listMessages(threadId: string): Promise<ThreadMessage[]>;
-  addMessage(threadId: string, message: { author: ThreadAuthor; body: string }): Promise<ThreadMessage>;
+  /**
+   * Post a reply. Resolves to the stored message, plus any mentions the server
+   * resolved and — importantly — the handles it could not, so the UI can say so
+   * instead of leaving a mention that silently did nothing.
+   */
+  addMessage(
+    threadId: string,
+    message: { author: ThreadAuthor; body: string },
+  ): Promise<ThreadMessage & { mentions?: string[]; unknownMentions?: string[] }>;
+  /** Everyone who has taken part in the project — the people you can mention. */
+  listPeople(projectKey: string): Promise<{ id: string; name: string; email?: string }[]>;
+  /** In-app notifications for this user. */
+  listNotifications(projectKey: string, recipient: string): Promise<{ id: string; threadId: string; kind: string; body: string; actorName?: string; createdAt: string; readAt?: string }[]>;
+  markNotificationsRead(projectKey: string, recipient: string, id?: string): Promise<void>;
 }
 
 /** Result of trying to re-locate an anchored element on the current page. */

@@ -7,6 +7,8 @@ export * from "./consent.js";
 export * from "./preview.js";
 export * from "./thread.js";
 export * from "./timeline.js";
+export * from "./mentions.js";
+export * from "./needs-you.js";
 
 // `export *` re-exports without bringing names into this module's scope.
 import type { PrInfo } from "./lifecycle.js";

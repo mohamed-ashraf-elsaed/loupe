@@ -116,6 +116,29 @@ export class LocalStorageAdapter implements StorageAdapter {
     return stored;
   }
 
+  /** Offline: the people are whoever has already commented locally. */
+  async listPeople(projectKey: string): Promise<{ id: string; name: string; email?: string }[]> {
+    const prefix = `loupe:${projectKey}:`;
+    const seen = new Map<string, { id: string; name: string; email?: string }>();
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      for (const c of this.parseList(k)) {
+        if (c.author?.id && !seen.has(c.author.id)) seen.set(c.author.id, c.author);
+      }
+    }
+    return [...seen.values()];
+  }
+
+  /** Offline mode has no server to notify anyone from. */
+  async listNotifications(): Promise<any[]> {
+    return [];
+  }
+
+  async markNotificationsRead(): Promise<void> {
+    /* nothing to mark offline */
+  }
+
   async update(id: string, patch: Partial<Comment>): Promise<void> {
     // We don't know the url here, so scan the loupe:* list keys for the id.
     for (const k of this.commentKeys()) {
