@@ -2455,7 +2455,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.3" : "dev";
+  var SDK_VERSION = true ? "0.10.4" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;

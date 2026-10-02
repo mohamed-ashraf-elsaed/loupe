@@ -11,6 +11,17 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.4] — 2026-10-02
+
+### Fixed
+
+- **An iPhone screen recording reaches the ticket as a playable video.** The blob MIME maps
+  knew png/jpeg/webp/gif/webm/mp4 but not `video/quicktime` — what iOS hands a file picker
+  for a screen recording. Unmapped values fall back to `png`, so the clip was stored as
+  `.png` and served as `image/png`: the video the reporter had just recorded arrived as a
+  broken image. `video/quicktime`, `image/heic` and `image/heif` are now mapped (Laravel
+  package and Node server).
+
 ## [0.10.3] — 2026-10-02
 
 ### Fixed
