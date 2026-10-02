@@ -11,6 +11,18 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.1] — 2026-10-02
+
+### Fixed
+
+- **Record works on a phone again.** 0.10.0 hid the tool on every coarse pointer: right
+  for iOS Safari, which has no `getDisplayMedia` at all, but wrong for **Android Chrome**,
+  which can capture the screen — so touch users lost video entirely. Record is now offered
+  wherever `getDisplayMedia` exists; on touch there is no box to drag, so tapping it
+  records the **whole screen** (the call stays synchronous with the tap, as the API
+  requires), the tap-to-**Stop** pill ends it, and the composer opens with the video
+  attached. Desktop keeps its drag-select.
+
 ## [0.10.0] — 2026-10-02
 
 ### Added

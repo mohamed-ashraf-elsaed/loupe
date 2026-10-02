@@ -192,7 +192,7 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.0" });
+const server = new McpServer({ name: "loupe", version: "0.10.1" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Use this to see what a PM has flagged, then work through the items.",
