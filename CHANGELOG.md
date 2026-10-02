@@ -11,6 +11,47 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.19] — 2026-10-02
+
+### Added
+
+- **The workspace source mapper** (`packages/mcp/src/mapper.ts`) — the single highest-value parity gap.
+  Loupe used to hand an agent raw HTML, so it had to re-find the file that rendered it every single
+  time. `mapElementToSource()` walks the workspace and returns ranked `file:line` candidates instead.
+  (Milestone 0.11; #13.)
+  - **Signal weights in one table**, so the model is tunable and readable: id 0.85, aria-label 0.8,
+    text 0.7, class 0.5. Boosts for a PascalCase component basename, a view file, a path under `src/`,
+    several signals agreeing on one file, and repeated matches.
+  - **Utility classes are filtered before searching.** `flex`, `mt-4`, `bg-blue-500`, `hover:x` and
+    `md:y` appear in a stylesheet, never in the JSX that renders the button — searching for them
+    produces noise, not answers.
+  - **Build output is skipped**, by directory (`node_modules`, `dist`, `build`, `.next`, `vendor`,
+    caches…) *and* by shape: a file with a line over 1500 characters is generated, wherever it lives.
+    That second rule matters — the extension's own `content.js` sits in a package root and ranked first
+    for every signal until it existed.
+  - Breadth-first walk with a file cap (default 4000), a per-file size cap, a total scan budget, a
+    short-lived file-list cache, and bounded read concurrency.
+  - An empty result is an answer, not an error: no match, a missing root and a blank workspace all
+    resolve to `[]`.
+- **Four element-context MCP tools** (milestone 0.11; #14): `get_latest_selection`,
+  `get_selection_history`, `get_element_context` and `find_source_for_selection`.
+  - Each takes **either a live selection** (bridged from the browser) **or a `thread_id`**, and
+    `threadContextToPayload()` normalises a stored comment into the identical shape — so an agent never
+    has to care which it got.
+  - `get_element_context` returns the element, the page, its key computed styles, the ranked source
+    candidates and a **ready-made edit prompt**.
+  - **`generateEditPrompt()`** pins the work: smallest diff that satisfies the request, follow the
+    file's own conventions, keep the element's behaviour and accessibility, don't touch unrelated files.
+    It also tells the agent to **say why it chose a file**, so a wrong guess is visible rather than
+    silently plausible, and — for a thread — spells out propose → In Review, with the reminder that
+    **only a person resolves**.
+  - With nothing selected yet they explain what to do rather than erroring.
+
+### Changed
+
+- The MCP tool registration test is now a snapshot of all eight tools plus an assertion that every
+  tool carries a description long enough to choose on, so a tool cannot be added without one.
+
 ## [0.10.18] — 2026-10-02
 
 ### Fixed

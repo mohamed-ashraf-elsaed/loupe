@@ -29,6 +29,7 @@ import { SelectionStore } from "./src/bridge/selection-store.ts";
 import { AgentRegistry, AGENT_SWEEP_MS } from "./src/bridge/agent-registry.ts";
 import { EventBus } from "./src/bridge/events.ts";
 import { startHttpBridge } from "./src/bridge/http-bridge.ts";
+import { createElementContextTools } from "./src/tools/element-context.ts";
 import {
   CHANGE_TYPE_LABELS,
   CHANGE_TYPES,
@@ -262,7 +263,7 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.18" });
+const server = new McpServer({ name: "loupe", version: "0.10.19" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
@@ -298,6 +299,59 @@ server.tool(
     notes: z.string().optional().describe("A short explanation of what you changed and why."),
   },
   proposeChange,
+);
+
+// ---- element context (bridged from the browser) -----------------------------
+
+const WS = process.env.LOUPE_WORKSPACE || process.cwd();
+const elementTools = createElementContextTools({
+  store,
+  workspaceRoot: WS,
+  mapperOptions: { maxFiles: Number(process.env.LOUPE_MAP_MAX_FILES ?? 4000) },
+  fetchThread: async (id) => {
+    try {
+      return (await api(`/v1/comments/${encodeURIComponent(id)}`)) as Comment;
+    } catch {
+      return null; // a missing thread is a normal answer, not a tool failure
+    }
+  },
+});
+
+const SELECTION_ARGS = {
+  thread_id: z.string().optional().describe("Work from a stored comment instead of a live selection."),
+  selection_id: z.string().optional().describe(
+    "A specific selection by correlation id (see get_selection_history). Omit for the most recent.",
+  ),
+};
+
+server.tool(
+  "get_latest_selection",
+  "What the user last selected in the browser, with its element, computed styles and the source files most likely to render it. Use this when someone says \"this element\" or \"what I'm looking at\" and no thread exists yet.",
+  {},
+  async () => wrap((await elementTools.getLatestSelection()).text),
+);
+server.tool(
+  "get_selection_history",
+  "The recent element selections, newest first — useful when the user clicked a few things and you need to pick the right one.",
+  { limit: z.number().int().positive().max(50).optional().describe("How many to list. Defaults to 10.") },
+  async ({ limit }) => wrap((await elementTools.getSelectionHistory({ limit })).text),
+);
+server.tool(
+  "get_element_context",
+  "Full context for one element: the element, the page, its key computed styles, the ranked source files that probably render it, and a ready-made edit prompt. Pass thread_id to work from a stored comment, or nothing to use the latest live selection. Call this before editing anything.",
+  {
+    ...SELECTION_ARGS,
+    include_prompt: z.boolean().optional().describe("Include the edit prompt. Defaults to true."),
+  },
+  async ({ thread_id, selection_id, include_prompt }) =>
+    wrap((await elementTools.getElementContext({ thread_id, selection_id }, { include_prompt })).text),
+);
+server.tool(
+  "find_source_for_selection",
+  "Just the ranked source files for the current selection or a stored thread — for when you only need to know where the component lives. Heuristic: verify the top candidate before editing it.",
+  SELECTION_ARGS,
+  async ({ thread_id, selection_id }) =>
+    wrap((await elementTools.findSourceForSelection({ thread_id, selection_id })).text),
 );
 
 // Connect the stdio transport only when run directly (not when imported by tests).

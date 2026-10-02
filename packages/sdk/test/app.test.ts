@@ -48,6 +48,27 @@ function setDock(mode: string) {
   sr().querySelector<HTMLElement>(`.pos-grid [data-pos="${mode}"]`)!.click();
 }
 
+/**
+ * Wait for the offline store to hold a comment, rather than sleeping and hoping.
+ *
+ * Saving is asynchronous — the capture and the write both happen after the click — so
+ * a flat `setTimeout(10)` is a guess that holds on a quiet machine and fails under a
+ * loaded run. This waits for the actual condition.
+ */
+async function waitForSaved(url: string, count = 1, timeoutMs = 3000): Promise<any[]> {
+  const key = `loupe:pk:${url}`;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= count) return parsed;
+    }
+    if (Date.now() > deadline) throw new Error(`no comment saved at ${key} within ${timeoutMs}ms`);
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 async function leaveComment(text: string) {
   sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
   const btn = document.querySelector('[data-testid="save"]')!;
@@ -289,9 +310,8 @@ describe("LoupeApp", () => {
     await new Promise((r) => setTimeout(r, 10));
     fillComposer("diag", "diagnostics");
     sr().querySelector<HTMLElement>(".composer .primary")!.click();
-    await new Promise((r) => setTimeout(r, 10));
 
-    const stored = JSON.parse(localStorage.getItem(`loupe:pk:${location.pathname}${location.search}`)!);
+    const stored = await waitForSaved(`${location.pathname}${location.search}`);
     // Lets a "still broken" report be checked against the build that actually ran.
     expect(typeof stored[0].viewport.v).toBe("string");
     expect(stored[0].viewport.touch).toBe(true);

@@ -54,9 +54,42 @@ afterAll(async () => {
 const text = (r: any) => r.content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
 
 describe("mcp server", () => {
-  it("exposes the four tools", async () => {
+  it("exposes the backlog tools and the element-context tools", async () => {
     const t = await client.listTools();
-    expect(t.tools.map((x) => x.name).sort()).toEqual(["get_comment", "list_comments", "propose_change", "update_status"]);
+    expect(t.tools.map((x) => x.name).sort()).toEqual([
+      "find_source_for_selection",
+      "get_comment",
+      "get_element_context",
+      "get_latest_selection",
+      "get_selection_history",
+      "list_comments",
+      "propose_change",
+      "update_status",
+    ]);
+  });
+
+  it("every tool carries a description an agent can choose on", async () => {
+    const t = await client.listTools();
+    for (const tool of t.tools) {
+      // A tool with no description is a tool an agent will never pick correctly.
+      expect(tool.description, tool.name).toBeTruthy();
+      expect((tool.description ?? "").length, tool.name).toBeGreaterThan(40);
+    }
+  });
+
+  it("says what to do when nothing is selected, rather than erroring", async () => {
+    const out = text(await client.callTool({ name: "get_latest_selection", arguments: {} }));
+    expect(out).toContain("Nothing has been selected yet");
+    expect(out).toContain("bridge");
+
+    const ctx = text(await client.callTool({ name: "get_element_context", arguments: {} }));
+    expect(ctx).toContain("Nothing has been selected yet");
+  });
+
+  it("answers a missing thread id helpfully", async () => {
+    const out = text(await client.callTool({ name: "get_element_context", arguments: { thread_id: "nope" } }));
+    expect(out).toContain("No thread found");
+    expect(out).toContain("list_comments");
   });
 
   it("list_comments renders the backlog", async () => {
