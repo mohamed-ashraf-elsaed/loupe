@@ -5,6 +5,10 @@ import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
 import type { Anchor, Attachment, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
 
+declare const __LOUPE_VERSION__: string | undefined;
+/** The build that produced this bundle (baked in by tsup); recorded on every comment. */
+const SDK_VERSION = typeof __LOUPE_VERSION__ === "string" ? __LOUPE_VERSION__ : "dev";
+
 type Mode = "off" | "inspect" | "region" | "free" | "record";
 /** Where the control panel is anchored. */
 type DockMode = "left" | "right" | "bottom" | "float";
@@ -29,16 +33,34 @@ const uid = () =>
 function hash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
 
 /**
- * True on a phone/tablet (a coarse pointer). Touch takes a different path for the
- * capture tools: a finger hides the area it is selecting, a drag fights the page
- * scroll, and there is no hover to aim with.
+ * A phone/tablet. `(pointer: coarse)` is the primary signal, but a phone asking for the
+ * **desktop site** reports a FINE pointer, so touch capability is the backstop. Getting
+ * this wrong sends a finger user down the mouse path: a composer that grabs the focus
+ * (keyboard over the page) and a drag-select that fights the page scroll.
  */
 function isTouchDevice(): boolean {
   try {
-    return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+    if (window.matchMedia("(pointer: coarse)").matches) return true;
+    if (window.matchMedia("(hover: none)").matches) return true;
+  } catch {
+    /* matchMedia unavailable */
+  }
+  if (typeof navigator !== "undefined" && (navigator.maxTouchPoints ?? 0) > 0) return true;
+  return typeof window !== "undefined" && "ontouchstart" in window;
+}
+
+/** Whether the browser says the primary pointer is coarse (diagnostic only). */
+function coarsePointer(): boolean {
+  try {
+    return window.matchMedia("(pointer: coarse)").matches;
   } catch {
     return false;
   }
+}
+
+/** Whether screen recording is possible at all (absent in every iOS browser). */
+function canShareScreen(): boolean {
+  return typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
 }
 
 /** A captured data-URL as a File, so a screenshot can ride along as a normal attachment. */
@@ -271,12 +293,21 @@ export class LoupeApp {
       ? "Record your screen, then describe the issue"
       : "Drag a box, record a screen video of it, and comment";
     recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-    // Offer Record wherever the browser can capture the screen. Android Chrome can
-    // (screen/tab capture); iOS Safari cannot — there the tool is hidden rather than
-    // being a button that can never work. On touch there is no box to drag: tapping it
-    // records the whole screen (see setMode).
-    const canRecord = typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
-    tools.append(inspectBtn, freeBtn, regionBtn, ...(canRecord ? [recordBtn] : []));
+
+    // Video: the screen recorder where it exists (desktop everywhere; Android Chrome on
+    // touch, where tapping it records the whole screen). No iOS browser has
+    // getDisplayMedia — so on touch without it, offer the camera instead. A filmed clip
+    // beats a button that can never work.
+    if (canShareScreen()) {
+      tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
+    } else if (isTouchDevice()) {
+      const cameraBtn = this.toolBtn(CAMERA_ICON, "Camera", "camera");
+      cameraBtn.title = "Record a video with the camera and comment";
+      cameraBtn.onclick = () => this.pickCameraVideo();
+      tools.append(inspectBtn, freeBtn, regionBtn, cameraBtn);
+    } else {
+      tools.append(inspectBtn, freeBtn, regionBtn);
+    }
 
     // list --------------------------------------------------------------------
     const listHead = el("div", "listhead");
@@ -548,6 +579,39 @@ export class LoupeApp {
       window.innerHeight / 2,
       file ? [file] : []
     );
+  }
+
+  /**
+   * Touch devices with no screen recorder (every iOS browser) can still report a video:
+   * record one with the camera. Opens the native recorder and hands the clip to the
+   * composer exactly like the screen capture does.
+   */
+  private pickCameraVideo() {
+    this.setMode("off");
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "video/*";
+    input.setAttribute("capture", "environment");
+    input.style.display = "none";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (!file) return;
+      const docX = window.scrollX + window.innerWidth / 2;
+      const docY = window.scrollY + window.innerHeight / 2;
+      const docW = Math.max(1, document.documentElement.scrollWidth);
+      const docH = Math.max(1, document.documentElement.scrollHeight);
+      const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
+      this.openComposer(
+        { kind: "free", offset, point: { x: docX, y: docY }, label: "Camera video · attached" },
+        8,
+        window.innerHeight / 2,
+        [file]
+      );
+    };
+    // In the shadow root: keeps the host page's DOM untouched.
+    this.shadow.appendChild(input);
+    input.click();
   }
 
   /** Capture the selected viewport rect, then open the composer for a region comment. */
@@ -851,8 +915,16 @@ export class LoupeApp {
       screenshot,
       recording,
       attachments: await this.uploadAttachments(files),
-      // Record the screen the feedback was captured on (desktop / tablet / mobile).
-      viewport: { w: window.innerWidth, h: window.innerHeight },
+      // The screen this was captured on, plus enough to tell a stale bundle from a real
+      // bug when someone reports "it still doesn't work" (see Comment.viewport).
+      viewport: {
+        w: window.innerWidth,
+        h: window.innerHeight,
+        v: SDK_VERSION,
+        touch: isTouchDevice(),
+        coarse: coarsePointer(),
+        gdm: canShareScreen(),
+      },
       createdAt: new Date().toISOString(),
     };
     await this.store.save(comment);
@@ -1396,6 +1468,13 @@ const RECORD_ICON =
   `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
   `<rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/>` +
   `<circle cx="7.5" cy="7.5" r="2.4" fill="currentColor"/>` +
+  `</svg>`;
+
+/** Camera icon for the "Camera" button — used where no screen recorder exists (iOS). */
+const CAMERA_ICON =
+  `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">` +
+  `<rect x="1.2" y="3.8" width="9.2" height="7.4" rx="1.6" stroke="currentColor" stroke-width="1.3"/>` +
+  `<path d="M10.4 7.3l3.4-2v4.4l-3.4-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
   `</svg>`;
 
 // ---- integration icons (brand marks for the "Integrates with" footer) -------

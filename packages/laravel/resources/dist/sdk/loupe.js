@@ -2455,6 +2455,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
+  var SDK_VERSION = true ? "0.10.1" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -2468,10 +2469,22 @@ var Loupe = (() => {
   }
   function isTouchDevice() {
     try {
-      return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+      if (window.matchMedia("(pointer: coarse)").matches) return true;
+      if (window.matchMedia("(hover: none)").matches) return true;
+    } catch {
+    }
+    if (typeof navigator !== "undefined" && (navigator.maxTouchPoints ?? 0) > 0) return true;
+    return typeof window !== "undefined" && "ontouchstart" in window;
+  }
+  function coarsePointer() {
+    try {
+      return window.matchMedia("(pointer: coarse)").matches;
     } catch {
       return false;
     }
+  }
+  function canShareScreen() {
+    return typeof navigator.mediaDevices?.getDisplayMedia === "function";
   }
   function dataUrlToFile(dataUrl, name) {
     const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(dataUrl);
@@ -2854,8 +2867,16 @@ var Loupe = (() => {
       const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
       recordBtn.title = isTouchDevice() ? "Record your screen, then describe the issue" : "Drag a box, record a screen video of it, and comment";
       recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-      const canRecord = typeof navigator.mediaDevices?.getDisplayMedia === "function";
-      tools.append(inspectBtn, freeBtn, regionBtn, ...canRecord ? [recordBtn] : []);
+      if (canShareScreen()) {
+        tools.append(inspectBtn, freeBtn, regionBtn, recordBtn);
+      } else if (isTouchDevice()) {
+        const cameraBtn = this.toolBtn(CAMERA_ICON, "Camera", "camera");
+        cameraBtn.title = "Record a video with the camera and comment";
+        cameraBtn.onclick = () => this.pickCameraVideo();
+        tools.append(inspectBtn, freeBtn, regionBtn, cameraBtn);
+      } else {
+        tools.append(inspectBtn, freeBtn, regionBtn);
+      }
       const listHead = el("div", "listhead");
       listHead.append(document.createTextNode("Comments"));
       this.countEl = el("span", "count", "0");
@@ -3029,6 +3050,37 @@ var Loupe = (() => {
         window.innerHeight / 2,
         file ? [file] : []
       );
+    }
+    /**
+     * Touch devices with no screen recorder (every iOS browser) can still report a video:
+     * record one with the camera. Opens the native recorder and hands the clip to the
+     * composer exactly like the screen capture does.
+     */
+    pickCameraVideo() {
+      this.setMode("off");
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "video/*";
+      input.setAttribute("capture", "environment");
+      input.style.display = "none";
+      input.onchange = () => {
+        const file = input.files?.[0];
+        input.remove();
+        if (!file) return;
+        const docX = window.scrollX + window.innerWidth / 2;
+        const docY = window.scrollY + window.innerHeight / 2;
+        const docW = Math.max(1, document.documentElement.scrollWidth);
+        const docH = Math.max(1, document.documentElement.scrollHeight);
+        const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
+        this.openComposer(
+          { kind: "free", offset, point: { x: docX, y: docY }, label: "Camera video \xB7 attached" },
+          8,
+          window.innerHeight / 2,
+          [file]
+        );
+      };
+      this.shadow.appendChild(input);
+      input.click();
     }
     /** Capture the selected viewport rect, then open the composer for a region comment. */
     async finishRegion(vp) {
@@ -3283,8 +3335,16 @@ var Loupe = (() => {
         screenshot,
         recording,
         attachments: await this.uploadAttachments(files),
-        // Record the screen the feedback was captured on (desktop / tablet / mobile).
-        viewport: { w: window.innerWidth, h: window.innerHeight },
+        // The screen this was captured on, plus enough to tell a stale bundle from a real
+        // bug when someone reports "it still doesn't work" (see Comment.viewport).
+        viewport: {
+          w: window.innerWidth,
+          h: window.innerHeight,
+          v: SDK_VERSION,
+          touch: isTouchDevice(),
+          coarse: coarsePointer(),
+          gdm: canShareScreen()
+        },
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       await this.store.save(comment);
@@ -3669,6 +3729,7 @@ var Loupe = (() => {
   var REGION_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
   var NOTE_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
   var RECORD_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/><circle cx="7.5" cy="7.5" r="2.4" fill="currentColor"/></svg>`;
+  var CAMERA_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.2" y="3.8" width="9.2" height="7.4" rx="1.6" stroke="currentColor" stroke-width="1.3"/><path d="M10.4 7.3l3.4-2v4.4l-3.4-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
   var I_GITHUB = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.3c-2.2.48-2.67-1.07-2.67-1.07-.36-.92-.88-1.16-.88-1.16-.72-.5.05-.48.05-.48.8.056 1.22.82 1.22.82.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.76-.2-3.6-.88-3.6-3.9 0-.86.3-1.57.82-2.12-.08-.2-.36-1 .08-2.1 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.02 2.2-.8 2.2-.8.44 1.1.16 1.9.08 2.1.5.55.82 1.26.82 2.12 0 3.03-1.85 3.7-3.61 3.9.28.24.54.72.54 1.46v2.16c0 .21.14.46.55.38A8 8 0 0 0 8 .2z"/></svg>`;
   var I_SLACK = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.4 10.1a1.6 1.6 0 1 1-1.6-1.6h1.6v1.6zm.8 0a1.6 1.6 0 0 1 3.2 0v4a1.6 1.6 0 1 1-3.2 0v-4zM5.8 3.4a1.6 1.6 0 1 1 1.6-1.6v1.6H5.8zm0 .8a1.6 1.6 0 0 1 0 3.2h-4a1.6 1.6 0 1 1 0-3.2h4zm6.7 1.6a1.6 1.6 0 1 1 1.6 1.6h-1.6V5.8zm-.8 0a1.6 1.6 0 0 1-3.2 0v-4a1.6 1.6 0 1 1 3.2 0v4zm-1.6 6.7a1.6 1.6 0 1 1-1.6 1.6v-1.6h1.6zm0-.8a1.6 1.6 0 0 1 0-3.2h4a1.6 1.6 0 1 1 0 3.2h-4z"/></svg>`;
   var I_TELEGRAM = `<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.7 5.4-1.24 5.85c-.09.41-.34.51-.69.32l-1.9-1.4-.92.88c-.1.1-.19.19-.38.19l.14-1.93 3.5-3.17c.15-.13-.03-.2-.24-.07l-4.32 2.72-1.86-.58c-.4-.13-.41-.4.09-.6l7.26-2.8c.34-.12.63.08.52.6z"/></svg>`;

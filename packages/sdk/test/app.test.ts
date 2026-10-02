@@ -226,6 +226,61 @@ describe("LoupeApp", () => {
     delete (navigator as any).mediaDevices;
   });
 
+  it("touch: a desktop-mode phone (fine pointer, but a touch screen) still gets the touch flow", async () => {
+    // A phone asking for the DESKTOP SITE reports pointer:fine — the old check missed it,
+    // which is what left those users with a focusing composer and a scroll-fighting drag.
+    setPointer("fine");
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    const spy = vi.spyOn(HTMLTextAreaElement.prototype, "focus");
+
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureRegion: async () => "data:image/png;base64,QUJD" });
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Viewport capture (no drag) and no focus stealing.
+    expect(sr().querySelector(".composer .chips .chip")!.textContent).toContain("screenshot.png");
+    expect(spy).not.toHaveBeenCalled();
+
+    spy.mockRestore();
+    delete (navigator as any).maxTouchPoints;
+  });
+
+  it("touch without a screen recorder (every iOS browser): a Camera tool attaches a filmed clip", () => {
+    setPointer("coarse");
+    delete (navigator as any).mediaDevices; // iOS: no getDisplayMedia
+
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const cam = sr().querySelector<HTMLElement>('[data-role="camera"]');
+    expect(cam).not.toBeNull();
+
+    cam!.click();
+    const input = sr().querySelector<HTMLInputElement>('input[type="file"][capture]')!;
+    expect(input.accept).toBe("video/*");
+
+    // The native recorder hands back a clip → it lands in the composer, pre-attached.
+    Object.defineProperty(input, "files", { value: [new File(["x"], "clip.mp4", { type: "video/mp4" })] });
+    input.dispatchEvent(new Event("change"));
+
+    expect(sr().querySelector(".composer .chips .chip")!.textContent).toContain("clip.mp4");
+  });
+
+  it("records the SDK version and device capabilities on every comment", async () => {
+    setPointer("coarse");
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureRegion: async () => "data:image/png;base64,QUJD" });
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+    fillComposer("diag", "diagnostics");
+    sr().querySelector<HTMLElement>(".composer .primary")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const stored = JSON.parse(localStorage.getItem(`loupe:pk:${location.pathname}${location.search}`)!);
+    // Lets a "still broken" report be checked against the build that actually ran.
+    expect(typeof stored[0].viewport.v).toBe("string");
+    expect(stored[0].viewport.touch).toBe(true);
+    expect(stored[0].viewport.coarse).toBe(true);
+    expect(stored[0].viewport.gdm).toBe(false);
+  });
+
   it("touch: inspect highlights on finger-down", () => {
     setPointer("coarse");
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
