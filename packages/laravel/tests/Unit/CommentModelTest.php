@@ -25,7 +25,7 @@ class CommentModelTest extends TestCase
         $this->assertSame('/p', $array['url']);
         $this->assertSame('element', $array['kind']);
         $this->assertSame('hi', $array['body']);
-        $this->assertSame('open', $array['status']);
+        $this->assertSame('queue', $array['status']);
         $this->assertSame(['id' => '1', 'name' => 'Sara'], $array['author']);
         $this->assertNull($array['screenshot']);
         $this->assertArrayNotHasKey('region', $array);
@@ -107,13 +107,22 @@ class CommentModelTest extends TestCase
         $this->assertArrayNotHasKey('proposal', $array);
     }
 
+    public function test_a_legacy_status_reads_as_a_board_stage(): void
+    {
+        // A row written before the five-stage board must still land on a column,
+        // even if the data migration has not run yet.
+        $comment = Comment::query()->create(['status' => 'open'] + $this->attributes());
+
+        $this->assertSame('queue', $comment->fresh()->toLoupeArray()['status']);
+    }
+
     private function attributes(): array
     {
         return [
             'id' => 'c1',
             'project_key' => 'app',
             'url' => '/p',
-            'status' => 'open',
+            'status' => 'queue',
             'body' => 'hi',
             'kind' => 'element',
             'author' => ['id' => '1', 'name' => 'Sara'],

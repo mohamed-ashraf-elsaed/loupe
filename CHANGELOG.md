@@ -11,6 +11,33 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.8] — 2026-10-02
+
+### Added
+
+- **The board is five stages, not three.** A comment now moves through **Queue → To Do → In
+  Progress → In Review → Resolved** rather than open / in_progress / done. The extra columns are
+  what let a team tell "not triaged yet" apart from "waiting on me" and "waiting on a preview" —
+  and they give the agent handoff somewhere to land: an agent may move a comment to **In Review**,
+  but only a person resolves it. `COMMENT_STAGES`, `STAGE_LABELS` and `normalizeStatus()` in
+  `@loupekit/shared` are the single source of truth, mirrored in the Laravel package by
+  `Loupekit\Loupe\Support\Stages`. (Milestone 0.14; #23.)
+
+### Changed
+
+- **`Comment.status` is now one of the five stages.** Rows written before the board are migrated
+  (`open` → `queue`, `done` → `resolved`; `in_progress` is unchanged) by the server's `migrate()`
+  and by a new Laravel migration, and every read path normalizes as it reads — so a pre-board row
+  still lands on a column even if the migration has not run yet.
+- **The old names are still accepted everywhere.** The HTTP API, the SDK and both MCP servers
+  (`list_comments` filtering, `update_status`) normalize `open` / `done` onto the board, so an
+  older widget or an agent configured before the board keeps working. Anything unrecognised lands
+  in **Queue** rather than falling off the board.
+- **The dashboard board is five columns** with a swatch per stage, and the widget's comment list
+  reads `resolved` where it used to say `done`.
+- **`update_status` guidance changed for agents:** move a comment to **In Review** when a change is
+  ready for a human, and never set **Resolved** yourself.
+
 ## [0.10.7] — 2026-10-02
 
 ### Changed

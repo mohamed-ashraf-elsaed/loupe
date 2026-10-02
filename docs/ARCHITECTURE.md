@@ -228,7 +228,7 @@ erDiagram
     text id PK
     text project_key FK
     text url "normalized"
-    text status "open|in_progress|done"
+    text status "queue|todo|in_progress|in_review|resolved"
     text body
     text kind "element|region|free"
     jsonb author

@@ -4,16 +4,16 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // Exercises the exported tool handlers in-process (counted coverage), against a
 // canned Loupe API. The stdio path is covered separately by mcp.test.ts.
 const C1 = {
-  id: "c1", url: "/p", status: "open", body: "fix it", author: { name: "Sara" },
+  id: "c1", url: "/p", status: "queue", body: "fix it", author: { name: "Sara" },
   anchor: { cssPath: '[data-testid="x"]', testid: "x" }, context: { html: "<b/>", styles: { a: "1" } },
   screenshot: "http://blob/x", createdAt: "t",
 };
 const C2 = {
-  id: "c2", url: "/q", status: "done", body: "other", author: { name: "Bob" },
+  id: "c2", url: "/q", status: "resolved", body: "other", author: { name: "Bob" },
   anchor: { cssPath: ".foo", testid: null }, context: { html: "<i/>", styles: {} }, createdAt: "t",
 };
 const C3 = {
-  id: "c3", url: "/r", status: "open", body: "page is cramped", author: { name: "Zoe" },
+  id: "c3", url: "/r", status: "queue", body: "page is cramped", author: { name: "Zoe" },
   kind: "free", anchor: { cssPath: "page", testid: null, tag: "page" }, context: { html: "", styles: {} }, createdAt: "t",
 };
 
@@ -51,9 +51,11 @@ describe("mcp handlers", () => {
     expect(out).toContain(".foo"); // c2 has no testid → cssPath
   });
 
-  it("list_comments filters by status", async () => {
+  it("list_comments filters by status, accepting the legacy names too", async () => {
+    expect(text(await mod.listComments({ status: "resolved" }))).toContain("other");
+    // `done` is the pre-board name for Resolved — an agent may still send it.
     expect(text(await mod.listComments({ status: "done" }))).toContain("other");
-    expect(text(await mod.listComments({ status: "in_progress" }))).toContain("No comments");
+    expect(text(await mod.listComments({ status: "in_review" }))).toContain("No comments");
   });
 
   it("list_comments filters by url", async () => {
@@ -86,8 +88,11 @@ describe("mcp handlers", () => {
   });
 
   it("update_status patches through", async () => {
-    expect(text(await mod.updateStatus({ id: "c1", status: "done" }))).toContain("done");
-    expect(patched).toEqual({ status: "done" });
+    expect(text(await mod.updateStatus({ id: "c1", status: "in_review" }))).toContain("In Review");
+    expect(patched).toEqual({ status: "in_review" });
+    // A legacy value is normalized before it reaches the API.
+    await mod.updateStatus({ id: "c1", status: "done" });
+    expect(patched).toEqual({ status: "resolved" });
   });
 
   it("api() throws on a non-OK response", async () => {

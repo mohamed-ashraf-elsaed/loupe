@@ -13,6 +13,8 @@
       --line: #e2e5ee; --line-strong: #d3d8e4;
       --ink: #16181f; --ink-2: #545a6b; --ink-3: #868ca0;
       --open: #5b6472; --prog: #b5820b; --done: #10935a;
+      /* Five-stage board swatches — distinct hues so the columns read apart at a glance. */
+      --stage-queue: #5b6472; --stage-todo: #6d4bd0; --stage-prog: #b5820b; --stage-review: #0d7f9c; --stage-done: #10935a;
       --shadow: 0 1px 2px rgba(20,24,40,.05), 0 6px 20px rgba(20,24,40,.06);
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -24,6 +26,7 @@
         --ink: #e9ebf1; --ink-2: #a9afc0; --ink-3: #6e7486;
         --accent: #7d88f0; --accent-ink: #aab2f7;
         --open: #8891a3; --prog: #e0a92c; --done: #34c281;
+        --stage-queue: #8891a3; --stage-todo: #a58bf5; --stage-prog: #e0a92c; --stage-review: #35b6d6; --stage-done: #34c281;
         --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
       }
     }
@@ -31,12 +34,14 @@
       --ground: #f5f6fa; --surface: #ffffff; --surface-2: #eef0f6; --line: #e2e5ee;
       --line-strong: #d3d8e4; --ink: #16181f; --ink-2: #545a6b; --ink-3: #868ca0;
       --accent: #4a55d6; --accent-ink: #3742b8; --open: #5b6472; --prog: #b5820b; --done: #10935a;
+      --stage-queue: #5b6472; --stage-todo: #6d4bd0; --stage-prog: #b5820b; --stage-review: #0d7f9c; --stage-done: #10935a;
       --shadow: 0 1px 2px rgba(20,24,40,.05), 0 6px 20px rgba(20,24,40,.06);
     }
     :root[data-theme="dark"] {
       --ground: #0d0e13; --surface: #14161d; --surface-2: #1b1e27; --line: #262a35;
       --line-strong: #363b49; --ink: #e9ebf1; --ink-2: #a9afc0; --ink-3: #6e7486;
       --accent: #7d88f0; --accent-ink: #aab2f7; --open: #8891a3; --prog: #e0a92c; --done: #34c281;
+      --stage-queue: #8891a3; --stage-todo: #a58bf5; --stage-prog: #e0a92c; --stage-review: #35b6d6; --stage-done: #34c281;
       --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
     }
 
@@ -66,7 +71,8 @@
     @media (prefers-reduced-motion: reduce) { .live .dot { animation: none; } }
 
     main { padding: 20px 24px 60px; }
-    .board { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; align-items: start; }
+    .board { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 16px; align-items: start; }
+    @media (max-width: 1280px) { .board { grid-template-columns: repeat(3, minmax(0,1fr)); } }
     @media (max-width: 860px) { .board { grid-template-columns: 1fr; } }
 
     .col { background: transparent; }
@@ -74,7 +80,7 @@
     .col-head .swatch { width: 10px; height: 10px; border-radius: 3px; }
     .col-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; margin: 0; font-weight: 700; }
     .col-head .n { font-family: var(--mono); font-size: 12px; color: var(--ink-3); background: var(--surface-2); padding: 1px 8px; border-radius: 999px; }
-    .col.open .swatch { background: var(--open); } .col.in_progress .swatch { background: var(--prog); } .col.done .swatch { background: var(--done); }
+    .col.stage-queue .swatch { background: var(--stage-queue); } .col.stage-todo .swatch { background: var(--stage-todo); } .col.stage-in_progress .swatch { background: var(--stage-prog); } .col.stage-in_review .swatch { background: var(--stage-review); } .col.stage-resolved .swatch { background: var(--stage-done); }
     .stack { display: flex; flex-direction: column; gap: 12px; min-height: 60px; }
     .col-empty { border: 1.5px dashed var(--line-strong); border-radius: 12px; padding: 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 

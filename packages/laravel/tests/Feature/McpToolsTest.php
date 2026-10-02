@@ -48,6 +48,11 @@ class McpToolsTest extends TestCase
         $done = json_decode((string) (new ListComments)->handle(new Request(['status' => 'done']))->content(), true);
         $this->assertSame(1, $done['count']);
         $this->assertSame('b', $done['comments'][0]['id']);
+        // The canonical stage is reported even for a pre-board row.
+        $this->assertSame('resolved', $done['comments'][0]['status']);
+
+        $resolved = json_decode((string) (new ListComments)->handle(new Request(['status' => 'resolved']))->content(), true);
+        $this->assertSame(1, $resolved['count']);
 
         $byUrl = json_decode((string) (new ListComments)->handle(new Request(['url' => '/p']))->content(), true);
         $this->assertSame('a', $byUrl['comments'][0]['id']);
@@ -274,15 +279,26 @@ class McpToolsTest extends TestCase
     {
         $this->seedComment('a', ['status' => 'open']);
 
-        $response = (new UpdateStatus)->handle(new Request(['id' => 'a', 'status' => 'done']));
+        $response = (new UpdateStatus)->handle(new Request(['id' => 'a', 'status' => 'in_review']));
 
         $this->assertFalse($response->isError());
-        $this->assertSame('done', Comment::query()->find('a')->status);
+        $this->assertSame('in_review', Comment::query()->find('a')->status);
+
+        // A legacy name still lands on a stage rather than being rejected.
+        (new UpdateStatus)->handle(new Request(['id' => 'a', 'status' => 'done']));
+        $this->assertSame('resolved', Comment::query()->find('a')->status);
     }
 
-    public function test_update_status_rejects_a_bad_status(): void
+    public function test_update_status_falls_back_to_the_queue_for_an_unknown_stage(): void
     {
-        $this->assertTrue((new UpdateStatus)->handle(new Request(['id' => 'a', 'status' => 'bogus']))->isError());
+        // Anything unrecognised lands in the untriaged inbox instead of falling
+        // off the board — and instead of leaving the row untouched.
+        $this->seedComment('a', ['status' => 'in_progress']);
+
+        $response = (new UpdateStatus)->handle(new Request(['id' => 'a', 'status' => 'bogus']));
+
+        $this->assertFalse($response->isError());
+        $this->assertSame('queue', Comment::query()->find('a')->status);
     }
 
     public function test_update_status_errors_when_missing(): void

@@ -36,7 +36,7 @@ const adminH = { "X-Loupe-Admin": SECRET, "Content-Type": "application/json" };
 
 function comment(over: Record<string, unknown> = {}) {
   return {
-    id: "c1", projectKey: "pk", url: "/p?utm_source=x", status: "open", body: "b",
+    id: "c1", projectKey: "pk", url: "/p?utm_source=x", status: "queue", body: "b",
     author: { id: "u1", name: "U" },
     anchor: { tag: "div", cssPath: "", xpath: "", testid: null, text: "", attrs: {}, nthOfType: 1, rect: { x: 0, y: 0, w: 0, h: 0 }, viewport: { w: 0, h: 0 } },
     context: { html: "<div/>", styles: {} }, offset: { x: 0.5, y: 0.5 },
@@ -81,8 +81,11 @@ describe("api", () => {
   it("gets, patches, and deletes by id", async () => {
     await post(comment());
     expect((await fetch(`${base}/v1/comments/c1`, { headers: adminH })).status).toBe(200);
-    const patched = await (await fetch(`${base}/v1/comments/c1`, { method: "PATCH", headers: adminH, body: JSON.stringify({ status: "done" }) })).json();
-    expect(patched.status).toBe("done");
+    const patched = await (await fetch(`${base}/v1/comments/c1`, { method: "PATCH", headers: adminH, body: JSON.stringify({ status: "resolved" }) })).json();
+    expect(patched.status).toBe("resolved");
+    // A legacy value still lands on a board stage rather than falling off it.
+    const legacy = await (await fetch(`${base}/v1/comments/c1`, { method: "PATCH", headers: adminH, body: JSON.stringify({ status: "done" }) })).json();
+    expect(legacy.status).toBe("resolved");
     expect((await fetch(`${base}/v1/comments/c1`, { method: "DELETE", headers: adminH })).status).toBe(204);
     expect((await fetch(`${base}/v1/comments/c1`, { headers: adminH })).status).toBe(404);
   });

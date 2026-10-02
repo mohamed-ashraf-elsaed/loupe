@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Loupekit\Loupe\Loupe;
 use Loupekit\Loupe\Support\Hub;
+use Loupekit\Loupe\Support\Stages;
 use Loupekit\Loupe\Support\Url;
 
 /**
@@ -57,7 +58,7 @@ class CommentController extends Controller
         $attributes = [
             'project_key' => $this->projectKey(),
             'url' => Url::normalize((string) ($data['url'] ?? '/')),
-            'status' => $data['status'] ?? 'open',
+            'status' => Stages::normalize($data['status'] ?? null),
             'title' => is_string($data['title'] ?? null) && $data['title'] !== '' ? mb_substr($data['title'], 0, 255) : null,
             'body' => (string) ($data['body'] ?? ''),
             'kind' => $data['kind'] ?? 'element',
@@ -112,7 +113,10 @@ class CommentController extends Controller
         $patch = [];
         foreach (['status', 'title', 'body', 'proposal'] as $field) {
             if ($request->has($field)) {
-                $patch[$field] = $request->input($field);
+                // A legacy `open` / `done` from an older client still lands on a stage.
+                $patch[$field] = $field === 'status'
+                    ? Stages::normalize($request->input($field))
+                    : $request->input($field);
             }
         }
         if ($patch !== []) {

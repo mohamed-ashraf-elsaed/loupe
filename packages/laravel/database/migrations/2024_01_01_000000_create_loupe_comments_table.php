@@ -16,7 +16,7 @@ return new class extends Migration
             // (tracking params stripped) are short; 500 chars is ample.
             $table->string('project_key', 191)->index();
             $table->string('url', 500);
-            $table->string('status')->default('open')->index();
+            $table->string('status')->default('queue')->index();
             $table->text('body');
             // "element" (anchored to a DOM node) or "region" (a dragged rectangle).
             $table->string('kind')->default('element');

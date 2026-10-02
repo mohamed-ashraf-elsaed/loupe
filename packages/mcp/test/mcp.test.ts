@@ -6,7 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 // A canned Loupe API so we test the MCP server in isolation (auth + all tools).
 const COMMENT = {
-  id: "c1", url: "/p", status: "open", body: "fix it",
+  id: "c1", url: "/p", status: "queue", body: "fix it",
   author: { name: "Sara" }, anchor: { cssPath: '[data-testid="x"]', testid: "x" },
   context: { html: "<b/>", styles: { a: "1" } }, screenshot: "http://blob/x", createdAt: "t",
 };
@@ -66,7 +66,7 @@ describe("mcp server", () => {
   });
 
   it("list_comments filters by status", async () => {
-    const out = text(await client.callTool({ name: "list_comments", arguments: { status: "done" } }));
+    const out = text(await client.callTool({ name: "list_comments", arguments: { status: "resolved" } }));
     expect(out).toContain("No comments");
   });
 
@@ -86,9 +86,9 @@ describe("mcp server", () => {
   });
 
   it("update_status patches through to the API", async () => {
-    const out = text(await client.callTool({ name: "update_status", arguments: { id: "c1", status: "done" } }));
-    expect(out).toContain("done");
-    expect(patched).toEqual({ status: "done" });
+    const out = text(await client.callTool({ name: "update_status", arguments: { id: "c1", status: "in_review" } }));
+    expect(out).toContain("In Review");
+    expect(patched).toEqual({ status: "in_review" });
   });
 
   it("propose_change writes the modified UI back to the comment", async () => {

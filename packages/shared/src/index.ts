@@ -1,6 +1,57 @@
 // Canonical types + pure helpers shared across the SDK, server, dashboard, and MCP.
 
-export type CommentStatus = "open" | "in_progress" | "done";
+/**
+ * Where a comment sits on the triage board. Five stages rather than three: the
+ * extra ones (Queue, In Review) let a team tell "not triaged yet" apart from
+ * "waiting on me" and "waiting on a preview" — which a single open/in_progress/
+ * done cannot express, and which the agent handoff needs (an agent may move a
+ * comment to In Review; only a human resolves it).
+ */
+export type CommentStage = "queue" | "todo" | "in_progress" | "in_review" | "resolved";
+
+/** @deprecated Name kept so existing imports keep compiling — now the five stages. */
+export type CommentStatus = CommentStage;
+
+/** Board order, left to right. */
+export const COMMENT_STAGES: readonly CommentStage[] = ["queue", "todo", "in_progress", "in_review", "resolved"];
+
+/** Human labels for the board columns. */
+export const STAGE_LABELS: Record<CommentStage, string> = {
+  queue: "Queue",
+  todo: "To Do",
+  in_progress: "In Progress",
+  in_review: "In Review",
+  resolved: "Resolved",
+};
+
+/**
+ * Statuses this project shipped before the five-stage board. Still accepted on
+ * input (and on rows written by an older client) so a rolling upgrade never
+ * writes a value the board cannot place.
+ */
+const LEGACY_STATUS: Record<string, CommentStage> = {
+  open: "queue",
+  in_progress: "in_progress",
+  done: "resolved",
+};
+
+/**
+ * Coerce any accepted status — current stage or legacy alias — into a stage.
+ * Anything unrecognised lands in `queue`, the untriaged inbox, rather than
+ * falling off the board entirely.
+ */
+export function normalizeStatus(value: unknown): CommentStage {
+  if (typeof value === "string") {
+    if ((COMMENT_STAGES as readonly string[]).includes(value)) return value as CommentStage;
+    if (value in LEGACY_STATUS) return LEGACY_STATUS[value];
+  }
+  return "queue";
+}
+
+/** Whether a comment is still open work (everything except `resolved`). */
+export function isOpenStage(stage: CommentStage): boolean {
+  return stage !== "resolved";
+}
 
 export interface LoupeUser {
   id: string;

@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { normalizeUrl, type Comment } from "@loupekit/shared";
+import { normalizeUrl, normalizeStatus, type Comment } from "@loupekit/shared";
 
 export interface Project {
   project_key: string;
@@ -33,7 +33,7 @@ function rowToComment(r: any): Comment {
     id: r.id,
     projectKey: r.project_key,
     url: r.url,
-    status: r.status,
+    status: normalizeStatus(r.status),
     body: r.body,
     title: r.title ?? undefined,
     kind: r.kind ?? "element",
@@ -86,7 +86,7 @@ export async function upsertComment(c: Comment): Promise<Comment> {
        attachments = EXCLUDED.attachments, proposal = EXCLUDED.proposal
      RETURNING *`,
     [
-      c.id, c.projectKey, url, c.status ?? "open", c.body, c.title ?? null, c.kind ?? "element",
+      c.id, c.projectKey, url, normalizeStatus(c.status), c.body, c.title ?? null, c.kind ?? "element",
       JSON.stringify(c.author), JSON.stringify(c.anchor), JSON.stringify(c.context),
       JSON.stringify(c.offset), c.region ? JSON.stringify(c.region) : null,
       c.viewport ? JSON.stringify(c.viewport) : null,
@@ -103,7 +103,7 @@ export async function patchComment(id: string, patch: Partial<Comment>): Promise
   const sets: string[] = [];
   const vals: unknown[] = [];
   let i = 1;
-  if (patch.status !== undefined) { sets.push(`status = $${i++}`); vals.push(patch.status); }
+  if (patch.status !== undefined) { sets.push(`status = $${i++}`); vals.push(normalizeStatus(patch.status)); }
   if (patch.body !== undefined) { sets.push(`body = $${i++}`); vals.push(patch.body); }
   if (patch.title !== undefined) { sets.push(`title = $${i++}`); vals.push(patch.title); }
   // Claude writes its modified UI back here (via MCP propose_change / the API).

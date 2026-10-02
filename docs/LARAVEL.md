@@ -198,7 +198,7 @@ Migration `create_loupe_comments_table` → `loupe_comments`:
 | `id` | string (PK) | client-generated UUID |
 | `project_key` | string, indexed | scopes to this app |
 | `url` | text | normalized (utm/click ids stripped) |
-| `status` | string, indexed | `open` \| `in_progress` \| `done` |
+| `status` | string, indexed | `queue` \| `todo` \| `in_progress` \| `in_review` \| `resolved` |
 | `body` | text | the comment |
 | `kind` | string | `element` \| `region` \| `free` (page-level note) |
 | `author` | json | `{ id, name, email? }` |
@@ -251,7 +251,7 @@ Tools (all read your database directly — no HTTP hop, no admin key):
 |---|---|---|
 | `list_comments` | `status?`, `url?` | the backlog, newest first |
 | `get_comment` | `id` | Claude-ready package: request + element HTML + computed styles + screenshot URL (or the region rect) |
-| `update_status` | `id`, `status` | marks a comment open/in_progress/done |
+| `update_status` | `id`, `status` | moves a comment along the board: queue / todo / in_progress / in_review / resolved |
 
 This is the same loop as `@loupekit/mcp`, but in-process.
 

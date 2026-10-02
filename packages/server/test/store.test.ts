@@ -11,7 +11,7 @@ function make(over: Partial<Comment> = {}): Comment {
     id: "c1",
     projectKey: "pk_test",
     url: "/p?utm_source=x",
-    status: "open",
+    status: "queue",
     body: "hi",
     author: { id: "u1", name: "U" },
     anchor: { tag: "div", cssPath: "", xpath: "", testid: null, text: "", attrs: {}, nthOfType: 1, rect: { x: 0, y: 0, w: 0, h: 0 }, viewport: { w: 0, h: 0 } },
@@ -67,11 +67,21 @@ describe("store", () => {
 
   it("patches status and body; no-op patch returns the comment", async () => {
     await store.upsertComment(make());
-    const p = await store.patchComment("c1", { status: "done", body: "b2" });
-    expect(p!.status).toBe("done");
+    const p = await store.patchComment("c1", { status: "resolved", body: "b2" });
+    expect(p!.status).toBe("resolved");
     expect(p!.body).toBe("b2");
     expect((await store.patchComment("c1", {}))!.id).toBe("c1");
-    expect(await store.patchComment("missing", { status: "done" })).toBeNull();
+    expect(await store.patchComment("missing", { status: "resolved" })).toBeNull();
+  });
+
+  it("accepts the legacy three-value statuses and stores the canonical stage", async () => {
+    // A rolling upgrade: an older client (or an older row) still writes `open` / `done`.
+    const opened = await store.upsertComment(make({ id: "legacy1", status: "open" as any }));
+    expect(opened.status).toBe("queue");
+    const done = await store.upsertComment(make({ id: "legacy2", status: "done" as any }));
+    expect(done.status).toBe("resolved");
+    const patched = await store.patchComment("legacy1", { status: "done" as any });
+    expect(patched!.status).toBe("resolved");
   });
 
   it("round-trips a screen recording URL", async () => {

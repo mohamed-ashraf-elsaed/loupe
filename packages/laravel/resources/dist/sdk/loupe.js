@@ -2503,8 +2503,25 @@ var Loupe = (() => {
     }
   };
 
+  // ../shared/dist/index.js
+  var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
+  var LEGACY_STATUS = {
+    open: "queue",
+    in_progress: "in_progress",
+    done: "resolved"
+  };
+  function normalizeStatus(value) {
+    if (typeof value === "string") {
+      if (COMMENT_STAGES.includes(value))
+        return value;
+      if (value in LEGACY_STATUS)
+        return LEGACY_STATUS[value];
+    }
+    return "queue";
+  }
+
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.7" : "dev";
+  var SDK_VERSION = true ? "0.10.8" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -3447,7 +3464,7 @@ var Loupe = (() => {
         author: this.cfg.user,
         title,
         body,
-        status: "open",
+        status: "queue",
         kind: target.kind,
         anchor,
         context,
@@ -3509,7 +3526,7 @@ var Loupe = (() => {
           this.pins.set(c.id, pin);
         }
         pin.textContent = String(i + 1);
-        pin.classList.toggle("done", c.status === "done");
+        pin.classList.toggle("done", isResolved(c));
         pin.classList.toggle("free", c.kind === "free");
       });
       this.updateCount();
@@ -3688,11 +3705,11 @@ var Loupe = (() => {
       this.updateCount();
     }
     itemView(c, i) {
-      const detached = this.pins.get(c.id)?.classList.contains("detached") && c.status !== "done";
+      const detached = this.pins.get(c.id)?.classList.contains("detached") && !isResolved(c);
       const open = this.expanded.has(c.id);
       const item = el("div", "item" + (open ? "" : " collapsed"));
       const top = el("div", "top");
-      const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
+      const num = el("span", "num" + (isResolved(c) ? " done" : detached ? " detached" : ""), String(i + 1));
       top.append(num);
       if (c.recording) top.appendChild(el("span", "rectag", "\u23FA recording"));
       const vw = c.viewport?.w;
@@ -3701,7 +3718,7 @@ var Loupe = (() => {
         const icon = vw < 768 ? "\u{1F4F1}" : vw < 1024 ? "\u25A6" : "\u{1F5A5}";
         top.appendChild(el("span", "device", `${icon} ${kind}`));
       }
-      if (c.status === "done") top.appendChild(el("span", "badge done", "done"));
+      if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
       else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
       top.appendChild(el("span", "caret", open ? "\u25BE" : "\u25B8"));
       item.appendChild(top);
@@ -3737,10 +3754,10 @@ var Loupe = (() => {
         }
       }
       const actions = el("div", "actions");
-      const doneBtn = el("button", "", c.status === "done" ? "Reopen" : "Mark done");
+      const doneBtn = el("button", "", isResolved(c) ? "Reopen" : "Resolve");
       doneBtn.onclick = async (e) => {
         e.stopPropagation();
-        const status = c.status === "done" ? "open" : "done";
+        const status = isResolved(c) ? "queue" : "resolved";
         c.status = status;
         await this.store.update(c.id, { status });
         this.renderPins();
@@ -3912,6 +3929,9 @@ var Loupe = (() => {
   function describeAnchor(c) {
     if (c.kind === "free") return "Free note \xB7 page-level";
     return c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
+  }
+  function isResolved(c) {
+    return normalizeStatus(c.status) === "resolved";
   }
 
   // src/index.ts

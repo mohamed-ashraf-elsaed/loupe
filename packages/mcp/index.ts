@@ -25,7 +25,17 @@ import { z } from "zod";
  */
 
 import { Buffer } from "node:buffer";
+import { COMMENT_STAGES, normalizeStatus, STAGE_LABELS } from "@loupekit/shared";
 import type { Comment, Proposal } from "@loupekit/shared";
+
+/**
+ * Accepted values for a status argument: the five board stages, plus the legacy
+ * `open` / `done` aliases so an agent configured before the board still works
+ * (they normalize to `queue` / `resolved`).
+ */
+const STAGE_ARG = z
+  .string()
+  .describe(`Stage: ${COMMENT_STAGES.join(" / ")}. Legacy "open" and "done" are accepted too.`);
 
 const API = (process.env.LOUPE_API || "http://localhost:8787").replace(/\/$/, "");
 const PROJECT_KEY = process.env.LOUPE_PROJECT_KEY || "pk_demo_acme";
@@ -105,11 +115,14 @@ export async function listComments({ status, url }: { status?: string; url?: str
   const q = new URLSearchParams({ projectKey: PROJECT_KEY });
   if (url) q.set("url", url);
   let comments = (await api(`/v1/comments?${q}`)) as Comment[];
-  if (status) comments = comments.filter((c) => c.status === status);
+  if (status) {
+    const want = normalizeStatus(status);
+    comments = comments.filter((c) => normalizeStatus(c.status) === want);
+  }
   if (!comments.length) return wrap("No comments match.");
   const lines = comments.map(
     (c) =>
-      `- [${c.status}] #${c.id} — ${titleOf(c)}: ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
+      `- [${STAGE_LABELS[normalizeStatus(c.status)]}] #${c.id} — ${titleOf(c)}: ${c.body}\n    ↳ ${targetOf(c)} on ${c.url} (by ${c.author.name})`,
   );
   return wrap(`${comments.length} comment(s):\n\n${lines.join("\n")}\n\nUse get_comment(id) for the full element context.`);
 }
@@ -119,7 +132,7 @@ export async function getComment({ id }: { id: string }) {
   // Free notes aren't tied to an element — skip the element HTML/styles sections.
   if (c.kind === "free") {
     const text = [
-      `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
+      `# Feedback #${c.id} from ${c.author.name} (${STAGE_LABELS[normalizeStatus(c.status)]})`,
       ``,
       `**Title:** ${titleOf(c)}`,
       `**Note:** ${c.body}`,
@@ -131,7 +144,7 @@ export async function getComment({ id }: { id: string }) {
     return wrap(text, ...imgs.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType })));
   }
   const text = [
-    `# Feedback #${c.id} from ${c.author.name} (${c.status})`,
+    `# Feedback #${c.id} from ${c.author.name} (${STAGE_LABELS[normalizeStatus(c.status)]})`,
     ``,
     `**Title:** ${titleOf(c)}`,
     `**Request:** ${c.body}`,
@@ -176,8 +189,10 @@ export async function getComment({ id }: { id: string }) {
 }
 
 export async function updateStatus({ id, status }: { id: string; status: string }) {
-  await api(`/v1/comments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status }) });
-  return wrap(`#${id} → ${status}`);
+  // Accept the legacy names too, and store the canonical stage.
+  const stage = normalizeStatus(status);
+  await api(`/v1/comments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status: stage }) });
+  return wrap(`#${id} → ${STAGE_LABELS[stage]}`);
 }
 
 export async function proposeChange({ id, html, css, notes }: { id: string; html: string; css?: string; notes?: string }) {
@@ -192,12 +207,12 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.7" });
+const server = new McpServer({ name: "loupe", version: "0.10.8" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Use this to see what a PM has flagged, then work through the items.",
   {
-    status: z.enum(["open", "in_progress", "done"]).optional().describe("Filter by status. Omit for all."),
+    status: STAGE_ARG.optional().describe(`Filter by stage. Omit for all.`),
     url: z.string().optional().describe("Filter to a single page path, e.g. /checkout."),
   },
   listComments,
@@ -210,8 +225,8 @@ server.tool(
 );
 server.tool(
   "update_status",
-  "Update a comment's status. Set to in_progress when you start it and done when the change is shipped — this closes the loop back to the PM.",
-  { id: z.string(), status: z.enum(["open", "in_progress", "done"]) },
+  "Move a comment along the board. Set In Progress when you start it, and In Review when the change is ready for a human — only a person resolves a comment, so never set Resolved yourself.",
+  { id: z.string(), status: STAGE_ARG },
   updateStatus,
 );
 server.tool(

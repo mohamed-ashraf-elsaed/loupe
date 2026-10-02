@@ -199,7 +199,7 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | `list_comments` | `status?`, `url?` | the backlog, newest first |
 | `get_comment` | `id` | Claude-ready package: request + element HTML + computed styles + the screenshot as an image + any recording URL |
 | `propose_change` | `id`, `html`, `css?`, `notes?` | stores Claude's modified HTML/CSS on the comment; the dashboard shows code + a live before/after preview |
-| `update_status` | `id`, `status` | marks a comment open / in_progress / done |
+| `update_status` | `id`, `status` | moves a comment along the board: queue / todo / in_progress / in_review / resolved |
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-3-claude.jpg" alt="Hand the backlog to Claude" width="90%" />
@@ -287,7 +287,7 @@ Migration `create_loupe_comments_table` → `loupe_comments`:
 | `id` | string (PK) | client-generated UUID |
 | `project_key` | string, indexed | scopes to this app |
 | `url` | text | normalized (utm / click ids stripped) |
-| `status` | string, indexed | `open` · `in_progress` · `done` |
+| `status` | string, indexed | `queue` · `todo` · `in_progress` · `in_review` · `resolved` |
 | `body` | text | the comment |
 | `kind` | string | `element` · `region` · `free` (page-level note) |
 | `author` / `author_id` | json / string | `{id,name,email?}` + denormalized id |

@@ -3,6 +3,7 @@ import { captureAnchor, resolveAnchor } from "./fingerprint.js";
 import { attachmentKind, captureElementContext, captureScreenshot, captureRegionScreenshot, captureRegionRecording } from "./capture.js";
 import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
+import { normalizeStatus } from "./types.js";
 import type { Anchor, Attachment, Comment, LoupeConfig, RegionRect, StorageAdapter } from "./types.js";
 
 declare const __LOUPE_VERSION__: string | undefined;
@@ -983,7 +984,7 @@ export class LoupeApp {
       author: this.cfg.user,
       title,
       body,
-      status: "open",
+      status: "queue",
       kind: target.kind,
       anchor,
       context,
@@ -1043,7 +1044,7 @@ export class LoupeApp {
         this.pins.set(c.id, pin);
       }
       pin.textContent = String(i + 1);
-      pin.classList.toggle("done", c.status === "done");
+      pin.classList.toggle("done", isResolved(c));
       pin.classList.toggle("free", c.kind === "free");
     });
     this.updateCount();
@@ -1354,11 +1355,11 @@ export class LoupeApp {
   }
 
   private itemView(c: Comment, i: number): HTMLElement {
-    const detached = this.pins.get(c.id)?.classList.contains("detached") && c.status !== "done";
+    const detached = this.pins.get(c.id)?.classList.contains("detached") && !isResolved(c);
     const open = this.expanded.has(c.id);
     const item = el("div", "item" + (open ? "" : " collapsed"));
     const top = el("div", "top");
-    const num = el("span", "num" + (c.status === "done" ? " done" : detached ? " detached" : ""), String(i + 1));
+    const num = el("span", "num" + (isResolved(c) ? " done" : detached ? " detached" : ""), String(i + 1));
     // No author identity is shown in the widget list (privacy — see the dashboard for triage).
     top.append(num);
     if (c.recording) top.appendChild(el("span", "rectag", "⏺ recording"));
@@ -1368,7 +1369,7 @@ export class LoupeApp {
       const icon = vw < 768 ? "📱" : vw < 1024 ? "▦" : "🖥";
       top.appendChild(el("span", "device", `${icon} ${kind}`));
     }
-    if (c.status === "done") top.appendChild(el("span", "badge done", "done"));
+    if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
     else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
     top.appendChild(el("span", "caret", open ? "▾" : "▸"));
     item.appendChild(top);
@@ -1413,10 +1414,10 @@ export class LoupeApp {
     }
 
     const actions = el("div", "actions");
-    const doneBtn = el("button", "", c.status === "done" ? "Reopen" : "Mark done") as HTMLButtonElement;
+    const doneBtn = el("button", "", isResolved(c) ? "Reopen" : "Resolve") as HTMLButtonElement;
     doneBtn.onclick = async (e) => {
       e.stopPropagation();
-      const status = c.status === "done" ? "open" : "done";
+      const status = isResolved(c) ? "queue" : "resolved";
       c.status = status; await this.store.update(c.id, { status });
       this.renderPins(); this.renderList();
     };
@@ -1645,4 +1646,12 @@ function describe(elx: Element): string {
 function describeAnchor(c: Comment): string {
   if (c.kind === "free") return "Free note · page-level";
   return c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
+}
+
+/**
+ * A comment is done only at the last stage. Normalizing first means a row still
+ * carrying a legacy status (`done`) reads correctly without a data migration.
+ */
+function isResolved(c: Comment): boolean {
+  return normalizeStatus(c.status) === "resolved";
 }

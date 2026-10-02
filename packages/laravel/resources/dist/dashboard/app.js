@@ -1,4 +1,5 @@
 // app.ts
+import { COMMENT_STAGES, normalizeStatus, STAGE_LABELS } from "@loupekit/shared";
 var injected = window.__LOUPE__;
 var params = new URLSearchParams(location.search);
 var API = (injected?.api || params.get("api") || location.origin).replace(/\/$/, "");
@@ -6,12 +7,8 @@ var PROJECT = injected?.project || params.get("project") || "pk_demo_acme";
 var CSRF = injected?.csrf || "";
 var ADMIN = params.get("key") || localStorage.getItem("loupe_admin") || "";
 if (params.get("key")) localStorage.setItem("loupe_admin", params.get("key"));
-var COLUMNS = [
-  { key: "open", label: "Open" },
-  { key: "in_progress", label: "In progress" },
-  { key: "done", label: "Done" }
-];
-var ORDER = ["open", "in_progress", "done"];
+var COLUMNS = COMMENT_STAGES.map((key) => ({ key, label: STAGE_LABELS[key] }));
+var ORDER = [...COMMENT_STAGES];
 var comments = [];
 var pageFilter = "";
 var search = "";
@@ -66,16 +63,16 @@ function render() {
   );
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
-    const items = visible.filter((c) => c.status === col.key).sort((a, b) => sortOrder === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt));
+    const items = visible.filter((c) => normalizeStatus(c.status) === col.key).sort((a, b) => sortOrder === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt));
     const colEl = document.createElement("section");
-    colEl.className = `col ${col.key}`;
+    colEl.className = `col stage-${col.key}`;
     colEl.innerHTML = `<div class="col-head"><span class="swatch"></span><h2>${col.label}</h2><span class="n">${items.length}</span></div>`;
     const stack = document.createElement("div");
     stack.className = "stack";
     if (!items.length) {
       const e = document.createElement("div");
       e.className = "col-empty";
-      e.textContent = col.key === "open" ? "No open feedback" : "Nothing here";
+      e.textContent = col.key === "queue" ? "No new feedback" : "Nothing here";
       stack.appendChild(e);
     } else {
       items.forEach((c) => stack.appendChild(card(c)));
@@ -138,7 +135,7 @@ function card(c) {
     }
   }
   if (c.proposal) detail.appendChild(proposalView(c));
-  const idx = ORDER.indexOf(c.status);
+  const idx = ORDER.indexOf(normalizeStatus(c.status));
   const actions = document.createElement("div");
   actions.className = "actions";
   const move = document.createElement("div");

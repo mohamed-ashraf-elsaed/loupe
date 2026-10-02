@@ -1,5 +1,6 @@
 // Loupe feedback board — reads the backend API and renders a Kanban of comments.
 // Vanilla TS to match the SDK's zero-framework footprint.
+import { COMMENT_STAGES, normalizeStatus, STAGE_LABELS } from "@loupekit/shared";
 import type { Comment, CommentStatus as Status } from "@loupekit/shared";
 
 // Config resolution. A host that embeds the board behind its own authenticated
@@ -20,12 +21,10 @@ const CSRF = injected?.csrf || "";
 const ADMIN = params.get("key") || localStorage.getItem("loupe_admin") || "";
 if (params.get("key")) localStorage.setItem("loupe_admin", params.get("key")!);
 
-const COLUMNS: { key: Status; label: string }[] = [
-  { key: "open", label: "Open" },
-  { key: "in_progress", label: "In progress" },
-  { key: "done", label: "Done" },
-];
-const ORDER: Status[] = ["open", "in_progress", "done"];
+// The board is the canonical stage order — one source of truth in @loupekit/shared
+// so the dashboard, the SDK and the Laravel mirror cannot drift apart.
+const COLUMNS: { key: Status; label: string }[] = COMMENT_STAGES.map((key) => ({ key, label: STAGE_LABELS[key] }));
+const ORDER: Status[] = [...COMMENT_STAGES];
 
 let comments: Comment[] = [];
 let pageFilter = "";
@@ -97,12 +96,12 @@ function render() {
   boardEl.innerHTML = "";
   for (const col of COLUMNS) {
     const items = visible
-      .filter((c) => c.status === col.key)
+      .filter((c) => normalizeStatus(c.status) === col.key)
       .sort((a, b) => (sortOrder === "newest"
         ? b.createdAt.localeCompare(a.createdAt)
         : a.createdAt.localeCompare(b.createdAt)));
     const colEl = document.createElement("section");
-    colEl.className = `col ${col.key}`;
+    colEl.className = `col stage-${col.key}`;
     colEl.innerHTML =
       `<div class="col-head"><span class="swatch"></span><h2>${col.label}</h2><span class="n">${items.length}</span></div>`;
     const stack = document.createElement("div");
@@ -110,7 +109,7 @@ function render() {
     if (!items.length) {
       const e = document.createElement("div");
       e.className = "col-empty";
-      e.textContent = col.key === "open" ? "No open feedback" : "Nothing here";
+      e.textContent = col.key === "queue" ? "No new feedback" : "Nothing here";
       stack.appendChild(e);
     } else {
       items.forEach((c) => stack.appendChild(card(c)));
@@ -196,7 +195,7 @@ function card(c: Comment): HTMLElement {
 
   if (c.proposal) detail.appendChild(proposalView(c));
 
-  const idx = ORDER.indexOf(c.status);
+  const idx = ORDER.indexOf(normalizeStatus(c.status));
   const actions = document.createElement("div");
   actions.className = "actions";
 

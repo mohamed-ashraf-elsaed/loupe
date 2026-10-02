@@ -3,6 +3,7 @@
 namespace Loupekit\Loupe\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Loupekit\Loupe\Support\Stages;
 
 /**
  * A single piece of visual feedback.
@@ -66,7 +67,9 @@ class Comment extends Model
             'author' => $this->author,
             'title' => $this->title,
             'body' => $this->body,
-            'status' => $this->status,
+            // Normalize on read too, so a row written before the five-stage board
+            // still lands on a column even if the data migration has not run.
+            'status' => Stages::normalize($this->status),
             'kind' => $this->kind ?: 'element',
             'anchor' => $this->anchor,
             'context' => $this->context,

@@ -53,7 +53,7 @@ class CommentApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('id', 'c1')
             ->assertJsonPath('projectKey', 'app')
-            ->assertJsonPath('status', 'open');
+            ->assertJsonPath('status', 'queue');
 
         $this->assertDatabaseHas('loupe_comments', ['id' => 'c1', 'author_id' => (string) $user->id]);
     }
@@ -201,10 +201,21 @@ class CommentApiTest extends TestCase
         $this->actingAsAllowed();
         $this->seedComment('c1');
 
-        $this->patchJson('/loupe/v1/comments/c1', ['status' => 'done', 'body' => 'b2'])
+        $this->patchJson('/loupe/v1/comments/c1', ['status' => 'resolved', 'body' => 'b2'])
             ->assertOk()
-            ->assertJsonPath('status', 'done')
+            ->assertJsonPath('status', 'resolved')
             ->assertJsonPath('body', 'b2');
+    }
+
+    public function test_it_accepts_a_legacy_status_and_lands_it_on_a_stage(): void
+    {
+        $this->actingAsAllowed();
+        $this->seedComment('c1');
+
+        // An older widget still sends `done`; it must not fall off the board.
+        $this->patchJson('/loupe/v1/comments/c1', ['status' => 'done'])
+            ->assertOk()
+            ->assertJsonPath('status', 'resolved');
     }
 
     public function test_update_with_no_patchable_fields_is_a_noop(): void
@@ -214,7 +225,8 @@ class CommentApiTest extends TestCase
 
         $this->patchJson('/loupe/v1/comments/c1', ['ignored' => 'x'])
             ->assertOk()
-            ->assertJsonPath('status', 'open');
+            // A pre-board row still reads as a stage.
+            ->assertJsonPath('status', 'queue');
     }
 
     public function test_update_returns_404_for_missing_comment(): void
