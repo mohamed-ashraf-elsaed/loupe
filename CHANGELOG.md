@@ -11,6 +11,17 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.5] — 2026-10-02
+
+### Fixed
+
+- **A fresh Laravel app no longer 500s on `/loupe/dashboard`.** Found by installing the
+  package as a stranger would in a brand-new app: Laravel 11+ ships no auth scaffolding, so
+  there is no `login` route — and the auth middleware's `AuthenticationException` is turned
+  into a redirect to it, which threw `Route [login] not defined`. A browser guest now gets a
+  **403 that says what to do**; apps with a login route are unchanged; JSON still gets 401.
+  (The suite never caught it because the testbench app registers a `[login]` route.)
+
 ## [0.10.4] — 2026-10-02
 
 ### Fixed

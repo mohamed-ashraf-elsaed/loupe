@@ -304,7 +304,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.10.4</span>
+    <span class="ver">v0.10.5</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -313,7 +313,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.10.4</a>
+    <a class="icon-btn" href="#changelog">v0.10.5</a>
   </div>
 </header>
 
@@ -370,7 +370,7 @@
 
       <!-- INTRODUCTION -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Documentation · v0.10.4</p>
+        <p class="eyebrow">Documentation · v0.10.5</p>
         <h1>Loupe</h1>
         <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
           screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
@@ -383,7 +383,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.10.4</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.10.5</div></div>
           <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.4+</div></div>
@@ -661,7 +661,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-shared">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.4</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.5</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
         <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
           Node packages import the compiled JS.</p>
 
@@ -696,7 +696,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-sdk">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.4</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.5</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
         <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
           (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
 
@@ -761,7 +761,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-server">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.4</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.5</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
         <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
           <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
           listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
@@ -810,7 +810,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-dashboard">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.4</span><span class="badge">tsup bundle</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.5</span><span class="badge">tsup bundle</span></div>
         <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
           (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
           <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
@@ -831,7 +831,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-mcp">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.4</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
+        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.5</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
         <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
           Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
           Claude Code at the source entry directly.</p>
@@ -876,7 +876,7 @@ npm start</code></pre>
       <section class="doc" id="pkg-extension">
         <p class="eyebrow">Package</p>
         <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.4</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
+        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.5</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
         <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
           target. The only difference from the SDK is the screenshot source:
           <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
@@ -1091,8 +1091,8 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
           <table>
             <thead><tr><th>Feature</th><th>What it does</th><th>Since</th></tr></thead>
             <tbody>
-              <tr><td>Loupe Hub</td><td>Optional hosted service: orgs, allowed members (emails / one domain), projects; verifies signed issues, checks org membership, forwards to a signed per-project webhook with retries + delivery log.</td><td class="tabular">0.10.4</td></tr>
-              <tr><td>Laravel → Hub</td><td>Set <code>LOUPE_HUB_URL</code> + <code>LOUPE_PROJECT_ID</code> + <code>LOUPE_PROJECT_SECRET</code> and every new comment is also sent to Hub (queued, never blocks comment creation).</td><td class="tabular">0.10.4</td></tr>
+              <tr><td>Loupe Hub</td><td>Optional hosted service: orgs, allowed members (emails / one domain), projects; verifies signed issues, checks org membership, forwards to a signed per-project webhook with retries + delivery log.</td><td class="tabular">0.10.5</td></tr>
+              <tr><td>Laravel → Hub</td><td>Set <code>LOUPE_HUB_URL</code> + <code>LOUPE_PROJECT_ID</code> + <code>LOUPE_PROJECT_SECRET</code> and every new comment is also sent to Hub (queued, never blocks comment creation).</td><td class="tabular">0.10.5</td></tr>
               <tr><td>Free comments</td><td>Drop a page-level note anywhere via the <strong>Note</strong> mode — no element, no screenshot (<code>kind: "free"</code>).</td><td class="tabular">0.5.0</td></tr>
               <tr><td>Dockable control</td><td>DevTools-style panel: dock to left / right / bottom (pushes the host page over) or float as a movable, resizable window. Position persists.</td><td class="tabular">0.6.0</td></tr>
               <tr><td>Light / dark theme</td><td>Theme toggle in the panel header; dark by default, persists.</td><td class="tabular">0.6.0</td></tr>
@@ -1211,10 +1211,10 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.4</strong> (2026-09-24).</p>
+          release: <strong>0.10.5</strong> (2026-09-24).</p>
 
         <div class="cl-entry latest">
-          <div class="cl-head"><span class="cl-ver">0.10.4</span><span class="cl-date">2026-09-24</span><span class="cl-tag add">Added</span></div>
+          <div class="cl-head"><span class="cl-ver">0.10.5</span><span class="cl-date">2026-09-24</span><span class="cl-tag add">Added</span></div>
           <ul class="bul">
             <li><strong>Loupe Hub</strong> (<code>packages/hub</code>, private). A minimal hosted service with
               Google sign-in: org owners create organizations, add allowed members (Google emails and/or one
@@ -1424,7 +1424,7 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.10.4 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.10.5 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
           <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,
