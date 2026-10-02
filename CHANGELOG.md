@@ -11,6 +11,56 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.20] — 2026-10-02
+
+### Added
+
+- **A GitHub client** (`packages/mcp/src/github/github-client.ts`) — Loupe could store a proposal but
+  not act on it. It now commits and opens pull requests. (Milestone 0.12; #15.)
+  - **One atomic commit for a multi-file fix**, via the Git Data API (blob → tree → commit → ref)
+    rather than the contents API, which writes one file per commit. A three-file fix is one commit,
+    which is a better review and a clean revert.
+  - `createPullRequest`, `getPullRequest`, `get/updatePullRequestBody`, `isPullRequestOpen`,
+    `findOpenPullRequest`, `branchExists`, `branchHead`, `createBranchFromBase`, `commitChanges`.
+  - **Token resolution**: `GITHUB_TOKEN` (or `GH_TOKEN`), else `gh auth token`, else a message saying
+    exactly what to do — and noting that everything else still works without one.
+  - **Placeholder detection.** A config copied from a README contains `<your token>`; treating that as
+    real produces a 401 at the moment an agent opens a PR, far from the cause. Seventeen shapes are
+    recognised, including the too-short-to-be-real case.
+  - **The token never leaves the Authorization header**, and errors are redacted before they are
+    returned — asserted.
+- **Working branches and preview URLs** (milestone 0.12; #17).
+  - `working_branches` — which branch accumulates a repo's fixes, its PR, its head sha, its preview URL
+    and a **running fix count** that increments rather than overwrites. A plain update keeps the fields
+    it was not told about, so moving the head cannot wipe the PR link.
+  - `repo_urls` — per-repo URL patterns, one per environment, so a deployment can be *recognised*
+    rather than guessed.
+  - **`resolvePreview()`** answers "is there a preview yet?" by trying, in order: a URL already reported
+    on the branch, then each registered pattern (preview-shaped environments first), then GitHub Pages'
+    own `pr-preview/pr-N` convention — probing each so "ready" means a URL that responded. Otherwise
+    **"not ready"**, listing what it tried. A URL is never guessed.
+  - **URL pattern matching** in `@loupekit/shared` — `*` within a segment, `**` across them, and
+    `https://host/**` also matching the bare host. Regex metacharacters in a pattern are escaped, so a
+    hostname's dots are literal and `acmeXtest` does not match `acme.test`.
+  - **Template expansion** returns `null` rather than a half-substituted URL: a preview is never
+    `https://undefined.github.io/...`.
+  - Server routes for both tables plus `GET /v1/preview`, all scoped by the project's own auth.
+- **A preview link in the panel** — a card shows **Preview** only once a URL is known. There is no
+  optimistic "deploying…" state, because there is nothing truthful to put in it.
+
+### Fixed
+
+- **A test of mine was corrupting a global.** The navigation-consent test replaced the entire
+  `window.location` object with `{ ...window.location, assign }` — but spreading a `Location` does not
+  copy the getters that live on its prototype, so `pathname` and `search` became `undefined` for
+  **every test after it**. It now stubs only `assign`, and restores it. This is what made a later test
+  fail in a full-file run and pass in isolation.
+- `deleteWorkingBranch` / `removeRepoUrl` used `rowCount`, which the embedded driver does not populate —
+  a successful delete looked like a miss. They use `RETURNING` now, like `removeComment` does.
+- `upsertWorkingBranch` passed a nullable status into a `NOT NULL` column; the insert now defaults it
+  while the conflict clause still reads the raw value, so a plain update cannot reset a merged branch
+  to "open".
+
 ## [0.10.19] — 2026-10-02
 
 ### Added

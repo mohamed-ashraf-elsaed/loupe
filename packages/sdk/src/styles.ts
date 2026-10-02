@@ -603,6 +603,13 @@ export const STYLES = /* css */ `
 .prchip.st-merged { border-color: #8250df; color: #8250df; }
 .prchip.st-merged:hover { background: #8250df; color: #fff; }
 .prchip.st-closed { border-color: var(--line); color: var(--muted); }
+/* a preview that is actually live — never shown optimistically */
+.previewchip {
+  padding: 1px 6px; border-radius: 6px; text-decoration: none; white-space: nowrap;
+  border: 1px solid #2f9e6a; background: var(--bg); color: #2f9e6a;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+.previewchip:hover { background: #2f9e6a; color: #fff; }
 /* checks meter — a numerator over a thin bar */
 .checks { display: inline-flex; align-items: center; gap: 4px; }
 .checks-n { font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }

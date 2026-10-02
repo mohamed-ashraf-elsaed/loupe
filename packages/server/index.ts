@@ -6,6 +6,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { argv } from "node:process";
 import * as store from "./store.ts";
 import { authenticate } from "./auth.ts";
+import {
+  addRepoUrl, deleteWorkingBranch, listRepoUrls, listWorkingBranches, removeRepoUrl, resolvePreview, upsertWorkingBranch,
+} from "./branches.ts";
 import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } from "./blobs.ts";
 import { migrate } from "./db.ts";
 import type { Comment } from "@loupekit/shared";
@@ -79,6 +82,62 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
 
   try {
     if (path === "/v1/health") return send(res, 200, { ok: true });
+
+    // ---- working branches (the accumulating-PR model) ----------------------
+    if (path === "/v1/working-branches" && req.method === "POST") {
+      const body = await readBody(req);
+      const auth = await authenticate(body.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      if (!body.repo || !body.branch) return send(res, 400, { error: "repo and branch are required" });
+      return send(res, 201, await upsertWorkingBranch({ ...body, projectKey: auth.projectKey }));
+    }
+    if (path === "/v1/working-branches" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      return send(res, 200, await listWorkingBranches(auth.projectKey, url.searchParams.get("repo") ?? undefined));
+    }
+    if (path === "/v1/working-branches" && req.method === "DELETE") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      const repo = url.searchParams.get("repo");
+      const branch = url.searchParams.get("branch");
+      if (!repo || !branch) return send(res, 400, { error: "repo and branch are required" });
+      return send(res, 200, { ok: await deleteWorkingBranch(auth.projectKey, repo, branch) });
+    }
+
+    // ---- repo url patterns -------------------------------------------------
+    if (path === "/v1/repo-urls" && req.method === "POST") {
+      const body = await readBody(req);
+      const auth = await authenticate(body.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      if (!body.repo || !body.pattern) return send(res, 400, { error: "repo and pattern are required" });
+      return send(res, 201, await addRepoUrl({
+        projectKey: auth.projectKey, repo: body.repo,
+        environment: body.environment ?? "staging", pattern: body.pattern,
+      }));
+    }
+    if (path === "/v1/repo-urls" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      return send(res, 200, await listRepoUrls(auth.projectKey, url.searchParams.get("repo") ?? undefined));
+    }
+    const repoUrlDelete = path.match(/^\/v1\/repo-urls\/(.+)$/);
+    if (repoUrlDelete && req.method === "DELETE") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      return send(res, 200, { ok: await removeRepoUrl(auth.projectKey, decodeURIComponent(repoUrlDelete[1]!)) });
+    }
+
+    // Is there a preview for this branch yet? Answers, or says "not ready".
+    if (path === "/v1/preview" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      const repo = url.searchParams.get("repo");
+      const branch = url.searchParams.get("branch");
+      if (!repo || !branch) return send(res, 400, { error: "repo and branch are required" });
+      const pr = url.searchParams.get("pr");
+      return send(res, 200, await resolvePreview(auth.projectKey, repo, branch, pr ? { pr: Number(pr) } : {}));
+    }
 
     // Public: serve screenshot blobs (unguessable ids). Prod: signed URLs.
     const blobGet = path.match(/^\/v1\/blobs\/([^/]+)$/);

@@ -639,6 +639,13 @@ var Loupe = (() => {
 .prchip.st-merged { border-color: #8250df; color: #8250df; }
 .prchip.st-merged:hover { background: #8250df; color: #fff; }
 .prchip.st-closed { border-color: var(--line); color: var(--muted); }
+/* a preview that is actually live \u2014 never shown optimistically */
+.previewchip {
+  padding: 1px 6px; border-radius: 6px; text-decoration: none; white-space: nowrap;
+  border: 1px solid #2f9e6a; background: var(--bg); color: #2f9e6a;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+.previewchip:hover { background: #2f9e6a; color: #fff; }
 /* checks meter \u2014 a numerator over a thin bar */
 .checks { display: inline-flex; align-items: center; gap: 4px; }
 .checks-n { font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -3210,7 +3217,7 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.19" : "dev";
+  var SDK_VERSION = true ? "0.10.20" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -5291,6 +5298,15 @@ var Loupe = (() => {
           meter.title = `Checks \u2014 ${lc.checks.text} passed`;
           meter.innerHTML = `<span class="checks-n">${escapeHtml(lc.checks.text)}</span><span class="checks-bar"><i style="width:${Math.round(lc.checks.ratio * 100)}%"></i></span>`;
           top.appendChild(meter);
+        }
+        if (lc.pr?.previewUrl) {
+          const preview = el("a", "previewchip", "Preview");
+          preview.href = lc.pr.previewUrl;
+          preview.target = "_blank";
+          preview.rel = "noreferrer";
+          preview.title = `Preview live at ${lc.pr.previewUrl}`;
+          preview.addEventListener("click", (e) => e.stopPropagation());
+          top.appendChild(preview);
         }
       }
       if (this.showPaths && this.scope === "all" && c.url) {

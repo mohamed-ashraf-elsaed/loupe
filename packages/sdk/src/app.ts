@@ -2547,6 +2547,17 @@ export class LoupeApp {
           `<span class="checks-bar"><i style="width:${Math.round(lc.checks.ratio * 100)}%"></i></span>`;
         top.appendChild(meter);
       }
+      // Only when a URL is actually known — a preview is never guessed, so there is
+      // no "deploying…" state to sit in limbo here.
+      if (lc.pr?.previewUrl) {
+        const preview = el("a", "previewchip", "Preview") as HTMLAnchorElement;
+        preview.href = lc.pr.previewUrl;
+        preview.target = "_blank";
+        preview.rel = "noreferrer";
+        preview.title = `Preview live at ${lc.pr.previewUrl}`;
+        preview.addEventListener("click", (e) => e.stopPropagation());
+        top.appendChild(preview);
+      }
     }
 
     // Page paths only mean something once the list spans more than one page.

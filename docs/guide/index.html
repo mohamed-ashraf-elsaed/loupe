@@ -1217,9 +1217,50 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.19</strong> (2026-10-02).</p>
+          release: <strong>0.10.20</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.20</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
+          <ul class="bul">
+            <li><strong>A GitHub client.</strong> Loupe could store a proposal but not act on it — now it
+              commits and opens pull requests. A multi-file fix lands as <strong>one atomic commit</strong>
+              (blob → tree → commit → ref), the token comes from <code>GITHUB_TOKEN</code> or
+              <code>gh auth token</code>, a placeholder like <code>&lt;your token&gt;</code> is recognised
+              rather than sent and rejected, and the token is never logged.</li>
+            <li><strong>Working branches and preview URLs.</strong> Which branch accumulates a repo's
+              fixes, its PR and a running fix count; plus per-repo URL patterns. Asking "is there a
+              preview yet?" tries the reported URL, the registered patterns and the GitHub Pages
+              convention, <em>probing each</em> — so "ready" means a URL that responded, and otherwise it
+              says <em>not ready</em> and lists what it tried. A preview URL is never guessed.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.10.19</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
+          <ul class="bul">
+            <li><strong>The workspace source mapper.</strong> A captured element maps to ranked
+              <code>file:line</code> candidates instead of raw HTML — weights in one tunable table,
+              boosts for component files and agreeing signals, styling utilities filtered out before
+              searching, and build output skipped by directory <em>and</em> by shape.</li>
+            <li><strong>Four element-context MCP tools</strong> — <code>get_latest_selection</code>,
+              <code>get_selection_history</code>, <code>get_element_context</code>,
+              <code>find_source_for_selection</code> — each taking a live selection or a
+              <code>thread_id</code>, with a ready-made edit prompt that pins the diff.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.10.18</span><span class="cl-date">2026-10-02</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>A package upgrade can no longer break a host app's writes.</strong>
+              <code>POST /comments</code> returned 500 on an app whose database had not run the migration
+              adding a column the controller writes. The write path now keeps only the attributes the
+              table actually has, so a pending migration degrades instead of taking feedback down. Run
+              <code>php artisan migrate</code> to add the missing column.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.17</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>A local bridge.</strong> The MCP server now hosts a bridge on

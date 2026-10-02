@@ -21,6 +21,11 @@ export interface PrInfo {
   /** Check runs that passed, and how many there are — the progress meter. */
   checksPassed?: number;
   checksTotal?: number;
+  /**
+   * Where the change can be seen running, once a deployment is live. Absent until
+   * something reports one — a preview URL is never guessed.
+   */
+  previewUrl?: string;
 }
 
 export type LifecycleStage = "sent" | "in_pr" | "preview" | "reviewed";

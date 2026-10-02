@@ -1238,37 +1238,42 @@ describe("LoupeApp", () => {
   });
 
   it("refuses to navigate an agent until the user explicitly grants it", async () => {
+    // Replace ONLY `assign`. Replacing the whole `location` object would drop the
+    // getters that live on its prototype — `pathname` and `search` become undefined,
+    // and every later test that keys off the URL silently breaks.
     const assign = vi.fn();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...window.location, assign, href: window.location.href },
-    });
-    init({ projectKey: "pk", user: { id: "u", name: "U" } });
-    await new Promise((r) => setTimeout(r, 10));
+    const original = window.location.assign;
+    Object.defineProperty(window.location, "assign", { configurable: true, writable: true, value: assign });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" } });
+      await new Promise((r) => setTimeout(r, 10));
 
-    // Nothing is pending up front.
-    expect((sr().querySelector(".consent") as HTMLElement).style.display).toBe("none");
+      // Nothing is pending up front.
+      expect((sr().querySelector(".consent") as HTMLElement).style.display).toBe("none");
 
-    requestNavigation("https://preview.example.com/pr/412", { reason: "The fix is live.", requester: "Claude Code" });
-    const box = sr().querySelector(".consent") as HTMLElement;
-    expect(box.style.display).toBe("");
-    expect(box.textContent).toContain("Claude Code");
-    expect(box.textContent).toContain("https://preview.example.com/pr/412");
-    expect(box.textContent).toContain("The fix is live.");
-    // The prompt is up, but nothing has navigated.
-    expect(assign).not.toHaveBeenCalled();
+      requestNavigation("https://preview.example.com/pr/412", { reason: "The fix is live.", requester: "Claude Code" });
+      const box = sr().querySelector(".consent") as HTMLElement;
+      expect(box.style.display).toBe("");
+      expect(box.textContent).toContain("Claude Code");
+      expect(box.textContent).toContain("https://preview.example.com/pr/412");
+      expect(box.textContent).toContain("The fix is live.");
+      // The prompt is up, but nothing has navigated.
+      expect(assign).not.toHaveBeenCalled();
 
-    // Declining navigates nowhere and clears the prompt.
-    (sr().querySelector(".cs-deny") as HTMLElement).click();
-    expect(assign).not.toHaveBeenCalled();
-    expect(box.style.display).toBe("none");
-    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Declined opening");
+      // Declining navigates nowhere and clears the prompt.
+      (sr().querySelector(".cs-deny") as HTMLElement).click();
+      expect(assign).not.toHaveBeenCalled();
+      expect(box.style.display).toBe("none");
+      expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Declined opening");
 
-    // Granting is the only path that navigates.
-    requestNavigation("https://preview.example.com/pr/412");
-    (sr().querySelector(".cs-go") as HTMLElement).click();
-    expect(assign).toHaveBeenCalledWith("https://preview.example.com/pr/412");
-    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Opened https://preview.example.com/pr/412");
+      // Granting is the only path that navigates.
+      requestNavigation("https://preview.example.com/pr/412");
+      (sr().querySelector(".cs-go") as HTMLElement).click();
+      expect(assign).toHaveBeenCalledWith("https://preview.example.com/pr/412");
+      expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Opened https://preview.example.com/pr/412");
+    } finally {
+      Object.defineProperty(window.location, "assign", { configurable: true, writable: true, value: original });
+    }
   });
 
   it("refuses a request for anything that is not http(s)", async () => {
@@ -1288,6 +1293,27 @@ describe("LoupeApp", () => {
     // happy-dom has no SpeechRecognition: the button says so instead of pretending.
     expect(mic.disabled).toBe(true);
     expect(mic.title).toContain("not available");
+  });
+
+  it("links to a live preview, and only when one is known", async () => {
+    // The widget keys comments on path **and** search, so seed the same key it reads.
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({
+        id: "with", title: "Has a preview", status: "in_review",
+        pr: { number: 412, url: "https://github.com/acme/web/pull/412", previewUrl: "https://acme.github.io/web/pr-preview/pr-412/" },
+      }),
+      seeded({ id: "without", title: "No preview yet", status: "in_review", pr: { number: 413 } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const links = [...sr().querySelectorAll<HTMLAnchorElement>(".previewchip")];
+    // One, not two: a thread whose preview is unknown shows nothing rather than a
+    // link to a URL nobody has seen respond.
+    expect(links.length).toBe(1);
+    expect(links[0]!.textContent).toBe("Preview");
+    expect(links[0]!.getAttribute("href")).toBe("https://acme.github.io/web/pr-preview/pr-412/");
+    expect(links[0]!.getAttribute("target")).toBe("_blank");
   });
 
   it("does not initialize without projectKey or user id", () => {

@@ -95,6 +95,36 @@ export async function migrate(): Promise<void> {
   // The pull request carrying a thread's fix: { number, url, state, checksPassed,
   // checksTotal }. Drives the panel's lifecycle chip and checks meter.
   await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS pr JSONB;`);
+  // Working branches: which branch accumulates a repo's fixes, and what it became.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS working_branches (
+      id TEXT PRIMARY KEY,
+      project_key TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      base_branch TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      head_sha TEXT,
+      pr_number INTEGER,
+      pr_url TEXT,
+      preview_url TEXT,
+      fix_count INTEGER NOT NULL DEFAULT 0,
+      description TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );`);
+  await d.query(`CREATE INDEX IF NOT EXISTS working_branches_lookup ON working_branches (project_key, repo);`);
+  // URL patterns per repo, so a deployment can be recognised rather than guessed.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS repo_urls (
+      id TEXT PRIMARY KEY,
+      project_key TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );`);
+  await d.query(`CREATE INDEX IF NOT EXISTS repo_urls_lookup ON repo_urls (project_key, repo);`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).
