@@ -1316,6 +1316,22 @@ describe("LoupeApp", () => {
     expect(links[0]!.getAttribute("target")).toBe("_blank");
   });
 
+  it("labels a revision with the thread it revises", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "orig", title: "The original" }),
+      seeded({ id: "rev2", title: "A revision", parentThreadId: "orig", iterationType: "revision", iterationNumber: 2 }),
+      // A parent with no revision type is not an iteration — no chip rather than a
+      // misleading one.
+      seeded({ id: "odd", title: "Half a link", parentThreadId: "orig" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const chips = [...sr().querySelectorAll<HTMLElement>(".item")].map((i) => i.querySelector(".iterchip")?.textContent ?? null);
+    expect(chips).toEqual([null, "Iteration 2", null]);
+    expect(sr().querySelector<HTMLElement>(".iterchip")!.title).toBe("Revision of thread #orig");
+  });
+
   it("does not initialize without projectKey or user id", () => {
     init({ projectKey: "", user: { id: "u", name: "U" } } as any);
     expect(document.getElementById("loupe-root")).toBeNull();

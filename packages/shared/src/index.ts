@@ -5,9 +5,11 @@ export * from "./lifecycle.js";
 export * from "./iteration.js";
 export * from "./consent.js";
 export * from "./preview.js";
+export * from "./thread.js";
 
 // `export *` re-exports without bringing names into this module's scope.
 import type { PrInfo } from "./lifecycle.js";
+import type { IterationType } from "./thread.js";
 
 /**
  * Where a comment sits on the triage board. Five stages rather than three: the
@@ -296,6 +298,13 @@ export interface Comment {
    * panel's lifecycle chip and checks meter.
    */
   pr?: PrInfo;
+  /**
+   * Set when this thread is a revision of another: the reviewer reopened a resolved
+   * thread rather than filing a new one, so the conversation carries over.
+   */
+  parentThreadId?: string;
+  iterationType?: IterationType;
+  iterationNumber?: number;
   createdAt: string;
 }
 

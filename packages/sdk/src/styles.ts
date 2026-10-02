@@ -603,6 +603,12 @@ export const STYLES = /* css */ `
 .prchip.st-merged { border-color: #8250df; color: #8250df; }
 .prchip.st-merged:hover { background: #8250df; color: #fff; }
 .prchip.st-closed { border-color: var(--line); color: var(--muted); }
+/* a revision of another thread — the conversation carried over */
+.iterchip {
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+  border: 1px dashed var(--line); background: var(--bg); color: var(--muted);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
 /* a preview that is actually live — never shown optimistically */
 .previewchip {
   padding: 1px 6px; border-radius: 6px; text-decoration: none; white-space: nowrap;

@@ -1217,9 +1217,30 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.20</strong> (2026-10-02).</p>
+          release: <strong>0.10.21</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.21</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>One pull request per repo, not one per fix.</strong> A repo keeps a single working
+              branch; each fix is a commit on it and the PR body keeps a table of every fix with its
+              commit. When that PR is merged or closed, the next fix starts a fresh branch. A revision
+              never joins it — it gets its own <code>revision-*</code> branch, because adding to a PR a
+              reviewer already approved is the one thing that must not happen.</li>
+            <li><strong>Thread handoff.</strong> <code>mark_thread_addressed</code> moves a thread to In
+              Review and <strong>has no status parameter</strong> — it cannot resolve one. Plus
+              <code>add_thread_message</code> for replies, and <code>get_thread_conversation</code> to
+              read the whole exchange.</li>
+            <li><strong>Threads are conversations.</strong> Replies with authors typed
+              <em>user / agent / guest</em>; the original request is message #1 without anything being
+              migrated. A revised thread shows an <strong>Iteration N</strong> chip naming its parent.</li>
+            <li><strong>Fixed:</strong> a fix could be committed to the branch of a merged PR — detecting
+              a stale PR set the outcome but not the branch decision. Also the second parameter-property
+              crash in the MCP server, now guarded by a test that scans for the pattern.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.20</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
           <ul class="bul">
             <li><strong>A GitHub client.</strong> Loupe could store a proposal but not act on it — now it

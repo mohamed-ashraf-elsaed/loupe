@@ -54,15 +54,19 @@ afterAll(async () => {
 const text = (r: any) => r.content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
 
 describe("mcp server", () => {
-  it("exposes the backlog tools and the element-context tools", async () => {
+  it("exposes the backlog, element-context and handoff tools", async () => {
     const t = await client.listTools();
     expect(t.tools.map((x) => x.name).sort()).toEqual([
+      "add_thread_message",
+      "create_pr_for_thread",
       "find_source_for_selection",
       "get_comment",
       "get_element_context",
       "get_latest_selection",
       "get_selection_history",
+      "get_thread_conversation",
       "list_comments",
+      "mark_thread_addressed",
       "propose_change",
       "update_status",
     ]);

@@ -19,6 +19,7 @@ import {
   emptyConsent,
   emptyIterations,
   formatDuration,
+  iterationLabel,
   isPending as consentPending,
   lifecycle,
   move as moveIteration,
@@ -2558,6 +2559,15 @@ export class LoupeApp {
         preview.addEventListener("click", (e) => e.stopPropagation());
         top.appendChild(preview);
       }
+    }
+
+    // A revision says which thread it revises — the conversation carried over, and a
+    // reviewer needs to know that rather than seeing an unconnected duplicate.
+    const iteration = iterationLabel(c);
+    if (iteration) {
+      const chip = el("span", "iterchip", iteration);
+      chip.title = `Revision of thread #${c.parentThreadId}`;
+      top.appendChild(chip);
     }
 
     // Page paths only mean something once the list spans more than one page.

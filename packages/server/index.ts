@@ -11,6 +11,7 @@ import {
 } from "./branches.ts";
 import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } from "./blobs.ts";
 import { migrate } from "./db.ts";
+import { addMessage, deleteMessage, listMessages } from "./messages.ts";
 import type { Comment } from "@loupekit/shared";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -126,6 +127,48 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const auth = await authenticate(url.searchParams.get("projectKey"), req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       return send(res, 200, { ok: await removeRepoUrl(auth.projectKey, decodeURIComponent(repoUrlDelete[1]!)) });
+    }
+
+    // ---- thread messages ---------------------------------------------------
+    // The comment's own body is message #1, synthesised by the client — this returns
+    // the replies only, so there is nothing to backfill.
+    const messages = path.match(/^\/v1\/comments\/([^/]+)\/messages$/);
+    if (messages) {
+      const threadId = decodeURIComponent(messages[1]!);
+      const comment = await store.getComment(threadId);
+      if (!comment) return send(res, 404, { error: "not found" });
+      const auth = await authenticate(comment.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+
+      if (req.method === "GET") return send(res, 200, await listMessages(threadId));
+
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        if (typeof body.body !== "string" || !body.body.trim()) return send(res, 400, { error: "body is required" });
+        if (!body.author?.id) return send(res, 400, { error: "author.id is required" });
+        const message = await addMessage(threadId, comment.projectKey, {
+          author: {
+            id: String(body.author.id),
+            name: String(body.author.name ?? "Unknown"),
+            email: body.author.email,
+            // Default to a person; an agent has to say so, or every reply would look
+            // like it came from the reporter.
+            type: body.author.type === "agent" || body.author.type === "guest" ? body.author.type : "user",
+          },
+          body: body.body,
+          attachments: Array.isArray(body.attachments) ? body.attachments : undefined,
+        });
+        return send(res, 201, message);
+      }
+    }
+    const messageDelete = path.match(/^\/v1\/comments\/([^/]+)\/messages\/([^/]+)$/);
+    if (messageDelete && req.method === "DELETE") {
+      const threadId = decodeURIComponent(messageDelete[1]!);
+      const comment = await store.getComment(threadId);
+      if (!comment) return send(res, 404, { error: "not found" });
+      const auth = await authenticate(comment.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      return send(res, 200, { ok: await deleteMessage(threadId, decodeURIComponent(messageDelete[2]!)) });
     }
 
     // Is there a preview for this branch yet? Answers, or says "not ready".

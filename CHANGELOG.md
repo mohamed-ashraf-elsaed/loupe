@@ -11,6 +11,47 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.21] — 2026-10-02
+
+### Added
+
+- **One pull request per repo, not one per fix** (`packages/mcp/src/tools/create-pr.ts`). A repo keeps a
+  single working branch; each fix is a commit on it and the PR body keeps a table of every fix with its
+  commit. When that PR is merged or closed, the next fix starts a fresh branch. (Milestone 0.12; #16.)
+  - The table is edited by inserting **before a fixed sentinel** rather than regexing existing rows, so a
+    formatting change cannot lose or reorder them. If the sentinel is missing — someone edited the body
+    by hand — the row is appended *and* the anchor restored, rather than dropped.
+  - A description containing a pipe is escaped, because one unescaped `|` silently adds a column.
+  - `create_pr_for_thread` reports whether it **created**, **appended** or **restarted**, so the caller
+    never has to assume.
+  - A revision never joins the accumulating branch: it gets its own `revision-*` branch, because adding
+    to a PR a reviewer already approved is the one thing that must not happen.
+- **Thread handoff tools** (milestone 0.12; #18): `mark_thread_addressed`, `add_thread_message` and
+  `get_thread_conversation`.
+  - **`mark_thread_addressed` has no status parameter.** "In Review" is not a default, it is the only
+    thing the function can do — a tool that *could* resolve would eventually resolve, and then "only a
+    human closes a thread" is a convention rather than a property. `AGENT_ALLOWED_STATUSES` has no
+    `resolved` in it, and a test asserts both.
+  - `add_thread_message` replies without touching the status at all, for progress notes and preview URLs.
+- **Thread messages** (`packages/shared/src/thread.ts`, the `thread_messages` table, and
+  `GET`/`POST /v1/comments/:id/messages`) — a thread is a conversation now, with authors typed
+  `user | agent | guest`. The comment's own `body` is presented as **message #1** by
+  `firstMessageFromComment` rather than copied into the table: no backfill to run, and no window where a
+  thread renders with nothing in it.
+- **Revision linkage** — `parentThreadId`, `iterationType` and `iterationNumber` on a comment, with the
+  panel showing an **Iteration N** chip that names the thread it revises. A parent link with no revision
+  type gets no chip, because labelling a mistake is worse than staying quiet.
+
+### Fixed
+
+- **Committed to the branch of a merged PR.** Setting `outcome = "restarted"` after detecting a stale PR
+  did not flip `startFresh`, so the fix fell through to the append path and landed on a dead branch. The
+  test that caught it asserts a *new* PR was opened, not just that the outcome string changed.
+- **`GitHubError` used a constructor parameter property**, which Node's strip-only TypeScript mode
+  rejects — the second time this pattern has broken the MCP server's startup. There is now a test that
+  **scans every shipped source file** for parameter properties, enums and namespaces and fails with the
+  offending lines, so it cannot happen a third time.
+
 ## [0.10.20] — 2026-10-02
 
 ### Added

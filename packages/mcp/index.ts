@@ -30,6 +30,9 @@ import { AgentRegistry, AGENT_SWEEP_MS } from "./src/bridge/agent-registry.ts";
 import { EventBus } from "./src/bridge/events.ts";
 import { startHttpBridge } from "./src/bridge/http-bridge.ts";
 import { createElementContextTools } from "./src/tools/element-context.ts";
+import { createHandoffTools } from "./src/tools/handoff.ts";
+import { CreatePrError, createPrForThread } from "./src/tools/create-pr.ts";
+import { GitHubClient, GitHubError, resolveGitHubToken } from "./src/github/github-client.ts";
 import {
   CHANGE_TYPE_LABELS,
   CHANGE_TYPES,
@@ -41,7 +44,7 @@ import {
   PRIORITY_LABELS,
   STAGE_LABELS,
 } from "@loupekit/shared";
-import type { Comment, Proposal } from "@loupekit/shared";
+import type { Comment, Proposal, ThreadMessage } from "@loupekit/shared";
 
 /**
  * Accepted values for a status argument: the five board stages, plus the legacy
@@ -263,7 +266,7 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.20" });
+const server = new McpServer({ name: "loupe", version: "0.10.21" });
 server.tool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
@@ -304,17 +307,21 @@ server.tool(
 // ---- element context (bridged from the browser) -----------------------------
 
 const WS = process.env.LOUPE_WORKSPACE || process.cwd();
+
+/** One thread fetcher, shared by every tool that needs one. */
+async function fetchThreadById(id: string): Promise<Comment | null> {
+  try {
+    return (await api(`/v1/comments/${encodeURIComponent(id)}`)) as Comment;
+  } catch {
+    return null; // a missing thread is a normal answer, not a tool failure
+  }
+}
+
 const elementTools = createElementContextTools({
   store,
   workspaceRoot: WS,
   mapperOptions: { maxFiles: Number(process.env.LOUPE_MAP_MAX_FILES ?? 4000) },
-  fetchThread: async (id) => {
-    try {
-      return (await api(`/v1/comments/${encodeURIComponent(id)}`)) as Comment;
-    } catch {
-      return null; // a missing thread is a normal answer, not a tool failure
-    }
-  },
+  fetchThread: fetchThreadById,
 });
 
 const SELECTION_ARGS = {
@@ -352,6 +359,103 @@ server.tool(
   SELECTION_ARGS,
   async ({ thread_id, selection_id }) =>
     wrap((await elementTools.findSourceForSelection({ thread_id, selection_id })).text),
+);
+
+// ---- handoff: the agent's half of the workflow ------------------------------
+
+const AGENT = {
+  id: process.env.LOUPE_AGENT_ID || "loupe-agent",
+  name: process.env.LOUPE_AGENT_NAME || "Claude Code",
+};
+
+const handoff = createHandoffTools({
+  agent: AGENT,
+  fetchThread: fetchThreadById,
+  patchThread: async (id, patch) => {
+    await api(`/v1/comments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+  },
+  postMessage: async (threadId, message) =>
+    (await api(`/v1/comments/${encodeURIComponent(threadId)}/messages`, {
+      method: "POST", body: JSON.stringify(message),
+    })) as ThreadMessage,
+  listMessages: async (threadId) =>
+    (await api(`/v1/comments/${encodeURIComponent(threadId)}/messages`)) as ThreadMessage[],
+});
+
+server.tool(
+  "mark_thread_addressed",
+  "Hand a thread back to a human: it moves to In Review and, optionally, posts your closing note. Use this when the change is ready. It CANNOT resolve a thread — only a person does that — which is why there is no status argument.",
+  {
+    thread_id: z.string().describe("The thread you have addressed."),
+    message: z.string().optional().describe("A short note for the reviewer — what changed and where to look. Include a preview URL if there is one."),
+  },
+  async ({ thread_id, message }) => wrap((await handoff.markThreadAddressed({ thread_id, message })).text),
+);
+server.tool(
+  "add_thread_message",
+  "Reply on a thread without changing its status — progress notes, questions, or the preview URL when it goes live. The status is left exactly as it was.",
+  {
+    thread_id: z.string(),
+    message: z.string().describe("Markdown. Say something useful; a person reads this."),
+  },
+  async ({ thread_id, message }) => wrap((await handoff.addThreadMessage({ thread_id, message })).text),
+);
+server.tool(
+  "get_thread_conversation",
+  "The whole conversation on a thread: the original request, then every reply with its author. Read it before answering so you are not repeating something already said.",
+  { thread_id: z.string() },
+  async ({ thread_id }) => wrap((await handoff.getThreadConversation({ thread_id })).text),
+);
+
+server.tool(
+  "create_pr_for_thread",
+  "Open a pull request for a fix — or, more usually, add it to the one the repo already has. One working branch per repo accumulates every fix as its own commit, and the PR body keeps a table of them. If that PR was merged or closed, a fresh branch is started automatically. Use `get_element_context` first to find the file, then pass the full new contents of each file you changed.",
+  {
+    repo: z.string().describe('Owner/name, e.g. "acme/web".'),
+    thread_id: z.string().describe("The thread this fix answers."),
+    description: z.string().describe("One line for the PR table, e.g. \"larger checkout button\"."),
+    files: z.array(z.object({
+      path: z.string().describe("Path within the repo."),
+      content: z.string().describe("The file's FULL new contents, not a diff."),
+    })).min(1).describe("Every file you changed. They land as one atomic commit."),
+    base_branch: z.string().optional().describe('What to branch from. Defaults to "main".'),
+    branch_name: z.string().optional().describe("Override the branch name. Rarely needed."),
+    revision_of: z.string().optional().describe("Set to a thread id when this is a revision — it gets its own revision-* branch rather than joining the accumulating one."),
+  },
+  async (args) => {
+    // Resolve the token at call time, not at startup: `gh auth login` after the server
+    // started should just work, and a missing token must read as advice, not a crash.
+    const resolved = resolveGitHubToken();
+    if (!resolved.token) return wrap(resolved.message);
+    try {
+      const result = await createPrForThread(
+        { github: new GitHubClient(resolved.token), apiBase: API, adminKey: ADMIN, projectKey: PROJECT_KEY },
+        {
+          repo: args.repo, threadId: args.thread_id, description: args.description,
+          files: args.files, baseBranch: args.base_branch, branchName: args.branch_name,
+          revisionOf: args.revision_of,
+        },
+      );
+      // Stamp the PR back onto the thread so the panel's chip has something to show,
+      // and tell any open panel about it.
+      await api(`/v1/comments/${encodeURIComponent(args.thread_id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ pr: { number: result.prNumber, url: result.prUrl, state: "open" } }),
+      });
+      bus.publishThread(args.thread_id, "pr_created", {
+        number: result.prNumber, url: result.prUrl, branch: result.branch, commit: result.commit,
+      });
+      return wrap(
+        `#${args.thread_id} → ${result.prUrl}\n\n${result.note}\n\n` +
+        `Branch \`${result.branch}\` · commit \`${result.commit.slice(0, 7)}\` · outcome: ${result.outcome}.\n` +
+        "The thread's status is unchanged — call `mark_thread_addressed` when the change is ready for review.",
+      );
+    } catch (e) {
+      // GitHub's own message, token redacted; a refusal we raised; or something else.
+      const text = e instanceof GitHubError || e instanceof CreatePrError ? e.message : String(e);
+      return wrap(`Could not open the pull request: ${text}`);
+    }
+  },
 );
 
 // Connect the stdio transport only when run directly (not when imported by tests).

@@ -122,13 +122,17 @@ function readGhCliToken(): string | null {
 
 /** An error carrying GitHub's own message, with the token scrubbed out. */
 export class GitHubError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly path: string,
-  ) {
+  readonly status: number;
+  readonly path: string;
+
+  // Explicit fields, not constructor parameter properties: Node runs these files with
+  // type-stripping only, and `constructor(private x)` is rejected there. There is a
+  // test that scans for this pattern, because it has bitten twice.
+  constructor(message: string, status: number, path: string) {
     super(message);
     this.name = "GitHubError";
+    this.status = status;
+    this.path = path;
   }
 }
 

@@ -52,6 +52,9 @@ function rowToComment(r: any): Comment {
     attachments: r.attachments ?? undefined,
     proposal: r.proposal ?? undefined,
     pr: r.pr ?? undefined,
+    parentThreadId: r.parent_thread_id ?? undefined,
+    iterationType: r.iteration_type ?? undefined,
+    iterationNumber: r.iteration_number ?? undefined,
     createdAt: new Date(r.created_at).toISOString(),
   };
 }

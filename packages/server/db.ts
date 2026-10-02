@@ -125,6 +125,23 @@ export async function migrate(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );`);
   await d.query(`CREATE INDEX IF NOT EXISTS repo_urls_lookup ON repo_urls (project_key, repo);`);
+  // Revisions: a reviewer reopens a resolved thread rather than filing a new one.
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_thread_id TEXT;`);
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS iteration_type TEXT;`);
+  await d.query(`ALTER TABLE comments ADD COLUMN IF NOT EXISTS iteration_number INTEGER;`);
+  // Thread messages. The comment's own `body` is presented as message #1 rather than
+  // copied here: no backfill to run, and no window where a thread has no messages.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS thread_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      project_key TEXT NOT NULL,
+      author JSONB NOT NULL,
+      body TEXT NOT NULL,
+      attachments JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );`);
+  await d.query(`CREATE INDEX IF NOT EXISTS thread_messages_lookup ON thread_messages (thread_id, created_at);`);
   // Five-stage board: rows written before it kept the old three-value status.
   // Both statements are idempotent — after the first run there is nothing to
   // rewrite (`in_progress` is unchanged, so it needs no statement).
