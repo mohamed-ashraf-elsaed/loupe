@@ -306,5 +306,13 @@ export const STYLES = /* css */ `
      page stays visible and tappable; the list returns when the tool closes. */
   .dock.inspecting { height: auto !important; }
   .dock.inspecting .listhead, .dock.inspecting .list { display: none; }
+  /* The composer is a bottom sheet on a phone: full width, thumb-reachable, and it
+     scrolls when the on-screen keyboard is up. JS sets its position inline (hence the
+     !important) — on small screens the sheet wins. */
+  .composer {
+    top: auto !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: auto !important; max-height: 80vh; overflow-y: auto;
+    border-radius: 16px 16px 0 0; padding-bottom: 16px;
+  }
 }
 `;

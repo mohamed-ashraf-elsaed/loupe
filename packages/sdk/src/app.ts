@@ -14,7 +14,7 @@ type Tab = "comments" | "connect";
 type ComposeTarget =
   | { kind: "element"; element: Element }
   | { kind: "region"; region: RegionRect; element: Element | null; screenshot?: string; recording?: string }
-  | { kind: "free"; offset: { x: number; y: number }; point: { x: number; y: number } };
+  | { kind: "free"; offset: { x: number; y: number }; point: { x: number; y: number }; label?: string };
 
 const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
 /** How long a single screen recording may run before it auto-stops. */
@@ -27,6 +27,34 @@ const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 const uid = () =>
   (crypto as any).randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
 function hash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
+
+/**
+ * True on a phone/tablet (a coarse pointer). Touch takes a different path for the
+ * capture tools: a finger hides the area it is selecting, a drag fights the page
+ * scroll, and there is no hover to aim with.
+ */
+function isTouchDevice(): boolean {
+  try {
+    return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  } catch {
+    return false;
+  }
+}
+
+/** A captured data-URL as a File, so a screenshot can ride along as a normal attachment. */
+function dataUrlToFile(dataUrl: string, name: string): File | null {
+  const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(dataUrl);
+  if (!m) return null;
+  const [, type, b64, payload = ""] = m;
+  try {
+    const raw = b64 ? atob(payload) : decodeURIComponent(payload);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return new File([bytes], name, { type: type || "image/png" });
+  } catch {
+    return null;
+  }
+}
 
 export class LoupeApp {
   private cfg: LoupeConfig;
@@ -241,9 +269,11 @@ export class LoupeApp {
     const recordBtn = this.toolBtn(RECORD_ICON, "Record", "record");
     recordBtn.title = "Drag a box, record a screen video of it, and comment";
     recordBtn.onclick = () => this.setMode(this.mode === "record" ? "off" : "record");
-    // Screen recording needs getDisplayMedia, which some mobile browsers (iOS Safari)
-    // do not implement — a button that can never work is worse than no button.
-    const canRecord = typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
+    // Screen recording needs getDisplayMedia (absent on iOS Safari) AND a pointer that
+    // can drag a box — a touch device gets neither, so the tool is not offered there.
+    // The Region tool covers mobile: it grabs the viewport instead (see captureViewportForComposer).
+    const canRecord = !isTouchDevice()
+      && typeof (navigator.mediaDevices as MediaDevices | undefined)?.getDisplayMedia === "function";
     tools.append(inspectBtn, freeBtn, regionBtn, ...(canRecord ? [recordBtn] : []));
 
     // list --------------------------------------------------------------------
@@ -489,6 +519,35 @@ export class LoupeApp {
     return { region, element: centerEl };
   }
 
+  /**
+   * Touch path for the Region tool: capture what is on screen right now and open the
+   * composer with it already attached. The reporter scrolls to the part of the page they
+   * mean FIRST, then taps Region — no drag, so nothing fights the page scroll.
+   */
+  private async captureViewportForComposer() {
+    const vp: RegionRect = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    const capture = this.cfg.captureRegion ?? captureRegionScreenshot;
+    let shot: string | undefined;
+    try {
+      shot = await capture(vp);
+    } catch {
+      shot = undefined;
+    }
+    const file = shot ? dataUrlToFile(shot, "screenshot.png") : null;
+    const docX = window.scrollX + vp.w / 2;
+    const docY = window.scrollY + vp.h / 2;
+    const docW = Math.max(1, document.documentElement.scrollWidth);
+    const docH = Math.max(1, document.documentElement.scrollHeight);
+    const offset = { x: clamp(docX / docW), y: clamp(docY / docH) };
+    this.setMode("off");
+    this.openComposer(
+      { kind: "free", offset, point: { x: docX, y: docY }, label: "Screenshot · attached" },
+      8,
+      window.innerHeight / 2,
+      file ? [file] : []
+    );
+  }
+
   /** Capture the selected viewport rect, then open the composer for a region comment. */
   private async finishRegion(vp: RegionRect) {
     this.selbox.style.display = "none";
@@ -579,11 +638,6 @@ export class LoupeApp {
     document.removeEventListener("click", this.onFreeClick, true);
     document.removeEventListener("pointerdown", this.onRegionDown, true);
 
-    // A touch drag must select a region, not scroll the page. `touch-action: none`
-    // is what actually stops it (preventDefault on pointerdown is not enough), and
-    // it is only needed while a drag-select tool is active.
-    document.documentElement.style.touchAction = mode === "region" || mode === "record" ? "none" : "";
-
     if (mode === "off") return;
     document.addEventListener("keydown", this.onKey, true);
     this.closeComposer();
@@ -595,6 +649,11 @@ export class LoupeApp {
       document.addEventListener("click", this.onClick, true);
     } else if (mode === "free") {
       document.addEventListener("click", this.onFreeClick, true);
+    } else if (mode === "region" && isTouchDevice()) {
+      // No drag-select on touch — a finger covers the area it is drawing, and the drag
+      // fights the page scroll. Grab the visible viewport instead (the reporter scrolls
+      // to what they mean first, then taps Region) and hand it to the composer.
+      void this.captureViewportForComposer();
     } else if (mode === "region" || mode === "record") {
       document.addEventListener("pointerdown", this.onRegionDown, true);
     }
@@ -621,7 +680,7 @@ export class LoupeApp {
 
   // ---- composer -------------------------------------------------------------
 
-  private openComposer(target: ComposeTarget, x: number, y: number) {
+  private openComposer(target: ComposeTarget, x: number, y: number, seedFiles: File[] = []) {
     this.pending = target;
     const isRecording = target.kind === "region" && !!target.recording;
     const c = this.composer;
@@ -632,7 +691,7 @@ export class LoupeApp {
           ? (isRecording
               ? `⏺ Recording · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`
               : `Region · ${Math.round(target.region.w)}×${Math.round(target.region.h)} px`)
-          : "Free note · anywhere on the page");
+          : target.label ?? "Free note · anywhere on the page");
     const title = el("input", "title") as HTMLInputElement;
     title.type = "text";
     title.placeholder = "Title — one line: what's wrong, or what you need";
@@ -643,8 +702,9 @@ export class LoupeApp {
         : target.kind === "free" ? "Describe this note…"
           : "Describe what should change here…";
 
-    // Attachments: images and/or videos, several of each.
-    const files: File[] = [];
+    // Attachments: images and/or videos, several of each. A touch screenshot capture is
+    // seeded here so it needs no extra tap to attach.
+    const files: File[] = seedFiles.slice();
     const attach = el("div", "attach");
     const pick = el("button", "pick", "＋ Attach images / videos") as HTMLButtonElement;
     const input = document.createElement("input");
@@ -677,6 +737,7 @@ export class LoupeApp {
     };
     pick.onclick = () => input.click();
     attach.append(pick, input, chips, err);
+    if (files.length) drawChips();
 
     const row = el("div", "row");
     // Free notes carry nothing; recordings always attach the video — both skip the checkbox.
@@ -711,7 +772,9 @@ export class LoupeApp {
     const left = Math.min(Math.max(8, x + 12), window.innerWidth - w - 8);
     const top = Math.min(Math.max(8, y + 12), window.innerHeight - h - 8);
     Object.assign(c.style, { display: "block", left: left + "px", top: top + "px" });
-    ta.focus();
+    // Do not grab focus on touch: it throws the on-screen keyboard up over the very page
+    // the reporter is describing (and over our own form).
+    if (!isTouchDevice()) ta.focus();
   }
 
   private closeComposer() {

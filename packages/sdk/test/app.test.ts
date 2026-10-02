@@ -16,6 +16,20 @@ const firePointer = (el: Element, type: string, extra: Record<string, number> = 
   el.dispatchEvent(ev);
 };
 
+/** Stub `matchMedia` so the widget sees a coarse (touch) or fine (mouse) pointer. */
+const setPointer = (kind: "coarse" | "fine") => {
+  (window as any).matchMedia = (q: string) => ({
+    matches: q.includes("pointer: coarse") && kind === "coarse",
+    media: q,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent: () => false,
+  });
+};
+
 /** Fill the composer's Title + Description (both are required to submit). */
 function fillComposer(title: string, body: string) {
   const t = sr().querySelector<HTMLInputElement>(".composer input.title")!;
@@ -29,7 +43,7 @@ function fillComposer(title: string, body: string) {
 async function leaveComment(text: string) {
   sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
   const btn = document.querySelector('[data-testid="save"]')!;
-  fire(btn, "mousemove", { clientX: 5, clientY: 5 });
+  fire(btn, "pointermove", { clientX: 5, clientY: 5 });
   fire(btn, "click", { clientX: 5, clientY: 5 });
   fillComposer(text, text);
   sr().querySelector<HTMLElement>(".composer .primary")!.click();
@@ -38,6 +52,7 @@ async function leaveComment(text: string) {
 
 beforeEach(() => {
   localStorage.clear();
+  setPointer("fine"); // tests assume a desktop pointer unless they say otherwise
   (Element.prototype as any).scrollIntoView = () => {};
   document.body.innerHTML = `<main><button data-testid="save">Save</button></main>`;
   // happy-dom has no layout engine, so elementFromPoint returns null — stub it to
@@ -111,14 +126,11 @@ describe("LoupeApp", () => {
       projectKey: "pk", user: { id: "u", name: "U" },
       captureRegion: async () => "data:image/png;base64,REGION",
     });
-    // Enter region mode, then drag a box with a FINGER (pointer events) — the case
-    // that used to be impossible on a phone, where touch drags never fire mouse events
-    // and the page scrolled instead of drawing.
+    // Enter region mode and drag a box with pointer events.
     sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
-    expect(document.documentElement.style.touchAction).toBe("none"); // page scroll locked while dragging
-    firePointer(document.body, "pointerdown", { clientX: 10, clientY: 20, button: 0 });
-    firePointer(document.body, "pointermove", { clientX: 130, clientY: 110 });
-    firePointer(document.body, "pointerup", { clientX: 130, clientY: 110, button: 0 });
+    firePointer(document.body, "pointerdown", { clientX: 10, clientY: 20, button: 0 }, "mouse");
+    firePointer(document.body, "pointermove", { clientX: 130, clientY: 110 }, "mouse");
+    firePointer(document.body, "pointerup", { clientX: 130, clientY: 110, button: 0 }, "mouse");
     await new Promise((r) => setTimeout(r, 10)); // capture is async
 
     const ta = sr().querySelector<HTMLTextAreaElement>(".composer textarea")!;
@@ -137,16 +149,63 @@ describe("LoupeApp", () => {
     expect(stored[0].anchor.testid).toBe("save");
   });
 
-  it("touch: inspect highlights on finger-down, and the page is released afterwards", () => {
+  it("touch: Region grabs the visible viewport and pre-attaches it — no drag, no scroll lock", async () => {
+    setPointer("coarse");
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      captureRegion: async () => "data:image/png;base64,QUJD",
+    });
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // The composer is already open with the screenshot attached as an attachment.
+    expect(sr().querySelector<HTMLElement>(".composer")!.style.display).toBe("block");
+    expect(sr().querySelector<HTMLElement>(".composer .chips .chip")!.textContent).toContain("screenshot.png");
+    // And the page is NOT scroll-locked (the drag path was never armed).
+    expect(document.documentElement.style.touchAction).toBe("");
+  });
+
+  it("touch: the composer does not steal focus; a mouse still gets it", async () => {
+    const spy = vi.spyOn(HTMLTextAreaElement.prototype, "focus");
+
+    setPointer("coarse");
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureRegion: async () => "data:image/png;base64,QUJD" });
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+    // No keyboard thrown up over the page the reporter is describing.
+    expect(spy).not.toHaveBeenCalled();
+    destroy();
+
+    setPointer("fine");
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('[data-role="free"]')!.click();
+    fire(document.body, "click", { clientX: 5, clientY: 5 });
+    expect(spy).toHaveBeenCalled();
+
+    spy.mockRestore();
+  });
+
+  it("touch: the Record tool is not offered (no getDisplayMedia, no drag-select)", () => {
+    setPointer("coarse");
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getDisplayMedia: () => undefined },
+      configurable: true,
+    });
+
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+
+    expect(sr().querySelector('[data-role="record"]')).toBeNull();
+    delete (navigator as any).mediaDevices;
+  });
+
+  it("touch: inspect highlights on finger-down", () => {
+    setPointer("coarse");
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
 
     // Touch has no hover — the highlight must appear on finger-down, before the tap.
     firePointer(document.body, "pointerdown", { clientX: 5, clientY: 5 });
     expect(sr().querySelector<HTMLElement>(".hl")!.style.display).toBe("block");
-
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(document.documentElement.style.touchAction).toBe("");
   });
 
   it("free note → click drops a page-level comment with no element or screenshot", async () => {
