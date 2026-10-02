@@ -313,15 +313,56 @@ describe("LoupeApp", () => {
     expect(stored[0].anchor.tag).toBe("page");
   });
 
-  it("closes to a launcher and reopens", () => {
+  it("closes to the FAB cluster and reopens from a quick action", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
     sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
-    expect(sr().querySelector(".launcher")!.classList.contains("show")).toBe(true);
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
+
+    // The primary FAB expands the quick actions rather than opening the panel.
     sr().querySelector<HTMLElement>(".launcher")!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("expanded")).toBe(true);
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
+
+    // A quick action opens the panel again — and the cluster gets out of the way.
+    sr().querySelector<HTMLElement>('[data-fab="comment"]')!.click();
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
-    expect(sr().querySelector(".launcher")!.classList.contains("show")).toBe(false);
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+    expect(sr().querySelector<HTMLElement>('[data-role="inspect"]')!.classList.contains("on")).toBe(true);
+  });
+
+  it("quick action: Markers hides every pin without deleting it, and persists", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    await leaveComment("hide my marker");
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    sr().querySelector<HTMLElement>(".launcher")!.click();
+
+    const markers = sr().querySelector<HTMLElement>('[data-fab="markers"]')!;
+    markers.click();
+    expect(sr().querySelector(".overlay")!.classList.contains("hide-pins")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).markersHidden).toBe(true);
+    // The comment itself is untouched — only its marker is hidden.
+    expect(sr().querySelectorAll(".pin").length).toBe(1);
+    expect(markers.classList.contains("on")).toBe(true);
+
+    markers.click();
+    expect(sr().querySelector(".overlay")!.classList.contains("hide-pins")).toBe(false);
+  });
+
+  it("quick action: Connect Claude opens the panel straight on the connect page", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    sr().querySelector<HTMLElement>('[data-fab="connect"]')!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelector(".dock")!.classList.contains("tab-connect")).toBe(true);
+  });
+
+  it("the primary FAB badge tracks the comment count", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    expect(sr().querySelector(".launcher .lcount")!.textContent).toBe("");
+    await leaveComment("badge me");
+    expect(sr().querySelector(".launcher .lcount")!.textContent).toBe("1");
   });
 
   it("switches dock position and persists the choice", () => {
@@ -394,7 +435,7 @@ describe("LoupeApp", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(sr().querySelector(".dock")!.classList.contains("mode-left")).toBe(true);
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
-    expect(sr().querySelector(".launcher")!.classList.contains("show")).toBe(true);
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
     expect(document.getElementById("loupe-root")!.classList.contains("theme-light")).toBe(true);
   });
 

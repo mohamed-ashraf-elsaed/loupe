@@ -91,12 +91,22 @@ export class LoupeApp {
 
   /** The dockable control panel (header + tabs + tools + comment list). */
   private dock!: HTMLElement;
-  /** The collapsed launcher button shown when the panel is closed. */
-  private launcher!: HTMLElement;
+  /**
+   * The collapsed FAB cluster shown while the panel is closed: a primary brand
+   * button (with the comment count) plus quick actions that expand out of it.
+   * `launcher` is the primary button itself (kept as a class for the dock's
+   * show/hide logic); `fabMinis` is the row of quick actions.
+   */
+  private fabCluster!: HTMLElement;
+  private fabMinis!: HTMLElement;
+  private fabBadge!: HTMLElement;
+  /** Whether the quick-action minis are expanded out of the primary FAB. */
+  private fabExpanded = false;
+  /** Whether pin markers are hidden on the page (a quick-action toggle, persisted). */
+  private markersHidden = false;
   private themeBtn!: HTMLButtonElement;
   private listEl!: HTMLElement;
   private countEl!: HTMLElement;
-  private launchCount!: HTMLElement;
   /** Floating "recording…" indicator + stop button, shown only while recording. */
   private recBar!: HTMLElement;
   /** Stops the in-flight screen recording (wired while recording). */
@@ -216,9 +226,9 @@ export class LoupeApp {
     this.shadow.appendChild(this.composer);
 
     this.dock = this.buildDock();
-    this.launcher = this.buildLauncher();
+    this.fabCluster = this.buildFabCluster();
     this.recBar = this.buildRecBar();
-    this.shadow.append(this.dock, this.launcher, this.recBar);
+    this.shadow.append(this.dock, this.fabCluster, this.recBar);
   }
 
   /**
@@ -414,14 +424,78 @@ export class LoupeApp {
     return bar;
   }
 
-  private buildLauncher(): HTMLElement {
-    const b = el("button", "launcher") as HTMLButtonElement;
-    b.title = `Open ${this.cfg.label ?? "Loupe"}`;
-    b.setAttribute("aria-label", "Open Loupe");
-    b.innerHTML = `<span class="logo">◎</span><span class="lcount"></span>`;
-    this.launchCount = b.querySelector(".lcount") as HTMLElement;
-    b.onclick = () => this.openDock();
-    return b;
+  /**
+   * The collapsed-state FAB cluster. The primary brand button carries the comment
+   * count and toggles the quick actions out and back; the actions are the four
+   * ways into the product without opening the full panel first:
+   * pin a comment, drop a note, hide/show the markers already on the page, and
+   * jump straight to the Claude/MCP setup.
+   */
+  private buildFabCluster(): HTMLElement {
+    const cluster = el("div", "fab-cluster");
+
+    const minis = el("div", "fab-minis");
+    const mini = (role: string, icon: string, label: string, title: string) => {
+      const b = el("button", "fab-mini") as HTMLButtonElement;
+      b.dataset.fab = role;
+      b.title = title;
+      b.setAttribute("aria-label", title);
+      b.innerHTML = `${icon}<span class="fab-tip">${label}</span>`;
+      return b;
+    };
+    const comment = mini("comment", I_COMMENT, "Pin comment", "Pin feedback on any element");
+    comment.onclick = () => { this.collapseFab(); this.openDock(); this.setMode("inspect"); };
+    const note = mini("note", I_NOTE, "Note", "Drop a note anywhere on the page");
+    note.onclick = () => { this.collapseFab(); this.openDock(); this.setMode("free"); };
+    const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
+    markers.onclick = () => this.toggleMarkers();
+    const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
+    connect.onclick = () => { this.collapseFab(); this.openDock(); this.setTab("connect"); };
+    minis.append(comment, note, markers, connect);
+
+    const primary = el("button", "launcher") as HTMLButtonElement;
+    primary.title = `Open ${this.cfg.label ?? "Loupe"}`;
+    primary.setAttribute("aria-label", `${this.cfg.label ?? "Loupe"} — quick actions`);
+    primary.setAttribute("aria-expanded", "false");
+    primary.innerHTML = `<span class="logo">◎</span>${I_FAB_CHEVRON}<span class="lcount"></span>`;
+    this.fabBadge = primary.querySelector(".lcount") as HTMLElement;
+    primary.onclick = () => this.toggleFab();
+
+    cluster.append(minis, primary);
+    this.fabMinis = minis;
+    return cluster;
+  }
+
+  /** Expand/collapse the quick actions out of the primary FAB. */
+  private toggleFab() {
+    this.fabExpanded = !this.fabExpanded;
+    this.applyFab();
+  }
+
+  private collapseFab() {
+    if (!this.fabExpanded) return;
+    this.fabExpanded = false;
+    this.applyFab();
+  }
+
+  /** Hide/show every pin on the page without losing them (persisted). */
+  private toggleMarkers() {
+    this.markersHidden = !this.markersHidden;
+    this.saveState();
+    this.applyFab();
+  }
+
+  /** Reflect cluster expansion + marker visibility into the DOM. */
+  private applyFab() {
+    this.fabCluster.classList.toggle("expanded", this.fabExpanded);
+    const primary = this.fabCluster.querySelector(".launcher") as HTMLElement | null;
+    primary?.setAttribute("aria-expanded", String(this.fabExpanded));
+    primary?.setAttribute("aria-label", this.fabExpanded ? "Close quick actions" : `Open ${this.cfg.label ?? "Loupe"} quick actions`);
+    const markers = this.fabCluster.querySelector('[data-fab="markers"]') as HTMLElement | null;
+    markers?.classList.toggle("on", this.markersHidden);
+    markers?.setAttribute("aria-pressed", String(this.markersHidden));
+    // !important in CSS so it beats the inline display set by position().
+    this.overlay.classList.toggle("hide-pins", this.markersHidden);
   }
 
   /** A tool button with a uniform icon + label layout. `icon` may be an SVG string. */
@@ -979,7 +1053,7 @@ export class LoupeApp {
   private updateCount() {
     const n = this.comments.length;
     this.countEl.textContent = String(n);
-    this.launchCount.textContent = n ? String(n) : "";
+    this.fabBadge.textContent = n ? String(n) : "";
   }
 
   /** Reposition every pin, re-resolving anchors whose element has gone. */
@@ -1084,7 +1158,13 @@ export class LoupeApp {
 
   // ---- dock: open / close / mode / theme ------------------------------------
 
-  private openDock() { this.open = true; this.saveState(); this.applyDockLayout(); this.renderList(); }
+  private openDock() {
+    this.open = true;
+    this.fabExpanded = false; // the panel replaces the quick actions
+    this.saveState();
+    this.applyDockLayout();
+    this.renderList();
+  }
 
   private closeDock() {
     this.open = false;
@@ -1133,6 +1213,7 @@ export class LoupeApp {
       if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
       if (p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
+      if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
     } catch { /* storage unavailable → defaults */ }
   }
 
@@ -1140,6 +1221,7 @@ export class LoupeApp {
     try {
       localStorage.setItem("loupe:dock", JSON.stringify({
         mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
+        markersHidden: this.markersHidden,
       }));
     } catch { /* ignore */ }
   }
@@ -1176,11 +1258,13 @@ export class LoupeApp {
     d.querySelectorAll<HTMLElement>(".dctl [data-dock]").forEach((b) =>
       b.classList.toggle("on", b.dataset.dock === this.dockMode));
 
-    // Launcher: visible only when closed; sits on the same side as the dock edge.
-    this.launcher.classList.toggle("show", !this.open);
+    // FAB cluster: visible only while the panel is closed and always on the same
+    // side as the dock edge, so reopening it feels like the panel sliding back in.
+    this.fabCluster.classList.toggle("show", !this.open);
     const leftSide = this.dockMode === "left";
-    this.launcher.style.left = leftSide ? "20px" : "auto";
-    this.launcher.style.right = leftSide ? "auto" : "20px";
+    this.fabCluster.style.left = leftSide ? "20px" : "auto";
+    this.fabCluster.style.right = leftSide ? "auto" : "20px";
+    this.applyFab();
 
     this.pushPage();
   }
@@ -1453,6 +1537,25 @@ const I_MOON = svg(
   `<path d="M13 9.4A5.3 5.3 0 1 1 6.6 3 4.3 4.3 0 0 0 13 9.4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>`);
 const I_CLOSE = svg(
   `<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`);
+
+/** FAB cluster quick-action icons (font-independent, currentColor). */
+const I_COMMENT = svg(
+  `<path d="M2 3.1h12v7.4H6.5l-3.3 2.6v-2.6H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `<path d="M8 5.1v3.4M6.3 6.8h3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`);
+/** A sticky note for the "Note" quick action — deliberately unlike the comment bubble. */
+const I_NOTE = svg(
+  `<path d="M2.6 2.6h10.8v7.2l-3.6 3.6H2.6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `<path d="M13.4 9.8h-3.6v3.6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>`);
+const I_EYE = svg(
+  `<path d="M1.4 8S3.9 4 8 4s6.6 4 6.6 4-2.5 4-6.6 4S1.4 8 1.4 8z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `<circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>`);
+const I_PLUG = svg(
+  `<path d="M6 1.8v3.1M10 1.8v3.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>` +
+  `<path d="M4.4 4.9h7.2v2.3a3.6 3.6 0 0 1-7.2 0z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `<path d="M8 10.8v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`);
+/** Points up when collapsed, flips down (via CSS) when the actions are out. */
+const I_FAB_CHEVRON =
+  `<span class="lchev">${svg(`<path d="M4.4 9.6 8 6l3.6 3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`)}</span>`;
 
 /** Dashed marquee icon for the "Region" button — inline SVG so it never depends on a font. */
 const REGION_ICON =

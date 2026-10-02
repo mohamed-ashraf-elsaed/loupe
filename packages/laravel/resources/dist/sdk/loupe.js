@@ -100,25 +100,74 @@ var Loupe = (() => {
 .pin.free { background: var(--accent); border-radius: 50% 50% 2px 50%; }
 .pin.free.done { background: #10935a; }
 .pin.active { outline: 3px solid rgba(107,115,230,.45); }
+/* The quick-action "Markers" toggle hides every pin without discarding it.
+   !important beats the inline display the pin positioner sets on each frame. */
+.overlay.hide-pins .pin { display: none !important; }
 
-/* ------------------------------------------------------------------ launcher */
-/* The collapsed state: a small floating button that reopens the panel. */
-.launcher {
+/* --------------------------------------------------------------- FAB cluster */
+/* The collapsed state: a primary brand button (with the comment count) plus the
+   quick actions that expand out of it. Replaces the old single launcher. */
+.fab-cluster {
   position: fixed; z-index: 2147483003; bottom: 20px; right: 20px;
-  width: 46px; height: 46px; border-radius: 50%; padding: 0;
-  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
-  cursor: pointer; display: none; align-items: center; justify-content: center;
+  display: none; flex-direction: column; align-items: flex-end; gap: 10px;
+}
+.fab-cluster.show { display: flex; }
+
+.fab-minis { display: none; flex-direction: column; align-items: flex-end; gap: 10px; }
+.fab-cluster.expanded .fab-minis { display: flex; }
+.fab-cluster.expanded .fab-minis .fab-mini { animation: loupe-fab-in 180ms cubic-bezier(.16, 1, .3, 1) both; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(1) { animation-delay: 0ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(2) { animation-delay: 30ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(3) { animation-delay: 60ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(4) { animation-delay: 90ms; }
+@keyframes loupe-fab-in { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+
+.fab-mini {
+  position: relative; width: 40px; height: 40px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow);
 }
-.launcher.show { display: inline-flex; }
+.fab-mini:hover { border-color: var(--accent); color: var(--accent); }
+.fab-mini.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fab-mini.on:hover { color: #fff; }
+.fab-mini svg { display: block; width: 16px; height: 16px; }
+/* The action's label, revealed on hover so the collapsed cluster stays calm. */
+.fab-mini .fab-tip {
+  position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity 120ms ease;
+}
+.fab-mini:hover .fab-tip { opacity: 1; }
+
+.launcher {
+  position: relative; width: 46px; height: 46px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
+}
 .launcher:hover { border-color: var(--accent); }
 .launcher .logo { font-size: 24px; line-height: 1; color: var(--accent); }
+/* Chevron pinned to the corner: up = actions are tucked away, down = they are out. */
+.launcher .lchev {
+  position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg); border: 1px solid var(--line); color: var(--muted);
+  display: grid; place-items: center; transition: transform 160ms cubic-bezier(.16, 1, .3, 1);
+}
+.launcher .lchev svg { width: 11px; height: 11px; display: block; }
+.fab-cluster.expanded .launcher .lchev { transform: rotate(180deg); }
 .launcher .lcount {
   position: absolute; top: -5px; right: -5px; background: var(--pin); color: #fff;
   font-size: 10px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 6px;
   border: 2px solid var(--bg);
 }
 .launcher .lcount:empty { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fab-cluster.expanded .fab-minis .fab-mini { animation: none; }
+  .launcher .lchev { transition: none; }
+  .fab-mini .fab-tip { transition: none; }
+}
 
 /* --------------------------------------------------------------------- dock */
 /* The control panel. One container, four dock modes (left/right/bottom/float),
@@ -330,7 +379,7 @@ var Loupe = (() => {
   .resize { display: none !important; }
   .tools button { flex: 1; justify-content: center; } /* full-width tap targets */
   .dock.mode-bottom .list { grid-template-columns: 1fr; }
-  .launcher { bottom: 16px; right: 16px; }
+  .fab-cluster { bottom: 16px; right: 16px; }
   /* While a tool is active, shrink the sheet to just header + tools so most of the
      page stays visible and tappable; the list returns when the tool closes. */
   .dock.inspecting { height: auto !important; }
@@ -2455,7 +2504,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.5" : "dev";
+  var SDK_VERSION = true ? "0.10.6" : "dev";
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -2501,6 +2550,10 @@ var Loupe = (() => {
   }
   var LoupeApp = class {
     constructor(cfg) {
+      /** Whether the quick-action minis are expanded out of the primary FAB. */
+      this.fabExpanded = false;
+      /** Whether pin markers are hidden on the page (a quick-action toggle, persisted). */
+      this.markersHidden = false;
       this.comments = [];
       /** Free-text filter over the list (title / body / author). */
       this.search = "";
@@ -2802,9 +2855,9 @@ var Loupe = (() => {
       this.composer = el("div", "composer");
       this.shadow.appendChild(this.composer);
       this.dock = this.buildDock();
-      this.launcher = this.buildLauncher();
+      this.fabCluster = this.buildFabCluster();
       this.recBar = this.buildRecBar();
-      this.shadow.append(this.dock, this.launcher, this.recBar);
+      this.shadow.append(this.dock, this.fabCluster, this.recBar);
     }
     /**
      * The dockable control panel:
@@ -2968,14 +3021,82 @@ var Loupe = (() => {
       bar.onclick = () => this.stopRecording?.();
       return bar;
     }
-    buildLauncher() {
-      const b = el("button", "launcher");
-      b.title = `Open ${this.cfg.label ?? "Loupe"}`;
-      b.setAttribute("aria-label", "Open Loupe");
-      b.innerHTML = `<span class="logo">\u25CE</span><span class="lcount"></span>`;
-      this.launchCount = b.querySelector(".lcount");
-      b.onclick = () => this.openDock();
-      return b;
+    /**
+     * The collapsed-state FAB cluster. The primary brand button carries the comment
+     * count and toggles the quick actions out and back; the actions are the four
+     * ways into the product without opening the full panel first:
+     * pin a comment, drop a note, hide/show the markers already on the page, and
+     * jump straight to the Claude/MCP setup.
+     */
+    buildFabCluster() {
+      const cluster = el("div", "fab-cluster");
+      const minis = el("div", "fab-minis");
+      const mini = (role, icon, label, title) => {
+        const b = el("button", "fab-mini");
+        b.dataset.fab = role;
+        b.title = title;
+        b.setAttribute("aria-label", title);
+        b.innerHTML = `${icon}<span class="fab-tip">${label}</span>`;
+        return b;
+      };
+      const comment = mini("comment", I_COMMENT, "Pin comment", "Pin feedback on any element");
+      comment.onclick = () => {
+        this.collapseFab();
+        this.openDock();
+        this.setMode("inspect");
+      };
+      const note = mini("note", I_NOTE, "Note", "Drop a note anywhere on the page");
+      note.onclick = () => {
+        this.collapseFab();
+        this.openDock();
+        this.setMode("free");
+      };
+      const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
+      markers.onclick = () => this.toggleMarkers();
+      const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
+      connect.onclick = () => {
+        this.collapseFab();
+        this.openDock();
+        this.setTab("connect");
+      };
+      minis.append(comment, note, markers, connect);
+      const primary = el("button", "launcher");
+      primary.title = `Open ${this.cfg.label ?? "Loupe"}`;
+      primary.setAttribute("aria-label", `${this.cfg.label ?? "Loupe"} \u2014 quick actions`);
+      primary.setAttribute("aria-expanded", "false");
+      primary.innerHTML = `<span class="logo">\u25CE</span>${I_FAB_CHEVRON}<span class="lcount"></span>`;
+      this.fabBadge = primary.querySelector(".lcount");
+      primary.onclick = () => this.toggleFab();
+      cluster.append(minis, primary);
+      this.fabMinis = minis;
+      return cluster;
+    }
+    /** Expand/collapse the quick actions out of the primary FAB. */
+    toggleFab() {
+      this.fabExpanded = !this.fabExpanded;
+      this.applyFab();
+    }
+    collapseFab() {
+      if (!this.fabExpanded) return;
+      this.fabExpanded = false;
+      this.applyFab();
+    }
+    /** Hide/show every pin on the page without losing them (persisted). */
+    toggleMarkers() {
+      this.markersHidden = !this.markersHidden;
+      this.saveState();
+      this.applyFab();
+    }
+    /** Reflect cluster expansion + marker visibility into the DOM. */
+    applyFab() {
+      this.fabCluster.classList.toggle("expanded", this.fabExpanded);
+      const primary = this.fabCluster.querySelector(".launcher");
+      primary?.setAttribute("aria-expanded", String(this.fabExpanded));
+      primary?.setAttribute("aria-label", this.fabExpanded ? "Close quick actions" : `Open ${this.cfg.label ?? "Loupe"} quick actions`);
+      const markers = this.fabCluster.querySelector('[data-fab="markers"]');
+      markers?.classList.toggle("on", this.markersHidden);
+      markers?.setAttribute("aria-pressed", String(this.markersHidden));
+      this.overlay.classList.toggle("hide-pins", this.markersHidden);
     }
     /** A tool button with a uniform icon + label layout. `icon` may be an SVG string. */
     toolBtn(icon, label, role) {
@@ -3397,7 +3518,7 @@ var Loupe = (() => {
     updateCount() {
       const n = this.comments.length;
       this.countEl.textContent = String(n);
-      this.launchCount.textContent = n ? String(n) : "";
+      this.fabBadge.textContent = n ? String(n) : "";
     }
     /**
      * The current viewport rect for a region comment. Prefers the element-relative
@@ -3437,6 +3558,7 @@ var Loupe = (() => {
     // ---- dock: open / close / mode / theme ------------------------------------
     openDock() {
       this.open = true;
+      this.fabExpanded = false;
       this.saveState();
       this.applyDockLayout();
       this.renderList();
@@ -3482,6 +3604,7 @@ var Loupe = (() => {
         if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
         if (p?.tab === "comments" || p?.tab === "connect") this.tab = p.tab;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
+        if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
       } catch {
       }
     }
@@ -3492,7 +3615,8 @@ var Loupe = (() => {
           open: this.open,
           theme: this.theme,
           tab: this.tab,
-          float: this.floatRect
+          float: this.floatRect,
+          markersHidden: this.markersHidden
         }));
       } catch {
       }
@@ -3525,10 +3649,11 @@ var Loupe = (() => {
         for (const p of ["left", "top", "right", "bottom", "width", "height"]) d.style[p] = "";
       }
       d.querySelectorAll(".dctl [data-dock]").forEach((b) => b.classList.toggle("on", b.dataset.dock === this.dockMode));
-      this.launcher.classList.toggle("show", !this.open);
+      this.fabCluster.classList.toggle("show", !this.open);
       const leftSide = this.dockMode === "left";
-      this.launcher.style.left = leftSide ? "20px" : "auto";
-      this.launcher.style.right = leftSide ? "auto" : "20px";
+      this.fabCluster.style.left = leftSide ? "20px" : "auto";
+      this.fabCluster.style.right = leftSide ? "auto" : "20px";
+      this.applyFab();
       this.pushPage();
     }
     /**
@@ -3726,6 +3851,19 @@ var Loupe = (() => {
   var I_CLOSE = svg(
     `<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`
   );
+  var I_COMMENT = svg(
+    `<path d="M2 3.1h12v7.4H6.5l-3.3 2.6v-2.6H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 5.1v3.4M6.3 6.8h3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`
+  );
+  var I_NOTE = svg(
+    `<path d="M2.6 2.6h10.8v7.2l-3.6 3.6H2.6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M13.4 9.8h-3.6v3.6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>`
+  );
+  var I_EYE = svg(
+    `<path d="M1.4 8S3.9 4 8 4s6.6 4 6.6 4-2.5 4-6.6 4S1.4 8 1.4 8z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>`
+  );
+  var I_PLUG = svg(
+    `<path d="M6 1.8v3.1M10 1.8v3.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.4 4.9h7.2v2.3a3.6 3.6 0 0 1-7.2 0z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 10.8v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`
+  );
+  var I_FAB_CHEVRON = `<span class="lchev">${svg(`<path d="M4.4 9.6 8 6l3.6 3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`)}</span>`;
   var REGION_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
   var NOTE_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M2 2.5h11v7.5H6l-3 2.5v-2.5H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
   var RECORD_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/><circle cx="7.5" cy="7.5" r="2.4" fill="currentColor"/></svg>`;

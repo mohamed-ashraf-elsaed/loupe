@@ -11,6 +11,26 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.6] — 2026-10-02
+
+### Added
+
+- **The collapsed widget is now a quick-action cluster.** `@loupekit/sdk` replaces its single
+  launcher button with a FAB cluster: a primary brand button carrying the live comment-count
+  badge, plus four quick actions — **Pin comment**, **Note**, **Markers** and **Connect
+  Claude** — each with a hover label, a chevron that flips on expand, and a staggered reveal
+  that is switched off under `prefers-reduced-motion`. The cluster sits on the dock's edge and
+  gets out of the way when the panel opens. (Milestone 0.20; #70.)
+
+### Changed
+
+- **Markers can be hidden without discarding them.** A new quick action hides every pin on the
+  page and remembers the choice in `loupe:dock` next to the rest of the panel state, so a
+  reporter can read the page without the pins in the way.
+- **The primary FAB now expands the quick actions rather than opening the panel directly.**
+  Opening the panel from the cluster is one of the quick actions (`Pin comment` or `Note`), or
+  `Connect Claude` to land straight on the MCP setup page. The panel itself is unchanged.
+
 ## [0.10.5] — 2026-10-02
 
 ### Fixed
