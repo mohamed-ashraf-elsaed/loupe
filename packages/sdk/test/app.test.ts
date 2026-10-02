@@ -40,6 +40,12 @@ function fillComposer(title: string, body: string) {
   ta.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+/** Pick a dock position through the header's position menu. */
+function setDock(mode: string) {
+  sr().querySelector<HTMLElement>('.dctl [data-role="pos"]')!.click();
+  sr().querySelector<HTMLElement>(`.pos-grid [data-pos="${mode}"]`)!.click();
+}
+
 async function leaveComment(text: string) {
   sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
   const btn = document.querySelector('[data-testid="save"]')!;
@@ -377,13 +383,16 @@ describe("LoupeApp", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     // Default is docked right.
     expect(sr().querySelector(".dock")!.classList.contains("mode-right")).toBe(true);
-    sr().querySelector<HTMLElement>('.dctl [data-dock="bottom"]')!.click();
+    // Position lives behind the header's position menu.
+    setDock("bottom");
     const dock = sr().querySelector(".dock")!;
     expect(dock.classList.contains("mode-bottom")).toBe(true);
     expect(dock.classList.contains("mode-right")).toBe(false);
     expect(JSON.parse(localStorage.getItem("loupe:dock")!).mode).toBe("bottom");
+    // The menu closes behind the choice.
+    expect(sr().querySelectorAll(".menu.open").length).toBe(0);
 
-    sr().querySelector<HTMLElement>('.dctl [data-dock="float"]')!.click();
+    setDock("float");
     expect(sr().querySelector(".dock")!.classList.contains("mode-float")).toBe(true);
     // Float mode gets explicit geometry so it renders as a movable window.
     expect((sr().querySelector<HTMLElement>(".dock")!).style.width).toMatch(/px$/);
@@ -405,22 +414,22 @@ describe("LoupeApp", () => {
     expect(de.style.marginRight).not.toBe("");
     expect(de.style.marginLeft).toBe("");
 
-    sr().querySelector<HTMLElement>('.dctl [data-dock="left"]')!.click();
+    setDock("left");
     expect(de.style.marginLeft).not.toBe("");
     expect(de.style.marginRight).toBe("");
 
-    sr().querySelector<HTMLElement>('.dctl [data-dock="bottom"]')!.click();
+    setDock("bottom");
     expect(de.style.marginBottom).not.toBe("");
     expect(de.style.marginLeft).toBe("");
 
     // Float is a movable window — it reserves no page space.
-    sr().querySelector<HTMLElement>('.dctl [data-dock="float"]')!.click();
+    setDock("float");
     expect(de.style.marginLeft).toBe("");
     expect(de.style.marginRight).toBe("");
     expect(de.style.marginBottom).toBe("");
 
     // Closing releases the page too.
-    sr().querySelector<HTMLElement>('.dctl [data-dock="right"]')!.click();
+    setDock("right");
     expect(de.style.marginRight).not.toBe("");
     sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
     expect(de.style.marginRight).toBe("");
@@ -568,6 +577,171 @@ describe("LoupeApp", () => {
     del.click();
     await new Promise((r) => setTimeout(r, 10));
     expect(sr().querySelectorAll(".pin").length).toBe(0);
+  });
+
+  it("minimizes to a one-line bar and restores from it", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a", status: "queue" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    sr().querySelector<HTMLElement>('.dctl [data-role="min"]')!.click();
+    const dock = sr().querySelector(".dock")!;
+    expect(dock.classList.contains("minimized")).toBe(true);
+    // The bar keeps the context on one line.
+    expect(sr().querySelector(".minbar .mtext")!.textContent).toContain("1 open");
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).minimized).toBe(true);
+
+    sr().querySelector<HTMLElement>(".minbar")!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("minimized")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).minimized).toBe(false);
+  });
+
+  it("settings drive the visibility toggles and close on an outside click", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const row = (k: string) => sr().querySelector<HTMLElement>(`[data-set="${k}"]`)!;
+
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    expect(row("hoverHints").getAttribute("aria-pressed")).toBe("true");
+    expect(row("markersHidden").getAttribute("aria-pressed")).toBe("true");
+    expect(row("showPaths").getAttribute("aria-pressed")).toBe("false");
+
+    row("markersHidden").click();
+    expect(row("markersHidden").getAttribute("aria-pressed")).toBe("false");
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).markersHidden).toBe(true);
+    // A toggle is not a dismissal — the menu stays up.
+    expect(sr().querySelectorAll(".menu.open").length).toBe(1);
+
+    sr().querySelector<HTMLElement>(".tabs")!.click();
+    expect(sr().querySelectorAll(".menu.open").length).toBe(0);
+  });
+
+  it("applies an accent from settings and keeps it across a reload", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const root = document.getElementById("loupe-root")!;
+    const before = root.style.getPropertyValue("--accent");
+    expect(before).not.toBe("");
+
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    const dots = [...sr().querySelectorAll<HTMLElement>(".acc-dot")];
+    expect(dots.length).toBe(5);
+    dots.find((d) => d.dataset.accent === "teal")!.click();
+
+    expect(root.style.getPropertyValue("--accent")).not.toBe(before);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).accent).toBe("teal");
+
+    destroy();
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    expect(document.getElementById("loupe-root")!.style.getPropertyValue("--accent"))
+      .toBe(root.style.getPropertyValue("--accent"));
+  });
+
+  it("runs the guided tour once, and settings can replay it", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    // start() is async — the tour begins once the first list load settles.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelectorAll(".tour-dots i").length).toBe(4);
+    // It starts where the user already is — no tab switch on the first step.
+    expect(sr().querySelector(".dock")!.classList.contains("tab-home")).toBe(true);
+
+    for (let i = 0; i < 3; i++) sr().querySelector<HTMLElement>(".tour .t-next")!.click();
+    expect(sr().querySelector(".tour .t-next")!.textContent).toBe("Done");
+    sr().querySelector<HTMLElement>(".tour .t-back")!.click();
+    expect(sr().querySelector(".tour .t-next")!.textContent).toBe("Next");
+    sr().querySelector<HTMLElement>(".tour .t-next")!.click();
+    sr().querySelector<HTMLElement>(".tour .t-next")!.click(); // Done
+
+    expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).tourDone).toBe(true);
+
+    // Finished once means finished: it does not come back by itself.
+    destroy();
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(false);
+
+    // …but it is replayable.
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    sr().querySelector<HTMLElement>('[data-set="tour"]')!.click();
+    expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelectorAll(".tour-dots i").length).toBe(4);
+  });
+
+  it("shows a hint once per view, and Turn off hints silences them for good", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelector("#loupe-hhint .hint-t")!.textContent).toBe("Your triage at a glance");
+
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    expect(sr().querySelector(".comments-view .hint-t")!.textContent).toBe("Pin, note or record");
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).hintsSeen).toContain("comments");
+
+    // Leaving and returning does not replay it.
+    sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
+    expect(sr().querySelector("#loupe-hhint .hint")).toBeFalsy();
+
+    // The card's own switch turns the whole help layer off, and it sticks.
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    expect(sr().querySelector(".comments-view .hint")).toBeFalsy();
+    sr().querySelector<HTMLElement>('.tabs [data-tab="connect"]')!.click();
+    sr().querySelector<HTMLElement>(".hint-off")!.click();
+    expect(sr().querySelector(".connect-view .hint")).toBeFalsy();
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).hoverHints).toBe(false);
+
+    destroy();
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector(".hint")).toBeFalsy();
+  });
+
+  it("dismisses a hint card with its X without silencing the rest", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sr().querySelector("#loupe-hhint .hint")).toBeTruthy();
+
+    sr().querySelector<HTMLElement>("#loupe-hhint .hint-x")!.click();
+    expect(sr().querySelector("#loupe-hhint .hint")).toBeFalsy();
+    // Hints are still on — only this card was dismissed.
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).hoverHints).toBe(true);
+
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    expect(sr().querySelector(".comments-view .hint")).toBeTruthy();
+  });
+
+  it("shows page paths in the project scope once enabled", async () => {
+    localStorage.setItem(keyFor("/a"), JSON.stringify([seeded({ id: "today", url: "/a" })]));
+    localStorage.setItem(keyFor("/b"), JSON.stringify([seeded({ id: "old", url: "/b" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    sr().querySelector<HTMLElement>('.hscope-b[data-scope="all"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    expect(sr().querySelectorAll(".pathtag").length).toBe(0); // off by default
+
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    sr().querySelector<HTMLElement>('[data-set="showPaths"]')!.click();
+    const tags = [...sr().querySelectorAll<HTMLElement>(".pathtag")].map((t) => t.textContent).sort();
+    expect(tags).toEqual(["/a", "/b"]);
+  });
+
+  it("renders the panel even when a stored anchor is malformed", async () => {
+    // Regression: a comment whose anchor lacks attrs/rect/viewport (an older client,
+    // or a row written by hand) used to throw inside resolveAnchor and abort the
+    // whole first render — no pins, no tabs, no tour.
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "bad", title: "Hand-written", anchor: { tag: "button", cssPath: "#save" } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // The panel still came up, and the row is listed with a pin rather than
+    // silently vanishing.
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+    expect(sr().querySelectorAll(".item").length).toBe(1);
+    expect(sr().querySelector(".pin")).toBeTruthy();
+    // The tour still runs — the throw used to happen before it ever started.
+    expect(sr().querySelector(".tour")!.classList.contains("open")).toBe(true);
   });
 
   it("does not initialize without projectKey or user id", () => {

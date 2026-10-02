@@ -7,6 +7,7 @@ export const STYLES = /* css */ `
    Dark is the default; the host element gets .theme-light to flip to light. */
 :host {
   --accent: #6b73e6;
+  --accent-soft: rgba(107, 115, 230, 0.12);
   --pin: #ff5842;
   --bg: #14161d;
   --bg-2: #1b1e27;
@@ -18,6 +19,7 @@ export const STYLES = /* css */ `
 }
 :host(.theme-light) {
   --accent: #4a55d6;
+  --accent-soft: rgba(74, 85, 214, 0.12);
   --pin: #ff5842;
   --bg: #ffffff;
   --bg-2: #f6f7fb;
@@ -34,7 +36,7 @@ export const STYLES = /* css */ `
 .hl {
   position: fixed; pointer-events: none; z-index: 2147483001;
   border: 2px solid var(--accent);
-  background: rgba(107, 115, 230, 0.12);
+  background: var(--accent-soft);
   border-radius: 4px; display: none;
   transition: all 60ms linear;
 }
@@ -47,7 +49,7 @@ export const STYLES = /* css */ `
 /* region selection (during drag) + active-comment outline */
 .selbox {
   position: fixed; pointer-events: none; z-index: 2147483001; display: none;
-  border: 2px dashed var(--accent); background: rgba(107, 115, 230, 0.14); border-radius: 4px;
+  border: 2px dashed var(--accent); background: var(--accent-soft); border-radius: 4px;
 }
 .region-box {
   position: fixed; pointer-events: none; z-index: 2147483001; display: none;
@@ -349,6 +351,12 @@ export const STYLES = /* css */ `
 
 /* Timeline grouping (project scope) + the repo filter. */
 .daylabel { margin: 8px 2px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+/* The page a comment belongs to, shown in the project scope (Settings → Page paths). */
+.pathtag {
+  padding: 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--muted);
+  font-size: 10.5px; font-family: ui-monospace, Menlo, monospace;
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .listhead .reposel {
   margin-left: 6px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line);
   border-radius: 7px; background: var(--bg-2); color: var(--ink);
@@ -396,6 +404,97 @@ export const STYLES = /* css */ `
 @keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
 
+/* ---------------------------------------------- header popovers (pos + settings) */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  min-width: 214px; padding: 8px; display: none;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.menu.open { display: block; }
+.menu-label {
+  margin: 2px 5px 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* dock-position grid: the four layouts as a 2x2 of buttons */
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pos-grid button {
+  display: flex; align-items: center; gap: 6px; padding: 7px 8px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--muted);
+  font-size: 11.5px; font-weight: 600;
+}
+.pos-grid button:hover { border-color: var(--accent); color: var(--ink); }
+.pos-grid button.on { border-color: var(--accent); color: var(--accent); }
+.pos-grid button svg { width: 14px; height: 14px; flex: none; }
+/* settings rows */
+.menu-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  padding: 7px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--ink);
+  font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.menu-row:hover { background: var(--bg-3); }
+.menu-sep { height: 1px; margin: 6px 4px; background: var(--line); }
+/* on/off switch inside a settings row */
+.sw { flex: none; position: relative; width: 30px; height: 17px; border-radius: 999px; background: var(--line); transition: background .12s; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .12s; }
+.menu-row[aria-pressed="true"] .sw { background: var(--accent); }
+.menu-row[aria-pressed="true"] .sw::after { transform: translateX(13px); }
+/* accent swatches */
+.acc-dots { display: flex; gap: 8px; padding: 4px 6px 2px; }
+.acc-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
+.acc-dot.on { border-color: var(--ink); }
+
+/* ---------------------------------------------------------------- minimize bar */
+.minbar { display: none; align-items: center; gap: 8px; padding: 9px 10px; cursor: pointer; background: var(--bg-2); }
+.dock.minimized .minbar { display: flex; }
+.dock.minimized .tabs, .dock.minimized .view, .dock.minimized .resize,
+.dock.minimized .dctl [data-role="min"], .dock.minimized .dctl .menu-wrap { display: none !important; }
+.minbar .logo { color: var(--accent); font-size: 14px; }
+.minbar .mtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.minbar .mtext b { color: var(--ink); }
+.minbar .mrestore { flex: none; padding: 0 2px; border: 0; background: transparent; color: var(--accent); font-size: 14px; cursor: pointer; }
+
+/* ------------------------------------------------------- hint card (once per view) */
+.hint {
+  position: relative; margin: 8px 12px 0; padding: 10px 28px 10px 11px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--bg-2);
+}
+.hint-t { margin-bottom: 3px; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.hint-b { font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.hint-off { display: inline-block; margin-top: 6px; padding: 0; border: 0; background: transparent; color: var(--accent); font-size: 11px; text-decoration: underline; cursor: pointer; }
+.hint-x {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; padding: 0;
+  border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.hint-x:hover { background: var(--bg-3); color: var(--ink); }
+
+/* ---------------------------------------------------------------- guided tour */
+/* Non-modal on purpose: the dimmer and the spotlight are click-through, so a tour
+   can never trap someone mid-task. Only the card itself takes pointer events. */
+.tour { position: fixed; inset: 0; z-index: 2147483200; display: none; pointer-events: none; }
+.tour.open { display: block; }
+.tour-spot {
+  position: fixed; border: 2px solid var(--accent); border-radius: 10px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 16, .62);
+  transition: all .18s ease;
+}
+.tour-card {
+  position: fixed; width: 252px; padding: 12px; pointer-events: auto;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); color: var(--ink);
+}
+.tour-title { margin-bottom: 4px; font-size: 13px; font-weight: 700; }
+.tour-body { font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.tour-foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.tour-dots { display: flex; flex: 1; gap: 4px; }
+.tour-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+.tour-dots i.on { background: var(--accent); }
+.tour-foot button {
+  padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.tour-foot .t-next { border-color: var(--accent); background: var(--accent); color: #fff; }
+.tour-foot .t-skip { border: 0; background: transparent; color: var(--muted); }
+
 /* Mobile: left/right/float docking is a desktop affordance. On small screens the
    panel collapses to a bottom sheet that OVERLAYS the page (pushing a side dock
    here would squeeze the page to a useless sliver), regardless of the chosen dock
@@ -406,7 +505,8 @@ export const STYLES = /* css */ `
     width: auto !important; height: 76vh !important;
     border-width: 1px 0 0 0 !important; border-radius: 16px 16px 0 0 !important;
   }
-  .dctl [data-dock], .dctl .gap { display: none; } /* dock positions don't apply on mobile */
+  .dctl [data-role="pos"], .dctl .gap { display: none; } /* dock positions don't apply on mobile */
+  .menu { min-width: 190px; }
   .resize { display: none !important; }
   .tools button { flex: 1; justify-content: center; } /* full-width tap targets */
   .dock.mode-bottom .list { grid-template-columns: 1fr; }

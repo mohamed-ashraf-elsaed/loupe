@@ -93,7 +93,12 @@ init({
 A dockable control panel appears with a three-page sidebar — **Home** (stat tiles, a this-page ↔
 whole-project scope switch, and the most recent feedback), **Comments** (with the
 **Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
-**Connect Claude** (MCP setup steps). Pass `repo` and `branch` to `init()` to make
+**Connect Claude** (MCP setup steps). The header carries a position menu
+(left / bottom / right / float), a theme toggle, a settings dropdown — five accent colours, plus
+switches for hover hints, markers and page paths — and a minimize button that collapses the panel
+to a one-line context bar. A four-step guided tour runs once on first open (skippable, replayable
+from Settings), and each view shows a one-time hint card with a **Turn off hints** link.
+Pass `repo` and `branch` to `init()` to make
 threads branch-aware — the board can then be filtered by repository and branch.
 Use the header's dock controls to dock it left / right /
 bottom (which pushes your page over) or float it, toggle light/dark, or close it to the `◎`

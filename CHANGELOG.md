@@ -11,6 +11,36 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.13] — 2026-10-02
+
+### Added
+
+- **A minimize bar.** The header's new minimize button collapses the panel to a one-line strip that
+  keeps its context on screen (`3 open on this page`) and restores on click. (Milestone 0.20; #56.)
+- **A dock-position menu.** The four layout buttons became one button opening a 2×2 grid — left,
+  bottom, right, float — which leaves the header room for the settings and minimize controls. The
+  active layout is marked. (Milestone 0.20; #56.)
+- **Accent colours.** Five presets (indigo, violet, teal, amber, rose) in Settings, applied as an
+  inline `--accent` custom property so they beat the theme token blocks and follow dark/light.
+  (Milestone 0.20; #56.)
+- **A settings dropdown** — accents, the visibility switches, and *Restart tour*. (Milestone 0.20; #63.)
+- **Visibility switches** for **hover hints**, **markers** and **page paths** — the last labels each row
+  in the project scope with the page it came from. (Milestone 0.20; #63.)
+- **A guided spotlight tour** — four steps over the stat tiles, the scope switch, the capture tools and
+  Connect Claude. It runs once on first open, is skippable, and is replayable from Settings. The
+  spotlight is a `box-shadow` cut-out and the overlay is click-through, so a tour can never trap
+  someone mid-task. (Milestone 0.20; #63, #72.)
+- **Contextual hint cards**, one per view, shown once each and dismissible — with a *Turn off hints*
+  link that silences the whole help layer, persisted. (Milestone 0.20; #72.)
+
+### Fixed
+
+- **A malformed stored anchor no longer takes the panel down.** `resolveAnchor` reads `attrs`, `rect`
+  and `viewport` off the anchor, but a row written by an older client (or by hand) can be missing
+  them — `Object.keys(undefined)` threw, which aborted `start()` entirely: no pins, no list, no tour.
+  The scorer now defaults those fields, and the pin positioner isolates a failing anchor to that one
+  comment. Found by seeding the demo with a minimal anchor.
+
 ## [0.10.12] — 2026-10-02
 
 ### Added

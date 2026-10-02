@@ -97,10 +97,13 @@ function similarity(a: Anchor, el: Element, via: ResolveResult["via"]): number {
     add(W.text, t === a.text ? 1 : t && (t.includes(a.text) || a.text.includes(t)) ? 0.5 : 0);
   }
 
-  const attrKeys = Object.keys(a.attrs);
+  // Every field below is optional in practice: an anchor stored by an older (or
+  // hand-written) client can be missing attrs/rect/viewport, and a throw here used
+  // to abort the whole panel's first render.
+  const attrKeys = Object.keys(a.attrs ?? {});
   if (attrKeys.length) {
     let matched = 0;
-    for (const k of attrKeys) if (el.getAttribute(k) === a.attrs[k]) matched++;
+    for (const k of attrKeys) if (el.getAttribute(k) === (a.attrs ?? {})[k]) matched++;
     add(W.attrs, matched / attrKeys.length);
   }
 
@@ -112,9 +115,11 @@ function similarity(a: Anchor, el: Element, via: ResolveResult["via"]): number {
   const r = el.getBoundingClientRect();
   const cx = r.left + window.scrollX + r.width / 2;
   const cy = r.top + window.scrollY + r.height / 2;
-  const ax = a.rect.x + a.rect.w / 2;
-  const ay = a.rect.y + a.rect.h / 2;
-  const diag = Math.hypot(a.viewport.w, a.viewport.h) || 1;
+  const ar = a.rect ?? { x: 0, y: 0, w: 0, h: 0 };
+  const av = a.viewport ?? { w: 0, h: 0 };
+  const ax = ar.x + ar.w / 2;
+  const ay = ar.y + ar.h / 2;
+  const diag = Math.hypot(av.w, av.h) || 1;
   const dist = Math.hypot(cx - ax, cy - ay);
   add(W.position, Math.max(0, 1 - dist / diag));
 

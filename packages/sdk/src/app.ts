@@ -15,7 +15,7 @@ import {
   STAGE_LABELS,
 } from "./types.js";
 import type {
-  Anchor, Attachment, ChangeType, Comment, CommentPriority, LoupeConfig, RegionRect, StorageAdapter,
+  Anchor, Attachment, ChangeType, Comment, CommentPriority, LoupeConfig, RegionRect, ResolveResult, StorageAdapter,
 } from "./types.js";
 
 declare const __LOUPE_VERSION__: string | undefined;
@@ -23,7 +23,41 @@ declare const __LOUPE_VERSION__: string | undefined;
 const SDK_VERSION = typeof __LOUPE_VERSION__ === "string" ? __LOUPE_VERSION__ : "dev";
 
 type Mode = "off" | "inspect" | "region" | "free" | "record";
-/** Where the control panel is anchored. */
+/** Accent presets — a variant per theme, since light needs a darker hue to stay legible. */
+const ACCENTS: { id: string; dark: string; light: string; soft: string }[] = [
+  { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
+  { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
+  { id: "teal", dark: "#2fb6a8", light: "#0f8f83", soft: "rgba(47,182,168,0.14)" },
+  { id: "amber", dark: "#d99a2b", light: "#a9700f", soft: "rgba(217,154,43,0.14)" },
+  { id: "rose", dark: "#e05c86", light: "#c2295a", soft: "rgba(224,92,134,0.14)" },
+];
+const ACCENT_IDS = ACCENTS.map((a) => a.id);
+
+/**
+ * The guided tour: one short step per idea a new user needs. Each step names the
+ * tab it belongs to, so the tour can move the panel itself out of the way.
+ */
+const TOUR: { sel: string; tab: Tab; title: string; body: string }[] = [
+  // Home first: the panel already opens there, so the first step never moves the
+  // user — the tour starts where they are.
+  { sel: ".hstat", tab: "home", title: "Home shows what needs you",
+    body: "Four tiles count open, needs-you, resolved and stale feedback. Click one to narrow the list to that bucket." },
+  { sel: ".hscope", tab: "home", title: "This page, or the whole project",
+    body: "Switch to All to see every page's feedback as a day-grouped timeline, with a repo filter." },
+  { sel: ".tools", tab: "comments", title: "Pin feedback anywhere",
+    body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one." },
+  { sel: '.tabs [data-tab="connect"]', tab: "connect", title: "Hand it to Claude",
+    body: "Connect Claude wires up the MCP server so an agent reads this feedback with its element context." },
+];
+
+/** One contextual hint per view, shown once (unless hints are switched off). */
+const HINTS: Record<Tab, { title: string; body: string }> = {
+  home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
+  comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
+  connect: { title: "Claude reads these", body: "Add the MCP server to your client and it can list, read and answer this feedback — screenshot included." },
+};
+
+/** Where the control panel is anchored — the four layouts the position menu offers. */
 type DockMode = "left" | "right" | "bottom" | "float";
 /** Which sidebar page is showing in the dock. */
 type Tab = "home" | "comments" | "connect";
@@ -166,6 +200,26 @@ export class LoupeApp {
   private repoSel!: HTMLSelectElement;
   /** The Home overview container (stat tiles + activity), rebuilt on render. */
   private homeEl!: HTMLElement;
+  /** Accent preset id (see ACCENTS), applied as inline --accent / --accent-soft. */
+  private accent = "indigo";
+  /** Collapsed to the one-line minimize bar. */
+  private minimized = false;
+  /** The "help layer": FAB tooltips and the contextual hint cards. */
+  private hoverHints = true;
+  /** Show each comment's page path (useful in the project scope). */
+  private showPaths = false;
+  /** Views whose hint card has already been shown. */
+  private hintsSeen = new Set<string>();
+  /** Current guided-tour step, or -1 when the tour is closed. */
+  private tourStep = -1;
+  /** The first-run tour has been finished or skipped. */
+  private tourDone = false;
+  private posMenu!: HTMLElement;
+  private settingsMenu!: HTMLElement;
+  private minBar!: HTMLElement;
+  private tourEl!: HTMLElement;
+  private tourSpot!: HTMLElement;
+  private tourCard!: HTMLElement;
   /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
   private floatRect = { x: 0, y: 0, w: 380, h: 540 };
   private floatDrag: { px: number; py: number; ox: number; oy: number } | null = null;
@@ -199,6 +253,9 @@ export class LoupeApp {
     if (this.scope === "all") void this.loadAllComments();
     this.observe();
     this.watchNavigation();
+    // First run: walk through the panel once. Skippable, never repeated, and off on
+    // phones where the sheet is too small to spotlight anything useful.
+    if (!this.tourDone && this.open && !this.isMobile()) this.startTour();
     if (this.cfg.autoOpen) this.setMode("inspect");
   }
 
@@ -259,7 +316,22 @@ export class LoupeApp {
     this.dock = this.buildDock();
     this.fabCluster = this.buildFabCluster();
     this.recBar = this.buildRecBar();
-    this.shadow.append(this.dock, this.fabCluster, this.recBar);
+
+    // Guided tour overlay — click-through by design (see STYLES), so it can never
+    // trap someone mid-task.
+    this.tourEl = el("div", "tour");
+    this.tourSpot = el("div", "tour-spot");
+    this.tourCard = el("div", "tour-card");
+    this.tourEl.append(this.tourSpot, this.tourCard);
+
+    this.shadow.append(this.dock, this.fabCluster, this.recBar, this.tourEl);
+
+    // A click anywhere outside a popover dismisses it.
+    this.shadow.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest && t.closest(".menu-wrap")) return;
+      this.closeMenus();
+    });
   }
 
   /**
@@ -278,35 +350,91 @@ export class LoupeApp {
     head.addEventListener("pointerdown", this.onHeadPointerDown); // drag in float mode
 
     const ctl = el("div", "dctl");
-    const dockBtn = (mode: DockMode, icon: string, title: string) => {
-      const b = el("button") as HTMLButtonElement;
-      b.dataset.dock = mode;
-      b.title = title;
-      b.setAttribute("aria-label", title);
-      b.innerHTML = icon;
-      b.onclick = () => this.setDock(mode);
-      return b;
-    };
-    // Order mirrors DevTools: dock-left, dock-bottom, dock-right, undock/float.
-    ctl.append(
-      dockBtn("left", I_DOCK_LEFT, "Dock to left"),
-      dockBtn("bottom", I_DOCK_BOTTOM, "Dock to bottom"),
-      dockBtn("right", I_DOCK_RIGHT, "Dock to right"),
-      dockBtn("float", I_FLOAT, "Float"),
-      el("span", "gap"),
-    );
+
+    // Position menu — one button opening a 2x2 grid of the four layouts. Four
+    // separate header buttons left no room once settings and minimize moved in.
+    const posWrap = el("div", "menu-wrap");
+    const posBtn = el("button") as HTMLButtonElement;
+    posBtn.dataset.role = "pos";
+    posBtn.title = "Panel position";
+    posBtn.setAttribute("aria-label", "Panel position");
+    posBtn.innerHTML = I_DOCK_RIGHT;
+    this.posMenu = el("div", "menu");
+    const posMeta: { mode: DockMode; icon: string; label: string }[] = [
+      { mode: "left", icon: I_DOCK_LEFT, label: "Left" },
+      { mode: "bottom", icon: I_DOCK_BOTTOM, label: "Bottom" },
+      { mode: "right", icon: I_DOCK_RIGHT, label: "Right" },
+      { mode: "float", icon: I_FLOAT, label: "Float" },
+    ];
+    this.posMenu.innerHTML = `<div class="menu-label">Position</div><div class="pos-grid">` +
+      posMeta.map((m) => `<button data-pos="${m.mode}">${m.icon}<span>${m.label}</span></button>`).join("") +
+      `</div>`;
+    this.posMenu.querySelectorAll<HTMLElement>("[data-pos]").forEach((b) => {
+      b.onclick = () => { this.setDock(b.dataset.pos as DockMode); this.closeMenus(); };
+    });
+    posBtn.onclick = () => this.toggleMenu(this.posMenu);
+    posWrap.append(posBtn, this.posMenu);
+
     this.themeBtn = el("button") as HTMLButtonElement;
     this.themeBtn.dataset.role = "theme";
     this.themeBtn.onclick = () => this.toggleTheme();
+
+    // Settings dropdown (theme accents, the help layer, replaying the tour).
+    const setWrap = el("div", "menu-wrap");
+    const setBtn = el("button") as HTMLButtonElement;
+    setBtn.dataset.role = "settings";
+    setBtn.title = "Settings";
+    setBtn.setAttribute("aria-label", "Settings");
+    setBtn.innerHTML = I_GEAR;
+    setBtn.onclick = () => this.toggleMenu(this.settingsMenu);
+    // Built once and only ever reflected into — rewriting this menu's innerHTML on
+    // every paint detached the row being clicked, so the outside-click handler saw
+    // a detached target and closed the menu out from under the user.
+    this.settingsMenu = el("div", "menu");
+    this.settingsMenu.innerHTML =
+      `<div class="menu-label">Appearance</div>` +
+      `<div class="acc-dots">` +
+      ACCENTS.map((a) =>
+        `<button class="acc-dot" data-accent="${a.id}" style="background:${a.dark}" ` +
+        `title="${a.id}" aria-label="${a.id} accent"></button>`).join("") +
+      `</div><div class="menu-sep"></div><div class="menu-label">Show</div>` +
+      `<button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button>` +
+      `<button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button>` +
+      `<button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button>` +
+      `<div class="menu-sep"></div>` +
+      `<button class="menu-row" data-set="tour"><span>Restart tour</span></button>`;
+    this.settingsMenu.querySelectorAll<HTMLElement>("[data-accent]").forEach((b) => {
+      b.onclick = () => this.setAccent(b.dataset.accent!);
+    });
+    this.settingsMenu.querySelectorAll<HTMLElement>("[data-set]").forEach((b) => {
+      b.onclick = () => {
+        const key = b.dataset.set!;
+        if (key === "tour") { this.closeMenus(); this.startTour(); return; }
+        this.toggleSetting(key as "markersHidden" | "hoverHints" | "showPaths");
+      };
+    });
+    setWrap.append(setBtn, this.settingsMenu);
+
+    const minBtn = el("button") as HTMLButtonElement;
+    minBtn.dataset.role = "min";
+    minBtn.title = "Minimize";
+    minBtn.setAttribute("aria-label", "Minimize");
+    minBtn.innerHTML = I_MINIMIZE;
+    minBtn.onclick = () => this.setMinimized(true);
+
     const closeBtn = el("button") as HTMLButtonElement;
     closeBtn.dataset.role = "close";
     closeBtn.title = "Close";
     closeBtn.setAttribute("aria-label", "Close");
     closeBtn.innerHTML = I_CLOSE;
     closeBtn.onclick = () => this.closeDock();
-    ctl.append(this.themeBtn, closeBtn);
+    ctl.append(posWrap, this.themeBtn, setWrap, minBtn, closeBtn);
 
     head.append(brand, ctl);
+
+    // The minimize bar: a one-line strip that keeps the panel's context on screen.
+    this.minBar = el("div", "minbar");
+    this.minBar.onclick = () => this.setMinimized(false);
 
     // tabs (the three sidebar pages) ------------------------------------------
     const tabs = el("div", "tabs");
@@ -377,20 +505,27 @@ export class LoupeApp {
     const homeView = el("div", "view home-view");
     this.homeEl = homeView;
 
-    // Comments view = tools + list + the "integrates with" footer.
+    // Comments view = hint card + tools + list + the "integrates with" footer.
     const commentsView = el("div", "view comments-view");
-    commentsView.append(tools, listHead, this.listEl, this.buildIntegrations());
+    this.commentsHint = el("div", "hint-slot");
+    commentsView.append(this.commentsHint, tools, listHead, this.listEl, this.buildIntegrations());
 
     // Connect view = the Claude/MCP onboarding page.
     const connectView = this.buildConnectPanel();
+    this.connectHint = el("div", "hint-slot");
+    connectView.prepend(this.connectHint);
 
     const resize = el("div", "resize");
     resize.addEventListener("pointerdown", this.onResizeDown);
 
-    dock.append(head, tabs, homeView, commentsView, connectView, resize);
+    dock.append(head, this.minBar, tabs, homeView, commentsView, connectView, resize);
     this.buildHomePanel();
     return dock;
   }
+
+  /** The contextual hint cards live in a slot at the top of each view. */
+  private commentsHint!: HTMLElement;
+  private connectHint!: HTMLElement;
 
   /**
    * The Home overview: four stat tiles over the current scope, a scope switch
@@ -400,6 +535,7 @@ export class LoupeApp {
   private buildHomePanel() {
     const title = this.cfg.label ?? "Loupe";
     this.homeEl.innerHTML =
+      `<div class="hint-slot" id="loupe-hhint"></div>` +
       `<div class="hstat" id="loupe-hstats"></div>` +
       `<div class="hscope">` +
       `<button class="hscope-b" data-scope="page">This page</button>` +
@@ -1278,7 +1414,10 @@ export class LoupeApp {
 
       let elx = this.resolved.get(c.id) ?? null;
       if (!elx || !elx.isConnected) {
-        const r = resolveAnchor(c.anchor);
+        // A malformed stored anchor (older client, or a row someone hand-wrote)
+        // must detach that one pin, not abort the render for every other comment.
+        let r: ResolveResult | null = null;
+        try { r = resolveAnchor(c.anchor); } catch { r = null; }
         elx = r?.element ?? null;
         this.resolved.set(c.id, elx);
       }
@@ -1389,6 +1528,7 @@ export class LoupeApp {
     // Leaving the Comments page cancels any active picking tool.
     if (tab !== "comments") this.setMode("off");
     this.tab = tab;
+    this.hintFor = null; // a fresh view is a fresh chance for its hint card
     this.saveState();
     if (tab === "home") {
       this.renderHome();
@@ -1405,6 +1545,190 @@ export class LoupeApp {
   }
 
   private onWinResize = () => this.applyDockLayout();
+
+  // ---- panel shell: popovers, minimize, accent ------------------------------
+
+  private toggleMenu(menu: HTMLElement) {
+    const wasOpen = menu.classList.contains("open");
+    this.closeMenus();
+    if (!wasOpen) menu.classList.add("open");
+  }
+
+  private closeMenus() {
+    this.posMenu?.classList.remove("open");
+    this.settingsMenu?.classList.remove("open");
+  }
+
+  private setAccent(id: string) {
+    if (!ACCENT_IDS.includes(id)) return;
+    this.accent = id;
+    this.saveState();
+    this.applyDockLayout();
+  }
+
+  private setMinimized(v: boolean) {
+    this.minimized = v;
+    this.closeMenus();
+    this.saveState();
+    this.applyDockLayout();
+  }
+
+  /** Flip one of the "Show …" settings and repaint whatever it governs. */
+  private toggleSetting(key: "markersHidden" | "hoverHints" | "showPaths") {
+    if (key === "markersHidden") this.markersHidden = !this.markersHidden;
+    else if (key === "hoverHints") this.hoverHints = !this.hoverHints;
+    else this.showPaths = !this.showPaths;
+    this.saveState();
+    if (key === "markersHidden") this.renderPins();
+    if (key === "showPaths") { this.renderList(); this.renderHome(); }
+    if (key === "hoverHints") this.hintFor = null; // the visible card must go too
+    this.applyDockLayout();
+  }
+
+  /** Reflect the current state into the settings menu (never rebuild it). */
+  private renderSettings() {
+    if (!this.settingsMenu) return;
+    const on: Record<string, boolean> = {
+      hoverHints: this.hoverHints,
+      markersHidden: !this.markersHidden,
+      showPaths: this.showPaths,
+    };
+    this.settingsMenu.querySelectorAll<HTMLElement>("[data-set]").forEach((b) => {
+      const key = b.dataset.set!;
+      if (key in on) b.setAttribute("aria-pressed", String(on[key]));
+    });
+    this.settingsMenu.querySelectorAll<HTMLElement>("[data-accent]").forEach((b) =>
+      b.classList.toggle("on", b.dataset.accent === this.accent));
+  }
+
+  /**
+   * The contextual hint card for the active view. Shown at most once per view and
+   * never again after that — dismissed, or switched off wholesale with "Turn off
+   * hints" (the same switch as Settings → Hover hints).
+   */
+  private renderHints() {
+    if (!this.homeEl) return;
+    const slots: Record<Tab, HTMLElement | null> = {
+      home: this.homeEl.querySelector("#loupe-hhint"),
+      comments: this.commentsHint ?? null,
+      connect: this.connectHint ?? null,
+    };
+    const slot = slots[this.tab];
+    if (!slot || this.hintFor === this.tab) return;
+    this.hintFor = this.tab;
+    slot.innerHTML = "";
+    if (!this.hoverHints || this.minimized || this.hintsSeen.has(this.tab)) return;
+
+    // Mark it seen the moment it is painted, so a reload does not replay it.
+    this.hintsSeen.add(this.tab);
+    this.saveState();
+    const hint = HINTS[this.tab];
+    slot.innerHTML =
+      `<div class="hint"><div class="hint-t">${escapeHtml(hint.title)}</div>` +
+      `<div class="hint-b">${escapeHtml(hint.body)}</div>` +
+      `<button class="hint-off" data-role="hint-off">Turn off hints</button>` +
+      `<button class="hint-x" aria-label="Dismiss hint">✕</button></div>`;
+    (slot.querySelector('[data-role="hint-off"]') as HTMLElement).onclick = () => {
+      this.hoverHints = false;
+      // Force the next paint to re-evaluate this view, otherwise the early-return
+      // above would leave the card it was clicked from on screen.
+      this.hintFor = null;
+      this.saveState();
+      this.applyDockLayout();
+    };
+    (slot.querySelector(".hint-x") as HTMLElement).onclick = () => { slot.innerHTML = ""; };
+  }
+
+  /** Which view's hint has been handled this session (so it is not re-painted). */
+  private hintFor: Tab | null = null;
+
+  // ---- guided tour ----------------------------------------------------------
+
+  private startTour() {
+    this.tourStep = 0;
+    this.open = true;
+    this.minimized = false;
+    this.applyDockLayout();
+    this.renderTour();
+  }
+
+  private stopTour() {
+    this.tourStep = -1;
+    this.tourDone = true;
+    this.saveState();
+    this.tourEl.classList.remove("open");
+    this.applyDockLayout();
+  }
+
+  private gotoTour(step: number) {
+    if (step < 0) { this.stopTour(); return; }
+    this.tourStep = step;
+    this.renderTour();
+  }
+
+  /** Position the spotlight over the current step's target and lay out the card. */
+  private renderTour() {
+    if (this.tourStep < 0 || this.tourStep >= TOUR.length) {
+      this.tourEl.classList.remove("open");
+      return;
+    }
+    const step = TOUR[this.tourStep]!;
+    if (this.tab !== step.tab) this.setTab(step.tab);
+    this.tourEl.classList.add("open");
+
+    const pad = 4;
+    const target = this.shadow.querySelector(step.sel) as HTMLElement | null;
+    const box = target?.getBoundingClientRect();
+    const r = box && box.width
+      ? { left: box.left - pad, top: box.top - pad, width: box.width + pad * 2, height: box.height + pad * 2 }
+      // No on-screen target (panel closed, or the view is hidden) — centre the card.
+      : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
+    this.tourSpot.style.left = `${r.left}px`;
+    this.tourSpot.style.top = `${r.top}px`;
+    this.tourSpot.style.width = `${r.width}px`;
+    this.tourSpot.style.height = `${r.height}px`;
+
+    const last = this.tourStep === TOUR.length - 1;
+    this.tourCard.innerHTML =
+      `<div class="tour-title">${escapeHtml(step.title)}</div>` +
+      `<div class="tour-body">${escapeHtml(step.body)}</div>` +
+      `<div class="tour-foot">` +
+      `<span class="tour-dots">${TOUR.map((_, i) => `<i class="${i === this.tourStep ? "on" : ""}"></i>`).join("")}</span>` +
+      (this.tourStep > 0 ? `<button class="t-back">Back</button>` : "") +
+      `<button class="t-skip">Skip</button>` +
+      `<button class="t-next">${last ? "Done" : "Next"}</button>` +
+      `</div>`;
+
+    // Place the card below the spotlight, else above, else beside it — rejecting any
+    // spot that would land on the very thing it points at, and clamping the rest
+    // into the viewport. (Clamping alone used to push the card back onto the target.)
+    const W = 252;
+    const H = this.tourCard.offsetHeight || 130;
+    const overlapsTarget = (x: number, y: number) =>
+      x < r.left + r.width + 8 && x + W > r.left - 8 && y < r.top + r.height + 8 && y + H > r.top - 8;
+    const candidates: [number, number][] = [
+      [r.left + r.width / 2 - W / 2, r.top + r.height + 12],  // below
+      [r.left + r.width / 2 - W / 2, r.top - H - 12],        // above
+      [r.left - W - 12, r.top + r.height / 2 - H / 2],       // beside (left)
+      [r.left + r.width + 12, r.top + r.height / 2 - H / 2], // beside (right)
+    ];
+    let cx = clampPx(candidates[0]![0], 8, Math.max(8, window.innerWidth - W - 8));
+    let cy = clampPx(candidates[0]![1], 8, Math.max(8, window.innerHeight - H - 8));
+    for (const [x, y] of candidates) {
+      const px = clampPx(x, 8, Math.max(8, window.innerWidth - W - 8));
+      const py = clampPx(y, 8, Math.max(8, window.innerHeight - H - 8));
+      cx = px; cy = py;
+      if (!overlapsTarget(px, py)) break;
+    }
+    this.tourCard.style.left = `${cx}px`;
+    this.tourCard.style.top = `${cy}px`;
+
+    (this.tourCard.querySelector(".t-back") as HTMLElement | null)?.addEventListener("click", () => this.gotoTour(this.tourStep - 1));
+    (this.tourCard.querySelector(".t-skip") as HTMLElement)!.addEventListener("click", () => this.stopTour());
+    (this.tourCard.querySelector(".t-next") as HTMLElement)!.addEventListener("click", () => {
+      if (last) this.stopTour(); else this.gotoTour(this.tourStep + 1);
+    });
+  }
 
   /** Narrow viewports render the panel as a bottom sheet, not a side/float dock. */
   private isMobile() { return window.innerWidth <= 640; }
@@ -1423,6 +1747,12 @@ export class LoupeApp {
       if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
       if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
+      if (p?.accent && ACCENT_IDS.includes(p.accent)) this.accent = p.accent;
+      if (typeof p?.minimized === "boolean") this.minimized = p.minimized;
+      if (typeof p?.hoverHints === "boolean") this.hoverHints = p.hoverHints;
+      if (typeof p?.showPaths === "boolean") this.showPaths = p.showPaths;
+      if (typeof p?.tourDone === "boolean") this.tourDone = p.tourDone;
+      if (Array.isArray(p?.hintsSeen)) this.hintsSeen = new Set(p.hintsSeen.filter((x: unknown) => typeof x === "string"));
     } catch { /* storage unavailable → defaults */ }
   }
 
@@ -1432,6 +1762,8 @@ export class LoupeApp {
         mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
         markersHidden: this.markersHidden,
         scope: this.scope, statFilter: this.statFilter, repoFilter: this.repoFilter,
+        accent: this.accent, minimized: this.minimized, hoverHints: this.hoverHints,
+        showPaths: this.showPaths, tourDone: this.tourDone, hintsSeen: [...this.hintsSeen],
       }));
     } catch { /* ignore */ }
   }
@@ -1442,9 +1774,22 @@ export class LoupeApp {
     this.themeBtn.title = this.theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
     this.themeBtn.innerHTML = this.theme === "dark" ? I_SUN : I_MOON;
 
+    // The accent is an inline custom property on the host, so it beats both token
+    // blocks and follows the theme.
+    const accent = ACCENTS.find((a) => a.id === this.accent) ?? ACCENTS[0]!;
+    this.root.style.setProperty("--accent", this.theme === "light" ? accent.light : accent.dark);
+    this.root.style.setProperty("--accent-soft", accent.soft);
+
     const d = this.dock;
     d.classList.toggle("open", this.open);
     for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
+    d.classList.toggle("minimized", this.minimized);
+    // The minimize bar keeps the panel's context — and a way back — on one line.
+    const openCount = this.comments.filter((c) => !isResolved(c)).length;
+    this.minBar.innerHTML =
+      `<span class="logo">◎</span>` +
+      `<span class="mtext"><b>${openCount}</b> open ${this.scope === "all" ? "in this project" : "on this page"}</span>` +
+      `<span class="mrestore" aria-hidden="true">▸</span>`;
     // Which sidebar page is active (Home / Comments / Connect Claude).
     d.classList.toggle("tab-home", this.tab === "home");
     d.classList.toggle("tab-comments", this.tab === "comments");
@@ -1452,6 +1797,10 @@ export class LoupeApp {
     this.renderHome();
     d.querySelectorAll<HTMLElement>(".tabs .tab").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === this.tab));
+    this.posMenu.querySelectorAll<HTMLElement>("[data-pos]").forEach((b) =>
+      b.classList.toggle("on", b.dataset.pos === this.dockMode));
+    this.renderSettings();
+    this.renderHints();
 
     if (this.dockMode === "float") {
       const vw = window.innerWidth, vh = window.innerHeight;
@@ -1624,6 +1973,10 @@ export class LoupeApp {
     }
     if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
     else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
+    // Page paths only mean something once the list spans more than one page.
+    if (this.showPaths && this.scope === "all" && c.url) {
+      top.appendChild(el("span", "pathtag", shortPath(c.url)));
+    }
     top.appendChild(el("span", "caret", open ? "▾" : "▸"));
     item.appendChild(top);
 
@@ -1778,6 +2131,10 @@ function fmtAgo(iso: string): string {
   if (h < 24) return `${h}h ago`;
   return `${Math.round(h / 24)}d ago`;
 }
+/** "https://x.test/a/b?q=1" → "/a/b" — what the page-path tag shows. */
+function shortPath(url: string): string {
+  try { return new URL(url, location.origin).pathname || "/"; } catch { return url; }
+}
 /** The day bucket a comment falls in, for the All-scope timeline grouping. */
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -1828,6 +2185,11 @@ const I_MOON = svg(
   `<path d="M13 9.4A5.3 5.3 0 1 1 6.6 3 4.3 4.3 0 0 0 13 9.4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>`);
 const I_CLOSE = svg(
   `<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`);
+const I_GEAR = svg(
+  `<circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.4"/>` +
+  `<path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`);
+const I_MINIMIZE = svg(
+  `<path d="M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`);
 
 /** FAB cluster quick-action icons (font-independent, currentColor). */
 const I_COMMENT = svg(

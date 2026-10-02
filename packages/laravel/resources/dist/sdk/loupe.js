@@ -36,6 +36,7 @@ var Loupe = (() => {
    Dark is the default; the host element gets .theme-light to flip to light. */
 :host {
   --accent: #6b73e6;
+  --accent-soft: rgba(107, 115, 230, 0.12);
   --pin: #ff5842;
   --bg: #14161d;
   --bg-2: #1b1e27;
@@ -47,6 +48,7 @@ var Loupe = (() => {
 }
 :host(.theme-light) {
   --accent: #4a55d6;
+  --accent-soft: rgba(74, 85, 214, 0.12);
   --pin: #ff5842;
   --bg: #ffffff;
   --bg-2: #f6f7fb;
@@ -63,7 +65,7 @@ var Loupe = (() => {
 .hl {
   position: fixed; pointer-events: none; z-index: 2147483001;
   border: 2px solid var(--accent);
-  background: rgba(107, 115, 230, 0.12);
+  background: var(--accent-soft);
   border-radius: 4px; display: none;
   transition: all 60ms linear;
 }
@@ -76,7 +78,7 @@ var Loupe = (() => {
 /* region selection (during drag) + active-comment outline */
 .selbox {
   position: fixed; pointer-events: none; z-index: 2147483001; display: none;
-  border: 2px dashed var(--accent); background: rgba(107, 115, 230, 0.14); border-radius: 4px;
+  border: 2px dashed var(--accent); background: var(--accent-soft); border-radius: 4px;
 }
 .region-box {
   position: fixed; pointer-events: none; z-index: 2147483001; display: none;
@@ -378,6 +380,12 @@ var Loupe = (() => {
 
 /* Timeline grouping (project scope) + the repo filter. */
 .daylabel { margin: 8px 2px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+/* The page a comment belongs to, shown in the project scope (Settings \u2192 Page paths). */
+.pathtag {
+  padding: 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--muted);
+  font-size: 10.5px; font-family: ui-monospace, Menlo, monospace;
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .listhead .reposel {
   margin-left: 6px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line);
   border-radius: 7px; background: var(--bg-2); color: var(--ink);
@@ -425,6 +433,97 @@ var Loupe = (() => {
 @keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
 
+/* ---------------------------------------------- header popovers (pos + settings) */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  min-width: 214px; padding: 8px; display: none;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.menu.open { display: block; }
+.menu-label {
+  margin: 2px 5px 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* dock-position grid: the four layouts as a 2x2 of buttons */
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pos-grid button {
+  display: flex; align-items: center; gap: 6px; padding: 7px 8px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--muted);
+  font-size: 11.5px; font-weight: 600;
+}
+.pos-grid button:hover { border-color: var(--accent); color: var(--ink); }
+.pos-grid button.on { border-color: var(--accent); color: var(--accent); }
+.pos-grid button svg { width: 14px; height: 14px; flex: none; }
+/* settings rows */
+.menu-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  padding: 7px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--ink);
+  font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.menu-row:hover { background: var(--bg-3); }
+.menu-sep { height: 1px; margin: 6px 4px; background: var(--line); }
+/* on/off switch inside a settings row */
+.sw { flex: none; position: relative; width: 30px; height: 17px; border-radius: 999px; background: var(--line); transition: background .12s; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .12s; }
+.menu-row[aria-pressed="true"] .sw { background: var(--accent); }
+.menu-row[aria-pressed="true"] .sw::after { transform: translateX(13px); }
+/* accent swatches */
+.acc-dots { display: flex; gap: 8px; padding: 4px 6px 2px; }
+.acc-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
+.acc-dot.on { border-color: var(--ink); }
+
+/* ---------------------------------------------------------------- minimize bar */
+.minbar { display: none; align-items: center; gap: 8px; padding: 9px 10px; cursor: pointer; background: var(--bg-2); }
+.dock.minimized .minbar { display: flex; }
+.dock.minimized .tabs, .dock.minimized .view, .dock.minimized .resize,
+.dock.minimized .dctl [data-role="min"], .dock.minimized .dctl .menu-wrap { display: none !important; }
+.minbar .logo { color: var(--accent); font-size: 14px; }
+.minbar .mtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.minbar .mtext b { color: var(--ink); }
+.minbar .mrestore { flex: none; padding: 0 2px; border: 0; background: transparent; color: var(--accent); font-size: 14px; cursor: pointer; }
+
+/* ------------------------------------------------------- hint card (once per view) */
+.hint {
+  position: relative; margin: 8px 12px 0; padding: 10px 28px 10px 11px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--bg-2);
+}
+.hint-t { margin-bottom: 3px; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.hint-b { font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.hint-off { display: inline-block; margin-top: 6px; padding: 0; border: 0; background: transparent; color: var(--accent); font-size: 11px; text-decoration: underline; cursor: pointer; }
+.hint-x {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; padding: 0;
+  border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.hint-x:hover { background: var(--bg-3); color: var(--ink); }
+
+/* ---------------------------------------------------------------- guided tour */
+/* Non-modal on purpose: the dimmer and the spotlight are click-through, so a tour
+   can never trap someone mid-task. Only the card itself takes pointer events. */
+.tour { position: fixed; inset: 0; z-index: 2147483200; display: none; pointer-events: none; }
+.tour.open { display: block; }
+.tour-spot {
+  position: fixed; border: 2px solid var(--accent); border-radius: 10px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 16, .62);
+  transition: all .18s ease;
+}
+.tour-card {
+  position: fixed; width: 252px; padding: 12px; pointer-events: auto;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); color: var(--ink);
+}
+.tour-title { margin-bottom: 4px; font-size: 13px; font-weight: 700; }
+.tour-body { font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.tour-foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.tour-dots { display: flex; flex: 1; gap: 4px; }
+.tour-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+.tour-dots i.on { background: var(--accent); }
+.tour-foot button {
+  padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.tour-foot .t-next { border-color: var(--accent); background: var(--accent); color: #fff; }
+.tour-foot .t-skip { border: 0; background: transparent; color: var(--muted); }
+
 /* Mobile: left/right/float docking is a desktop affordance. On small screens the
    panel collapses to a bottom sheet that OVERLAYS the page (pushing a side dock
    here would squeeze the page to a useless sliver), regardless of the chosen dock
@@ -435,7 +534,8 @@ var Loupe = (() => {
     width: auto !important; height: 76vh !important;
     border-width: 1px 0 0 0 !important; border-radius: 16px 16px 0 0 !important;
   }
-  .dctl [data-dock], .dctl .gap { display: none; } /* dock positions don't apply on mobile */
+  .dctl [data-role="pos"], .dctl .gap { display: none; } /* dock positions don't apply on mobile */
+  .menu { min-width: 190px; }
   .resize { display: none !important; }
   .tools button { flex: 1; justify-content: center; } /* full-width tap targets */
   .dock.mode-bottom .list { grid-template-columns: 1fr; }
@@ -525,10 +625,10 @@ var Loupe = (() => {
       const t = normText(el2.textContent);
       add(W.text, t === a.text ? 1 : t && (t.includes(a.text) || a.text.includes(t)) ? 0.5 : 0);
     }
-    const attrKeys = Object.keys(a.attrs);
+    const attrKeys = Object.keys(a.attrs ?? {});
     if (attrKeys.length) {
       let matched = 0;
-      for (const k of attrKeys) if (el2.getAttribute(k) === a.attrs[k]) matched++;
+      for (const k of attrKeys) if (el2.getAttribute(k) === (a.attrs ?? {})[k]) matched++;
       add(W.attrs, matched / attrKeys.length);
     }
     if (a.testid) add(W.testid, stableId(el2) === a.testid ? 1 : 0);
@@ -536,9 +636,11 @@ var Loupe = (() => {
     const r = el2.getBoundingClientRect();
     const cx = r.left + window.scrollX + r.width / 2;
     const cy = r.top + window.scrollY + r.height / 2;
-    const ax = a.rect.x + a.rect.w / 2;
-    const ay = a.rect.y + a.rect.h / 2;
-    const diag = Math.hypot(a.viewport.w, a.viewport.h) || 1;
+    const ar = a.rect ?? { x: 0, y: 0, w: 0, h: 0 };
+    const av = a.viewport ?? { w: 0, h: 0 };
+    const ax = ar.x + ar.w / 2;
+    const ay = ar.y + ar.h / 2;
+    const diag = Math.hypot(av.w, av.h) || 1;
     const dist = Math.hypot(cx - ax, cy - ay);
     add(W.position, Math.max(0, 1 - dist / diag));
     return total ? sum / total : 0;
@@ -2648,7 +2750,48 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.12" : "dev";
+  var SDK_VERSION = true ? "0.10.13" : "dev";
+  var ACCENTS = [
+    { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
+    { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
+    { id: "teal", dark: "#2fb6a8", light: "#0f8f83", soft: "rgba(47,182,168,0.14)" },
+    { id: "amber", dark: "#d99a2b", light: "#a9700f", soft: "rgba(217,154,43,0.14)" },
+    { id: "rose", dark: "#e05c86", light: "#c2295a", soft: "rgba(224,92,134,0.14)" }
+  ];
+  var ACCENT_IDS = ACCENTS.map((a) => a.id);
+  var TOUR = [
+    // Home first: the panel already opens there, so the first step never moves the
+    // user — the tour starts where they are.
+    {
+      sel: ".hstat",
+      tab: "home",
+      title: "Home shows what needs you",
+      body: "Four tiles count open, needs-you, resolved and stale feedback. Click one to narrow the list to that bucket."
+    },
+    {
+      sel: ".hscope",
+      tab: "home",
+      title: "This page, or the whole project",
+      body: "Switch to All to see every page's feedback as a day-grouped timeline, with a repo filter."
+    },
+    {
+      sel: ".tools",
+      tab: "comments",
+      title: "Pin feedback anywhere",
+      body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one."
+    },
+    {
+      sel: '.tabs [data-tab="connect"]',
+      tab: "connect",
+      title: "Hand it to Claude",
+      body: "Connect Claude wires up the MCP server so an agent reads this feedback with its element context."
+    }
+  ];
+  var HINTS = {
+    home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
+    comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
+    connect: { title: "Claude reads these", body: "Add the MCP server to your client and it can list, read and answer this feedback \u2014 screenshot included." }
+  };
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
@@ -2727,6 +2870,20 @@ var Loupe = (() => {
       this.statFilter = "";
       /** Repo filter, offered once the scope is "all". */
       this.repoFilter = "";
+      /** Accent preset id (see ACCENTS), applied as inline --accent / --accent-soft. */
+      this.accent = "indigo";
+      /** Collapsed to the one-line minimize bar. */
+      this.minimized = false;
+      /** The "help layer": FAB tooltips and the contextual hint cards. */
+      this.hoverHints = true;
+      /** Show each comment's page path (useful in the project scope). */
+      this.showPaths = false;
+      /** Views whose hint card has already been shown. */
+      this.hintsSeen = /* @__PURE__ */ new Set();
+      /** Current guided-tour step, or -1 when the tour is closed. */
+      this.tourStep = -1;
+      /** The first-run tour has been finished or skipped. */
+      this.tourDone = false;
       /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
       this.floatRect = { x: 0, y: 0, w: 380, h: 540 };
       this.floatDrag = null;
@@ -2851,7 +3008,12 @@ var Loupe = (() => {
           }
           let elx = this.resolved.get(c.id) ?? null;
           if (!elx || !elx.isConnected) {
-            const r = resolveAnchor(c.anchor);
+            let r = null;
+            try {
+              r = resolveAnchor(c.anchor);
+            } catch {
+              r = null;
+            }
             elx = r?.element ?? null;
             this.resolved.set(c.id, elx);
           }
@@ -2894,6 +3056,8 @@ var Loupe = (() => {
         }
       };
       this.onWinResize = () => this.applyDockLayout();
+      /** Which view's hint has been handled this session (so it is not re-painted). */
+      this.hintFor = null;
       // ---- float-mode drag + resize ---------------------------------------------
       this.onHeadPointerDown = (e) => {
         if (this.dockMode !== "float" || e.button !== 0 || this.isMobile()) return;
@@ -2959,6 +3123,7 @@ var Loupe = (() => {
       if (this.scope === "all") void this.loadAllComments();
       this.observe();
       this.watchNavigation();
+      if (!this.tourDone && this.open && !this.isMobile()) this.startTour();
       if (this.cfg.autoOpen) this.setMode("inspect");
     }
     /**
@@ -3011,7 +3176,16 @@ var Loupe = (() => {
       this.dock = this.buildDock();
       this.fabCluster = this.buildFabCluster();
       this.recBar = this.buildRecBar();
-      this.shadow.append(this.dock, this.fabCluster, this.recBar);
+      this.tourEl = el("div", "tour");
+      this.tourSpot = el("div", "tour-spot");
+      this.tourCard = el("div", "tour-card");
+      this.tourEl.append(this.tourSpot, this.tourCard);
+      this.shadow.append(this.dock, this.fabCluster, this.recBar, this.tourEl);
+      this.shadow.addEventListener("click", (e) => {
+        const t = e.target;
+        if (t?.closest && t.closest(".menu-wrap")) return;
+        this.closeMenus();
+      });
     }
     /**
      * The dockable control panel:
@@ -3026,33 +3200,71 @@ var Loupe = (() => {
       brand.querySelector(".title").textContent = this.cfg.label ?? "Loupe";
       head.addEventListener("pointerdown", this.onHeadPointerDown);
       const ctl = el("div", "dctl");
-      const dockBtn = (mode, icon, title) => {
-        const b = el("button");
-        b.dataset.dock = mode;
-        b.title = title;
-        b.setAttribute("aria-label", title);
-        b.innerHTML = icon;
-        b.onclick = () => this.setDock(mode);
-        return b;
-      };
-      ctl.append(
-        dockBtn("left", I_DOCK_LEFT, "Dock to left"),
-        dockBtn("bottom", I_DOCK_BOTTOM, "Dock to bottom"),
-        dockBtn("right", I_DOCK_RIGHT, "Dock to right"),
-        dockBtn("float", I_FLOAT, "Float"),
-        el("span", "gap")
-      );
+      const posWrap = el("div", "menu-wrap");
+      const posBtn = el("button");
+      posBtn.dataset.role = "pos";
+      posBtn.title = "Panel position";
+      posBtn.setAttribute("aria-label", "Panel position");
+      posBtn.innerHTML = I_DOCK_RIGHT;
+      this.posMenu = el("div", "menu");
+      const posMeta = [
+        { mode: "left", icon: I_DOCK_LEFT, label: "Left" },
+        { mode: "bottom", icon: I_DOCK_BOTTOM, label: "Bottom" },
+        { mode: "right", icon: I_DOCK_RIGHT, label: "Right" },
+        { mode: "float", icon: I_FLOAT, label: "Float" }
+      ];
+      this.posMenu.innerHTML = `<div class="menu-label">Position</div><div class="pos-grid">` + posMeta.map((m) => `<button data-pos="${m.mode}">${m.icon}<span>${m.label}</span></button>`).join("") + `</div>`;
+      this.posMenu.querySelectorAll("[data-pos]").forEach((b) => {
+        b.onclick = () => {
+          this.setDock(b.dataset.pos);
+          this.closeMenus();
+        };
+      });
+      posBtn.onclick = () => this.toggleMenu(this.posMenu);
+      posWrap.append(posBtn, this.posMenu);
       this.themeBtn = el("button");
       this.themeBtn.dataset.role = "theme";
       this.themeBtn.onclick = () => this.toggleTheme();
+      const setWrap = el("div", "menu-wrap");
+      const setBtn = el("button");
+      setBtn.dataset.role = "settings";
+      setBtn.title = "Settings";
+      setBtn.setAttribute("aria-label", "Settings");
+      setBtn.innerHTML = I_GEAR;
+      setBtn.onclick = () => this.toggleMenu(this.settingsMenu);
+      this.settingsMenu = el("div", "menu");
+      this.settingsMenu.innerHTML = `<div class="menu-label">Appearance</div><div class="acc-dots">` + ACCENTS.map((a) => `<button class="acc-dot" data-accent="${a.id}" style="background:${a.dark}" title="${a.id}" aria-label="${a.id} accent"></button>`).join("") + `</div><div class="menu-sep"></div><div class="menu-label">Show</div><button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button><button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button><button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button><div class="menu-sep"></div><button class="menu-row" data-set="tour"><span>Restart tour</span></button>`;
+      this.settingsMenu.querySelectorAll("[data-accent]").forEach((b) => {
+        b.onclick = () => this.setAccent(b.dataset.accent);
+      });
+      this.settingsMenu.querySelectorAll("[data-set]").forEach((b) => {
+        b.onclick = () => {
+          const key = b.dataset.set;
+          if (key === "tour") {
+            this.closeMenus();
+            this.startTour();
+            return;
+          }
+          this.toggleSetting(key);
+        };
+      });
+      setWrap.append(setBtn, this.settingsMenu);
+      const minBtn = el("button");
+      minBtn.dataset.role = "min";
+      minBtn.title = "Minimize";
+      minBtn.setAttribute("aria-label", "Minimize");
+      minBtn.innerHTML = I_MINIMIZE;
+      minBtn.onclick = () => this.setMinimized(true);
       const closeBtn = el("button");
       closeBtn.dataset.role = "close";
       closeBtn.title = "Close";
       closeBtn.setAttribute("aria-label", "Close");
       closeBtn.innerHTML = I_CLOSE;
       closeBtn.onclick = () => this.closeDock();
-      ctl.append(this.themeBtn, closeBtn);
+      ctl.append(posWrap, this.themeBtn, setWrap, minBtn, closeBtn);
       head.append(brand, ctl);
+      this.minBar = el("div", "minbar");
+      this.minBar.onclick = () => this.setMinimized(false);
       const tabs = el("div", "tabs");
       const tabBtn = (key, label) => {
         const b = el("button", "tab", label);
@@ -3110,11 +3322,14 @@ var Loupe = (() => {
       const homeView = el("div", "view home-view");
       this.homeEl = homeView;
       const commentsView = el("div", "view comments-view");
-      commentsView.append(tools, listHead, this.listEl, this.buildIntegrations());
+      this.commentsHint = el("div", "hint-slot");
+      commentsView.append(this.commentsHint, tools, listHead, this.listEl, this.buildIntegrations());
       const connectView = this.buildConnectPanel();
+      this.connectHint = el("div", "hint-slot");
+      connectView.prepend(this.connectHint);
       const resize = el("div", "resize");
       resize.addEventListener("pointerdown", this.onResizeDown);
-      dock.append(head, tabs, homeView, commentsView, connectView, resize);
+      dock.append(head, this.minBar, tabs, homeView, commentsView, connectView, resize);
       this.buildHomePanel();
       return dock;
     }
@@ -3125,7 +3340,7 @@ var Loupe = (() => {
      */
     buildHomePanel() {
       const title = this.cfg.label ?? "Loupe";
-      this.homeEl.innerHTML = `<div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page</button><button class="hscope-b" data-scope="all">All</button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 ${escapeHtml(this.cfg.repo ?? "no repo linked")}</div>`;
+      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page</button><button class="hscope-b" data-scope="all">All</button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 ${escapeHtml(this.cfg.repo ?? "no repo linked")}</div>`;
       this.homeEl.querySelectorAll(".hscope-b").forEach((b) => {
         b.onclick = () => this.setScope(b.dataset.scope === "all" ? "all" : "page");
       });
@@ -3868,6 +4083,7 @@ var Loupe = (() => {
       if (this.tab === tab) return;
       if (tab !== "comments") this.setMode("off");
       this.tab = tab;
+      this.hintFor = null;
       this.saveState();
       if (tab === "home") {
         this.renderHome();
@@ -3880,6 +4096,160 @@ var Loupe = (() => {
       this.theme = this.theme === "dark" ? "light" : "dark";
       this.saveState();
       this.applyDockLayout();
+    }
+    // ---- panel shell: popovers, minimize, accent ------------------------------
+    toggleMenu(menu) {
+      const wasOpen = menu.classList.contains("open");
+      this.closeMenus();
+      if (!wasOpen) menu.classList.add("open");
+    }
+    closeMenus() {
+      this.posMenu?.classList.remove("open");
+      this.settingsMenu?.classList.remove("open");
+    }
+    setAccent(id) {
+      if (!ACCENT_IDS.includes(id)) return;
+      this.accent = id;
+      this.saveState();
+      this.applyDockLayout();
+    }
+    setMinimized(v) {
+      this.minimized = v;
+      this.closeMenus();
+      this.saveState();
+      this.applyDockLayout();
+    }
+    /** Flip one of the "Show …" settings and repaint whatever it governs. */
+    toggleSetting(key) {
+      if (key === "markersHidden") this.markersHidden = !this.markersHidden;
+      else if (key === "hoverHints") this.hoverHints = !this.hoverHints;
+      else this.showPaths = !this.showPaths;
+      this.saveState();
+      if (key === "markersHidden") this.renderPins();
+      if (key === "showPaths") {
+        this.renderList();
+        this.renderHome();
+      }
+      if (key === "hoverHints") this.hintFor = null;
+      this.applyDockLayout();
+    }
+    /** Reflect the current state into the settings menu (never rebuild it). */
+    renderSettings() {
+      if (!this.settingsMenu) return;
+      const on = {
+        hoverHints: this.hoverHints,
+        markersHidden: !this.markersHidden,
+        showPaths: this.showPaths
+      };
+      this.settingsMenu.querySelectorAll("[data-set]").forEach((b) => {
+        const key = b.dataset.set;
+        if (key in on) b.setAttribute("aria-pressed", String(on[key]));
+      });
+      this.settingsMenu.querySelectorAll("[data-accent]").forEach((b) => b.classList.toggle("on", b.dataset.accent === this.accent));
+    }
+    /**
+     * The contextual hint card for the active view. Shown at most once per view and
+     * never again after that — dismissed, or switched off wholesale with "Turn off
+     * hints" (the same switch as Settings → Hover hints).
+     */
+    renderHints() {
+      if (!this.homeEl) return;
+      const slots = {
+        home: this.homeEl.querySelector("#loupe-hhint"),
+        comments: this.commentsHint ?? null,
+        connect: this.connectHint ?? null
+      };
+      const slot = slots[this.tab];
+      if (!slot || this.hintFor === this.tab) return;
+      this.hintFor = this.tab;
+      slot.innerHTML = "";
+      if (!this.hoverHints || this.minimized || this.hintsSeen.has(this.tab)) return;
+      this.hintsSeen.add(this.tab);
+      this.saveState();
+      const hint = HINTS[this.tab];
+      slot.innerHTML = `<div class="hint"><div class="hint-t">${escapeHtml(hint.title)}</div><div class="hint-b">${escapeHtml(hint.body)}</div><button class="hint-off" data-role="hint-off">Turn off hints</button><button class="hint-x" aria-label="Dismiss hint">\u2715</button></div>`;
+      slot.querySelector('[data-role="hint-off"]').onclick = () => {
+        this.hoverHints = false;
+        this.hintFor = null;
+        this.saveState();
+        this.applyDockLayout();
+      };
+      slot.querySelector(".hint-x").onclick = () => {
+        slot.innerHTML = "";
+      };
+    }
+    // ---- guided tour ----------------------------------------------------------
+    startTour() {
+      this.tourStep = 0;
+      this.open = true;
+      this.minimized = false;
+      this.applyDockLayout();
+      this.renderTour();
+    }
+    stopTour() {
+      this.tourStep = -1;
+      this.tourDone = true;
+      this.saveState();
+      this.tourEl.classList.remove("open");
+      this.applyDockLayout();
+    }
+    gotoTour(step) {
+      if (step < 0) {
+        this.stopTour();
+        return;
+      }
+      this.tourStep = step;
+      this.renderTour();
+    }
+    /** Position the spotlight over the current step's target and lay out the card. */
+    renderTour() {
+      if (this.tourStep < 0 || this.tourStep >= TOUR.length) {
+        this.tourEl.classList.remove("open");
+        return;
+      }
+      const step = TOUR[this.tourStep];
+      if (this.tab !== step.tab) this.setTab(step.tab);
+      this.tourEl.classList.add("open");
+      const pad = 4;
+      const target = this.shadow.querySelector(step.sel);
+      const box = target?.getBoundingClientRect();
+      const r = box && box.width ? { left: box.left - pad, top: box.top - pad, width: box.width + pad * 2, height: box.height + pad * 2 } : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
+      this.tourSpot.style.left = `${r.left}px`;
+      this.tourSpot.style.top = `${r.top}px`;
+      this.tourSpot.style.width = `${r.width}px`;
+      this.tourSpot.style.height = `${r.height}px`;
+      const last = this.tourStep === TOUR.length - 1;
+      this.tourCard.innerHTML = `<div class="tour-title">${escapeHtml(step.title)}</div><div class="tour-body">${escapeHtml(step.body)}</div><div class="tour-foot"><span class="tour-dots">${TOUR.map((_, i) => `<i class="${i === this.tourStep ? "on" : ""}"></i>`).join("")}</span>` + (this.tourStep > 0 ? `<button class="t-back">Back</button>` : "") + `<button class="t-skip">Skip</button><button class="t-next">${last ? "Done" : "Next"}</button></div>`;
+      const W2 = 252;
+      const H = this.tourCard.offsetHeight || 130;
+      const overlapsTarget = (x, y) => x < r.left + r.width + 8 && x + W2 > r.left - 8 && y < r.top + r.height + 8 && y + H > r.top - 8;
+      const candidates = [
+        [r.left + r.width / 2 - W2 / 2, r.top + r.height + 12],
+        // below
+        [r.left + r.width / 2 - W2 / 2, r.top - H - 12],
+        // above
+        [r.left - W2 - 12, r.top + r.height / 2 - H / 2],
+        // beside (left)
+        [r.left + r.width + 12, r.top + r.height / 2 - H / 2]
+        // beside (right)
+      ];
+      let cx = clampPx(candidates[0][0], 8, Math.max(8, window.innerWidth - W2 - 8));
+      let cy = clampPx(candidates[0][1], 8, Math.max(8, window.innerHeight - H - 8));
+      for (const [x, y] of candidates) {
+        const px = clampPx(x, 8, Math.max(8, window.innerWidth - W2 - 8));
+        const py = clampPx(y, 8, Math.max(8, window.innerHeight - H - 8));
+        cx = px;
+        cy = py;
+        if (!overlapsTarget(px, py)) break;
+      }
+      this.tourCard.style.left = `${cx}px`;
+      this.tourCard.style.top = `${cy}px`;
+      this.tourCard.querySelector(".t-back")?.addEventListener("click", () => this.gotoTour(this.tourStep - 1));
+      this.tourCard.querySelector(".t-skip").addEventListener("click", () => this.stopTour());
+      this.tourCard.querySelector(".t-next").addEventListener("click", () => {
+        if (last) this.stopTour();
+        else this.gotoTour(this.tourStep + 1);
+      });
     }
     /** Narrow viewports render the panel as a bottom sheet, not a side/float dock. */
     isMobile() {
@@ -3899,6 +4269,12 @@ var Loupe = (() => {
         if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
         if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
+        if (p?.accent && ACCENT_IDS.includes(p.accent)) this.accent = p.accent;
+        if (typeof p?.minimized === "boolean") this.minimized = p.minimized;
+        if (typeof p?.hoverHints === "boolean") this.hoverHints = p.hoverHints;
+        if (typeof p?.showPaths === "boolean") this.showPaths = p.showPaths;
+        if (typeof p?.tourDone === "boolean") this.tourDone = p.tourDone;
+        if (Array.isArray(p?.hintsSeen)) this.hintsSeen = new Set(p.hintsSeen.filter((x) => typeof x === "string"));
       } catch {
       }
     }
@@ -3913,7 +4289,13 @@ var Loupe = (() => {
           markersHidden: this.markersHidden,
           scope: this.scope,
           statFilter: this.statFilter,
-          repoFilter: this.repoFilter
+          repoFilter: this.repoFilter,
+          accent: this.accent,
+          minimized: this.minimized,
+          hoverHints: this.hoverHints,
+          showPaths: this.showPaths,
+          tourDone: this.tourDone,
+          hintsSeen: [...this.hintsSeen]
         }));
       } catch {
       }
@@ -3923,14 +4305,23 @@ var Loupe = (() => {
       this.root.classList.toggle("theme-light", this.theme === "light");
       this.themeBtn.title = this.theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
       this.themeBtn.innerHTML = this.theme === "dark" ? I_SUN : I_MOON;
+      const accent = ACCENTS.find((a) => a.id === this.accent) ?? ACCENTS[0];
+      this.root.style.setProperty("--accent", this.theme === "light" ? accent.light : accent.dark);
+      this.root.style.setProperty("--accent-soft", accent.soft);
       const d = this.dock;
       d.classList.toggle("open", this.open);
       for (const m of DOCK_MODES) d.classList.toggle("mode-" + m, this.dockMode === m);
+      d.classList.toggle("minimized", this.minimized);
+      const openCount = this.comments.filter((c) => !isResolved(c)).length;
+      this.minBar.innerHTML = `<span class="logo">\u25CE</span><span class="mtext"><b>${openCount}</b> open ${this.scope === "all" ? "in this project" : "on this page"}</span><span class="mrestore" aria-hidden="true">\u25B8</span>`;
       d.classList.toggle("tab-home", this.tab === "home");
       d.classList.toggle("tab-comments", this.tab === "comments");
       d.classList.toggle("tab-connect", this.tab === "connect");
       this.renderHome();
       d.querySelectorAll(".tabs .tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === this.tab));
+      this.posMenu.querySelectorAll("[data-pos]").forEach((b) => b.classList.toggle("on", b.dataset.pos === this.dockMode));
+      this.renderSettings();
+      this.renderHints();
       if (this.dockMode === "float") {
         const vw = window.innerWidth, vh = window.innerHeight;
         let { x, y, w, h } = this.floatRect;
@@ -4032,6 +4423,9 @@ var Loupe = (() => {
       }
       if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
       else if (detached) top.appendChild(el("span", "badge detached", "element moved/removed"));
+      if (this.showPaths && this.scope === "all" && c.url) {
+        top.appendChild(el("span", "pathtag", shortPath(c.url)));
+      }
       top.appendChild(el("span", "caret", open ? "\u25BE" : "\u25B8"));
       item.appendChild(top);
       const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
@@ -4168,6 +4562,13 @@ var Loupe = (() => {
     if (h < 24) return `${h}h ago`;
     return `${Math.round(h / 24)}d ago`;
   }
+  function shortPath(url) {
+    try {
+      return new URL(url, location.origin).pathname || "/";
+    } catch {
+      return url;
+    }
+  }
   function dayLabel(iso) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "Earlier";
@@ -4211,6 +4612,12 @@ var Loupe = (() => {
   );
   var I_CLOSE = svg(
     `<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`
+  );
+  var I_GEAR = svg(
+    `<circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`
+  );
+  var I_MINIMIZE = svg(
+    `<path d="M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`
   );
   var I_COMMENT = svg(
     `<path d="M2 3.1h12v7.4H6.5l-3.3 2.6v-2.6H2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 5.1v3.4M6.3 6.8h3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`

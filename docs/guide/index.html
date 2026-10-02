@@ -1217,9 +1217,28 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.12</strong> (2026-10-02).</p>
+          release: <strong>0.10.13</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.13</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
+          <ul class="bul">
+            <li><strong>The panel gained a shell.</strong> The header now has a <strong>position menu</strong>
+              (left / bottom / right / float in a 2×2 grid) and a <strong>minimize</strong> button that collapses the
+              panel to a one-line bar — <code>3 open on this page</code> — which restores on click.</li>
+            <li><strong>Accent colours and a settings dropdown.</strong> Five accents (indigo, violet, teal,
+              amber, rose) plus switches for <em>hover hints</em>, <em>markers</em> and <em>page paths</em>, all
+              persisted with the rest of the panel state.</li>
+            <li><strong>A guided tour and contextual hints.</strong> A four-step spotlight tour runs once on
+              first open, is skippable and is replayable from Settings. Each view also shows a one-time hint
+              card with a <em>Turn off hints</em> link. Both are click-through — onboarding never traps you.</li>
+            <li><strong>A malformed anchor can no longer blank the panel.</strong> A stored anchor missing
+              <code>attrs</code>/<code>rect</code>/<code>viewport</code> threw inside the fingerprint scorer and
+              aborted the entire first render; the scorer now defaults those fields and a failing anchor is
+              isolated to its own comment.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.12</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
           <ul class="bul">
             <li><strong>The panel opens on a Home overview.</strong> The widget now leads with a new
