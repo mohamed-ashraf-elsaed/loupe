@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { destroy, init, trackActivity, setActivityStatus, clearActivity, connectTab } from "../src/index.ts";
+import {
+  destroy, init, trackActivity, setActivityStatus, clearActivity, connectTab, requestNavigation,
+} from "../src/index.ts";
 
 const sr = () => document.getElementById("loupe-root")!.shadowRoot!;
 const fire = (el: Element, type: string, extra: Record<string, number> = {}) =>
@@ -1095,6 +1097,177 @@ describe("LoupeApp", () => {
     expect(sr().querySelector(".revbanner")).toBeTruthy();
     expect(sr().querySelector(".rev-origin")).toBeFalsy();
     expect(sr().querySelector(".origin")).toBeFalsy();
+  });
+
+  it("gates generating behind an access request when there is no generator", async () => {
+    const asked: any[] = [];
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a", title: "T", body: "b" })]));
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      onRequestAccess: (req) => { asked.push(req); },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+
+    sr().querySelector<HTMLElement>(".gen-open")!.click();
+    expect(sr().querySelector(".gengate .gate-t")!.textContent).toBe("Generating needs access");
+
+    const ask = sr().querySelector<HTMLElement>(".gate-ask")!;
+    expect(ask.textContent).toBe("Request access to generate");
+    ask.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(asked).toEqual([{ capability: "generate", user: { id: "u", name: "U" }, projectKey: "pk" }]);
+    expect(sr().querySelector<HTMLElement>(".gate-ask")!.disabled).toBe(true);
+    expect(sr().querySelector(".gate-ask")!.textContent).toBe("Request sent");
+    // And it is visible where the work is recorded.
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Requested access to generate");
+  });
+
+  it("tells the host when a request has nowhere to go", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".gen-open")!.click();
+    expect(sr().querySelector(".gate-hint")!.textContent).toContain("onRequestAccess");
+  });
+
+  it("generates, previews, compares and iterates", async () => {
+    const calls: any[] = [];
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "a", title: "Fix the CTA", body: "Too small", status: "in_review" }),
+    ]));
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      generate: async (req) => {
+        calls.push({ kind: req.kind, prompt: req.prompt, prev: req.previous?.html, localAi: req.localAi });
+        return { html: `<button>${req.prompt}</button>`, css: ".x{color:red}", notes: `round ${calls.length}` };
+      },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Nothing generated yet: the pane opens on the first pass.
+    sr().querySelector<HTMLElement>(".gen-open")!.click();
+    expect(sr().querySelector(".genempty")!.textContent).toBe("Nothing generated yet.");
+
+    const type = (text: string) => {
+      const input = sr().querySelector<HTMLInputElement>(".iter-in")!;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      sr().querySelector<HTMLElement>(".iter-send")!.click();
+    };
+    type("make it bigger");
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(calls[0]).toEqual({ kind: "refine", prompt: "make it bigger", prev: undefined, localAi: undefined });
+    expect(sr().querySelector(".gen-n")!.textContent).toBe("1 / 1");
+    expect(sr().querySelector(".gennotes")!.textContent).toBe("round 1");
+    // The preview is a sandboxed iframe carrying the generated markup and its CSS.
+    const frame = sr().querySelector<HTMLIFrameElement>(".genframe")!;
+    expect(frame.getAttribute("sandbox")).toBe("");
+    expect(frame.getAttribute("srcdoc")).toContain("<button>make it bigger</button>");
+    expect(frame.getAttribute("srcdoc")).toContain(".x{color:red}");
+
+    // The opacity comparison drives the plane, and does not re-render the pane.
+    const range = sr().querySelector<HTMLInputElement>(".gs-range")!;
+    expect(range.value).toBe("60");
+    expect(sr().querySelector<HTMLIFrameElement>(".genframe")!.style.opacity).toBe("0.6");
+    range.value = "25";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(sr().querySelector<HTMLIFrameElement>(".genframe")!.style.opacity).toBe("0.25");
+    expect(sr().querySelector(".gs-range")).toBe(range); // same node: no re-render
+
+    // A second pass refines the first and is reachable by prev/next.
+    type("and bolder");
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls[1]!.prev).toContain("make it bigger");
+    expect(sr().querySelector(".gen-n")!.textContent).toBe("2 / 2");
+    const prev = sr().querySelectorAll<HTMLButtonElement>(".gen-step")[0]!;
+    const next = sr().querySelectorAll<HTMLButtonElement>(".gen-step")[1]!;
+    expect(next.disabled).toBe(true);
+    prev.click();
+    expect(sr().querySelector(".gen-n")!.textContent).toBe("1 / 2");
+    expect(sr().querySelector<HTMLIFrameElement>(".genframe")!.getAttribute("srcdoc"))
+      .toContain("<button>make it bigger</button>");
+
+    // Undo throws the newest away rather than just stepping back.
+    const undo = sr().querySelector<HTMLButtonElement>(".gen-undo")!;
+    undo.click();
+    expect(sr().querySelector(".gen-n")!.textContent).toBe("1 / 1");
+    expect(sr().querySelector(".gennotes")!.textContent).toBe("round 1");
+    // And it lands in the activity feed, like everything else.
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("generate.refine");
+  });
+
+  it("survives a generator that throws, without losing the panel", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a", title: "T" })]));
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      generate: async () => { throw new Error("model offline"); },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".gen-open")!.click();
+    const input = sr().querySelector<HTMLInputElement>(".iter-in")!;
+    input.value = "go";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    sr().querySelector<HTMLElement>(".iter-send")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelector(".genempty")).toBeTruthy();
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Generation failed: model offline");
+    expect(sr().querySelectorAll(".item").length).toBe(1);
+  });
+
+  it("refuses to navigate an agent until the user explicitly grants it", async () => {
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, assign, href: window.location.href },
+    });
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Nothing is pending up front.
+    expect((sr().querySelector(".consent") as HTMLElement).style.display).toBe("none");
+
+    requestNavigation("https://preview.example.com/pr/412", { reason: "The fix is live.", requester: "Claude Code" });
+    const box = sr().querySelector(".consent") as HTMLElement;
+    expect(box.style.display).toBe("");
+    expect(box.textContent).toContain("Claude Code");
+    expect(box.textContent).toContain("https://preview.example.com/pr/412");
+    expect(box.textContent).toContain("The fix is live.");
+    // The prompt is up, but nothing has navigated.
+    expect(assign).not.toHaveBeenCalled();
+
+    // Declining navigates nowhere and clears the prompt.
+    (sr().querySelector(".cs-deny") as HTMLElement).click();
+    expect(assign).not.toHaveBeenCalled();
+    expect(box.style.display).toBe("none");
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Declined opening");
+
+    // Granting is the only path that navigates.
+    requestNavigation("https://preview.example.com/pr/412");
+    (sr().querySelector(".cs-go") as HTMLElement).click();
+    expect(assign).toHaveBeenCalledWith("https://preview.example.com/pr/412");
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).toContain("Opened https://preview.example.com/pr/412");
+  });
+
+  it("refuses a request for anything that is not http(s)", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    requestNavigation("javascript:alert(1)");
+    requestNavigation("file:///etc/passwd");
+    expect((sr().querySelector(".consent") as HTMLElement).style.display).toBe("none");
+    expect(sr().querySelector("#loupe-mon-feed")!.textContent).not.toContain("javascript");
+  });
+
+  it("offers dictation only where the browser supports it", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([seeded({ id: "a" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    await leaveComment("voice me");
+    const mic = sr().querySelector<HTMLButtonElement>(".voice")!;
+    // happy-dom has no SpeechRecognition: the button says so instead of pretending.
+    expect(mic.disabled).toBe(true);
+    expect(mic.title).toContain("not available");
   });
 
   it("does not initialize without projectKey or user id", () => {

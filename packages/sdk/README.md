@@ -176,6 +176,48 @@ the proposal. Approving resolves the thread and is logged in the Activity feed.
 The rule that shape enforces: **only a human resolves a thread.** An agent moves work to In Review;
 a person closes it from there.
 
+### Generating and iterating on a change
+
+Pass a `generate` function and a thread's detail gains a Generate pane — preview,
+opacity comparison, undo, iteration history and a refine input. The panel owns all of
+that; producing the markup is yours, so any model works:
+
+```ts
+init({
+  projectKey: "pk_live_…",
+  user: { id: "u_1", name: "Ada" },
+  generate: async ({ comment, prompt, kind, previous, localAi }) => {
+    // previous carries the iteration being refined; localAi is whatever the user
+    // configured in the panel (see below).
+    const { html, css, notes } = await myModel({ comment, prompt, kind, previous, localAi });
+    return { html, css, notes };
+  },
+});
+```
+
+The preview renders in a **sandboxed** iframe, so generated markup can never reach your
+page. A local-AI endpoint and model (any OpenAI-compatible server — Ollama, llama.cpp…)
+are configurable in the project manager, with a real connection check. Without a
+`generate` function the pane offers *Request access to generate* and hands it to
+`init({ onRequestAccess })`.
+
+### Agent navigation needs consent
+
+An agent that can move the browser is useful and dangerous in equal measure, so
+navigation is a request a human answers:
+
+```ts
+import { requestNavigation } from "@loupekit/sdk";
+
+requestNavigation("https://preview.acme.test/pr/412", {
+  reason: "The fix is live on the preview URL.",
+  requester: "Claude Code",
+});
+```
+
+The panel shows who wants to go where and why. **Nothing navigates without an explicit
+grant** — only `http(s)` is even offerable, and every decision is kept as an audit trail.
+
 ### Offline mode (no backend)
 
 Omit `apiBase` and comments persist to `localStorage` — great for demos and local dev:

@@ -652,6 +652,99 @@ export const STYLES = /* css */ `
   font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
+/* ------------------------------------------------- consent-gated agent navigation */
+.consent {
+  margin: 8px 10px 0; padding: 10px; border: 1px solid var(--pin); border-radius: 10px;
+  background: var(--bg-2);
+}
+.cs-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); }
+.cs-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pin); flex: none; animation: loupe-pulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .cs-dot { animation: none; } }
+.cs-url {
+  margin-top: 6px; padding: 6px 7px; border-radius: 7px; background: var(--bg);
+  font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cs-why { margin-top: 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.cs-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+.cs-btns button { padding: 5px 10px; border-radius: 7px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.cs-deny { border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.cs-deny:hover { border-color: var(--accent); }
+.cs-go { border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+
+/* --------------------------------------------------------------- generate + iterate */
+.genwrap { margin-top: 8px; }
+.gen-open {
+  width: 100%; padding: 7px; border: 1px dashed var(--line); border-radius: 8px;
+  background: transparent; color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.gen-open:hover { border-color: var(--accent); color: var(--accent); }
+.genhead { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.gen-t { flex: 1; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.gen-nav { display: inline-flex; align-items: center; gap: 2px; }
+.gen-step {
+  width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--ink); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.gen-step:disabled { opacity: .4; cursor: default; }
+.gen-n { min-width: 32px; text-align: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gen-undo, .gen-x {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.gen-undo:disabled { opacity: .4; cursor: default; }
+.gen-undo:hover, .gen-x:hover { border-color: var(--accent); }
+.genbusy, .genempty { padding: 14px; text-align: center; font-size: 11.5px; color: var(--muted); }
+/* the preview plane: generated markup over the original capture, sandboxed.
+   min-height matters — the iframe is absolutely positioned, so a thread with no
+   screenshot would otherwise give the plane nothing in-flow and collapse it to a
+   couple of pixels. */
+.genplane { position: relative; min-height: 150px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--bg); }
+.genbase { display: block; width: 100%; }
+.genframe {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
+  transition: opacity .08s linear;
+}
+.genslider { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+.gs-lab { font-size: 10.5px; color: var(--muted); }
+.gs-range { flex: 1; min-width: 0; accent-color: var(--accent); }
+.gs-n { min-width: 32px; text-align: right; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gennotes {
+  margin-top: 6px; padding: 6px 8px; border-radius: 7px; background: var(--bg-3);
+  font-size: 11px; line-height: 1.45; color: var(--muted);
+}
+.geniter { display: flex; gap: 5px; margin-top: 7px; }
+.iter-in {
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink); font-size: 11.5px;
+}
+.iter-in:focus { outline: none; border-color: var(--accent); }
+.iter-send {
+  flex: none; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.iter-send:disabled { opacity: .5; cursor: default; }
+/* the access gate, when there is no generator */
+.gengate { padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-2); }
+.gate-t { font-size: 12px; font-weight: 700; color: var(--ink); }
+.gate-b { margin-top: 4px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.gate-ask {
+  margin-top: 8px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.gate-ask:disabled { opacity: .6; cursor: default; }
+.gate-hint { margin-top: 7px; font-size: 10.5px; color: var(--muted); }
+.gate-hint code { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
+
+/* dictation */
+.voice {
+  width: 30px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); font-size: 13px; cursor: pointer;
+}
+.voice:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
+.voice:disabled { opacity: .45; cursor: not-allowed; }
+.voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
+
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {
   position: relative; margin: 8px 12px 0; padding: 10px 28px 10px 11px;

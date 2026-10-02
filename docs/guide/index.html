@@ -1217,9 +1217,32 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.15</strong> (2026-10-02).</p>
+          release: <strong>0.10.16</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.16</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Generate a change and iterate on it.</strong> Pass <code>generate</code> to
+              <code>init()</code> and a thread gains a Generate pane: a sandboxed preview, an
+              <strong>opacity slider</strong> to compare it against the original, <strong>undo</strong>,
+              <strong>prev/next</strong> through every iteration, and a refine/revise input. Any model
+              works — the panel owns the preview and the history; producing the markup is yours.
+              Configure a local one (endpoint + model) in the project manager, with a real connection
+              check.</li>
+            <li><strong>Agent navigation needs your consent.</strong>
+              <code>requestNavigation(url)</code> asks first — the panel shows who wants to go where and
+              why, and nothing navigates until you say yes. <code>javascript:</code> and
+              <code>file:</code> requests are refused outright, and every decision is kept.</li>
+            <li><strong>Dictation and context menus.</strong> A mic button in the composer where the
+              browser supports it, and in the extension a right-click menu to comment on the page, a
+              selection, an image, a link or a field — plus show/hide Loupe per site.</li>
+            <li><strong>Fixed:</strong> the preview plane collapsed to two pixels on threads without a
+              screenshot, and a generated <em>fragment</em> rendered as a dark box because the plane had
+              no surface under it.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.15</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>A thread's change has a lifecycle.</strong> A comment can record the pull

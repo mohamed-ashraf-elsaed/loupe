@@ -1,21 +1,43 @@
 // Injected into the active tab. Reuses the exact same SDK core as the embedded
 // widget — the only difference is the screenshot source: the extension captures
 // real pixels via the background worker and crops to the element (with redaction).
-import { init } from "@loupekit/sdk";
+import { destroy, init, openTool } from "@loupekit/sdk";
 import type { RegionRect } from "@loupekit/sdk";
 
 declare const chrome: any;
+
+// Context-menu actions arrive as messages, so they work whether the widget is
+// already up or this script was just injected to start it.
+chrome.runtime.onMessage.addListener((msg: any) => {
+  if (msg?.type === "LOUPE_TOOL") openTool(msg.tool === "note" ? "note" : "inspect");
+  if (msg?.type === "LOUPE_TEARDOWN") {
+    destroy();
+    // Allow a later injection to bring it back on the same page.
+    (window as any).__loupeInjected = false;
+  }
+});
 
 async function main() {
   if ((window as any).__loupeInjected) return;
   (window as any).__loupeInjected = true;
 
   const cfg = await chrome.storage.local.get(["projectKey", "user", "apiBase", "userHmac"]);
+  // Per-site show/hide: a site you hid stays hidden across reloads, and the context
+  // menu is the way back.
+  const { hidden } = await chrome.runtime.sendMessage({ type: "LOUPE_SITE_STATE" }).catch(() => ({ hidden: false }));
+  if (hidden) {
+    (window as any).__loupeInjected = false;
+    return;
+  }
   if (!cfg.projectKey || !cfg.user?.id) {
     (window as any).__loupeInjected = false;
     console.warn("[loupe] Set a project key and user in the extension popup first.");
     return;
   }
+
+  // A context menu that had to inject us left the tool it wants here.
+  const { loupeIntent } = await chrome.storage.session.get("loupeIntent").catch(() => ({ loupeIntent: null }));
+  if (loupeIntent) await chrome.storage.session.remove("loupeIntent").catch(() => {});
 
   init({
     projectKey: cfg.projectKey,
@@ -23,6 +45,7 @@ async function main() {
     apiBase: cfg.apiBase || undefined,
     userHmac: cfg.userHmac || undefined,
     autoOpen: true,
+    tool: loupeIntent?.tool === "note" ? "note" : "inspect",
     captureScreenshot: captureViaExtension,
     captureRegion: captureRegionViaExtension,
   });

@@ -5,23 +5,37 @@ import { LocalStorageAdapter } from "./store.js";
 import { HttpAdapter } from "./http-adapter.js";
 import {
   ACTIVITY_STATUS_LABELS,
+  addIteration,
   awaitingReview,
   CHANGE_TYPES,
   CHANGE_TYPE_LABELS,
   COMMENT_PRIORITIES,
+  canMove,
+  canUndo,
+  current as currentIteration,
+  decide as decideConsent,
   DEFAULT_CHANGE_TYPE,
   DEFAULT_PRIORITY,
+  emptyConsent,
+  emptyIterations,
   formatDuration,
+  isPending as consentPending,
   lifecycle,
+  move as moveIteration,
   normalizePriority,
   normalizeStatus,
   PRIORITY_LABELS,
+  requestNavigation as requestNav,
   STAGE_LABELS,
+  stackLabel,
   summarizeActivity,
+  undo as undoIteration,
+  withdraw as withdrawConsent,
 } from "./types.js";
 import type {
   ActivityEvent, ActivityEventInput, ActivityStatus, Anchor, Attachment, ChangeType, Comment,
-  CommentPriority, LoupeConfig, RegionRect, ResolveResult, StorageAdapter,
+  CommentPriority, ConsentRecord, IterationState, LocalAiConfig, LoupeConfig, RegionRect,
+  ResolveResult, StorageAdapter,
 } from "./types.js";
 
 declare const __LOUPE_VERSION__: string | undefined;
@@ -247,7 +261,21 @@ export class LoupeApp {
   private activityEl!: HTMLElement;
   private feedEl!: HTMLElement;
   /** Per-browser project settings: a repo override and the environment URLs. */
-  private project: { repo?: string; environments: string[] } = { environments: [] };
+  private project: { repo?: string; environments: string[]; localAi?: LocalAiConfig } = { environments: [] };
+  /** Iteration history per thread — generating a change is a stack, not a one-shot. */
+  private iterations = new Map<string, IterationState>();
+  /** The thread whose generate pane is open, if any. */
+  private genOpen: string | null = null;
+  /** Threads with a generation in flight. */
+  private genBusy = new Set<string>();
+  /** Opacity of the generated plane over the original, 0..1 (the compare slider). */
+  private genOpacity = 0.6;
+  /** The navigation consent state machine — a URL only ever comes out of `decide`. */
+  private consent: ConsentRecord = emptyConsent();
+  private consentEl!: HTMLElement;
+  /** The live SpeechRecognition instance while dictating, if any. */
+  private voice: any = null;
+  private voiceEl!: HTMLElement;
   /** The project manager popover, and its search box. */
   private projMenu!: HTMLElement;
   private projSearch = "";
@@ -294,7 +322,14 @@ export class LoupeApp {
     // First run: walk through the panel once. Skippable, never repeated, and off on
     // phones where the sheet is too small to spotlight anything useful.
     if (!this.tourDone && this.open && !this.isMobile()) this.startTour();
-    if (this.cfg.autoOpen) this.setMode("inspect");
+    if (this.cfg.autoOpen) this.setMode(this.cfg.tool === "note" ? "free" : "inspect");
+  }
+
+  /** Arm a tool from outside — the extension's context menus, or a host's own button. */
+  openTool(tool: "inspect" | "note") {
+    this.open = true;
+    this.applyDockLayout();
+    this.setMode(tool === "note" ? "free" : "inspect");
   }
 
   /**
@@ -594,7 +629,12 @@ export class LoupeApp {
     const resize = el("div", "resize");
     resize.addEventListener("pointerdown", this.onResizeDown);
 
-    dock.append(head, this.minBar, tabs, homeView, commentsView, activityView, ...customViews, resize);
+    // The navigation consent prompt. It lives above the tabs so an agent's request is
+    // answered from wherever the user happens to be, not only on one page.
+    this.consentEl = el("div", "consent");
+    this.consentEl.style.display = "none";
+
+    dock.append(head, this.minBar, this.consentEl, tabs, homeView, commentsView, activityView, ...customViews, resize);
     for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView]] as [string, HTMLElement][]) {
       this.viewEls.set(id, view);
     }
@@ -1059,6 +1099,16 @@ export class LoupeApp {
       `<div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" ` +
       `value="${escapeAttr(this.envDraft)}" aria-label="Environment URL">` +
       `<button class="pp-add-b" data-role="env-add">Add</button></div>` +
+      `<div class="pp-sep"></div>` +
+      `<div class="pp-head"><span>Local AI</span></div>` +
+      `<div class="pp-empty">Any OpenAI-compatible server — used by the Generate pane.</div>` +
+      `<div class="pp-add"><input class="pp-ai-url" type="url" placeholder="http://localhost:11434" ` +
+      `value="${escapeAttr(this.project.localAi?.url ?? "")}" aria-label="Local AI endpoint"></div>` +
+      `<div class="pp-add"><input class="pp-ai-model" type="text" placeholder="llama3.2" ` +
+      `value="${escapeAttr(this.project.localAi?.model ?? "")}" aria-label="Model name">` +
+      `<button class="pp-add-b" data-role="ai-save">Save</button></div>` +
+      `<div class="pp-add"><button class="pp-clear" data-role="ai-test">Test connection</button></div>` +
+      `<div class="pp-ai-out" id="loupe-pp-ai"></div>` +
       `<div class="pp-err" id="loupe-pp-err"></div>`;
 
     this.renderRepoList();
@@ -1114,6 +1164,29 @@ export class LoupeApp {
       this.renderProject();
       (pop.querySelector(".pp-env-url") as HTMLInputElement | null)?.focus();
     };
+
+    // Local AI: saved per browser, and checked against the real endpoint.
+    for (const sel of [".pp-ai-url", ".pp-ai-model"]) {
+      pop.querySelector(sel)?.addEventListener("click", (e) => e.stopPropagation());
+    }
+    (pop.querySelector('[data-role="ai-save"]') as HTMLElement).onclick = () => {
+      const url = normalizeEnvUrl((pop.querySelector(".pp-ai-url") as HTMLInputElement).value);
+      const model = (pop.querySelector(".pp-ai-model") as HTMLInputElement).value.trim();
+      if (!url || !model) {
+        this.setLocalAiStatus(this.project.localAi
+          ? `Saved: ${this.project.localAi.model} at ${this.project.localAi.url}`
+          : "Nothing saved yet.");
+        this.projError = !url ? "Enter a full http:// or https:// endpoint URL." : "Enter a model name.";
+        this.renderProjectError();
+        return;
+      }
+      this.projError = "";
+      this.setLocalAi({ url, model });
+      this.setLocalAiStatus(`Saved: ${model} at ${url}`);
+    };
+    (pop.querySelector('[data-role="ai-test"]') as HTMLElement).onclick = () => {
+      void this.testLocalAi(pop);
+    };
   }
 
   /** Per-browser project settings, keyed separately from the dock's UI state. */
@@ -1126,7 +1199,10 @@ export class LoupeApp {
       const stored = Array.isArray(p?.environments)
         ? (p.environments as unknown[]).filter((u): u is string => typeof u === "string")
         : null;
-      this.project = { repo, environments: stored ?? fromConfig };
+      const localAi = p?.localAi && typeof p.localAi.url === "string" && typeof p.localAi.model === "string"
+        ? { url: p.localAi.url as string, model: p.localAi.model as string }
+        : undefined;
+      this.project = { repo, environments: stored ?? fromConfig, localAi };
     } catch {
       this.project = { environments: fromConfig };
     }
@@ -1683,7 +1759,7 @@ export class LoupeApp {
       target, title.value.trim(), ta.value.trim(), box ? box.checked : false, files.slice(),
       prioSel.value as CommentPriority, typeSel.value as ChangeType,
     );
-    btns.append(cancel, save);
+    btns.append(this.voiceButton(ta), cancel, save);
     row.append(btns);
     c.append(label, title, ta, attach, meta, row);
 
@@ -2256,6 +2332,7 @@ export class LoupeApp {
       `<span class="mrestore" aria-hidden="true">▸</span>`;
     for (const t of this.tabList) d.classList.toggle(`tab-${t.id}`, this.tab === t.id);
     for (const [id, view] of this.viewEls) view.classList.toggle("on", id === this.tab);
+    this.renderConsent();
     this.renderHome();
     d.querySelectorAll<HTMLElement>(".tabs .tab").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === this.tab));
@@ -2550,6 +2627,8 @@ export class LoupeApp {
     };
     actions.append(doneBtn, del);
     detail.appendChild(actions);
+    // Generating a change for this thread, and its iteration history.
+    detail.appendChild(this.generateView(c));
     item.appendChild(detail);
 
     item.onclick = () => {
@@ -2659,6 +2738,410 @@ export class LoupeApp {
       this.renderList();
       this.renderHome();
     };
+  }
+
+  // ---- generate + iterate ---------------------------------------------------
+
+  /**
+   * The generate pane for one thread: the preview plane, its opacity comparison
+   * against the original capture, the iteration stack and the iterate input.
+   *
+   * The panel owns all of that; producing the markup is the host's `generate`
+   * function. Without one there is nothing to preview, so the pane offers the
+   * access gate instead of a dead button.
+   */
+  private generateView(c: Comment): HTMLElement {
+    const wrap = el("div", "genwrap");
+    const state = this.iterations.get(c.id) ?? emptyIterations();
+    const cur = currentIteration(state);
+    const busy = this.genBusy.has(c.id);
+
+    if (this.genOpen !== c.id) {
+      const open = el("button", "gen-open", cur ? "✦ Change preview" : "✦ Generate a change") as HTMLButtonElement;
+      open.onclick = (e) => {
+        e.stopPropagation();
+        this.genOpen = c.id;
+        this.renderList();
+      };
+      wrap.appendChild(open);
+      return wrap;
+    }
+
+    if (!this.cfg.generate) {
+      // The access gate. Ties to whatever the host does with the request — the Team
+      // tab does not exist yet, so this is the seam it will land on.
+      const gate = el("div", "gengate");
+      gate.innerHTML =
+        `<div class="gate-t">Generating needs access</div>` +
+        `<div class="gate-b">This project has no generator configured for you yet. ` +
+        `Ask for access and an owner can switch it on.</div>`;
+      const ask = el("button", "gate-ask", "Request access to generate") as HTMLButtonElement;
+      ask.onclick = async (e) => {
+        e.stopPropagation();
+        ask.disabled = true;
+        ask.textContent = "Request sent";
+        await this.cfg.onRequestAccess?.({
+          capability: "generate", user: this.cfg.user, projectKey: this.cfg.projectKey,
+        });
+        this.addActivity({
+          kind: "access.request", label: "Requested access to generate",
+          detail: this.cfg.projectKey, level: "warn",
+        });
+      };
+      gate.appendChild(ask);
+      if (!this.cfg.onRequestAccess) {
+        gate.appendChild(el("div", "gate-hint", "Pass onRequestAccess to init() to route this somewhere."));
+      }
+      wrap.appendChild(gate);
+      wrap.appendChild(this.genClose(c));
+      return wrap;
+    }
+
+    const head = el("div", "genhead");
+    head.innerHTML = `<span class="gen-t">Generate</span>`;
+    const nav = el("span", "gen-nav");
+    const prev = el("button", "gen-step", "‹") as HTMLButtonElement;
+    prev.disabled = !canMove(state, -1);
+    prev.setAttribute("aria-label", "Previous iteration");
+    prev.onclick = (e) => { e.stopPropagation(); this.setIterations(c.id, moveIteration(state, -1)); };
+    const label = el("span", "gen-n", stackLabel(state));
+    const next = el("button", "gen-step", "›") as HTMLButtonElement;
+    next.disabled = !canMove(state, 1);
+    next.setAttribute("aria-label", "Next iteration");
+    next.onclick = (e) => { e.stopPropagation(); this.setIterations(c.id, moveIteration(state, 1)); };
+    nav.append(prev, label, next);
+    head.appendChild(nav);
+
+    const undo = el("button", "gen-undo", "Undo") as HTMLButtonElement;
+    undo.disabled = !canUndo(state) || busy;
+    undo.onclick = (e) => {
+      e.stopPropagation();
+      this.setIterations(c.id, undoIteration(state));
+      this.addActivity({ kind: "generate.undo", label: "Undid a generated change" });
+    };
+    head.append(undo, this.genClose(c));
+    wrap.appendChild(head);
+
+    if (busy) {
+      wrap.appendChild(el("div", "genbusy", "Generating…"));
+    } else if (cur) {
+      // The preview plane. Sandboxed: generated markup must never reach the host page,
+      // and `allow-scripts` is deliberately absent.
+      const plane = el("div", "genplane");
+      if (c.screenshot) {
+        const base = el("img", "genbase") as HTMLImageElement;
+        base.src = c.screenshot;
+        base.alt = "Original capture";
+        plane.appendChild(base);
+      }
+      const frame = el("iframe", "genframe") as HTMLIFrameElement;
+      frame.setAttribute("sandbox", "");
+      frame.setAttribute("title", "Generated change preview");
+      // A generated change is usually a *fragment*, so the plane needs a surface under
+      // it or it reads as an empty dark box. White, like any other design preview.
+      frame.srcdoc = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:10px;` +
+        `background:#fff;font:13px -apple-system,system-ui,sans-serif;color:#111}${cur.css ?? ""}</style>${cur.html}`;
+      frame.style.opacity = String(this.genOpacity);
+      plane.appendChild(frame);
+      wrap.appendChild(plane);
+
+      const slider = el("div", "genslider");
+      slider.innerHTML = `<span class="gs-lab">Compare</span>`;
+      const range = el("input", "gs-range") as HTMLInputElement;
+      range.type = "range";
+      range.min = "0";
+      range.max = "100";
+      range.value = String(Math.round(this.genOpacity * 100));
+      range.setAttribute("aria-label", "Generated change opacity");
+      // No re-render on input: only the plane's opacity changes, so the slider keeps
+      // its grip while dragging.
+      range.oninput = () => {
+        this.genOpacity = Number(range.value) / 100;
+        frame.style.opacity = String(this.genOpacity);
+      };
+      slider.append(range, el("span", "gs-n", `${Math.round(this.genOpacity * 100)}%`));
+      wrap.appendChild(slider);
+
+      if (cur.notes) wrap.appendChild(el("div", "gennotes", cur.notes));
+    } else {
+      wrap.appendChild(el("div", "genempty", "Nothing generated yet."));
+    }
+
+    // The iterate input. Sending is the only thing that re-renders, so typing is safe.
+    const iter = el("div", "geniter");
+    const kind = document.createElement("select");
+    kind.className = "mini";
+    kind.title = "How to treat your follow-up";
+    kind.setAttribute("aria-label", "Iteration kind");
+    kind.append(
+      optionEl("Refine", "refine", true),
+      optionEl("Revise", "revise", false),
+    );
+    const input = el("input", "iter-in") as HTMLInputElement;
+    input.type = "text";
+    input.placeholder = cur ? "Refine it, e.g. “larger button”" : "What should change?";
+    input.value = this.iterDraft.get(c.id) ?? "";
+    input.oninput = () => this.iterDraft.set(c.id, input.value);
+    // Keep clicks inside the pane from toggling the card.
+    for (const n of [kind, input]) n.addEventListener("click", (e) => e.stopPropagation());
+    const send = el("button", "iter-send", "Send") as HTMLButtonElement;
+    send.disabled = busy;
+    send.onclick = (e) => {
+      e.stopPropagation();
+      const prompt = (this.iterDraft.get(c.id) ?? "").trim();
+      if (!prompt) return;
+      this.iterDraft.delete(c.id);
+      void this.runGenerate(c, prompt, kind.value as "refine" | "revise");
+    };
+    input.onkeydown = (e) => { if (e.key === "Enter") send.click(); };
+    iter.append(kind, input, send);
+    wrap.appendChild(iter);
+    return wrap;
+  }
+
+  private genClose(c: Comment): HTMLElement {
+    const x = el("button", "gen-x", "✕") as HTMLButtonElement;
+    x.setAttribute("aria-label", "Close");
+    x.onclick = (e) => { e.stopPropagation(); this.genOpen = null; this.renderList(); };
+    return x;
+  }
+
+  private setIterations(id: string, state: IterationState) {
+    this.iterations.set(id, state);
+    this.renderList();
+  }
+
+  /** Draft follow-ups, kept out of the render path so the input never loses focus. */
+  private iterDraft = new Map<string, string>();
+
+  /** Ask the host's generator for a change, and stack the result. */
+  private async runGenerate(c: Comment, prompt: string, kind: "generate" | "refine" | "revise") {
+    const generate = this.cfg.generate;
+    if (!generate) return;
+    const state = this.iterations.get(c.id) ?? emptyIterations();
+    this.genBusy.add(c.id);
+    this.genOpen = c.id;
+    this.renderList();
+    const started = Date.now();
+    try {
+      const out = await generate({
+        comment: c,
+        prompt,
+        kind,
+        previous: currentIteration(state) ?? undefined,
+        localAi: this.project.localAi,
+      });
+      const next = addIteration(state, {
+        id: `it${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        at: new Date().toISOString(),
+        html: out.html,
+        css: out.css,
+        notes: out.notes,
+        prompt,
+        kind,
+      });
+      this.genBusy.delete(c.id);
+      this.iterations.set(c.id, next);
+      this.addActivity({
+        kind: `generate.${kind}`,
+        label: `${kind === "generate" ? "Generated" : "Iterated on"} “${c.title || prompt}”`,
+        detail: `${Math.round((Date.now() - started) / 1000)}s · ${stackLabel(next)}`,
+      });
+    } catch (e) {
+      this.genBusy.delete(c.id);
+      this.addActivity({
+        kind: "generate.error",
+        label: `Generation failed: ${e instanceof Error ? e.message : String(e)}`,
+        level: "error",
+      });
+    }
+    this.renderList();
+  }
+
+  // ---- agent navigation (consent-gated) -------------------------------------
+
+  /**
+   * An agent asks to move the browser. Nothing navigates here — the request is
+   * queued and the user answers it. `decide()` is the only thing that ever yields a
+   * URL, and it yields one only on an explicit grant.
+   */
+  requestNavigation(url: string, opts: { reason?: string; requester?: string } = {}) {
+    const next = requestNav(this.consent, { url, ...opts });
+    if (next === this.consent) return; // not a navigable URL — refused outright
+    this.consent = next;
+    this.open = true;
+    this.saveState();
+    this.applyDockLayout();
+    this.renderConsent();
+    this.addActivity({
+      kind: "nav.request",
+      label: `Asked to open ${url}`,
+      detail: opts.requester,
+      level: "warn",
+    });
+  }
+
+  /** Local-AI settings, used as the default in GenerateRequest.localAi. */
+  setLocalAi(config: LocalAiConfig | null) {
+    this.project = { ...this.project, localAi: config ?? undefined };
+    this.saveProject();
+    this.renderProject();
+  }
+
+  private setLocalAiStatus(text: string) {
+    const box = this.homeEl?.querySelector("#loupe-pp-ai") as HTMLElement | null;
+    if (box) box.textContent = text;
+  }
+
+  /**
+   * Ask the configured endpoint what it serves. A real check against the real
+   * server — an OpenAI-compatible `/v1/models` is what Ollama, llama.cpp and the
+   * rest all expose — with a timeout, so a wrong port reports rather than hangs.
+   */
+  private async testLocalAi(pop: HTMLElement) {
+    const url = normalizeEnvUrl((pop.querySelector(".pp-ai-url") as HTMLInputElement).value);
+    const model = (pop.querySelector(".pp-ai-model") as HTMLInputElement).value.trim();
+    if (!url) {
+      this.projError = "Enter a full http:// or https:// endpoint URL.";
+      this.renderProjectError();
+      return;
+    }
+    this.projError = "";
+    this.setLocalAiStatus("Checking…");
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    try {
+      const res = await fetch(`${url}/v1/models`, { signal: ctl.signal });
+      if (!res.ok) {
+        this.setLocalAiStatus(`Reachable, but it answered ${res.status}.`);
+        return;
+      }
+      const body: any = await res.json().catch(() => null);
+      const ids: string[] = Array.isArray(body?.data)
+        ? body.data.map((m: any) => String(m?.id ?? "")).filter(Boolean)
+        : [];
+      // If a model is named and the server lists models, say when it is not among them
+      // — a typo'd model name is the most common way this silently does nothing.
+      if (model && ids.length && !ids.some((i) => i === model || i.startsWith(`${model}:`))) {
+        const shown = ids.slice(0, 4).join(", ");
+        this.setLocalAiStatus(`Connected, but no “${model}” — it serves: ${shown}${ids.length > 4 ? ", …" : ""}`);
+        return;
+      }
+      this.setLocalAiStatus(
+        ids.length ? `Connected — ${ids.length} model${ids.length === 1 ? "" : "s"} available.` : "Connected.",
+      );
+    } catch (e) {
+      this.setLocalAiStatus((e as Error)?.name === "AbortError"
+        ? "Timed out. Is the server running, and does it allow this origin (CORS)?"
+        : "Could not reach it. Check the URL, and that the server allows this origin (CORS).");
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private renderConsent() {
+    if (!this.consentEl) return;
+    if (!consentPending(this.consent)) {
+      this.consentEl.innerHTML = "";
+      this.consentEl.style.display = "none";
+      return;
+    }
+    const r = this.consent.request!;
+    this.consentEl.style.display = "";
+    this.consentEl.innerHTML =
+      `<div class="cs-head"><span class="cs-dot"></span>` +
+      `<b>${escapeHtml(r.requester ?? "An agent")}</b> wants to open a page</div>` +
+      `<div class="cs-url">${escapeHtml(r.url)}</div>` +
+      (r.reason ? `<div class="cs-why">${escapeHtml(r.reason)}</div>` : "") +
+      `<div class="cs-btns"><button class="cs-deny">Stay here</button><button class="cs-go">Go there</button></div>`;
+
+    (this.consentEl.querySelector(".cs-deny") as HTMLElement).onclick = () => {
+      const { record } = decideConsent(this.consent, false);
+      this.consent = record;
+      this.renderConsent();
+      this.addActivity({ kind: "nav.deny", label: `Declined opening ${r.url}` });
+    };
+    (this.consentEl.querySelector(".cs-go") as HTMLElement).onclick = () => {
+      const { record, navigateTo } = decideConsent(this.consent, true);
+      this.consent = record;
+      this.renderConsent();
+      this.addActivity({ kind: "nav.grant", label: `Opened ${navigateTo}` });
+      // The only line in the SDK that navigates, and it cannot run without a grant.
+      if (navigateTo) window.location.assign(navigateTo);
+    };
+  }
+
+  /** Drop a pending request without deciding it — e.g. the panel is closing. */
+  private abandonNavigation() {
+    this.consent = withdrawConsent(this.consent);
+    this.renderConsent();
+  }
+
+  /** The dictation button, or nothing at all where the browser has no speech API. */
+  private voiceButton(target: HTMLTextAreaElement): HTMLElement {
+    const Ctor = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const b = el("button", "voice", "") as HTMLButtonElement;
+    this.voiceEl = b;
+    if (!Ctor) {
+      // No API: say so rather than offering a button that cannot work.
+      b.textContent = "🎤";
+      b.disabled = true;
+      b.title = "Dictation is not available in this browser";
+      b.setAttribute("aria-label", "Dictation unavailable");
+      return b;
+    }
+    const idle = () => {
+      b.classList.remove("on");
+      b.textContent = "🎤";
+      b.setAttribute("aria-label", "Dictate");
+      b.title = "Dictate";
+    };
+    const listening = () => {
+      b.classList.add("on");
+      b.textContent = "⏺";
+      b.setAttribute("aria-label", "Stop dictating");
+      b.title = "Listening — click to stop";
+    };
+    idle();
+    b.onclick = (e) => {
+      e.stopPropagation();
+      if (this.voice) { this.stopVoice(); idle(); return; }
+      const rec = new Ctor();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = document.documentElement.lang || "en-US";
+      let base = target.value ? `${target.value} ` : "";
+      rec.onresult = (ev: any) => {
+        let text = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+        target.value = (base + text).replace(/\s+/g, " ").trimStart();
+        target.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      rec.onerror = (ev: any) => {
+        this.stopVoice();
+        idle();
+        this.addActivity({ kind: "voice.error", label: `Dictation failed: ${ev?.error ?? "unknown"}`, level: "error" });
+      };
+      rec.onend = () => { this.voice = null; idle(); };
+      this.voice = rec;
+      this.voiceTarget = target;
+      try {
+        rec.start();
+        listening();
+      } catch {
+        this.voice = null;
+        idle();
+      }
+    };
+    return b;
+  }
+
+  private voiceTarget: HTMLTextAreaElement | null = null;
+
+  private stopVoice() {
+    try { this.voice?.stop(); } catch { /* already stopped */ }
+    this.voice = null;
+    this.voiceTarget = null;
   }
 
   private flash(id: string) {

@@ -11,6 +11,56 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.16] — 2026-10-02
+
+### Added
+
+- **Generate a change from a thread, and iterate on it.** With `init({ generate })`, a thread's detail
+  gains a Generate pane: a **sandboxed preview plane** for the result, an **opacity slider** to compare
+  it against the original capture, **undo**, **prev/next** through every iteration, and an iterate
+  input with a refine / revise selector. The panel owns the preview, the comparison and the history;
+  producing the markup is the host's job, so any model works. (Milestone 0.20; #62.)
+- **`iteration.ts` in `@loupekit/shared`** — the pure history model behind that pane: preview-per-push,
+  step without discarding, undo *does* discard, branching from a point in the middle drops the
+  abandoned tail rather than silently mixing two lineages, and the stack is capped at 20.
+- **Local-AI configuration** — endpoint URL and model name in the project manager, with a **real
+  connection check** against an OpenAI-compatible `/v1/models` (what Ollama, llama.cpp and the rest
+  expose). It reports reachable-but-erroring, times out rather than hanging, tells you when the named
+  model is not among those served, and explains the CORS failure you will actually hit. (Milestone
+  0.20; #62.)
+- **An access gate.** Without a generator, the pane offers *Request access to generate* and hands the
+  request to `init({ onRequestAccess })` — the seam the Team tab will land on when 0.17/0.18 exist.
+  With no handler at all it says so rather than doing nothing. (Milestone 0.20; #62.)
+- **Consent-gated agent navigation.** `requestNavigation(url, { reason, requester })` asks the user;
+  the panel shows who wants to go where and why, and **only an explicit grant navigates** —
+  `decide()` returns a URL on nothing else, and the panel navigates from that return value rather
+  than from the request. Every decision is kept as an audit trail. `javascript:`, `data:` and `file:`
+  requests are refused outright, and a second request replaces the first rather than stacking prompts.
+  (Milestone 0.20; #64.)
+- **Dictation in the composer** — a mic button backed by `SpeechRecognition`, with a visible
+  recording state. Where the browser has no such API the button is disabled and says so, instead of
+  offering something that cannot work. (Milestone 0.20; #64.)
+- **Context menus in the extension** — comment on the page, a selection, an image, a video, an audio
+  element, a link or an editable field, plus **show / hide Loupe on this site**, persisted per origin.
+  A menu that lands on an already-open widget aims it at the right tool via a new `openTool()`;
+  otherwise it injects the content script with the intent, which is why `init()` gained `tool`.
+  (Milestone 0.20; #64.)
+
+### Fixed
+
+- **The preview plane collapsed to two pixels on any thread without a screenshot.** The generated
+  markup lives in an absolutely-positioned iframe, which contributes no height — so with no captured
+  image under it the plane had nothing in flow. It has a minimum height now.
+- **A generated change rendered as a dark box.** Generated markup is usually a *fragment*, so on a
+  transparent body it read as an empty panel. The plane gives it a white surface, like any other
+  design preview.
+- The iterate input's placeholder no longer truncates.
+
+### Not in this release
+
+- **Notifications** from #64 ("Claude finished your fix"). Those need something to notify *about* —
+  the bridge daemon (#11) — and a service worker with no events to report would be decoration.
+
 ## [0.10.15] — 2026-10-02
 
 ### Added

@@ -2,7 +2,46 @@
 // internal `./types.js` imports keep working.
 export * from "@loupekit/shared";
 
-import type { ActivityEventInput, Attachment, Comment, LoupeUser, RegionRect } from "@loupekit/shared";
+import type {
+  ActivityEventInput, Attachment, Comment, Iteration, IterationKind, LoupeUser, RegionRect,
+} from "@loupekit/shared";
+
+/** Local-AI settings the user configured in the panel (any OpenAI-compatible server). */
+export interface LocalAiConfig {
+  /** Base URL, e.g. "http://localhost:11434" for Ollama. */
+  url: string;
+  /** Model name, e.g. "llama3.2". */
+  model: string;
+}
+
+/**
+ * What a generator is asked for. Bring your own model — the panel owns the preview,
+ * the comparison and the iteration history; producing the markup is the host's job.
+ */
+export interface GenerateRequest {
+  /** The thread being worked on. */
+  comment: Comment;
+  /** The original request on the first pass, the follow-up after that. */
+  prompt: string;
+  kind: IterationKind;
+  /** The iteration being refined, when there is one. */
+  previous?: Iteration;
+  /** Local-AI settings, when the user configured them. */
+  localAi?: LocalAiConfig;
+}
+
+export interface GenerateResult {
+  html: string;
+  css?: string;
+  notes?: string;
+}
+
+/** Asked for when a user without a generator reaches for one. */
+export interface AccessRequest {
+  capability: "generate";
+  user: LoupeUser;
+  projectKey: string;
+}
 
 /**
  * What a host-registered tab gets to work with. Everything a tab needs to render
@@ -59,6 +98,12 @@ export interface LoupeConfig {
   apiBase?: string;
   /** Start with the inspect tool already active (opens the control panel). */
   autoOpen?: boolean;
+  /**
+   * Which tool `autoOpen` arms. "inspect" (the default) picks an element; "note"
+   * drops a page-level comment. The extension's context menus use this to land the
+   * right tool for what was clicked.
+   */
+  tool?: "inspect" | "note";
   /** Brand label shown in the control-panel header. Defaults to "Loupe". */
   label?: string;
   /**
@@ -88,6 +133,17 @@ export interface LoupeConfig {
    * the panel can be extended without forking it.
    */
   tabs?: LoupeTab[];
+  /**
+   * Produce a change for a captured element. Given this, the panel renders a
+   * preview plane with an opacity comparison, iteration history and undo. Without
+   * it, the panel offers "Request access" instead — see `onRequestAccess`.
+   */
+  generate?: (req: GenerateRequest) => Promise<GenerateResult>;
+  /**
+   * Called when someone reaches for a capability they do not have. The host
+   * decides what to do with it (queue it, email an admin, open a form).
+   */
+  onRequestAccess?: (req: AccessRequest) => void | Promise<void>;
   /**
    * Override screenshot capture. The browser extension passes a function backed
    * by chrome.tabs.captureVisibleTab for pixel-perfect captures; the default is

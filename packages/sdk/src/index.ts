@@ -2,9 +2,12 @@ import { LoupeApp } from "./app.js";
 import type { ActivityEventInput, ActivityStatus, LoupeConfig } from "./types.js";
 
 export { connectTab } from "./connect.js";
-export type { LoupeConfig, LoupeUser, Comment, Anchor, RegionRect } from "./types.js";
 export type {
-  ActivityEvent, ActivityEventInput, ActivityStatus, ActivityLevel, LoupeTab, LoupeTabContext,
+  LoupeConfig, LoupeUser, Comment, Anchor, RegionRect, LoupeTab, LoupeTabContext,
+  LocalAiConfig, GenerateRequest, GenerateResult, AccessRequest,
+} from "./types.js";
+export type {
+  ActivityEvent, ActivityEventInput, ActivityStatus, ActivityLevel,
 } from "./types.js";
 
 let app: LoupeApp | null = null;
@@ -51,4 +54,23 @@ export function setActivityStatus(status: ActivityStatus): void {
 /** Drop everything currently in the Activity view. */
 export function clearActivity(): void {
   app?.clearActivity();
+}
+
+/**
+ * Ask the user to let an agent move the browser. **Nothing navigates here** — the
+ * panel shows a prompt and only an explicit grant produces a navigation, which is
+ * recorded. Use this rather than driving `location` yourself.
+ */
+export function requestNavigation(url: string, opts?: { reason?: string; requester?: string }): void {
+  app?.requestNavigation(url, opts);
+}
+
+/** Store the local-AI endpoint + model the Generate pane should pass to `generate`. */
+export function setLocalAi(config: { url: string; model: string } | null): void {
+  app?.setLocalAi(config);
+}
+
+/** Arm a tool from outside the panel — e.g. a browser context menu. */
+export function openTool(tool: "inspect" | "note"): void {
+  app?.openTool(tool);
 }

@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Loupe — visual feedback",
-  "version": "0.10.15",
+  "version": "0.10.16",
   "description": "Inspect any page, pin comments to elements, and hand them to Claude — no SDK install required.",
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "background": {
     "service_worker": "background.js"

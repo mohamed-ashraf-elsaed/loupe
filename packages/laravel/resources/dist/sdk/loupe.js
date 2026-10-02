@@ -25,7 +25,10 @@ var Loupe = (() => {
     connectTab: () => connectTab,
     destroy: () => destroy,
     init: () => init,
+    openTool: () => openTool,
+    requestNavigation: () => requestNavigation2,
     setActivityStatus: () => setActivityStatus,
+    setLocalAi: () => setLocalAi,
     trackActivity: () => trackActivity
   });
 
@@ -684,6 +687,99 @@ var Loupe = (() => {
   background: var(--bg-2); color: var(--muted); font-family: ui-monospace, Menlo, monospace;
   font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere;
 }
+
+/* ------------------------------------------------- consent-gated agent navigation */
+.consent {
+  margin: 8px 10px 0; padding: 10px; border: 1px solid var(--pin); border-radius: 10px;
+  background: var(--bg-2);
+}
+.cs-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); }
+.cs-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pin); flex: none; animation: loupe-pulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .cs-dot { animation: none; } }
+.cs-url {
+  margin-top: 6px; padding: 6px 7px; border-radius: 7px; background: var(--bg);
+  font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cs-why { margin-top: 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.cs-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+.cs-btns button { padding: 5px 10px; border-radius: 7px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.cs-deny { border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.cs-deny:hover { border-color: var(--accent); }
+.cs-go { border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+
+/* --------------------------------------------------------------- generate + iterate */
+.genwrap { margin-top: 8px; }
+.gen-open {
+  width: 100%; padding: 7px; border: 1px dashed var(--line); border-radius: 8px;
+  background: transparent; color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.gen-open:hover { border-color: var(--accent); color: var(--accent); }
+.genhead { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.gen-t { flex: 1; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.gen-nav { display: inline-flex; align-items: center; gap: 2px; }
+.gen-step {
+  width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--ink); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.gen-step:disabled { opacity: .4; cursor: default; }
+.gen-n { min-width: 32px; text-align: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gen-undo, .gen-x {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.gen-undo:disabled { opacity: .4; cursor: default; }
+.gen-undo:hover, .gen-x:hover { border-color: var(--accent); }
+.genbusy, .genempty { padding: 14px; text-align: center; font-size: 11.5px; color: var(--muted); }
+/* the preview plane: generated markup over the original capture, sandboxed.
+   min-height matters \u2014 the iframe is absolutely positioned, so a thread with no
+   screenshot would otherwise give the plane nothing in-flow and collapse it to a
+   couple of pixels. */
+.genplane { position: relative; min-height: 150px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--bg); }
+.genbase { display: block; width: 100%; }
+.genframe {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
+  transition: opacity .08s linear;
+}
+.genslider { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+.gs-lab { font-size: 10.5px; color: var(--muted); }
+.gs-range { flex: 1; min-width: 0; accent-color: var(--accent); }
+.gs-n { min-width: 32px; text-align: right; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gennotes {
+  margin-top: 6px; padding: 6px 8px; border-radius: 7px; background: var(--bg-3);
+  font-size: 11px; line-height: 1.45; color: var(--muted);
+}
+.geniter { display: flex; gap: 5px; margin-top: 7px; }
+.iter-in {
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink); font-size: 11.5px;
+}
+.iter-in:focus { outline: none; border-color: var(--accent); }
+.iter-send {
+  flex: none; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.iter-send:disabled { opacity: .5; cursor: default; }
+/* the access gate, when there is no generator */
+.gengate { padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-2); }
+.gate-t { font-size: 12px; font-weight: 700; color: var(--ink); }
+.gate-b { margin-top: 4px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.gate-ask {
+  margin-top: 8px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.gate-ask:disabled { opacity: .6; cursor: default; }
+.gate-hint { margin-top: 7px; font-size: 10.5px; color: var(--muted); }
+.gate-hint code { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
+
+/* dictation */
+.voice {
+  width: 30px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); color: var(--muted); font-size: 13px; cursor: pointer;
+}
+.voice:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
+.voice:disabled { opacity: .45; cursor: not-allowed; }
+.voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
 /* ------------------------------------------------------- hint card (once per view) */
 .hint {
@@ -2409,7 +2505,7 @@ var Loupe = (() => {
     log.time("embed node");
     embedNode(clone, context);
     const count = tasks.length;
-    let current = 0;
+    let current2 = 0;
     const runTask = async () => {
       while (true) {
         const task = tasks.pop();
@@ -2420,10 +2516,10 @@ var Loupe = (() => {
         } catch (error) {
           context.log.warn("Failed to run task", error);
         }
-        progress?.(++current, count);
+        progress?.(++current2, count);
       }
     };
-    progress?.(current, count);
+    progress?.(current2, count);
     await Promise.all([...Array.from({ length: 4 })].map(runTask));
     log.timeEnd("embed node");
     await onEmbedNode?.(clone);
@@ -2987,6 +3083,86 @@ var Loupe = (() => {
     return comments.filter((c) => c.status === "in_review");
   }
 
+  // ../shared/dist/iteration.js
+  function emptyIterations() {
+    return { items: [], index: -1 };
+  }
+  function current(state) {
+    return state.index >= 0 ? state.items[state.index] ?? null : null;
+  }
+  function addIteration(state, iteration) {
+    const head = state.items.slice(0, state.index + 1);
+    const items = [...head, iteration].slice(-MAX_ITERATIONS);
+    return { items, index: items.length - 1 };
+  }
+  var MAX_ITERATIONS = 20;
+  function canUndo(state) {
+    return state.items.length > 0;
+  }
+  function undo(state) {
+    if (!state.items.length)
+      return state;
+    const items = state.items.slice(0, -1);
+    return { items, index: items.length - 1 };
+  }
+  function canMove(state, delta) {
+    const next = state.index + delta;
+    return next >= 0 && next < state.items.length;
+  }
+  function move(state, delta) {
+    return canMove(state, delta) ? { ...state, index: state.index + delta } : state;
+  }
+  function stackLabel(state) {
+    return state.items.length ? `${state.index + 1} / ${state.items.length}` : "";
+  }
+
+  // ../shared/dist/consent.js
+  function emptyConsent() {
+    return { state: "idle", request: null, history: [] };
+  }
+  function isNavigableUrl(raw) {
+    try {
+      const u = new URL(raw);
+      return u.protocol === "http:" || u.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+  function requestNavigation(record, request) {
+    if (!isNavigableUrl(request.url))
+      return record;
+    return {
+      state: "requested",
+      request: {
+        id: request.id ?? `nav${Date.now().toString(36)}`,
+        at: request.at ?? (/* @__PURE__ */ new Date()).toISOString(),
+        url: request.url,
+        reason: request.reason,
+        requester: request.requester
+      },
+      history: record.history
+    };
+  }
+  function isPending(record) {
+    return record.state === "requested" && record.request !== null;
+  }
+  function decide(record, granted, now = (/* @__PURE__ */ new Date()).toISOString()) {
+    if (!isPending(record))
+      return { record, navigateTo: null };
+    const url = record.request.url;
+    return {
+      record: {
+        state: granted ? "granted" : "denied",
+        request: null,
+        history: [...record.history, { url, decision: granted ? "granted" : "denied", at: now }]
+      },
+      navigateTo: granted ? url : null
+    };
+  }
+  function withdraw(record) {
+    return isPending(record) ? { ...record, state: "idle", request: null } : record;
+  }
+
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
   var STAGE_LABELS = {
@@ -3034,7 +3210,7 @@ var Loupe = (() => {
   }
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.15" : "dev";
+  var SDK_VERSION = true ? "0.10.16" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -3190,6 +3366,18 @@ var Loupe = (() => {
       this.summaryOpen = false;
       /** Per-browser project settings: a repo override and the environment URLs. */
       this.project = { environments: [] };
+      /** Iteration history per thread — generating a change is a stack, not a one-shot. */
+      this.iterations = /* @__PURE__ */ new Map();
+      /** The thread whose generate pane is open, if any. */
+      this.genOpen = null;
+      /** Threads with a generation in flight. */
+      this.genBusy = /* @__PURE__ */ new Set();
+      /** Opacity of the generated plane over the original, 0..1 (the compare slider). */
+      this.genOpacity = 0.6;
+      /** The navigation consent state machine — a URL only ever comes out of `decide`. */
+      this.consent = emptyConsent();
+      /** The live SpeechRecognition instance while dictating, if any. */
+      this.voice = null;
       this.projSearch = "";
       this.projOpen = false;
       this.projResults = [];
@@ -3426,6 +3614,9 @@ var Loupe = (() => {
         window.removeEventListener("pointerup", this.onResizeUp);
         this.saveState();
       };
+      /** Draft follow-ups, kept out of the render path so the input never loses focus. */
+      this.iterDraft = /* @__PURE__ */ new Map();
+      this.voiceTarget = null;
       this.cfg = cfg;
       this.store = cfg.apiBase ? new HttpAdapter(cfg.apiBase, cfg.user, cfg.userHmac, cfg.headers, cfg.credentials) : new LocalStorageAdapter();
     }
@@ -3447,7 +3638,13 @@ var Loupe = (() => {
       this.observe();
       this.watchNavigation();
       if (!this.tourDone && this.open && !this.isMobile()) this.startTour();
-      if (this.cfg.autoOpen) this.setMode("inspect");
+      if (this.cfg.autoOpen) this.setMode(this.cfg.tool === "note" ? "free" : "inspect");
+    }
+    /** Arm a tool from outside — the extension's context menus, or a host's own button. */
+    openTool(tool) {
+      this.open = true;
+      this.applyDockLayout();
+      this.setMode(tool === "note" ? "free" : "inspect");
     }
     /**
      * Reload comments when the page URL changes without a full reload (SPA
@@ -3680,7 +3877,9 @@ var Loupe = (() => {
       });
       const resize = el("div", "resize");
       resize.addEventListener("pointerdown", this.onResizeDown);
-      dock.append(head, this.minBar, tabs, homeView, commentsView, activityView, ...customViews, resize);
+      this.consentEl = el("div", "consent");
+      this.consentEl.style.display = "none";
+      dock.append(head, this.minBar, this.consentEl, tabs, homeView, commentsView, activityView, ...customViews, resize);
       for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView]]) {
         this.viewEls.set(id, view);
       }
@@ -3995,7 +4194,7 @@ var Loupe = (() => {
       }
       pop.classList.add("open");
       const envs = this.project.environments;
-      pop.innerHTML = `<div class="pp-head"><span>Repository</span><button class="pp-x" data-role="pp-close" aria-label="Close">\u2715</button></div><div class="pp-cur">${repo ? `New comments are filed against <b>${escapeHtml(repo)}</b>.` : "This page is not linked to a repository yet."}</div>` + (this.cfg.repos ? `<input class="pp-search" type="search" placeholder="Search repositories\u2026" value="${escapeAttr(this.projSearch)}" aria-label="Search repositories"><div class="pp-list" id="loupe-pp-repos"></div>` : `<div class="pp-empty">No repository list to search. Pass <code>repos</code> to <code>init()</code> \u2014 a string array, or a function the panel calls with the search text.</div>`) + (repo ? `<button class="pp-clear" data-role="pp-clear">Unlink this page</button>` : "") + `<div class="pp-sep"></div><div class="pp-head"><span>Environments</span></div><div class="pp-list">` + (envs.length ? envs.map((u, i) => `<div class="pp-env"><span class="pp-env-u" title="${escapeAttr(u)}">${escapeHtml(u)}</span><button class="pp-x" data-env-rm="${i}" aria-label="Remove environment">\u2715</button></div>`).join("") : `<div class="pp-empty">No environment URLs yet.</div>`) + `</div><div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" value="${escapeAttr(this.envDraft)}" aria-label="Environment URL"><button class="pp-add-b" data-role="env-add">Add</button></div><div class="pp-err" id="loupe-pp-err"></div>`;
+      pop.innerHTML = `<div class="pp-head"><span>Repository</span><button class="pp-x" data-role="pp-close" aria-label="Close">\u2715</button></div><div class="pp-cur">${repo ? `New comments are filed against <b>${escapeHtml(repo)}</b>.` : "This page is not linked to a repository yet."}</div>` + (this.cfg.repos ? `<input class="pp-search" type="search" placeholder="Search repositories\u2026" value="${escapeAttr(this.projSearch)}" aria-label="Search repositories"><div class="pp-list" id="loupe-pp-repos"></div>` : `<div class="pp-empty">No repository list to search. Pass <code>repos</code> to <code>init()</code> \u2014 a string array, or a function the panel calls with the search text.</div>`) + (repo ? `<button class="pp-clear" data-role="pp-clear">Unlink this page</button>` : "") + `<div class="pp-sep"></div><div class="pp-head"><span>Environments</span></div><div class="pp-list">` + (envs.length ? envs.map((u, i) => `<div class="pp-env"><span class="pp-env-u" title="${escapeAttr(u)}">${escapeHtml(u)}</span><button class="pp-x" data-env-rm="${i}" aria-label="Remove environment">\u2715</button></div>`).join("") : `<div class="pp-empty">No environment URLs yet.</div>`) + `</div><div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" value="${escapeAttr(this.envDraft)}" aria-label="Environment URL"><button class="pp-add-b" data-role="env-add">Add</button></div><div class="pp-sep"></div><div class="pp-head"><span>Local AI</span></div><div class="pp-empty">Any OpenAI-compatible server \u2014 used by the Generate pane.</div><div class="pp-add"><input class="pp-ai-url" type="url" placeholder="http://localhost:11434" value="${escapeAttr(this.project.localAi?.url ?? "")}" aria-label="Local AI endpoint"></div><div class="pp-add"><input class="pp-ai-model" type="text" placeholder="llama3.2" value="${escapeAttr(this.project.localAi?.model ?? "")}" aria-label="Model name"><button class="pp-add-b" data-role="ai-save">Save</button></div><div class="pp-add"><button class="pp-clear" data-role="ai-test">Test connection</button></div><div class="pp-ai-out" id="loupe-pp-ai"></div><div class="pp-err" id="loupe-pp-err"></div>`;
       this.renderRepoList();
       this.renderProjectError();
       pop.querySelector('[data-role="pp-close"]').onclick = () => this.setProjectOpen(false);
@@ -4051,6 +4250,25 @@ var Loupe = (() => {
         this.renderProject();
         pop.querySelector(".pp-env-url")?.focus();
       };
+      for (const sel of [".pp-ai-url", ".pp-ai-model"]) {
+        pop.querySelector(sel)?.addEventListener("click", (e) => e.stopPropagation());
+      }
+      pop.querySelector('[data-role="ai-save"]').onclick = () => {
+        const url2 = normalizeEnvUrl(pop.querySelector(".pp-ai-url").value);
+        const model = pop.querySelector(".pp-ai-model").value.trim();
+        if (!url2 || !model) {
+          this.setLocalAiStatus(this.project.localAi ? `Saved: ${this.project.localAi.model} at ${this.project.localAi.url}` : "Nothing saved yet.");
+          this.projError = !url2 ? "Enter a full http:// or https:// endpoint URL." : "Enter a model name.";
+          this.renderProjectError();
+          return;
+        }
+        this.projError = "";
+        this.setLocalAi({ url: url2, model });
+        this.setLocalAiStatus(`Saved: ${model} at ${url2}`);
+      };
+      pop.querySelector('[data-role="ai-test"]').onclick = () => {
+        void this.testLocalAi(pop);
+      };
     }
     /** Per-browser project settings, keyed separately from the dock's UI state. */
     loadProject() {
@@ -4060,7 +4278,8 @@ var Loupe = (() => {
         const p = raw ? JSON.parse(raw) : null;
         const repo = typeof p?.repo === "string" && p.repo ? p.repo : void 0;
         const stored = Array.isArray(p?.environments) ? p.environments.filter((u) => typeof u === "string") : null;
-        this.project = { repo, environments: stored ?? fromConfig };
+        const localAi = p?.localAi && typeof p.localAi.url === "string" && typeof p.localAi.model === "string" ? { url: p.localAi.url, model: p.localAi.model } : void 0;
+        this.project = { repo, environments: stored ?? fromConfig, localAi };
       } catch {
         this.project = { environments: fromConfig };
       }
@@ -4494,7 +4713,7 @@ var Loupe = (() => {
         prioSel.value,
         typeSel.value
       );
-      btns.append(cancel, save);
+      btns.append(this.voiceButton(ta), cancel, save);
       row.append(btns);
       c.append(label, title, ta, attach, meta, row);
       const w = 320, h = 380;
@@ -4941,6 +5160,7 @@ var Loupe = (() => {
       this.minBar.innerHTML = `<span class="logo">\u25CE</span><span class="mtext"><b>${openCount}</b> open ${this.scope === "all" ? "in this project" : "on this page"}</span><span class="mrestore" aria-hidden="true">\u25B8</span>`;
       for (const t of this.tabList) d.classList.toggle(`tab-${t.id}`, this.tab === t.id);
       for (const [id, view] of this.viewEls) view.classList.toggle("on", id === this.tab);
+      this.renderConsent();
       this.renderHome();
       d.querySelectorAll(".tabs .tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === this.tab));
       this.posMenu.querySelectorAll("[data-pos]").forEach((b) => b.classList.toggle("on", b.dataset.pos === this.dockMode));
@@ -5028,9 +5248,9 @@ var Loupe = (() => {
       if (!this.repoSel) return;
       const repos = [...new Set(this.visibleComments.map((c) => c.repo).filter((r) => !!r))].sort();
       this.repoSel.style.display = this.scope === "all" && repos.length > 1 ? "" : "none";
-      const current = this.repoFilter;
+      const current2 = this.repoFilter;
       this.repoSel.innerHTML = `<option value="">All repos</option>` + repos.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
-      this.repoSel.value = current;
+      this.repoSel.value = current2;
     }
     itemView(c, i) {
       const detached = this.pins.get(c.id)?.classList.contains("detached") && !isResolved(c);
@@ -5141,6 +5361,7 @@ var Loupe = (() => {
       };
       actions.append(doneBtn, del);
       detail.appendChild(actions);
+      detail.appendChild(this.generateView(c));
       item.appendChild(detail);
       item.onclick = () => {
         if (open) this.expanded.delete(c.id);
@@ -5229,6 +5450,381 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
         this.renderList();
         this.renderHome();
       };
+    }
+    // ---- generate + iterate ---------------------------------------------------
+    /**
+     * The generate pane for one thread: the preview plane, its opacity comparison
+     * against the original capture, the iteration stack and the iterate input.
+     *
+     * The panel owns all of that; producing the markup is the host's `generate`
+     * function. Without one there is nothing to preview, so the pane offers the
+     * access gate instead of a dead button.
+     */
+    generateView(c) {
+      const wrap = el("div", "genwrap");
+      const state = this.iterations.get(c.id) ?? emptyIterations();
+      const cur = current(state);
+      const busy = this.genBusy.has(c.id);
+      if (this.genOpen !== c.id) {
+        const open = el("button", "gen-open", cur ? "\u2726 Change preview" : "\u2726 Generate a change");
+        open.onclick = (e) => {
+          e.stopPropagation();
+          this.genOpen = c.id;
+          this.renderList();
+        };
+        wrap.appendChild(open);
+        return wrap;
+      }
+      if (!this.cfg.generate) {
+        const gate = el("div", "gengate");
+        gate.innerHTML = `<div class="gate-t">Generating needs access</div><div class="gate-b">This project has no generator configured for you yet. Ask for access and an owner can switch it on.</div>`;
+        const ask = el("button", "gate-ask", "Request access to generate");
+        ask.onclick = async (e) => {
+          e.stopPropagation();
+          ask.disabled = true;
+          ask.textContent = "Request sent";
+          await this.cfg.onRequestAccess?.({
+            capability: "generate",
+            user: this.cfg.user,
+            projectKey: this.cfg.projectKey
+          });
+          this.addActivity({
+            kind: "access.request",
+            label: "Requested access to generate",
+            detail: this.cfg.projectKey,
+            level: "warn"
+          });
+        };
+        gate.appendChild(ask);
+        if (!this.cfg.onRequestAccess) {
+          gate.appendChild(el("div", "gate-hint", "Pass onRequestAccess to init() to route this somewhere."));
+        }
+        wrap.appendChild(gate);
+        wrap.appendChild(this.genClose(c));
+        return wrap;
+      }
+      const head = el("div", "genhead");
+      head.innerHTML = `<span class="gen-t">Generate</span>`;
+      const nav = el("span", "gen-nav");
+      const prev = el("button", "gen-step", "\u2039");
+      prev.disabled = !canMove(state, -1);
+      prev.setAttribute("aria-label", "Previous iteration");
+      prev.onclick = (e) => {
+        e.stopPropagation();
+        this.setIterations(c.id, move(state, -1));
+      };
+      const label = el("span", "gen-n", stackLabel(state));
+      const next = el("button", "gen-step", "\u203A");
+      next.disabled = !canMove(state, 1);
+      next.setAttribute("aria-label", "Next iteration");
+      next.onclick = (e) => {
+        e.stopPropagation();
+        this.setIterations(c.id, move(state, 1));
+      };
+      nav.append(prev, label, next);
+      head.appendChild(nav);
+      const undo2 = el("button", "gen-undo", "Undo");
+      undo2.disabled = !canUndo(state) || busy;
+      undo2.onclick = (e) => {
+        e.stopPropagation();
+        this.setIterations(c.id, undo(state));
+        this.addActivity({ kind: "generate.undo", label: "Undid a generated change" });
+      };
+      head.append(undo2, this.genClose(c));
+      wrap.appendChild(head);
+      if (busy) {
+        wrap.appendChild(el("div", "genbusy", "Generating\u2026"));
+      } else if (cur) {
+        const plane = el("div", "genplane");
+        if (c.screenshot) {
+          const base = el("img", "genbase");
+          base.src = c.screenshot;
+          base.alt = "Original capture";
+          plane.appendChild(base);
+        }
+        const frame = el("iframe", "genframe");
+        frame.setAttribute("sandbox", "");
+        frame.setAttribute("title", "Generated change preview");
+        frame.srcdoc = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:10px;background:#fff;font:13px -apple-system,system-ui,sans-serif;color:#111}${cur.css ?? ""}</style>${cur.html}`;
+        frame.style.opacity = String(this.genOpacity);
+        plane.appendChild(frame);
+        wrap.appendChild(plane);
+        const slider = el("div", "genslider");
+        slider.innerHTML = `<span class="gs-lab">Compare</span>`;
+        const range = el("input", "gs-range");
+        range.type = "range";
+        range.min = "0";
+        range.max = "100";
+        range.value = String(Math.round(this.genOpacity * 100));
+        range.setAttribute("aria-label", "Generated change opacity");
+        range.oninput = () => {
+          this.genOpacity = Number(range.value) / 100;
+          frame.style.opacity = String(this.genOpacity);
+        };
+        slider.append(range, el("span", "gs-n", `${Math.round(this.genOpacity * 100)}%`));
+        wrap.appendChild(slider);
+        if (cur.notes) wrap.appendChild(el("div", "gennotes", cur.notes));
+      } else {
+        wrap.appendChild(el("div", "genempty", "Nothing generated yet."));
+      }
+      const iter = el("div", "geniter");
+      const kind = document.createElement("select");
+      kind.className = "mini";
+      kind.title = "How to treat your follow-up";
+      kind.setAttribute("aria-label", "Iteration kind");
+      kind.append(
+        optionEl("Refine", "refine", true),
+        optionEl("Revise", "revise", false)
+      );
+      const input = el("input", "iter-in");
+      input.type = "text";
+      input.placeholder = cur ? "Refine it, e.g. \u201Clarger button\u201D" : "What should change?";
+      input.value = this.iterDraft.get(c.id) ?? "";
+      input.oninput = () => this.iterDraft.set(c.id, input.value);
+      for (const n of [kind, input]) n.addEventListener("click", (e) => e.stopPropagation());
+      const send = el("button", "iter-send", "Send");
+      send.disabled = busy;
+      send.onclick = (e) => {
+        e.stopPropagation();
+        const prompt = (this.iterDraft.get(c.id) ?? "").trim();
+        if (!prompt) return;
+        this.iterDraft.delete(c.id);
+        void this.runGenerate(c, prompt, kind.value);
+      };
+      input.onkeydown = (e) => {
+        if (e.key === "Enter") send.click();
+      };
+      iter.append(kind, input, send);
+      wrap.appendChild(iter);
+      return wrap;
+    }
+    genClose(c) {
+      const x = el("button", "gen-x", "\u2715");
+      x.setAttribute("aria-label", "Close");
+      x.onclick = (e) => {
+        e.stopPropagation();
+        this.genOpen = null;
+        this.renderList();
+      };
+      return x;
+    }
+    setIterations(id, state) {
+      this.iterations.set(id, state);
+      this.renderList();
+    }
+    /** Ask the host's generator for a change, and stack the result. */
+    async runGenerate(c, prompt, kind) {
+      const generate = this.cfg.generate;
+      if (!generate) return;
+      const state = this.iterations.get(c.id) ?? emptyIterations();
+      this.genBusy.add(c.id);
+      this.genOpen = c.id;
+      this.renderList();
+      const started = Date.now();
+      try {
+        const out = await generate({
+          comment: c,
+          prompt,
+          kind,
+          previous: current(state) ?? void 0,
+          localAi: this.project.localAi
+        });
+        const next = addIteration(state, {
+          id: `it${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          at: (/* @__PURE__ */ new Date()).toISOString(),
+          html: out.html,
+          css: out.css,
+          notes: out.notes,
+          prompt,
+          kind
+        });
+        this.genBusy.delete(c.id);
+        this.iterations.set(c.id, next);
+        this.addActivity({
+          kind: `generate.${kind}`,
+          label: `${kind === "generate" ? "Generated" : "Iterated on"} \u201C${c.title || prompt}\u201D`,
+          detail: `${Math.round((Date.now() - started) / 1e3)}s \xB7 ${stackLabel(next)}`
+        });
+      } catch (e) {
+        this.genBusy.delete(c.id);
+        this.addActivity({
+          kind: "generate.error",
+          label: `Generation failed: ${e instanceof Error ? e.message : String(e)}`,
+          level: "error"
+        });
+      }
+      this.renderList();
+    }
+    // ---- agent navigation (consent-gated) -------------------------------------
+    /**
+     * An agent asks to move the browser. Nothing navigates here — the request is
+     * queued and the user answers it. `decide()` is the only thing that ever yields a
+     * URL, and it yields one only on an explicit grant.
+     */
+    requestNavigation(url, opts = {}) {
+      const next = requestNavigation(this.consent, { url, ...opts });
+      if (next === this.consent) return;
+      this.consent = next;
+      this.open = true;
+      this.saveState();
+      this.applyDockLayout();
+      this.renderConsent();
+      this.addActivity({
+        kind: "nav.request",
+        label: `Asked to open ${url}`,
+        detail: opts.requester,
+        level: "warn"
+      });
+    }
+    /** Local-AI settings, used as the default in GenerateRequest.localAi. */
+    setLocalAi(config) {
+      this.project = { ...this.project, localAi: config ?? void 0 };
+      this.saveProject();
+      this.renderProject();
+    }
+    setLocalAiStatus(text) {
+      const box = this.homeEl?.querySelector("#loupe-pp-ai");
+      if (box) box.textContent = text;
+    }
+    /**
+     * Ask the configured endpoint what it serves. A real check against the real
+     * server — an OpenAI-compatible `/v1/models` is what Ollama, llama.cpp and the
+     * rest all expose — with a timeout, so a wrong port reports rather than hangs.
+     */
+    async testLocalAi(pop) {
+      const url = normalizeEnvUrl(pop.querySelector(".pp-ai-url").value);
+      const model = pop.querySelector(".pp-ai-model").value.trim();
+      if (!url) {
+        this.projError = "Enter a full http:// or https:// endpoint URL.";
+        this.renderProjectError();
+        return;
+      }
+      this.projError = "";
+      this.setLocalAiStatus("Checking\u2026");
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 4e3);
+      try {
+        const res = await fetch(`${url}/v1/models`, { signal: ctl.signal });
+        if (!res.ok) {
+          this.setLocalAiStatus(`Reachable, but it answered ${res.status}.`);
+          return;
+        }
+        const body = await res.json().catch(() => null);
+        const ids = Array.isArray(body?.data) ? body.data.map((m) => String(m?.id ?? "")).filter(Boolean) : [];
+        if (model && ids.length && !ids.some((i) => i === model || i.startsWith(`${model}:`))) {
+          const shown = ids.slice(0, 4).join(", ");
+          this.setLocalAiStatus(`Connected, but no \u201C${model}\u201D \u2014 it serves: ${shown}${ids.length > 4 ? ", \u2026" : ""}`);
+          return;
+        }
+        this.setLocalAiStatus(
+          ids.length ? `Connected \u2014 ${ids.length} model${ids.length === 1 ? "" : "s"} available.` : "Connected."
+        );
+      } catch (e) {
+        this.setLocalAiStatus(e?.name === "AbortError" ? "Timed out. Is the server running, and does it allow this origin (CORS)?" : "Could not reach it. Check the URL, and that the server allows this origin (CORS).");
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    renderConsent() {
+      if (!this.consentEl) return;
+      if (!isPending(this.consent)) {
+        this.consentEl.innerHTML = "";
+        this.consentEl.style.display = "none";
+        return;
+      }
+      const r = this.consent.request;
+      this.consentEl.style.display = "";
+      this.consentEl.innerHTML = `<div class="cs-head"><span class="cs-dot"></span><b>${escapeHtml(r.requester ?? "An agent")}</b> wants to open a page</div><div class="cs-url">${escapeHtml(r.url)}</div>` + (r.reason ? `<div class="cs-why">${escapeHtml(r.reason)}</div>` : "") + `<div class="cs-btns"><button class="cs-deny">Stay here</button><button class="cs-go">Go there</button></div>`;
+      this.consentEl.querySelector(".cs-deny").onclick = () => {
+        const { record } = decide(this.consent, false);
+        this.consent = record;
+        this.renderConsent();
+        this.addActivity({ kind: "nav.deny", label: `Declined opening ${r.url}` });
+      };
+      this.consentEl.querySelector(".cs-go").onclick = () => {
+        const { record, navigateTo } = decide(this.consent, true);
+        this.consent = record;
+        this.renderConsent();
+        this.addActivity({ kind: "nav.grant", label: `Opened ${navigateTo}` });
+        if (navigateTo) window.location.assign(navigateTo);
+      };
+    }
+    /** Drop a pending request without deciding it — e.g. the panel is closing. */
+    abandonNavigation() {
+      this.consent = withdraw(this.consent);
+      this.renderConsent();
+    }
+    /** The dictation button, or nothing at all where the browser has no speech API. */
+    voiceButton(target) {
+      const Ctor = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+      const b = el("button", "voice", "");
+      this.voiceEl = b;
+      if (!Ctor) {
+        b.textContent = "\u{1F3A4}";
+        b.disabled = true;
+        b.title = "Dictation is not available in this browser";
+        b.setAttribute("aria-label", "Dictation unavailable");
+        return b;
+      }
+      const idle = () => {
+        b.classList.remove("on");
+        b.textContent = "\u{1F3A4}";
+        b.setAttribute("aria-label", "Dictate");
+        b.title = "Dictate";
+      };
+      const listening = () => {
+        b.classList.add("on");
+        b.textContent = "\u23FA";
+        b.setAttribute("aria-label", "Stop dictating");
+        b.title = "Listening \u2014 click to stop";
+      };
+      idle();
+      b.onclick = (e) => {
+        e.stopPropagation();
+        if (this.voice) {
+          this.stopVoice();
+          idle();
+          return;
+        }
+        const rec = new Ctor();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = document.documentElement.lang || "en-US";
+        let base = target.value ? `${target.value} ` : "";
+        rec.onresult = (ev) => {
+          let text = "";
+          for (let i = ev.resultIndex; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+          target.value = (base + text).replace(/\s+/g, " ").trimStart();
+          target.dispatchEvent(new Event("input", { bubbles: true }));
+        };
+        rec.onerror = (ev) => {
+          this.stopVoice();
+          idle();
+          this.addActivity({ kind: "voice.error", label: `Dictation failed: ${ev?.error ?? "unknown"}`, level: "error" });
+        };
+        rec.onend = () => {
+          this.voice = null;
+          idle();
+        };
+        this.voice = rec;
+        this.voiceTarget = target;
+        try {
+          rec.start();
+          listening();
+        } catch {
+          this.voice = null;
+          idle();
+        }
+      };
+      return b;
+    }
+    stopVoice() {
+      try {
+        this.voice?.stop();
+      } catch {
+      }
+      this.voice = null;
+      this.voiceTarget = null;
     }
     flash(id) {
       const c = this.comments.find((x) => x.id === id);
@@ -5504,6 +6100,15 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
   }
   function clearActivity() {
     app?.clearActivity();
+  }
+  function requestNavigation2(url, opts) {
+    app?.requestNavigation(url, opts);
+  }
+  function setLocalAi(config) {
+    app?.setLocalAi(config);
+  }
+  function openTool(tool) {
+    app?.openTool(tool);
   }
   return __toCommonJS(src_exports);
 })();
