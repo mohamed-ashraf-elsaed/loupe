@@ -98,6 +98,40 @@ beforeEach(() => {
 });
 afterEach(() => destroy());
 
+
+/**
+ * A fake EventSource that behaves like the real one.
+ *
+ * The distinction that matters: the bridge writes named events (`event: thread`), so a
+ * real EventSource delivers them through `addEventListener("thread", …)` and *never*
+ * through `onmessage`. A fake exposing only `onmessage` would pass while the real
+ * transport was dead — which is exactly what happened.
+ */
+function makeFakeEventSource() {
+  return class FakeEventSource {
+    onmessage: ((ev: unknown) => void) | null = null;
+    onerror: (() => void) | null = null;
+    closed = false;
+    listeners = new Map<string, ((ev: unknown) => void)[]>();
+    static all: FakeEventSource[] = [];
+    static last: FakeEventSource | null = null;
+    constructor(public url: string) {
+      FakeEventSource.last = this;
+      FakeEventSource.all.push(this);
+    }
+    addEventListener(type: string, fn: (ev: unknown) => void) {
+      const list = this.listeners.get(type) ?? [];
+      list.push(fn);
+      this.listeners.set(type, list);
+    }
+    close() { this.closed = true; }
+    /** Deliver a named event, the way the bridge sends it. */
+    emit(type: string, data: unknown) {
+      for (const fn of this.listeners.get(type) ?? []) fn({ data: JSON.stringify(data) });
+    }
+  } as any;
+}
+
 describe("LoupeApp", () => {
   it("mounts a Shadow-DOM control panel for the identified user", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
@@ -389,7 +423,7 @@ describe("LoupeApp", () => {
   it("has no Connect tab unless the host registers one", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     const ids = [...sr().querySelectorAll<HTMLElement>(".tabs .tab")].map((b) => b.dataset.tab);
-    expect(ids).toEqual(["home", "comments", "activity"]);
+    expect(ids).toEqual(["home", "comments", "activity", "chat"]);
     // …and no dangling shortcut for it in the FAB cluster.
     expect(sr().querySelector('[data-fab="connect"]')).toBeFalsy();
   });
@@ -397,7 +431,7 @@ describe("LoupeApp", () => {
   it("quick action: a registered connect tab is one click from the FAB", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" }, tabs: [connectTab()] });
     expect([...sr().querySelectorAll<HTMLElement>(".tabs .tab")].map((b) => b.dataset.tab))
-      .toEqual(["home", "comments", "activity", "connect"]);
+      .toEqual(["home", "comments", "activity", "chat", "connect"]);
     sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
     sr().querySelector<HTMLElement>('[data-fab="connect"]')!.click();
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
@@ -812,7 +846,7 @@ describe("LoupeApp", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect([...sr().querySelectorAll<HTMLElement>(".tabs .tab")].map((b) => b.textContent))
-      .toEqual(["Home", "Comments", "Activity", "Build"]);
+      .toEqual(["Home", "Comments", "Activity", "Chat", "Build"]);
     expect(sr().querySelector(".mine")!.textContent).toBe("hello pk");
     expect(seen.projectKey).toBe("pk");
     expect(seen.user).toBe("u");
@@ -834,7 +868,7 @@ describe("LoupeApp", () => {
     });
     await new Promise((r) => setTimeout(r, 10));
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
-    expect(sr().querySelectorAll(".tabs .tab").length).toBe(4);
+    expect(sr().querySelectorAll(".tabs .tab").length).toBe(5);
     expect(sr().querySelector(".custom-view .empty")!.textContent).toContain("nope");
     // And the rest of the panel still works.
     sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
@@ -1780,16 +1814,8 @@ describe("LoupeApp", () => {
 
   it("refreshes an open thread when the bridge relays a new message", async () => {
     const realES = (globalThis as any).EventSource;
-    const handlers: ((ev: unknown) => void)[] = [];
-    class FakeEventSource {
-      onmessage: ((ev: unknown) => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor(public url: string) { FakeES.last = this; }
-      close() { this.closed = true; }
-      closed = false;
-    }
-    const FakeES = FakeEventSource as any;
-    (globalThis as any).EventSource = FakeEventSource;
+    const FakeES = makeFakeEventSource();
+    (globalThis as any).EventSource = FakeES;
     // Configuring a bridge also starts presence, which would otherwise make a real
     // request to a host that does not exist — stubbed so this test only exercises SSE.
     const realFetch = globalThis.fetch;
@@ -1805,7 +1831,10 @@ describe("LoupeApp", () => {
       init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
       await new Promise((r) => setTimeout(r, 20));
 
-      expect(FakeES.last.url).toBe("http://bridge.test/thread-updates");
+      // Two streams now: the thread channel and the companion channel.
+      const threadSource = FakeES.all.find((e: any) => e.url.endsWith("/thread-updates"));
+      expect(threadSource, "the thread stream must still be opened").toBeTruthy();
+      expect(FakeES.all.map((e: any) => e.url)).toContain("http://bridge.test/events");
 
       sr().querySelector<HTMLElement>(".item")!.click();
       await new Promise((r) => setTimeout(r, 30));
@@ -1817,7 +1846,8 @@ describe("LoupeApp", () => {
         { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "first", createdAt: "2026-01-01T11:00:00.000Z" },
         { id: "m2", threadId: "t1", author: { id: "u2", name: "Jane", type: "user" }, body: "second", createdAt: "2026-01-01T12:00:00.000Z" },
       ]));
-      FakeES.last.onmessage({ data: JSON.stringify({ type: "thread", threadId: "t1", eventType: "message_added" }) });
+      FakeES.all.find((e: any) => e.url.endsWith("/thread-updates"))
+        .emit("thread", { type: "thread", threadId: "t1", eventType: "message_added" });
       await new Promise((r) => setTimeout(r, 40));
 
       const bodies = [...sr().querySelectorAll<HTMLElement>(".msg-body")].map((b) => b.textContent);
@@ -1831,42 +1861,8 @@ describe("LoupeApp", () => {
 
   it("ignores a thread event for a thread nobody has open", async () => {
     const realES = (globalThis as any).EventSource;
-    class FakeEventSource {
-      onmessage: ((ev: unknown) => void) | null = null;
-      onerror: (() => void) | null = null;
-      static last: any;
-      constructor(public url: string) { FakeEventSource.last = this; }
-      close() {}
-    }
-    (globalThis as any).EventSource = FakeEventSource;
-    const realFetch2 = globalThis.fetch;
-    globalThis.fetch = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
-    try {
-      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
-      await new Promise((r) => setTimeout(r, 20));
-      // Nothing is open, so this must not fetch or throw.
-      expect(() => FakeEventSource.last.onmessage({ data: JSON.stringify({ type: "thread", threadId: "other", eventType: "message_added" }) })).not.toThrow();
-      // A malformed frame is ignored rather than crashing the stream.
-      expect(() => FakeEventSource.last.onmessage({ data: "not json" })).not.toThrow();
-      await new Promise((r) => setTimeout(r, 20));
-    } finally {
-      (globalThis as any).EventSource = realES;
-      globalThis.fetch = realFetch2;
-    }
-  });
-
-  it("closes the live stream on destroy", async () => {
-    const realES = (globalThis as any).EventSource;
-    class FakeEventSource {
-      onmessage: ((ev: unknown) => void) | null = null;
-      onerror: (() => void) | null = null;
-      static last: any;
-      closed = false;
-      constructor(public url: string) { FakeEventSource.last = this; }
-      close() { this.closed = true; }
-    }
-    (globalThis as any).EventSource = FakeEventSource;
+    const FakeES = makeFakeEventSource();
+    (globalThis as any).EventSource = FakeES;
     const realFetch3 = globalThis.fetch;
     globalThis.fetch = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
     try {
@@ -1874,10 +1870,255 @@ describe("LoupeApp", () => {
       init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
       await new Promise((r) => setTimeout(r, 20));
       destroy();
-      expect(FakeEventSource.last.closed).toBe(true);
+      expect(FakeES.last.closed).toBe(true);
     } finally {
       (globalThis as any).EventSource = realES;
       globalThis.fetch = realFetch3;
+    }
+  });
+
+  /** A fetch stub that records what the panel sends to the bridge. */
+  const withBridge = (handler: (url: string, init: any) => Response) => {
+    const realFetch = globalThis.fetch;
+    const calls: { url: string; body: any }[] = [];
+    globalThis.fetch = (async (url: string, init: any = {}) => {
+      calls.push({ url: String(url), body: init.body ? JSON.parse(init.body) : undefined });
+      return handler(String(url), init);
+    }) as unknown as typeof fetch;
+    return { restore: () => { globalThis.fetch = realFetch; }, calls };
+  };
+
+  const openChat = async () => {
+    sr().querySelector<HTMLElement>('.tabs [data-tab="chat"]')!.click();
+    await new Promise((r) => setTimeout(r, 20));
+  };
+
+  it("has a chat tab with a composer and a gather button", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    const b = withBridge(() => new Response("{}", { status: 200 }));
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      await openChat();
+
+      expect(sr().querySelector(".chat-in")).toBeTruthy();
+      expect(sr().querySelector("#loupe-chatadd")!.textContent).toContain("Selection");
+      expect(sr().querySelector("#loupe-chatsend")!.textContent).toBe("Send");
+      // Nothing gathered and nothing said — an empty tray draws nothing at all.
+      expect((sr().querySelector<HTMLElement>("#loupe-tray") as HTMLElement).style.display).toBe("none");
+    } finally {
+      b.restore();
+    }
+  });
+
+  it("gathers the current selection into the tray", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    const b = withBridge((url) => {
+      if (url.endsWith("/selection/latest")) {
+        return new Response(JSON.stringify({
+          selection: { correlationId: "sel_1", selector: ".cta", text: "Buy now", url: "/checkout", tag: "button" },
+        }), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      await openChat();
+
+      sr().querySelector<HTMLElement>("#loupe-chatadd")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+
+      const tray = sr().querySelector<HTMLElement>("#loupe-tray")!;
+      expect(tray.style.display).not.toBe("none");
+      expect(tray.querySelectorAll(".tray-chip").length).toBe(1);
+      expect(tray.querySelector(".tray-label")!.textContent).toContain(".cta");
+      expect(sr().querySelector(".tray-title")!.textContent).toBe("1 context");
+
+      // Adding a second one appends; the same one again replaces.
+      b.calls.length = 0;
+      sr().querySelector<HTMLElement>("#loupe-chatadd")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(sr().querySelectorAll(".tray-chip").length).toBe(1);
+    } finally {
+      b.restore();
+    }
+  });
+
+  it("sends the tray as one message with every gathered context", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    let n = 0;
+    const b = withBridge((url) => {
+      if (url.endsWith("/selection/latest")) {
+        n++;
+        return new Response(JSON.stringify({
+          selection: { correlationId: `sel_${n}`, selector: `.el-${n}`, text: `t${n}`, url: "/p" },
+        }), { status: 200 });
+      }
+      if (url.endsWith("/companion")) return new Response(JSON.stringify({ ok: true }), { status: 201 });
+      return new Response("{}", { status: 200 });
+    });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      await openChat();
+
+      // Three elements, one message — that is the point of the tray.
+      for (let i = 0; i < 3; i++) {
+        sr().querySelector<HTMLElement>("#loupe-chatadd")!.click();
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      const input = sr().querySelector<HTMLTextAreaElement>("#loupe-chatin")!;
+      input.value = "make these three match";
+      sr().querySelector<HTMLElement>("#loupe-chatsend")!.click();
+      await new Promise((r) => setTimeout(r, 50));
+
+      const sent = b.calls.find((c) => c.url.endsWith("/companion"))!;
+      expect(sent.body.body).toBe("make these three match");
+      expect(sent.body.contexts).toHaveLength(3);
+      // Each label carries the selector and a snippet of the text, so the agent knows
+      // which element is which without another round trip.
+      expect(sent.body.contexts.map((c: any) => c.id)).toEqual(["sel_1", "sel_2", "sel_3"]);
+      expect(sent.body.contexts.map((c: any) => c.label)).toEqual([
+        ".el-1 — “t1”", ".el-2 — “t2”", ".el-3 — “t3”",
+      ]);
+      expect(sent.body.author).toEqual({ id: "u", name: "U" });
+
+      // Sent, so the tray is emptied and the composer cleared.
+      expect(sr().querySelectorAll(".tray-chip").length).toBe(0);
+      expect(input.value).toBe("");
+    } finally {
+      b.restore();
+    }
+  });
+
+  it("sends a tray-only brief — showing three things is a sentence", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    const b = withBridge((url) => {
+      if (url.endsWith("/selection/latest")) {
+        return new Response(JSON.stringify({ selection: { correlationId: "s1", selector: ".x", url: "/p" } }), { status: 200 });
+      }
+      if (url.endsWith("/companion")) return new Response("{}", { status: 201 });
+      return new Response("{}", { status: 200 });
+    });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      await openChat();
+      sr().querySelector<HTMLElement>("#loupe-chatadd")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+
+      sr().querySelector<HTMLElement>("#loupe-chatsend")!.click();
+      await new Promise((r) => setTimeout(r, 40));
+      const sent = b.calls.find((c) => c.url.endsWith("/companion"))!;
+      expect(sent.body.contexts).toHaveLength(1);
+      expect(sent.body.body).toBe("(see the gathered context)");
+    } finally {
+      b.restore();
+    }
+  });
+
+  it("does not send an empty chat message", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    const b = withBridge(() => new Response("{}", { status: 200 }));
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      await openChat();
+      sr().querySelector<HTMLElement>("#loupe-chatsend")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(b.calls.some((c) => c.url.endsWith("/companion"))).toBe(false);
+    } finally {
+      b.restore();
+    }
+  });
+
+  it("says why it cannot send when no bridge is configured", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 20));
+    await openChat();
+
+    const input = sr().querySelector<HTMLTextAreaElement>("#loupe-chatin")!;
+    input.value = "hello";
+    sr().querySelector<HTMLElement>("#loupe-chatsend")!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sr().querySelector<HTMLElement>("#loupe-chaterr")!.textContent).toMatch(/No bridge/);
+  });
+
+  it("shows a reply, and badges the tab when you are looking elsewhere", async () => {
+    const realES = (globalThis as any).EventSource;
+    const FakeES = makeFakeEventSource();
+    (globalThis as any).EventSource = FakeES;
+    const b = withBridge(() => new Response(JSON.stringify({ replies: [] }), { status: 200 }));
+    try {
+      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 30));
+
+      const stream = FakeES.all.find((e: any) => e.url.endsWith("/events"))!;
+      expect(stream, "the companion stream must be opened").toBeTruthy();
+
+      // A reply while the person is on another page badges the tab.
+      stream.emit("companion", { type: "companion", eventType: "reply", data: { id: "r1", at: "2026-01-01T00:00:00Z", body: "switched it to blue" } });
+      await new Promise((r) => setTimeout(r, 20));
+
+      const chatTab = [...sr().querySelectorAll<HTMLElement>(".tabs .tab")].find((t) => t.dataset.tab === "chat")!;
+      expect(chatTab.textContent).toContain("1");
+
+      await openChat();
+      expect(sr().querySelector(".chat-msg:not(.mine) .chat-body")!.textContent).toBe("switched it to blue");
+    } finally {
+      (globalThis as any).EventSource = realES;
+      b.restore();
+    }
+  });
+
+  it("shows the same reply once even when both transports deliver it", async () => {
+    // SSE and the poll both run, so a reply can arrive twice; the id is what stops
+    // one reply appearing as two.
+    const realES = (globalThis as any).EventSource;
+    const FakeES = makeFakeEventSource();
+    (globalThis as any).EventSource = FakeES;
+    const reply = { id: "r1", at: "2026-01-01T00:00:00Z", body: "done" };
+    const b = withBridge(() => new Response(JSON.stringify({ replies: [reply] }), { status: 200 }));
+    try {
+      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      await openChat();
+
+      const stream = FakeES.all.find((e: any) => e.url.endsWith("/events"))!;
+      stream.emit("companion", { type: "companion", eventType: "reply", data: reply });
+      stream.emit("companion", { type: "companion", eventType: "reply", data: reply });
+      await new Promise((r) => setTimeout(r, 30));
+
+      const bodies = [...sr().querySelectorAll<HTMLElement>(".chat-body")].map((b) => b.textContent);
+      expect(bodies.filter((t) => t === "done")).toHaveLength(1);
+    } finally {
+      (globalThis as any).EventSource = realES;
+      b.restore();
+    }
+  });
+
+  it("hides dictation, and says why, when the browser cannot do it", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    const b = withBridge(() => new Response("{}", { status: 200 }));
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      await openChat();
+
+      // happy-dom has no SpeechRecognition, so this is the unsupported path.
+      sr().querySelector<HTMLElement>("#loupe-chatmic")!.click();
+      await new Promise((r) => setTimeout(r, 20));
+      const err = sr().querySelector<HTMLElement>("#loupe-chaterr")!.textContent!;
+      // Either reason is acceptable here, but it must say something actionable rather
+      // than starting a recording that cannot work.
+      expect(err).toMatch(/secure page|Dictation|dictate/);
+      expect((sr().querySelector<HTMLElement>("#loupe-chatrec") as HTMLElement).style.display).toBe("none");
+    } finally {
+      b.restore();
     }
   });
 

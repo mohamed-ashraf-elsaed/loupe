@@ -31,7 +31,20 @@ import {
   STAGE_LABELS,
   stackLabel,
   threadAsText,
+  addToTray,
+  clearTray,
+  elapsedLabel,
+  emptyTray,
+  includedItems,
   initialsOf,
+  nudgeInTray,
+  removeFromTray,
+  toggleInclude,
+  trayPayload,
+  traySummary,
+  voiceMessage,
+  voiceSupport,
+  type TrayState,
   PEER_HEARTBEAT_MS,
   mentionSegments,
   summarizeReactions,
@@ -88,6 +101,10 @@ const TOUR: { sel: string; tab: Tab; title: string; body: string }[] = [
 
 /** One contextual hint per built-in view, shown once (unless hints are switched off). */
 const HINTS: Record<BuiltinTab, { title: string; body: string }> = {
+  chat: {
+    title: "Talk to the agent",
+    body: "Gather what you are looking at and send it in one go. The agent gets it on its very next step — not after it finishes.",
+  },
   home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
   comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
   activity: { title: "Watch the work happen", body: "Every event the bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." },
@@ -96,11 +113,12 @@ const HINTS: Record<BuiltinTab, { title: string; body: string }> = {
 /** Where the control panel is anchored — the four layouts the position menu offers. */
 type DockMode = "left" | "right" | "bottom" | "float";
 /** The pages that ship with the panel. Hosts can add more via `init({ tabs })`. */
-type BuiltinTab = "home" | "comments" | "activity";
+type BuiltinTab = "home" | "comments" | "activity" | "chat";
 const BUILTIN_TABS: { id: BuiltinTab; label: string }[] = [
   { id: "home", label: "Home" },
   { id: "comments", label: "Comments" },
   { id: "activity", label: "Activity" },
+  { id: "chat", label: "Chat" },
 ];
 /** A tab id — built-in or host-registered. */
 type Tab = string;
@@ -331,6 +349,7 @@ export class LoupeApp {
     this.renderHome();
     this.startPresence();
     this.startLiveThreads();
+    this.startCompanionStream();
     void this.loadNotifications();
     // A restored "All" scope needs the project-wide list.
     if (this.scope === "all") void this.loadAllComments();
@@ -617,6 +636,11 @@ export class LoupeApp {
     const activityView = el("div", "view activity-view");
     this.activityEl = activityView;
 
+    // Chat view = the companion: a gather tray, a composer with dictation, and the
+    // transcript of what was said to the agent and what it said back.
+    const chatView = el("div", "view chat-view");
+    this.chatEl = chatView;
+
     // Host-registered tabs. `render` runs once, here, and gets a context object —
     // the panel never reaches into a tab, and a tab never reaches into the panel.
     const customViews = (this.cfg.tabs ?? []).map((t) => {
@@ -658,13 +682,14 @@ export class LoupeApp {
     this.consentEl = el("div", "consent");
     this.consentEl.style.display = "none";
 
-    dock.append(head, this.minBar, this.consentEl, tabs, homeView, commentsView, activityView, ...customViews, resize);
-    for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView]] as [string, HTMLElement][]) {
+    dock.append(head, this.minBar, this.consentEl, tabs, homeView, commentsView, activityView, chatView, ...customViews, resize);
+    for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView], ["chat", chatView]] as [string, HTMLElement][]) {
       this.viewEls.set(id, view);
     }
     customViews.forEach((v, i) => this.viewEls.set((this.cfg.tabs ?? [])[i]!.id, v));
     this.buildHomePanel();
     this.buildActivityPanel();
+    this.buildChatPanel();
     return dock;
   }
 
@@ -688,6 +713,388 @@ export class LoupeApp {
    * live feed. Everything is re-derived from `activityEvents` on render, so the
    * summary and the micro-stats can never disagree with the feed below them.
    */
+  // ---- companion chat (#28) -------------------------------------------------
+
+  /** The chat page's root. */
+  private chatEl!: HTMLElement;
+  /** The gather tray: elements and screenshots collected into one message. */
+  private chatTray: TrayState = emptyTray();
+  /** Sent messages and received replies, in one ordered transcript. */
+  private chatLog: { id: string; at: string; mine: boolean; author?: string; body: string; count?: number }[] = [];
+  private chatUnread = 0;
+  private chatSending = false;
+  private chatError = "";
+  private voiceOn = false;
+  private voiceBase = "";
+  private voiceStart = 0;
+  private voiceTimer?: ReturnType<typeof setInterval>;
+  private companionSource?: EventSource;
+
+  private buildChatPanel() {
+    this.chatEl.innerHTML =
+      `<div class="hint-slot" id="loupe-chint"></div>` +
+      `<div class="chat-tray" id="loupe-tray"></div>` +
+      `<div class="chat-log" id="loupe-chatlog"></div>` +
+      `<div class="chat-compose">` +
+      `<textarea class="chat-in" id="loupe-chatin" rows="2" placeholder="Tell the agent what you see…"></textarea>` +
+      `<div class="chat-foot">` +
+      `<button class="chat-add" id="loupe-chatadd" title="Add what you have selected">＋ Selection</button>` +
+      `<button class="chat-mic" id="loupe-chatmic" title="Dictate">🎙</button>` +
+      `<span class="chat-rec" id="loupe-chatrec" style="display:none"><span class="chat-rec-dot"></span><span id="loupe-chatrectime">0:00</span></span>` +
+      `<span class="chat-spacer"></span>` +
+      `<span class="chat-err" id="loupe-chaterr"></span>` +
+      `<button class="chat-send" id="loupe-chatsend">Send</button>` +
+      `</div></div>`;
+
+    const input = this.chatEl.querySelector("#loupe-chatin") as HTMLTextAreaElement;
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.oninput = () => { this.chatError = ""; this.renderChatError(); };
+    input.onkeydown = (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void this.sendCompanion(); }
+    };
+
+    (this.chatEl.querySelector("#loupe-chatadd") as HTMLElement).onclick = (e) => {
+      e.stopPropagation();
+      void this.addSelectionToTray();
+    };
+    (this.chatEl.querySelector("#loupe-chatsend") as HTMLElement).onclick = (e) => {
+      e.stopPropagation();
+      void this.sendCompanion();
+    };
+    (this.chatEl.querySelector("#loupe-chatmic") as HTMLElement).onclick = (e) => {
+      e.stopPropagation();
+      this.toggleVoice();
+    };
+
+    this.renderChatTray();
+    this.renderChatLog();
+    this.updateChatBadge();
+  }
+
+  /** The Chat tab label carries the unread count, so it is visible from any page. */
+  private updateChatBadge() {
+    const tab = this.tabList.findIndex((t) => t.id === "chat");
+    const buttons = this.shadow?.querySelectorAll<HTMLElement>(".tabs .tab");
+    const el2 = buttons?.[tab];
+    if (!el2) return;
+    el2.textContent = this.chatUnread ? `Chat · ${this.chatUnread > 9 ? "9+" : this.chatUnread}` : "Chat";
+  }
+
+  private renderChatError() {
+    const box = this.chatEl?.querySelector("#loupe-chaterr") as HTMLElement | null;
+    if (box) box.textContent = this.chatError;
+  }
+
+  private renderChatTray() {
+    const box = this.chatEl?.querySelector("#loupe-tray") as HTMLElement | null;
+    if (!box) return;
+    box.textContent = "";
+    if (!this.chatTray.items.length) { box.style.display = "none"; return; }
+    box.style.display = "";
+
+    const head = el("div", "tray-head");
+    head.append(
+      el("span", "tray-title", traySummary(this.chatTray)),
+      el("span", "tray-spacer"),
+    );
+    const clear = el("button", "tray-x", "Clear") as HTMLButtonElement;
+    clear.onclick = (e) => { e.stopPropagation(); this.chatTray = clearTray(); this.renderChatTray(); };
+    head.appendChild(clear);
+    box.appendChild(head);
+
+    this.chatTray.items.forEach((item, i) => {
+      const chip = el("div", "tray-chip" + (item.include ? "" : " off"));
+
+      const check = el("input") as HTMLInputElement;
+      check.type = "checkbox";
+      check.checked = item.include;
+      check.title = "Include in the message";
+      check.onchange = (e) => {
+        e.stopPropagation();
+        this.chatTray = toggleInclude(this.chatTray, item.id);
+        this.renderChatTray();
+      };
+
+      const label = el("span", "tray-label", item.label);
+      label.title = item.label + (item.url ? ` — ${item.url}` : "");
+
+      const up = el("button", "tray-nudge", "↑") as HTMLButtonElement;
+      up.disabled = i === 0;
+      up.onclick = (e) => { e.stopPropagation(); this.chatTray = nudgeInTray(this.chatTray, item.id, -1); this.renderChatTray(); };
+
+      const down = el("button", "tray-nudge", "↓") as HTMLButtonElement;
+      down.disabled = i === this.chatTray.items.length - 1;
+      down.onclick = (e) => { e.stopPropagation(); this.chatTray = nudgeInTray(this.chatTray, item.id, 1); this.renderChatTray(); };
+
+      const x = el("button", "tray-x", "✕") as HTMLButtonElement;
+      x.title = "Remove";
+      x.onclick = (e) => { e.stopPropagation(); this.chatTray = removeFromTray(this.chatTray, item.id); this.renderChatTray(); };
+
+      chip.append(check, item.thumb ? (() => { const img = el("img", "tray-thumb") as HTMLImageElement; img.src = item.thumb!; img.alt = ""; return img; })() : el("span", "tray-kind", item.kind), label, up, down, x);
+      box.appendChild(chip);
+    });
+  }
+
+  private renderChatLog() {
+    const box = this.chatEl?.querySelector("#loupe-chatlog") as HTMLElement | null;
+    if (!box) return;
+    box.textContent = "";
+    if (!this.chatLog.length) {
+      box.appendChild(el("div", "chat-empty",
+        this.cfg.bridge
+          ? "Say what you see while the agent works — it lands on the agent’s very next step."
+          : "Connect a bridge to talk to the agent. Without one there is nothing to deliver to."));
+      return;
+    }
+    for (const m of this.chatLog) {
+      const row = el("div", "chat-msg" + (m.mine ? " mine" : ""));
+      const head = el("div", "chat-head");
+      head.append(
+        el("b", "chat-who", m.mine ? "You" : (m.author ?? "Agent")),
+        el("span", "chat-when", fmtAgo(m.at)),
+      );
+      if (m.count) head.appendChild(el("span", "chat-ctx", `${m.count} context${m.count === 1 ? "" : "s"}`));
+      const body = el("div", "chat-body");
+      for (const seg of mentionSegments(m.body, parseMentions(m.body))) {
+        if (seg.mention) body.appendChild(el("span", "mention", seg.text));
+        else body.appendChild(document.createTextNode(seg.text));
+      }
+      row.append(head, body);
+      box.appendChild(row);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /** Pull the current selection off the bridge and into the tray. */
+  private async addSelectionToTray() {
+    const base = this.cfg.bridge?.replace(/\/$/, "");
+    if (!base) { this.chatError = "No bridge configured."; this.renderChatError(); return; }
+    try {
+      const res = await fetch(`${base}/selection/latest`);
+      if (!res.ok) throw new Error(String(res.status));
+      const { selection } = (await res.json()) as { selection?: any };
+      if (!selection) { this.chatError = "Nothing selected yet."; this.renderChatError(); return; }
+      this.chatTray = addToTray(this.chatTray, {
+        id: selection.correlationId ?? selection.selector ?? String(selection.at),
+        kind: "element",
+        // The selector is what identifies it; the text makes it recognisable.
+        label: `${selection.selector ?? selection.tag ?? "element"}${selection.text ? ` — “${String(selection.text).slice(0, 24)}”` : ""}`,
+        url: selection.url,
+        ref: selection.correlationId ?? selection.selector,
+      });
+      this.chatError = "";
+      this.renderChatError();
+      this.renderChatTray();
+    } catch (e) {
+      this.chatError = e instanceof Error ? `Could not read the selection: ${e.message}` : "Could not read the selection.";
+      this.renderChatError();
+    }
+  }
+
+  private async sendCompanion() {
+    const input = this.chatEl.querySelector("#loupe-chatin") as HTMLTextAreaElement;
+    const body = input.value.trim();
+    const contexts = trayPayload(this.chatTray);
+    // A tray-only message is still a brief: showing three elements is a sentence.
+    if (!body && !contexts.length) return;
+    if (this.chatSending) return;
+
+    const base = this.cfg.bridge?.replace(/\/$/, "");
+    if (!base) { this.chatError = "No bridge configured — nothing to deliver to."; this.renderChatError(); return; }
+
+    this.chatSending = true;
+    this.chatError = "";
+    this.renderChatError();
+    const optimistic = {
+      id: `pending-${Date.now().toString(36)}`,
+      at: new Date().toISOString(),
+      mine: true,
+      body: body || "(context only)",
+      count: contexts.length,
+    };
+    this.chatLog.push(optimistic);
+    this.renderChatLog();
+
+    try {
+      const res = await fetch(`${base}/companion`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          body: body || "(see the gathered context)",
+          author: { id: this.cfg.user.id, name: this.cfg.user.name },
+          contexts,
+          attachments: includedItems(this.chatTray)
+            .filter((i) => i.kind === "screenshot" && i.thumb)
+            .map((i) => ({ url: i.thumb!, kind: "image", name: i.label })),
+          voice: this.voiceBase.length > 0,
+        }),
+      });
+      if (!res.ok) throw new Error(`the bridge answered ${res.status}`);
+      // Sent, so the tray has done its job.
+      input.value = "";
+      this.chatTray = clearTray();
+      this.modelVoiceBase("");
+      this.renderChatTray();
+      this.addActivity({ kind: "message.create", label: `Sent a brief to the agent${contexts.length ? ` (${contexts.length} contexts)` : ""}` });
+    } catch (e) {
+      this.chatError = e instanceof Error ? e.message : "Could not send.";
+      this.renderChatError();
+      this.addActivity({ kind: "error", level: "error", label: "Companion message failed to send" });
+    } finally {
+      this.chatSending = false;
+      this.renderChatLog();
+    }
+  }
+
+  private modelVoiceBase(v: string) { this.voiceBase = v; }
+
+  /**
+   * Dictation.
+   *
+   * Two different reasons the control can be unavailable, and they need different
+   * words: an unsupported browser is a fact, while a non-secure page is something the
+   * person can fix. Saying "your browser cannot do this" when the real problem is
+   * `http://` sends them looking in the wrong place.
+   */
+  private toggleVoice() {
+    const support = voiceSupport({
+      hasCtor: typeof (globalThis as any).SpeechRecognition !== "undefined" || typeof (globalThis as any).webkitSpeechRecognition !== "undefined",
+      isSecureContext: typeof isSecureContext === "boolean" ? isSecureContext : true,
+    });
+    if (support !== "supported") {
+      this.chatError = voiceMessage(support) ?? "Dictation is unavailable.";
+      this.renderChatError();
+      return;
+    }
+    if (this.voiceOn) return this.stopChatVoice();
+
+    const Ctor = (globalThis as any).SpeechRecognition ?? (globalThis as any).webkitSpeechRecognition;
+    const input = this.chatEl.querySelector("#loupe-chatin") as HTMLTextAreaElement;
+    try {
+      // One recogniser for the whole panel: two running at once would fight over the
+      // microphone and each would transcribe the other's session.
+      this.stopChatVoice();
+      const rec = new Ctor();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = document.documentElement.lang || "en-US";
+      // Dictation appends to whatever was already typed rather than replacing it.
+      this.voiceBase = input.value ? `${input.value.trim()} ` : "";
+      rec.onresult = (ev: any) => {
+        let text = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+        input.value = `${this.voiceBase}${text}`;
+      };
+      rec.onerror = (ev: any) => {
+        this.chatError = ev?.error === "not-allowed" ? "Microphone permission was refused." : "Dictation stopped.";
+        this.renderChatError();
+        this.stopChatVoice();
+      };
+      rec.onend = () => { if (this.voiceOn) this.stopChatVoice(); };
+      rec.start();
+      this.voice = rec;
+      this.voiceTarget = input;
+      this.voiceOn = true;
+      this.voiceStart = Date.now();
+      const pill = this.chatEl.querySelector("#loupe-chatrec") as HTMLElement;
+      pill.style.display = "";
+      this.voiceTimer = setInterval(() => {
+        const t = this.chatEl.querySelector("#loupe-chatrectime") as HTMLElement | null;
+        if (t) t.textContent = elapsedLabel(Date.now() - this.voiceStart);
+      }, 500);
+      this.chatEl.querySelector("#loupe-chatmic")!.classList.add("on");
+      this.renderChatTray();
+    } catch (e) {
+      this.chatError = e instanceof Error ? e.message : "Could not start dictation.";
+      this.renderChatError();
+    }
+  }
+
+  private stopChatVoice() {
+    this.voiceOn = false;
+    if (this.voiceTimer) clearInterval(this.voiceTimer);
+    this.voiceTimer = undefined;
+    // Release the shared recogniser, so the panel never holds the microphone after the
+    // person stopped talking to it.
+    this.stopVoice();
+    const pill = this.chatEl?.querySelector("#loupe-chatrec") as HTMLElement | null;
+    if (pill) pill.style.display = "none";
+    this.chatEl?.querySelector("#loupe-chatmic")?.classList.remove("on");
+  }
+
+  /**
+   * Follow the bridge for replies.
+   *
+   * With SSE where it works and a poll where it does not, because a reply the person
+   * never sees is the same as no reply — and the panel is the only place it appears.
+   */
+  private startCompanionStream() {
+    const base = this.cfg.bridge?.replace(/\/$/, "");
+    if (!base || this.companionSource) return;
+    if (typeof EventSource === "undefined") return;
+    try {
+      const source = new EventSource(`${base}/events`);
+      // Named event, for the same reason as the thread stream above.
+      source.addEventListener("companion", (ev) => {
+        let parsed: any;
+        try { parsed = JSON.parse((ev as MessageEvent).data); } catch { return; }
+        if (parsed?.eventType === "reply") this.receiveReply(parsed.data);
+      });
+      source.onerror = () => {};
+      this.companionSource = source;
+      // The stream can die without an event (a sleeping laptop); a slow poll keeps the
+      // replies arriving either way.
+      this.companionPoll = setInterval(() => void this.pollReplies(), 5000);
+    } catch {
+      // No stream: the poll is the whole transport then.
+      this.companionPoll = setInterval(() => void this.pollReplies(), 4000);
+    }
+  }
+
+  private companionPoll?: ReturnType<typeof setInterval>;
+  private lastReplyId = "";
+
+  private async pollReplies() {
+    const base = this.cfg.bridge?.replace(/\/$/, "");
+    if (!base) return;
+    try {
+      const res = await fetch(`${base}/companion?since=${encodeURIComponent(this.lastReplyId)}`);
+      if (!res.ok) return;
+      const { replies } = (await res.json()) as { replies?: any[] };
+      for (const r of replies ?? []) this.receiveReply(r);
+    } catch {
+      // The bridge is gone; the next tick will try again.
+    }
+  }
+
+  private receiveReply(reply: any) {
+    if (!reply?.id || !reply.body) return;
+    // Both transports deliver, so the same reply can arrive twice. The id is what keeps
+    // one reply from appearing as two.
+    if (this.chatLog.some((m) => m.id === reply.id)) return;
+    this.lastReplyId = reply.id;
+    this.chatLog.push({ id: reply.id, at: reply.at ?? new Date().toISOString(), mine: false, body: reply.body });
+    // Unread only counts when the person is not looking at the page it lands on.
+    if (this.tab !== "chat" || this.minimized) {
+      this.chatUnread++;
+      this.updateChatBadge();
+      this.desktopNotify("Loupe — the agent replied", reply.body);
+    }
+    this.addActivity({ kind: "agent.reply", label: "The agent replied" });
+    this.renderChatLog();
+  }
+
+  /** A desktop notification, when the browser will show one. Never a prompt for it. */
+  private desktopNotify(title: string, body: string) {
+    try {
+      const N = (globalThis as any).Notification;
+      if (!N || N.permission !== "granted") return;
+      new N(title, { body: String(body).slice(0, 200), tag: "loupe-companion" });
+    } catch {
+      // Notifications are a nicety; a browser that refuses them is not an error.
+    }
+  }
+
   private buildActivityPanel() {
     this.activityEl.innerHTML =
       `<div class="hint-slot" id="loupe-ahint"></div>` +
@@ -3603,13 +4010,14 @@ export class LoupeApp {
     if (typeof EventSource === "undefined") return;
     try {
       const source = new EventSource(`${bridge.replace(/\/$/, "")}/thread-updates`);
-      source.onmessage = (ev) => {
+      // Named event: the bridge writes `event: thread`, so `onmessage` never fires.
+      source.addEventListener("thread", (ev) => {
         let parsed: any;
         try { parsed = JSON.parse((ev as MessageEvent).data); } catch { return; }
-        if (!parsed || parsed.type !== "thread" || typeof parsed.threadId !== "string") return;
+        if (!parsed || typeof parsed.threadId !== "string") return;
         if (!this.messages.has(parsed.threadId)) return;
         void this.refreshMessages(parsed.threadId);
-      };
+      });
       // The browser reconnects on its own; a dead bridge is not worth surfacing.
       source.onerror = () => {};
       this.liveSource = source;
@@ -3842,6 +4250,10 @@ export class LoupeApp {
   destroy() {
     this.liveSource?.close();
     this.liveSource = undefined;
+    this.companionSource?.close();
+    this.companionSource = undefined;
+    if (this.companionPoll) clearInterval(this.companionPoll);
+    this.stopVoice();
     this.stopPresence();
     this.stopRecording?.();
     this.setMode("off");

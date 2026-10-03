@@ -120,6 +120,10 @@
       userHmac: "decb2c23961bbcea494b1034aad995b8f30c9a2e517598667b791b73e8752846",
       // Served by the backend, so the API is same-origin.
       apiBase: location.origin,
+      // The agent bridge, for the Chat tab. Opt-in via ?bridge=http://127.0.0.1:9800
+      // rather than hardcoded — the bridge binds an ephemeral port, and the demo must
+      // not assume one is running.
+      bridge: new URLSearchParams(location.search).get("bridge") || undefined,
     });
 
     // --- Demo-only: simulate a dev shipping new code -----------------------

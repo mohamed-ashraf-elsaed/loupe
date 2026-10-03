@@ -16,6 +16,7 @@ export type BridgeEvent =
   | { type: "agents"; at: string; data: AgentInfo[] }
   | { type: "presence"; at: string; data: unknown[] }
   | { type: "companion"; at: string; eventType: "message" | "reply"; data?: unknown }
+  | { type: "activity"; at: string; data?: unknown }
   | { type: "thread"; at: string; threadId: string; eventType: ThreadEventType; data?: unknown };
 
 export type Subscriber = (event: BridgeEvent) => void;

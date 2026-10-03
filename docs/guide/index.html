@@ -1217,9 +1217,25 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.26</strong> (2026-10-02).</p>
+          release: <strong>0.10.27</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.27</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Chat in the panel.</strong> Gather several elements into one message — a visual
+              brief is usually about several things at once, and one click at a time makes you write what
+              you could have shown. Order is part of the message, so the chips reorder.</li>
+            <li><strong>Dictation</strong>, with a red recording pill and an honest message about why it
+              is unavailable when it is.</li>
+            <li><strong>Activity dashboard</strong> at <code>/monitor</code> — a live timeline, sessions,
+              tool bars and files touched, served by the bridge so it works when nothing else is running.</li>
+            <li><strong>Fixed — every SSE stream was silently dead.</strong> The bridge names its events,
+              so a client listening on <code>onmessage</code> received nothing: the live thread refresh and
+              the reply push both never worked, and the poll masked the second.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.26</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
           <ul class="bul">
             <li><strong>Companion chat.</strong> Send a message to the agent while it is working — it

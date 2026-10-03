@@ -31,7 +31,7 @@ import { AgentRegistry, AGENT_SWEEP_MS } from "./src/bridge/agent-registry.ts";
 import { PresenceRegistry } from "./src/bridge/presence-registry.ts";
 import { EventStore } from "./src/bridge/event-store.ts";
 import { CompanionQueue, prependToResult } from "./src/bridge/companion-queue.ts";
-import { sessionsFromEvents, sessionSummaryText } from "./src/bridge/session-manager.ts";
+import { activitySummary, sessionsFromEvents, sessionSummaryText } from "./src/bridge/session-manager.ts";
 import { installHooksFile, HOOK_MARKER } from "./src/hooks/hook-installer.ts";
 import { stateFilePath } from "./src/bridge/state-file.ts";
 import { EventBus } from "./src/bridge/events.ts";
@@ -85,6 +85,9 @@ const presence = new PresenceRegistry();
 // one the hooks and the panel are talking to.
 const events = new EventStore({ file: process.env.LOUPE_EVENT_FILE || undefined });
 const companion = new CompanionQueue();
+// Set once the bridge is up, so a tool can tell a person where to watch. Null when the
+// bridge could not start, which the tool reports rather than inventing a URL.
+let bridgeUrl: string | null = null;
 const bus = new EventBus();
 // The MCP server authenticates to the API as an admin (project secret).
 const ADMIN = process.env.LOUPE_ADMIN_KEY || "";
@@ -297,7 +300,7 @@ function hookScriptPath(): string {
   return candidates.find((c) => existsSync(c)) ?? candidates[0]!;
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.26" });
+const server = new McpServer({ name: "loupe", version: "0.10.27" });
 
 /**
  * Carry any pending companion message on every tool result.
@@ -472,6 +475,63 @@ registerTool(
 );
 
 registerTool(
+  "get_recent_events",
+  "The raw agent event stream — tool calls, prompts, session starts and stops — newest first. Use it when you need to know exactly what has run, rather than a summary.",
+  {
+    limit: z.number().int().positive().max(200).optional().describe("How many events. Default 30."),
+    type: z.string().optional().describe('Filter to one type, e.g. "tool_use" or "prompt_submit".'),
+  },
+  async ({ limit, type }) => {
+    const events = events.latest(limit ?? 30).filter((e) => !type || e.type === type);
+    if (!events.length) {
+      return wrap(
+        events.size === 0 && !type
+          ? "No agent events recorded yet. The hooks may not be installed — install_agent_hooks adds them."
+          : `No events${type ? ` of type ${type}` : ""} recorded.`,
+      );
+    }
+    return wrap(
+      events
+        .map((e) => {
+          const ok = (e.payload as any)?.ok === false ? " [FAILED]" : "";
+          const files = e.files?.length ? ` — ${e.files.join(", ")}` : "";
+          return `${e.at}  ${e.type}${e.tool ? ` (${e.tool})` : ""}${ok}: ${e.summary ?? ""}${files}`.trimEnd();
+        })
+        .join("\n"),
+    );
+  },
+);
+
+registerTool(
+  "get_files_touched",
+  "Every file the agent has touched in the recorded sessions, in first-seen order. Use it to see the blast radius of the work so far before adding to it.",
+  {},
+  async () => {
+    const summary = activitySummary(events.recent(events.size()));
+    if (!summary.files.length) {
+      return wrap("No files recorded yet. The hooks may not be installed — install_agent_hooks adds them.");
+    }
+    const bySession = summary.sessions
+      .filter((s) => s.files.length)
+      .map((s) => `${s.active ? "●" : "○"} ${s.id}:\n  ${s.files.join("\n  ")}`)
+      .join("\n\n");
+    return wrap(`${summary.files.length} file${summary.files.length === 1 ? "" : "s"} touched:\n\n${bySession}`);
+  },
+);
+
+registerTool(
+  "get_dashboard_url",
+  "The local URL of the live activity dashboard — a page a person can open to watch what the agent is doing right now. Give them this when they ask to see progress.",
+  {},
+  async () => {
+    if (!bridgeUrl) {
+      return wrap("The activity dashboard is not running — the bridge did not start. Agents still work; there is just nothing to watch.");
+    }
+    return wrap(`Open ${bridgeUrl}/monitor to watch agent activity live.\n\nIt is served by the local bridge and is read-only.`);
+  },
+);
+
+registerTool(
   "install_agent_hooks",
   "Install the Claude Code hooks that report tool use, prompts and sessions to Loupe. Idempotent (running it twice changes nothing), backed up before writing, and it never touches another tool's hook entries. Opt-in: nothing installs these on its own.",
   {
@@ -610,6 +670,7 @@ if (isEntrypoint()) {
   // The bridge first: it is how the browser reaches us, and the tools still work
   // without it, so a busy port must not stop the server from connecting.
   const bridge = BRIDGE_PORT ? await startHttpBridge(BRIDGE_PORT, { store, registry, presence, events, companion, bus }) : null;
+  bridgeUrl = bridge?.url ?? null;
 
   // Register this agent so the panel's picker shows it, and keep it alive. The id is
   // derived from the identity, so a restart lands on the same row instead of leaving

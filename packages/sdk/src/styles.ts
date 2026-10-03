@@ -771,6 +771,64 @@ export const STYLES = /* css */ `
   object-fit: cover; cursor: pointer; background: var(--bg-2);
 }
 
+/* ------------------------------------------------------------- companion chat */
+/* Same inset as the Activity view — without it the composer and its Send button sit
+   flush against the panel's edge, which reads as a clipped button. */
+.chat-view { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px 12px 16px; }
+.chat-tray {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
+}
+.tray-head { display: flex; align-items: center; gap: 6px; }
+.tray-title { font-size: 11px; color: var(--muted); }
+.tray-spacer, .chat-spacer { flex: 1; }
+.tray-chip {
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-size: 11px;
+}
+.tray-chip.off { opacity: .5; }
+.tray-thumb { width: 24px; height: 24px; border-radius: 4px; object-fit: cover; flex: none; }
+.tray-kind { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; flex: none; }
+.tray-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
+.tray-nudge, .tray-x {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 11px; padding: 1px 4px; border-radius: 4px; line-height: 1.2;
+}
+.tray-nudge:disabled { opacity: .3; cursor: default; }
+.tray-nudge:not(:disabled):hover, .tray-x:hover { color: var(--accent); background: var(--accent-soft); }
+.chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+.chat-empty { color: var(--muted); font-size: 12px; padding: 12px 4px; line-height: 1.5; }
+.chat-msg { padding: 8px 10px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); }
+.chat-msg.mine { background: var(--accent-soft); border-color: var(--accent); }
+.chat-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px; }
+.chat-who { font-size: 11px; }
+.chat-when { font-size: 10px; color: var(--muted); }
+.chat-ctx {
+  font-size: 10px; color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 999px; padding: 0 5px; margin-left: auto;
+}
+.chat-body { font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.chat-compose { border-top: 1px solid var(--line); padding-top: 8px; }
+.chat-in {
+  width: 100%; resize: vertical; min-height: 44px; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--bg);
+  color: var(--ink); font: inherit; font-size: 12.5px;
+}
+.chat-in:focus { outline: none; border-color: var(--accent); }
+.chat-foot { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.chat-add, .chat-mic, .chat-send {
+  padding: 4px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.chat-add:hover, .chat-mic:hover { border-color: var(--accent); color: var(--accent); }
+.chat-mic.on { border-color: var(--err, #f2555a); color: #f2555a; background: color-mix(in srgb, #f2555a 14%, transparent); }
+.chat-send { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chat-send:hover { opacity: .9; }
+.chat-rec { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #f2555a; }
+.chat-rec-dot { width: 7px; height: 7px; border-radius: 50%; background: #f2555a; animation: chatpulse 1.2s ease-in-out infinite; }
+@keyframes chatpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.chat-err { font-size: 11px; color: #f2555a; }
+
 /* reactions */
 .rxns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; position: relative; }
 .rxn {

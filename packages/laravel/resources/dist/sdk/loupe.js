@@ -807,6 +807,64 @@ var Loupe = (() => {
   object-fit: cover; cursor: pointer; background: var(--bg-2);
 }
 
+/* ------------------------------------------------------------- companion chat */
+/* Same inset as the Activity view \u2014 without it the composer and its Send button sit
+   flush against the panel's edge, which reads as a clipped button. */
+.chat-view { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px 12px 16px; }
+.chat-tray {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
+}
+.tray-head { display: flex; align-items: center; gap: 6px; }
+.tray-title { font-size: 11px; color: var(--muted); }
+.tray-spacer, .chat-spacer { flex: 1; }
+.tray-chip {
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-size: 11px;
+}
+.tray-chip.off { opacity: .5; }
+.tray-thumb { width: 24px; height: 24px; border-radius: 4px; object-fit: cover; flex: none; }
+.tray-kind { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; flex: none; }
+.tray-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
+.tray-nudge, .tray-x {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 11px; padding: 1px 4px; border-radius: 4px; line-height: 1.2;
+}
+.tray-nudge:disabled { opacity: .3; cursor: default; }
+.tray-nudge:not(:disabled):hover, .tray-x:hover { color: var(--accent); background: var(--accent-soft); }
+.chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+.chat-empty { color: var(--muted); font-size: 12px; padding: 12px 4px; line-height: 1.5; }
+.chat-msg { padding: 8px 10px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); }
+.chat-msg.mine { background: var(--accent-soft); border-color: var(--accent); }
+.chat-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px; }
+.chat-who { font-size: 11px; }
+.chat-when { font-size: 10px; color: var(--muted); }
+.chat-ctx {
+  font-size: 10px; color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 999px; padding: 0 5px; margin-left: auto;
+}
+.chat-body { font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.chat-compose { border-top: 1px solid var(--line); padding-top: 8px; }
+.chat-in {
+  width: 100%; resize: vertical; min-height: 44px; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--bg);
+  color: var(--ink); font: inherit; font-size: 12.5px;
+}
+.chat-in:focus { outline: none; border-color: var(--accent); }
+.chat-foot { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.chat-add, .chat-mic, .chat-send {
+  padding: 4px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 11px; cursor: pointer;
+}
+.chat-add:hover, .chat-mic:hover { border-color: var(--accent); color: var(--accent); }
+.chat-mic.on { border-color: var(--err, #f2555a); color: #f2555a; background: color-mix(in srgb, #f2555a 14%, transparent); }
+.chat-send { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chat-send:hover { opacity: .9; }
+.chat-rec { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #f2555a; }
+.chat-rec-dot { width: 7px; height: 7px; border-radius: 50%; background: #f2555a; animation: chatpulse 1.2s ease-in-out infinite; }
+@keyframes chatpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.chat-err { font-size: 11px; color: #f2555a; }
+
 /* reactions */
 .rxns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; position: relative; }
 .rxn {
@@ -3389,6 +3447,87 @@ var Loupe = (() => {
     return (words[0].slice(0, 1) + words[words.length - 1].slice(0, 1)).toUpperCase();
   }
 
+  // ../shared/dist/companion-tray.js
+  function emptyTray() {
+    return { items: [] };
+  }
+  function addToTray(state, item) {
+    const full = { include: true, ...item };
+    const at = state.items.findIndex((i) => i.id === full.id);
+    if (at < 0)
+      return { items: [...state.items, full] };
+    const items = [...state.items];
+    items[at] = { ...items[at], ...full, include: items[at].include };
+    return { items };
+  }
+  function removeFromTray(state, id) {
+    return { items: state.items.filter((i) => i.id !== id) };
+  }
+  function toggleInclude(state, id) {
+    return { items: state.items.map((i) => i.id === id ? { ...i, include: !i.include } : i) };
+  }
+  function moveInTray(state, id, to) {
+    const from = state.items.findIndex((i) => i.id === id);
+    if (from < 0)
+      return state;
+    const target = Math.max(0, Math.min(state.items.length - 1, to));
+    if (target === from)
+      return state;
+    const items = [...state.items];
+    const [moved] = items.splice(from, 1);
+    items.splice(target, 0, moved);
+    return { items };
+  }
+  function nudgeInTray(state, id, delta) {
+    const at = state.items.findIndex((i) => i.id === id);
+    if (at < 0)
+      return state;
+    return moveInTray(state, id, at + delta);
+  }
+  function includedItems(state) {
+    return state.items.filter((i) => i.include);
+  }
+  function trayCount(state) {
+    return { total: state.items.length, included: includedItems(state).length };
+  }
+  function clearTray() {
+    return { items: [] };
+  }
+  function trayPayload(state) {
+    return includedItems(state).map((i) => ({
+      kind: i.kind,
+      id: i.ref ?? i.id,
+      url: i.url,
+      label: i.label
+    }));
+  }
+  function traySummary(state) {
+    const { total, included } = trayCount(state);
+    if (!total)
+      return "No context gathered";
+    if (included === total)
+      return `${total} context${total === 1 ? "" : "s"}`;
+    return `${included} of ${total} included`;
+  }
+  function voiceSupport(env) {
+    if (!env.isSecureContext)
+      return "insecure";
+    return env.hasCtor ? "supported" : "unsupported";
+  }
+  function voiceMessage(support) {
+    if (support === "supported")
+      return null;
+    if (support === "insecure")
+      return "Dictation needs a secure page (https, or localhost).";
+    return "This browser cannot dictate \u2014 the Web Speech API is not available.";
+  }
+  function elapsedLabel(ms) {
+    const total = Math.max(0, Math.floor(ms / 1e3));
+    const mm = Math.floor(total / 60);
+    const ss = total % 60;
+    return `${mm}:${String(ss).padStart(2, "0")}`;
+  }
+
   // ../shared/dist/index.js
   var COMMENT_STAGES = ["queue", "todo", "in_progress", "in_review", "resolved"];
   var STAGE_LABELS = {
@@ -3742,7 +3881,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.26" : "dev";
+  var SDK_VERSION = true ? "0.10.27" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -3786,6 +3925,10 @@ var Loupe = (() => {
     }
   ];
   var HINTS = {
+    chat: {
+      title: "Talk to the agent",
+      body: "Gather what you are looking at and send it in one go. The agent gets it on its very next step \u2014 not after it finishes."
+    },
     home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
     comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
     activity: { title: "Watch the work happen", body: "Every event the bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." }
@@ -3793,7 +3936,8 @@ var Loupe = (() => {
   var BUILTIN_TABS = [
     { id: "home", label: "Home" },
     { id: "comments", label: "Comments" },
-    { id: "activity", label: "Activity" }
+    { id: "activity", label: "Activity" },
+    { id: "chat", label: "Chat" }
   ];
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
@@ -3931,6 +4075,17 @@ var Loupe = (() => {
        * rather than a `.tab-<id>` selector, so host-registered ids need no CSS.
        */
       this.viewEls = /* @__PURE__ */ new Map();
+      /** The gather tray: elements and screenshots collected into one message. */
+      this.chatTray = emptyTray();
+      /** Sent messages and received replies, in one ordered transcript. */
+      this.chatLog = [];
+      this.chatUnread = 0;
+      this.chatSending = false;
+      this.chatError = "";
+      this.voiceOn = false;
+      this.voiceBase = "";
+      this.voiceStart = 0;
+      this.lastReplyId = "";
       /** In-app notifications: mentions of you, newest first. */
       this.notifications = [];
       // ---- inspector ------------------------------------------------------------
@@ -4185,6 +4340,7 @@ var Loupe = (() => {
       this.renderHome();
       this.startPresence();
       this.startLiveThreads();
+      this.startCompanionStream();
       void this.loadNotifications();
       if (this.scope === "all") void this.loadAllComments();
       this.observe();
@@ -4402,6 +4558,8 @@ var Loupe = (() => {
       commentsView.append(this.commentsHint, tools, listHead, this.reviewBar, this.listEl, this.buildIntegrations());
       const activityView = el("div", "view activity-view");
       this.activityEl = activityView;
+      const chatView = el("div", "view chat-view");
+      this.chatEl = chatView;
       const customViews = (this.cfg.tabs ?? []).map((t) => {
         const view = el("div", "view custom-view");
         const slot = el("div", "hint-slot");
@@ -4433,20 +4591,370 @@ var Loupe = (() => {
       resize.addEventListener("pointerdown", this.onResizeDown);
       this.consentEl = el("div", "consent");
       this.consentEl.style.display = "none";
-      dock.append(head, this.minBar, this.consentEl, tabs, homeView, commentsView, activityView, ...customViews, resize);
-      for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView]]) {
+      dock.append(head, this.minBar, this.consentEl, tabs, homeView, commentsView, activityView, chatView, ...customViews, resize);
+      for (const [id, view] of [["home", homeView], ["comments", commentsView], ["activity", activityView], ["chat", chatView]]) {
         this.viewEls.set(id, view);
       }
       customViews.forEach((v, i) => this.viewEls.set((this.cfg.tabs ?? [])[i].id, v));
       this.buildHomePanel();
       this.buildActivityPanel();
+      this.buildChatPanel();
       return dock;
     }
+    buildChatPanel() {
+      this.chatEl.innerHTML = `<div class="hint-slot" id="loupe-chint"></div><div class="chat-tray" id="loupe-tray"></div><div class="chat-log" id="loupe-chatlog"></div><div class="chat-compose"><textarea class="chat-in" id="loupe-chatin" rows="2" placeholder="Tell the agent what you see\u2026"></textarea><div class="chat-foot"><button class="chat-add" id="loupe-chatadd" title="Add what you have selected">\uFF0B Selection</button><button class="chat-mic" id="loupe-chatmic" title="Dictate">\u{1F399}</button><span class="chat-rec" id="loupe-chatrec" style="display:none"><span class="chat-rec-dot"></span><span id="loupe-chatrectime">0:00</span></span><span class="chat-spacer"></span><span class="chat-err" id="loupe-chaterr"></span><button class="chat-send" id="loupe-chatsend">Send</button></div></div>`;
+      const input = this.chatEl.querySelector("#loupe-chatin");
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.oninput = () => {
+        this.chatError = "";
+        this.renderChatError();
+      };
+      input.onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void this.sendCompanion();
+        }
+      };
+      this.chatEl.querySelector("#loupe-chatadd").onclick = (e) => {
+        e.stopPropagation();
+        void this.addSelectionToTray();
+      };
+      this.chatEl.querySelector("#loupe-chatsend").onclick = (e) => {
+        e.stopPropagation();
+        void this.sendCompanion();
+      };
+      this.chatEl.querySelector("#loupe-chatmic").onclick = (e) => {
+        e.stopPropagation();
+        this.toggleVoice();
+      };
+      this.renderChatTray();
+      this.renderChatLog();
+      this.updateChatBadge();
+    }
+    /** The Chat tab label carries the unread count, so it is visible from any page. */
+    updateChatBadge() {
+      const tab = this.tabList.findIndex((t) => t.id === "chat");
+      const buttons = this.shadow?.querySelectorAll(".tabs .tab");
+      const el2 = buttons?.[tab];
+      if (!el2) return;
+      el2.textContent = this.chatUnread ? `Chat \xB7 ${this.chatUnread > 9 ? "9+" : this.chatUnread}` : "Chat";
+    }
+    renderChatError() {
+      const box = this.chatEl?.querySelector("#loupe-chaterr");
+      if (box) box.textContent = this.chatError;
+    }
+    renderChatTray() {
+      const box = this.chatEl?.querySelector("#loupe-tray");
+      if (!box) return;
+      box.textContent = "";
+      if (!this.chatTray.items.length) {
+        box.style.display = "none";
+        return;
+      }
+      box.style.display = "";
+      const head = el("div", "tray-head");
+      head.append(
+        el("span", "tray-title", traySummary(this.chatTray)),
+        el("span", "tray-spacer")
+      );
+      const clear = el("button", "tray-x", "Clear");
+      clear.onclick = (e) => {
+        e.stopPropagation();
+        this.chatTray = clearTray();
+        this.renderChatTray();
+      };
+      head.appendChild(clear);
+      box.appendChild(head);
+      this.chatTray.items.forEach((item, i) => {
+        const chip = el("div", "tray-chip" + (item.include ? "" : " off"));
+        const check = el("input");
+        check.type = "checkbox";
+        check.checked = item.include;
+        check.title = "Include in the message";
+        check.onchange = (e) => {
+          e.stopPropagation();
+          this.chatTray = toggleInclude(this.chatTray, item.id);
+          this.renderChatTray();
+        };
+        const label = el("span", "tray-label", item.label);
+        label.title = item.label + (item.url ? ` \u2014 ${item.url}` : "");
+        const up = el("button", "tray-nudge", "\u2191");
+        up.disabled = i === 0;
+        up.onclick = (e) => {
+          e.stopPropagation();
+          this.chatTray = nudgeInTray(this.chatTray, item.id, -1);
+          this.renderChatTray();
+        };
+        const down = el("button", "tray-nudge", "\u2193");
+        down.disabled = i === this.chatTray.items.length - 1;
+        down.onclick = (e) => {
+          e.stopPropagation();
+          this.chatTray = nudgeInTray(this.chatTray, item.id, 1);
+          this.renderChatTray();
+        };
+        const x = el("button", "tray-x", "\u2715");
+        x.title = "Remove";
+        x.onclick = (e) => {
+          e.stopPropagation();
+          this.chatTray = removeFromTray(this.chatTray, item.id);
+          this.renderChatTray();
+        };
+        chip.append(check, item.thumb ? (() => {
+          const img = el("img", "tray-thumb");
+          img.src = item.thumb;
+          img.alt = "";
+          return img;
+        })() : el("span", "tray-kind", item.kind), label, up, down, x);
+        box.appendChild(chip);
+      });
+    }
+    renderChatLog() {
+      const box = this.chatEl?.querySelector("#loupe-chatlog");
+      if (!box) return;
+      box.textContent = "";
+      if (!this.chatLog.length) {
+        box.appendChild(el(
+          "div",
+          "chat-empty",
+          this.cfg.bridge ? "Say what you see while the agent works \u2014 it lands on the agent\u2019s very next step." : "Connect a bridge to talk to the agent. Without one there is nothing to deliver to."
+        ));
+        return;
+      }
+      for (const m of this.chatLog) {
+        const row = el("div", "chat-msg" + (m.mine ? " mine" : ""));
+        const head = el("div", "chat-head");
+        head.append(
+          el("b", "chat-who", m.mine ? "You" : m.author ?? "Agent"),
+          el("span", "chat-when", fmtAgo(m.at))
+        );
+        if (m.count) head.appendChild(el("span", "chat-ctx", `${m.count} context${m.count === 1 ? "" : "s"}`));
+        const body = el("div", "chat-body");
+        for (const seg of mentionSegments(m.body, parseMentions(m.body))) {
+          if (seg.mention) body.appendChild(el("span", "mention", seg.text));
+          else body.appendChild(document.createTextNode(seg.text));
+        }
+        row.append(head, body);
+        box.appendChild(row);
+      }
+      box.scrollTop = box.scrollHeight;
+    }
+    /** Pull the current selection off the bridge and into the tray. */
+    async addSelectionToTray() {
+      const base = this.cfg.bridge?.replace(/\/$/, "");
+      if (!base) {
+        this.chatError = "No bridge configured.";
+        this.renderChatError();
+        return;
+      }
+      try {
+        const res = await fetch(`${base}/selection/latest`);
+        if (!res.ok) throw new Error(String(res.status));
+        const { selection } = await res.json();
+        if (!selection) {
+          this.chatError = "Nothing selected yet.";
+          this.renderChatError();
+          return;
+        }
+        this.chatTray = addToTray(this.chatTray, {
+          id: selection.correlationId ?? selection.selector ?? String(selection.at),
+          kind: "element",
+          // The selector is what identifies it; the text makes it recognisable.
+          label: `${selection.selector ?? selection.tag ?? "element"}${selection.text ? ` \u2014 \u201C${String(selection.text).slice(0, 24)}\u201D` : ""}`,
+          url: selection.url,
+          ref: selection.correlationId ?? selection.selector
+        });
+        this.chatError = "";
+        this.renderChatError();
+        this.renderChatTray();
+      } catch (e) {
+        this.chatError = e instanceof Error ? `Could not read the selection: ${e.message}` : "Could not read the selection.";
+        this.renderChatError();
+      }
+    }
+    async sendCompanion() {
+      const input = this.chatEl.querySelector("#loupe-chatin");
+      const body = input.value.trim();
+      const contexts = trayPayload(this.chatTray);
+      if (!body && !contexts.length) return;
+      if (this.chatSending) return;
+      const base = this.cfg.bridge?.replace(/\/$/, "");
+      if (!base) {
+        this.chatError = "No bridge configured \u2014 nothing to deliver to.";
+        this.renderChatError();
+        return;
+      }
+      this.chatSending = true;
+      this.chatError = "";
+      this.renderChatError();
+      const optimistic = {
+        id: `pending-${Date.now().toString(36)}`,
+        at: (/* @__PURE__ */ new Date()).toISOString(),
+        mine: true,
+        body: body || "(context only)",
+        count: contexts.length
+      };
+      this.chatLog.push(optimistic);
+      this.renderChatLog();
+      try {
+        const res = await fetch(`${base}/companion`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            body: body || "(see the gathered context)",
+            author: { id: this.cfg.user.id, name: this.cfg.user.name },
+            contexts,
+            attachments: includedItems(this.chatTray).filter((i) => i.kind === "screenshot" && i.thumb).map((i) => ({ url: i.thumb, kind: "image", name: i.label })),
+            voice: this.voiceBase.length > 0
+          })
+        });
+        if (!res.ok) throw new Error(`the bridge answered ${res.status}`);
+        input.value = "";
+        this.chatTray = clearTray();
+        this.modelVoiceBase("");
+        this.renderChatTray();
+        this.addActivity({ kind: "message.create", label: `Sent a brief to the agent${contexts.length ? ` (${contexts.length} contexts)` : ""}` });
+      } catch (e) {
+        this.chatError = e instanceof Error ? e.message : "Could not send.";
+        this.renderChatError();
+        this.addActivity({ kind: "error", level: "error", label: "Companion message failed to send" });
+      } finally {
+        this.chatSending = false;
+        this.renderChatLog();
+      }
+    }
+    modelVoiceBase(v) {
+      this.voiceBase = v;
+    }
     /**
-     * The Activity view: a status row, a collapsible summary, the tool chips and the
-     * live feed. Everything is re-derived from `activityEvents` on render, so the
-     * summary and the micro-stats can never disagree with the feed below them.
+     * Dictation.
+     *
+     * Two different reasons the control can be unavailable, and they need different
+     * words: an unsupported browser is a fact, while a non-secure page is something the
+     * person can fix. Saying "your browser cannot do this" when the real problem is
+     * `http://` sends them looking in the wrong place.
      */
+    toggleVoice() {
+      const support = voiceSupport({
+        hasCtor: typeof globalThis.SpeechRecognition !== "undefined" || typeof globalThis.webkitSpeechRecognition !== "undefined",
+        isSecureContext: typeof isSecureContext === "boolean" ? isSecureContext : true
+      });
+      if (support !== "supported") {
+        this.chatError = voiceMessage(support) ?? "Dictation is unavailable.";
+        this.renderChatError();
+        return;
+      }
+      if (this.voiceOn) return this.stopChatVoice();
+      const Ctor = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
+      const input = this.chatEl.querySelector("#loupe-chatin");
+      try {
+        this.stopChatVoice();
+        const rec = new Ctor();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = document.documentElement.lang || "en-US";
+        this.voiceBase = input.value ? `${input.value.trim()} ` : "";
+        rec.onresult = (ev) => {
+          let text = "";
+          for (let i = ev.resultIndex; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+          input.value = `${this.voiceBase}${text}`;
+        };
+        rec.onerror = (ev) => {
+          this.chatError = ev?.error === "not-allowed" ? "Microphone permission was refused." : "Dictation stopped.";
+          this.renderChatError();
+          this.stopChatVoice();
+        };
+        rec.onend = () => {
+          if (this.voiceOn) this.stopChatVoice();
+        };
+        rec.start();
+        this.voice = rec;
+        this.voiceTarget = input;
+        this.voiceOn = true;
+        this.voiceStart = Date.now();
+        const pill = this.chatEl.querySelector("#loupe-chatrec");
+        pill.style.display = "";
+        this.voiceTimer = setInterval(() => {
+          const t = this.chatEl.querySelector("#loupe-chatrectime");
+          if (t) t.textContent = elapsedLabel(Date.now() - this.voiceStart);
+        }, 500);
+        this.chatEl.querySelector("#loupe-chatmic").classList.add("on");
+        this.renderChatTray();
+      } catch (e) {
+        this.chatError = e instanceof Error ? e.message : "Could not start dictation.";
+        this.renderChatError();
+      }
+    }
+    stopChatVoice() {
+      this.voiceOn = false;
+      if (this.voiceTimer) clearInterval(this.voiceTimer);
+      this.voiceTimer = void 0;
+      this.stopVoice();
+      const pill = this.chatEl?.querySelector("#loupe-chatrec");
+      if (pill) pill.style.display = "none";
+      this.chatEl?.querySelector("#loupe-chatmic")?.classList.remove("on");
+    }
+    /**
+     * Follow the bridge for replies.
+     *
+     * With SSE where it works and a poll where it does not, because a reply the person
+     * never sees is the same as no reply — and the panel is the only place it appears.
+     */
+    startCompanionStream() {
+      const base = this.cfg.bridge?.replace(/\/$/, "");
+      if (!base || this.companionSource) return;
+      if (typeof EventSource === "undefined") return;
+      try {
+        const source = new EventSource(`${base}/events`);
+        source.addEventListener("companion", (ev) => {
+          let parsed;
+          try {
+            parsed = JSON.parse(ev.data);
+          } catch {
+            return;
+          }
+          if (parsed?.eventType === "reply") this.receiveReply(parsed.data);
+        });
+        source.onerror = () => {
+        };
+        this.companionSource = source;
+        this.companionPoll = setInterval(() => void this.pollReplies(), 5e3);
+      } catch {
+        this.companionPoll = setInterval(() => void this.pollReplies(), 4e3);
+      }
+    }
+    async pollReplies() {
+      const base = this.cfg.bridge?.replace(/\/$/, "");
+      if (!base) return;
+      try {
+        const res = await fetch(`${base}/companion?since=${encodeURIComponent(this.lastReplyId)}`);
+        if (!res.ok) return;
+        const { replies } = await res.json();
+        for (const r of replies ?? []) this.receiveReply(r);
+      } catch {
+      }
+    }
+    receiveReply(reply) {
+      if (!reply?.id || !reply.body) return;
+      if (this.chatLog.some((m) => m.id === reply.id)) return;
+      this.lastReplyId = reply.id;
+      this.chatLog.push({ id: reply.id, at: reply.at ?? (/* @__PURE__ */ new Date()).toISOString(), mine: false, body: reply.body });
+      if (this.tab !== "chat" || this.minimized) {
+        this.chatUnread++;
+        this.updateChatBadge();
+        this.desktopNotify("Loupe \u2014 the agent replied", reply.body);
+      }
+      this.addActivity({ kind: "agent.reply", label: "The agent replied" });
+      this.renderChatLog();
+    }
+    /** A desktop notification, when the browser will show one. Never a prompt for it. */
+    desktopNotify(title, body) {
+      try {
+        const N = globalThis.Notification;
+        if (!N || N.permission !== "granted") return;
+        new N(title, { body: String(body).slice(0, 200), tag: "loupe-companion" });
+      } catch {
+      }
+    }
     buildActivityPanel() {
       this.activityEl.innerHTML = `<div class="hint-slot" id="loupe-ahint"></div><div class="mon-status" id="loupe-mon-status"><span class="mon-dot"></span><span class="mon-status-label"></span><span class="mon-spacer"></span><button class="mon-clear" data-role="mon-clear" title="Clear the feed">Clear</button></div><div class="mon-summary" id="loupe-mon-summary"></div><div class="mon-micro" id="loupe-mon-micro"></div><div class="mon-chips" id="loupe-mon-chips"></div><div class="mon-feed" id="loupe-mon-feed"></div>`;
       this.feedEl = this.activityEl.querySelector("#loupe-mon-feed");
@@ -6787,17 +7295,17 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       if (typeof EventSource === "undefined") return;
       try {
         const source = new EventSource(`${bridge.replace(/\/$/, "")}/thread-updates`);
-        source.onmessage = (ev) => {
+        source.addEventListener("thread", (ev) => {
           let parsed;
           try {
             parsed = JSON.parse(ev.data);
           } catch {
             return;
           }
-          if (!parsed || parsed.type !== "thread" || typeof parsed.threadId !== "string") return;
+          if (!parsed || typeof parsed.threadId !== "string") return;
           if (!this.messages.has(parsed.threadId)) return;
           void this.refreshMessages(parsed.threadId);
-        };
+        });
         source.onerror = () => {
         };
         this.liveSource = source;
@@ -7020,6 +7528,10 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
     destroy() {
       this.liveSource?.close();
       this.liveSource = void 0;
+      this.companionSource?.close();
+      this.companionSource = void 0;
+      if (this.companionPoll) clearInterval(this.companionPoll);
+      this.stopVoice();
       this.stopPresence();
       this.stopRecording?.();
       this.setMode("off");

@@ -7,6 +7,8 @@ import { startHttpBridge } from "../src/bridge/http-bridge.ts";
 import { PresenceRegistry } from "../src/bridge/presence-registry.ts";
 import { SelectionStore } from "../src/bridge/selection-store.ts";
 import { eventTypeFor, normalizeHookEvent, toolFailed } from "../src/hooks/hook-events.ts";
+import { activitySummary } from "../src/bridge/session-manager.ts";
+import { clip, notify, planNotification } from "../src/bridge/notify.ts";
 
 const boot = async (opts: { events?: EventStore; companion?: CompanionQueue } = {}) => {
   const events = opts.events ?? new EventStore();
@@ -288,5 +290,208 @@ describe("the delivery guarantee", () => {
     const out = prependToResult({ content: [] }, taken);
     const text = (out.content![0] as any).text as string;
     expect(text.indexOf("first")).toBeLessThan(text.indexOf("second"));
+  });
+});
+
+describe("the activity summary", () => {
+  const at = (n: number) => new Date(1_700_000_000_000 + n * 1000).toISOString();
+
+  it("counts across sessions, and the dashboard and the tools share it", () => {
+    const events = [
+      { id: "1", at: at(1), type: "tool_use", sessionId: "a", tool: "Read" },
+      { id: "2", at: at(2), type: "tool_use", sessionId: "a", tool: "Read", files: ["x.ts"] },
+      { id: "3", at: at(3), type: "tool_use", sessionId: "b", tool: "Edit", files: ["y.ts"] },
+    ] as any[];
+    const s = activitySummary(events, { now: Date.parse(at(3)) + 1000 });
+    expect(s.totals).toMatchObject({ events: 3, tools: 3, files: 2, sessions: 2 });
+    expect(s.toolCounts).toEqual([{ tool: "Read", count: 2 }, { tool: "Edit", count: 1 }]);
+    expect(s.files).toEqual(["x.ts", "y.ts"]);
+  });
+
+  it("counts a failed tool result, and only a failed one", () => {
+    const events = [
+      { id: "1", at: at(1), type: "tool_result", sessionId: "a", payload: { ok: false } },
+      { id: "2", at: at(2), type: "tool_result", sessionId: "a", payload: { ok: true } },
+      // No verdict recorded means no failure claimed — "we do not know" is not "no".
+      { id: "3", at: at(3), type: "tool_result", sessionId: "a", payload: {} },
+    ] as any[];
+    expect(activitySummary(events, { now: Date.parse(at(3)) }).totals.failures).toBe(1);
+  });
+
+  it("is empty and honest about it", () => {
+    const s = activitySummary([]);
+    expect(s.totals).toEqual({ events: 0, tools: 0, files: 0, failures: 0, sessions: 0 });
+    expect(s.sessions).toEqual([]);
+    expect(s.toolCounts).toEqual([]);
+    expect(s.files).toEqual([]);
+  });
+});
+
+describe("desktop notifications", () => {
+  it("plans the right tool per platform", () => {
+    expect(planNotification("t", "b", "linux")).toMatchObject({ command: "notify-send", usable: true });
+    expect(planNotification("t", "b", "darwin").command).toBe("osascript");
+    // Windows has no portable toast without a module or a signed app id, so it says so
+    // rather than pretending.
+    expect(planNotification("t", "b", "win32")).toMatchObject({ usable: false });
+    expect(planNotification("t", "b", "plan9").usable).toBe(false);
+  });
+
+  it("passes the body as an argument, never through a shell", () => {
+    const calls: { command: string; args: string[] }[] = [];
+    const body = "hello; rm -rf ~ && echo pwned";
+    const result = notify("t", body, { platform: "linux", run: (command, args) => calls.push({ command, args }) });
+    expect(result.sent).toBe(true);
+    // Whatever the body says, it is one argument to notify-send. `spawn` with
+    // shell:false is what makes that true.
+    expect(calls[0]!.args).toContain(body);
+    expect(calls[0]!.command).toBe("notify-send");
+  });
+
+  it("escapes quotes and backslashes for AppleScript, which has no argv", () => {
+    const quoted = planNotification("t", 'say "hi" C:\\temp', "darwin");
+    const script = quoted.args[1]!;
+    expect(script).toContain('\\"hi\\"');
+    expect(script).toContain("C:\\\\temp");
+    // One `-e` argument, so nothing in the body can become a second statement.
+    expect(quoted.args).toHaveLength(2);
+  });
+
+  it("flattens a multi-line body so the notification stays readable", () => {
+    expect(clip("line one\n\nline two")).toBe("line one line two");
+    expect(clip("x".repeat(400)).length).toBeLessThanOrEqual(200);
+  });
+
+  it("is a no-op when turned off, and never throws when the tool is missing", () => {
+    let ran = false;
+    expect(notify("t", "b", { enabled: false, platform: "linux", run: () => { ran = true; } })).toMatchObject({ sent: false });
+    expect(ran).toBe(false);
+
+    const failed = notify("t", "b", { platform: "linux", run: () => { throw new Error("notify-send: not found"); } });
+    expect(failed.sent).toBe(false);
+    expect(failed.reason).toMatch(/not found/);
+
+    // An unusable platform never even tries.
+    expect(notify("t", "b", { platform: "win32" })).toMatchObject({ sent: false });
+  });
+});
+
+describe("the activity dashboard", () => {
+  it("serves a self-contained page", async () => {
+    const { handle } = await boot();
+    try {
+      const res = await fetch(`${handle.url}/monitor`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toMatch(/text\/html/);
+      const html = await res.text();
+      // Self-contained on purpose: it has to work when nothing else is running, which
+      // is exactly when a broken asset pipeline would be discovered.
+      expect(html).toContain("<!doctype html>");
+      expect(html).toContain("/monitor/api/events");
+      expect(html).toContain("/monitor/api/summary");
+      expect(html).toContain("EventSource");
+      expect(html).not.toMatch(/<script[^>]+src=/);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it("answers the dashboard's own API", async () => {
+    const { handle, events } = await boot();
+    try {
+      events.add({ type: "tool_use", sessionId: "s1", tool: "Read", files: ["a.ts"] });
+
+      const list = await (await fetch(`${handle.url}/monitor/api/events`)).json();
+      expect(list.events).toHaveLength(1);
+      expect(list.total).toBe(1);
+
+      const summary = await (await fetch(`${handle.url}/monitor/api/summary`)).json();
+      expect(summary.totals).toMatchObject({ tools: 1, files: 1, sessions: 1 });
+      expect(summary.toolCounts).toEqual([{ tool: "Read", count: 1 }]);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it("broadcasts an activity event on ingest, so the page updates live", async () => {
+    const { handle } = await boot();
+    try {
+      const controller = new AbortController();
+      const stream = await fetch(`${handle.url}/events`, { signal: controller.signal });
+      const reader = stream.body!.getReader();
+
+      await post(`${handle.url}/events/ingest`, {
+        event: "PreToolUse", payload: { session_id: "s1", tool_name: "Grep", tool_input: { path: "src/x.ts" } },
+      });
+
+      const decoder = new TextDecoder();
+      let text = "";
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline && !text.includes('"activity"')) {
+        const { value } = await reader.read();
+        if (value) text += decoder.decode(value);
+      }
+      expect(text).toContain('"activity"');
+      expect(text).toContain("Grep");
+      controller.abort();
+    } finally {
+      handle.close();
+    }
+  });
+});
+
+describe("the SSE wire format", () => {
+  // The contract that broke: the bridge writes `event: <type>`, so a client that only
+  // listens to `onmessage` — which is for unnamed events — receives nothing at all,
+  // while its own tests pass against a fake. Pinned here so it cannot drift again.
+  it("names every event, so a client must listen by name", async () => {
+    const { handle } = await boot();
+    try {
+      const controller = new AbortController();
+      const stream = await fetch(`${handle.url}/events`, { signal: controller.signal });
+      const reader = stream.body!.getReader();
+
+      await post(`${handle.url}/companion/reply`, { body: "named" });
+
+      const decoder = new TextDecoder();
+      let text = "";
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline && !text.includes("named")) {
+        const { value } = await reader.read();
+        if (value) text += decoder.decode(value);
+      }
+      // The `event:` line is what makes it a named event rather than a `message` one.
+      expect(text).toMatch(/event: companion\ndata: /);
+      expect(text).toContain('"body":"named"');
+      controller.abort();
+    } finally {
+      handle.close();
+    }
+  });
+
+  it("keeps /thread-updates to thread events only", async () => {
+    const { handle } = await boot();
+    try {
+      const controller = new AbortController();
+      const stream = await fetch(`${handle.url}/thread-updates`, { signal: controller.signal });
+      const reader = stream.body!.getReader();
+
+      // A companion message must not appear on the thread channel.
+      await post(`${handle.url}/companion`, { body: "not a thread event" });
+      await post(`${handle.url}/thread-updates`, { threadId: "t1", eventType: "message_added" });
+
+      const decoder = new TextDecoder();
+      let text = "";
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline && !text.includes("message_added")) {
+        const { value } = await reader.read();
+        if (value) text += decoder.decode(value);
+      }
+      expect(text).toContain("event: thread");
+      expect(text).not.toContain("not a thread event");
+      controller.abort();
+    } finally {
+      handle.close();
+    }
   });
 });

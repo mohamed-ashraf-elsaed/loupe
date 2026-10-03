@@ -133,3 +133,46 @@ export function sessionSummaryText(s: SessionSummary): string {
   const top = s.toolCounts.slice(0, 3).map((t) => `${t.tool} ×${t.count}`).join(", ");
   return `${parts.join(" · ")}${top ? `\n   most used: ${top}` : ""}`;
 }
+
+export interface ActivitySummary {
+  totals: { events: number; tools: number; files: number; failures: number; sessions: number };
+  sessions: SessionSummary[];
+  /** Across every session, most used first. */
+  toolCounts: { tool: string; count: number }[];
+  /** Across every session, in first-seen order. */
+  files: string[];
+}
+
+/**
+ * One aggregation, used by the dashboard and by `get_activity_summary`.
+ *
+ * Shared on purpose: a page that counted its own way would eventually disagree with
+ * what an agent is told, and then neither would be trusted.
+ */
+export function activitySummary(events: AgentEvent[], opts: { sessionLimit?: number; now?: number } = {}): ActivitySummary {
+  const sessions = sessionsFromEvents(events, opts.now);
+  const counts = new Map<string, number>();
+  const files: string[] = [];
+  let tools = 0;
+  let failures = 0;
+
+  // Sessions are newest-first for display, but the file list is documented as
+  // "first-seen" — so walk them oldest-first, or the list reads backwards.
+  for (const s of [...sessions].reverse()) {
+    for (const t of s.toolCounts) counts.set(t.tool, (counts.get(t.tool) ?? 0) + t.count);
+    tools += s.tools;
+    for (const f of s.files) if (!files.includes(f)) files.push(f);
+  }
+  for (const e of events) {
+    if (e.type === "tool_result" && (e.payload as any)?.ok === false) failures++;
+  }
+
+  return {
+    totals: { events: events.length, tools, files: files.length, failures, sessions: sessions.length },
+    sessions: opts.sessionLimit ? sessions.slice(0, opts.sessionLimit) : sessions,
+    toolCounts: [...counts.entries()]
+      .map(([tool, count]) => ({ tool, count }))
+      .sort((a, b) => b.count - a.count || a.tool.localeCompare(b.tool)),
+    files,
+  };
+}

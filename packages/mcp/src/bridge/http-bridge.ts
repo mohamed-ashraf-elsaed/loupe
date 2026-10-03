@@ -18,8 +18,10 @@ import { PresenceRegistry, type PresenceJoin } from "./presence-registry.ts";
 import { EventBus } from "./events.ts";
 import { EventStore } from "./event-store.ts";
 import { CompanionQueue } from "./companion-queue.ts";
-import { sessionsFromEvents } from "./session-manager.ts";
+import { activitySummary, sessionsFromEvents } from "./session-manager.ts";
 import { normalizeHookEvent } from "../hooks/hook-events.ts";
+import { DASHBOARD_HTML } from "./dashboard.ts";
+import { notify } from "./notify.ts";
 import { clearBridgeState, writeBridgeState } from "./state-file.ts";
 
 
@@ -356,6 +358,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
 
       const payload = parsed.payload && typeof parsed.payload === "object" ? parsed.payload : {};
       const event = deps.events.add(normalizeHookEvent(parsed.event, payload, parsed.at));
+      // Broadcast on ingest, so a dashboard that is open updates as it happens rather
+      // than when it happens to poll.
+      deps.bus.publish({ type: "activity", data: event, at: new Date().toISOString() });
       return send(res, 202, { ok: true, event }, origin);
     }
 
@@ -370,6 +375,31 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
     if (method === "GET" && path === "/sessions") {
       if (!deps.events) return send(res, 503, { error: "event store is not enabled" }, origin);
       return send(res, 200, { sessions: sessionsFromEvents(deps.events.recent(deps.events.size())) }, origin);
+    }
+
+    // ---- the dashboard -----------------------------------------------------
+    // Served from here so it works when nothing else is running — which is exactly the
+    // situation it exists for.
+    if (method === "GET" && (path === "/monitor" || path === "/monitor/" || path === "/dashboard")) {
+      // `cors` first, so the headers are set before writeHead freezes them.
+      cors(res, origin);
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(DASHBOARD_HTML);
+      return;
+    }
+
+    if (method === "GET" && path === "/monitor/api/events") {
+      if (!deps.events) return send(res, 503, { error: "event store is not enabled" }, origin);
+      const limit = Number(url.searchParams.get("limit") ?? 200);
+      return send(res, 200, {
+        events: deps.events.latest(Number.isFinite(limit) ? limit : 200),
+        total: deps.events.size(),
+      }, origin);
+    }
+
+    if (method === "GET" && path === "/monitor/api/summary") {
+      if (!deps.events) return send(res, 503, { error: "event store is not enabled" }, origin);
+      return send(res, 200, activitySummary(deps.events.recent(deps.events.size())), origin);
     }
 
     // ---- companion ---------------------------------------------------------
@@ -398,6 +428,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
         voice: parsed.voice === true,
       });
       deps.bus.publishCompanion("message", message);
+      // Only companion messages notify. One popup per tool call would be unusable, and
+      // a notification people turn off is worse than none.
+      if (process.env.LOUPE_NOTIFY !== "0") notify("Loupe", `${message.author?.name ?? "Someone"}: ${message.body}`);
       return send(res, 201, { ok: true, message, queued: deps.companion.size() }, origin);
     }
 

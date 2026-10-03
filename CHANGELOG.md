@@ -11,6 +11,54 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.27] — 2026-10-02
+
+### Added
+
+- **Companion panel** (milestone 0.15; #28). A Chat page in the panel: a gather tray, a composer with
+  dictation, and the transcript of what was said and answered.
+  - **The gather tray** collects several elements and screenshots into **one** message, because a visual
+    brief is usually about several things at once — "these three cards, not the header" — and one click
+    at a time forces a person to write what they could have shown. Order is part of the message, so the
+    chips reorder; unchecking keeps an item without sending it; re-adding the same element *replaces*
+    rather than duplicates, since clicking add twice is a person confirming. A tray-only send works: a
+    blank body is not an empty message when three things are attached.
+  - **Dictation** via the Web Speech API, with the panel's existing recogniser rather than a second one —
+    two running at once would fight over the microphone and each would transcribe the other's session.
+    The red recording pill shows elapsed `m:ss`. The two reasons the control can be unavailable get
+    **different wording**: an unsupported browser is a fact, while a non-secure page is something the
+    person can fix, and telling them their browser cannot do it when the real problem is `http://` sends
+    them looking in the wrong place.
+  - A **unread badge on the Chat tab** and a desktop notification, both only when the person is not
+    already looking at the chat — a badge you are staring at is noise.
+- **Activity dashboard** (milestone 0.15; #30). `GET /monitor` on the bridge serves a self-contained page:
+  live timeline, sessions, tool-usage bars, files touched, and a failure count. No build step and no
+  dependencies, because it has to work mid-task when nothing else is running — which is exactly when a
+  broken asset pipeline would be discovered. Read-only by design, so a stray click cannot affect the work
+  being watched. The headline numbers come from the **same aggregation the tools use**, so the page
+  cannot disagree with what an agent would be told.
+- **Desktop notifications**, best-effort per platform: `notify-send` on Linux, `osascript` on macOS, and
+  Windows reported as unsupported rather than pretended — a toast needs a module or a signed app id that
+  a background process does not have. **No shell**: the title and body are arbitrary text from a person,
+  so arguments are passed as an array with `shell: false`, and the body is escaped for AppleScript, which
+  has no argv. Only companion messages notify — one popup per tool call would be unusable, and a
+  notification people turn off is worse than none.
+- **Tools**: `get_recent_events`, `get_files_touched`, `get_dashboard_url`.
+
+### Fixed
+
+- **Every SSE stream was silently dead.** The bridge names its events (`event: <type>`), so a client
+  listening on `onmessage` — which only receives *unnamed* events — got nothing at all. That meant
+  **v0.10.25's live thread refresh never worked**, and **v0.10.26's companion reply push never worked**
+  either: replies arrived only through the 5-second poll, which is precisely what hid it. The dashboard
+  made it visible because it has no poll for the timeline.
+  - Fixed in all three clients (thread stream, companion stream, dashboard) by listening by name. The test
+    fakes now behave like a real `EventSource` — named events through `addEventListener`, `onmessage` only
+    for unnamed ones — because a fake exposing only `onmessage` is what let this pass while the transport
+    was dead. The wire format itself is now pinned in the bridge's tests.
+- **The Chat view had no padding**, so the composer and its Send button sat flush against the panel's
+  rounded edge and read as clipped. Same inset as the Activity view now.
+
 ## [0.10.26] — 2026-10-02
 
 ### Added
