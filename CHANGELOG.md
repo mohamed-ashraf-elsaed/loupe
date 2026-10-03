@@ -11,6 +11,60 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.26] — 2026-10-02
+
+### Added
+
+- **Companion chat** (milestone 0.15; #27). The panel can send a message to the agent *while it is
+  working*, and the agent cannot miss it: any pending message is prepended to the **next tool result**.
+  - **Queue with an explicit delivery guarantee.** `take()` marks messages in flight; only `ack()`
+    removes them, and `requeue()` puts them back. That is what makes "never lost *and* never delivered
+    twice" possible — the two pull in opposite directions, and a plain drain satisfies only the second.
+    The wrapper takes the queue **only after the handler has returned**, so a tool that throws does not
+    consume a message it never delivered. Asserted end to end against the real MCP server over stdio,
+    including that the one after next does *not* carry it again.
+  - **The nudge is unmissable and short**, because it is the first thing the agent reads on the way into
+    a result it was expecting: who said it, what they said, what it refers to, and how to answer. The
+    original result is kept beneath it, never replaced.
+  - Multi-context payloads (several elements plus screenshots, and a voice flag), and a reply path back
+    to the panel over SSE with a `?since=` polling fallback for a client that cannot hold a stream open.
+  - Tools: `get_companion_messages` (with `drain: false` to read without consuming) and
+    `reply_to_companion`.
+- **Agent instrumentation** (milestone 0.15; #29). Claude Code hooks report tool use, prompts, sessions
+  and notifications to the bridge.
+  - **An idempotent, reversible installer.** Read-modify-write against `~/.claude/settings.json`: every
+    key Loupe does not own is preserved, someone else's hook entries are never rewritten, ours is
+    *appended* so a hook that must run first still does, a backup is taken before the first change, the
+    write is atomic, and a file that cannot be parsed is **refused rather than overwritten**. A moved
+    checkout is repaired in place rather than duplicated. Every failure is returned, never thrown.
+  - **Opt-in, not on startup.** An MCP server that silently edits your agent's settings the first time
+    you run it is the kind of thing that gets a package uninstalled, whatever its README says. The
+    `install_agent_hooks` tool does it when asked, and the comment says so plainly.
+  - **A hook script that cannot get in the way**: 1.2 s timeout, never throws, always exits 0, and —
+    because Claude Code interprets hook stdout — writes nothing to stdout at all. Verified live with
+    malformed stdin, no stdin, and no bridge present; all three exit 0 in silence.
+  - **The bridge publishes its own port.** It binds an ephemeral port, but the hook runs as a separate
+    process with no way to be told which; a small state file in `~/.loupe/` is the hand-off. Removed on
+    close, and only if the file is still ours — a second bridge may have overwritten it meanwhile.
+  - **A bounded event store** (1000, newest-last) with debounced atomic persistence and reload. The cap
+    is the feature: hooks fire on every tool call, and an unbounded store is a memory leak. Tool
+    payloads are recursively shrunk — a long string, a long array and a deep object are the same problem.
+    A corrupt file is dropped rather than fatal.
+  - **Sessions are folded from the events, not maintained alongside them.** A parallel structure has to
+    be updated on every event and reconciled on every restart, and it fails by drifting; folding 1000
+    events is microseconds and cannot disagree with the events it came from.
+  - Tools: `get_activity_summary`, `install_agent_hooks`. Endpoints: `POST /events/ingest`,
+    `GET /events/recent`, `GET /sessions`, `POST /companion`, `GET /companion`, `POST /companion/reply`.
+
+### Notes
+
+- The 12 existing tools now register through one `registerTool` chokepoint, so the companion wrapper is
+  applied in a single place rather than remembered at each call site.
+- The hook script ships in the package (`files: ["dist", "hooks"]`), and its path is resolved for both
+  layouts — run from source it is `./hooks`, and in the published package the entry is bundled into
+  `dist/` so it is `../hooks`. Resolving it wrongly would install a command pointing at a file that does
+  not exist, which fails silently: the hook simply never runs.
+
 ## [0.10.25] — 2026-10-02
 
 ### Added

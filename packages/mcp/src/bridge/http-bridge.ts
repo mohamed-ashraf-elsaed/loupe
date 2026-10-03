@@ -16,12 +16,22 @@ import { SelectionStore, validateSelection } from "./selection-store.ts";
 import { AgentRegistry, type AgentRegistration } from "./agent-registry.ts";
 import { PresenceRegistry, type PresenceJoin } from "./presence-registry.ts";
 import { EventBus } from "./events.ts";
+import { EventStore } from "./event-store.ts";
+import { CompanionQueue } from "./companion-queue.ts";
+import { sessionsFromEvents } from "./session-manager.ts";
+import { normalizeHookEvent } from "../hooks/hook-events.ts";
+import { clearBridgeState, writeBridgeState } from "./state-file.ts";
+
 
 export interface BridgeDeps {
   store: SelectionStore;
   registry: AgentRegistry;
   presence: PresenceRegistry;
   bus: EventBus;
+  /** Agent events from the hooks. Optional so a host can run the bridge without them. */
+  events?: EventStore;
+  /** The companion queue. Optional for the same reason. */
+  companion?: CompanionQueue;
 }
 
 export interface BridgeHandle {
@@ -60,11 +70,17 @@ export async function startHttpBridge(
       // The bound port, not the requested one: passing 0 asks the OS for a free port,
       // which is what tests (and any host that does not care) want.
       const bound = (server.address() as { port: number } | null)?.port ?? port;
+      // Publish where we are. The hook script runs in a separate process with no way
+      // to know an ephemeral port, so it reads this file instead of being configured.
+      writeBridgeState(bound);
       // Track the keep-alive timers so close() cannot leave one running.
       return {
         port: bound,
         url: `http://127.0.0.1:${bound}`,
-        close: () => close(server),
+        close: async () => {
+          clearBridgeState(bound);
+          await close(server);
+        },
       };
     } catch (e) {
       const code = (e as NodeJS.ErrnoException)?.code;
@@ -318,6 +334,108 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
       }
       deps.bus.publishThread(evt.threadId, evt.eventType, evt.data);
       return send(res, 202, { ok: true }, origin);
+    }
+
+    // ---- agent events (from the hooks) --------------------------------------
+    // The hook script POSTs here. It is deliberately tolerant: a hook that sends an
+    // unknown event type is stored, not rejected, because the alternative is losing
+    // the event that would have explained why something else is missing.
+    if (method === "POST" && path === "/events/ingest") {
+      const body = await readBody(req);
+      if (!body.ok) return send(res, 400, { error: body.error }, origin);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(body.text);
+      } catch {
+        return send(res, 400, { error: "body is not valid JSON" }, origin);
+      }
+      if (!parsed || typeof parsed !== "object" || typeof parsed.event !== "string" || !parsed.event) {
+        return send(res, 400, { error: "event is required" }, origin);
+      }
+      if (!deps.events) return send(res, 503, { error: "event store is not enabled" }, origin);
+
+      const payload = parsed.payload && typeof parsed.payload === "object" ? parsed.payload : {};
+      const event = deps.events.add(normalizeHookEvent(parsed.event, payload, parsed.at));
+      return send(res, 202, { ok: true, event }, origin);
+    }
+
+    if (method === "GET" && path === "/events/recent") {
+      if (!deps.events) return send(res, 503, { error: "event store is not enabled" }, origin);
+      const limit = Number(url.searchParams.get("limit") ?? 50);
+      const type = url.searchParams.get("type") ?? undefined;
+      const events = deps.events.latest(Number.isFinite(limit) ? limit : 50);
+      return send(res, 200, { events: type ? events.filter((e) => e.type === type) : events, total: deps.events.size() }, origin);
+    }
+
+    if (method === "GET" && path === "/sessions") {
+      if (!deps.events) return send(res, 503, { error: "event store is not enabled" }, origin);
+      return send(res, 200, { sessions: sessionsFromEvents(deps.events.recent(deps.events.size())) }, origin);
+    }
+
+    // ---- companion ---------------------------------------------------------
+    // The panel's half of the chat. Messages wait here until a tool call carries them
+    // to the agent, which is the whole point: the agent is mid-task and cannot be
+    // interrupted, but the message must not wait until it is finished either.
+    if (method === "POST" && path === "/companion") {
+      const body = await readBody(req);
+      if (!body.ok) return send(res, 400, { error: body.error }, origin);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(body.text);
+      } catch {
+        return send(res, 400, { error: "body is not valid JSON" }, origin);
+      }
+      if (!parsed || typeof parsed !== "object" || typeof parsed.body !== "string" || !parsed.body.trim()) {
+        return send(res, 400, { error: "body is required" }, origin);
+      }
+      if (!deps.companion) return send(res, 503, { error: "companion is not enabled" }, origin);
+
+      const message = deps.companion.push({
+        body: parsed.body,
+        author: parsed.author,
+        contexts: Array.isArray(parsed.contexts) ? parsed.contexts.slice(0, 20) : undefined,
+        attachments: Array.isArray(parsed.attachments) ? parsed.attachments.slice(0, 10) : undefined,
+        voice: parsed.voice === true,
+      });
+      deps.bus.publishCompanion("message", message);
+      return send(res, 201, { ok: true, message, queued: deps.companion.size() }, origin);
+    }
+
+    if (method === "GET" && path === "/companion") {
+      if (!deps.companion) return send(res, 503, { error: "companion is not enabled" }, origin);
+      if (url.searchParams.get("since")) {
+        // Polling fallback for a client that cannot hold an SSE stream open.
+        return send(res, 200, {
+          replies: deps.companion.listReplies(50),
+          messages: deps.companion.list(),
+          queued: deps.companion.size(),
+        }, origin);
+      }
+      return send(res, 200, {
+        messages: deps.companion.list(),
+        replies: deps.companion.listReplies(50),
+        queued: deps.companion.size(),
+        pending: deps.companion.pending(),
+      }, origin);
+    }
+
+    if (method === "POST" && path === "/companion/reply") {
+      const body = await readBody(req);
+      if (!body.ok) return send(res, 400, { error: body.error }, origin);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(body.text);
+      } catch {
+        return send(res, 400, { error: "body is not valid JSON" }, origin);
+      }
+      if (!parsed || typeof parsed.body !== "string" || !parsed.body.trim()) {
+        return send(res, 400, { error: "body is required" }, origin);
+      }
+      if (!deps.companion) return send(res, 503, { error: "companion is not enabled" }, origin);
+
+      const reply = deps.companion.addReply({ body: parsed.body, inReplyTo: parsed.inReplyTo });
+      deps.bus.publishCompanion("reply", reply);
+      return send(res, 201, { ok: true, reply }, origin);
     }
 
     // ---- events (SSE) ------------------------------------------------------

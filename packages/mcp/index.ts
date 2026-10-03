@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
 import { argv } from "node:process";
+import { existsSync } from "node:fs";
 import { z } from "zod";
 
 /**
@@ -28,6 +29,11 @@ import { Buffer } from "node:buffer";
 import { SelectionStore } from "./src/bridge/selection-store.ts";
 import { AgentRegistry, AGENT_SWEEP_MS } from "./src/bridge/agent-registry.ts";
 import { PresenceRegistry } from "./src/bridge/presence-registry.ts";
+import { EventStore } from "./src/bridge/event-store.ts";
+import { CompanionQueue, prependToResult } from "./src/bridge/companion-queue.ts";
+import { sessionsFromEvents, sessionSummaryText } from "./src/bridge/session-manager.ts";
+import { installHooksFile, HOOK_MARKER } from "./src/hooks/hook-installer.ts";
+import { stateFilePath } from "./src/bridge/state-file.ts";
 import { EventBus } from "./src/bridge/events.ts";
 import { startHttpBridge } from "./src/bridge/http-bridge.ts";
 import { createElementContextTools } from "./src/tools/element-context.ts";
@@ -74,6 +80,11 @@ const store = new SelectionStore(Number(process.env.LOUPE_SELECTION_CAP ?? 50));
 const registry = new AgentRegistry();
 // Peers expire faster than agents — a browser closes quickly, a terminal does not.
 const presence = new PresenceRegistry();
+// Agent events from the hooks, and the companion queue the panel writes to. Both are
+// optional at the bridge level; here they are always on, because this process is the
+// one the hooks and the panel are talking to.
+const events = new EventStore({ file: process.env.LOUPE_EVENT_FILE || undefined });
+const companion = new CompanionQueue();
 const bus = new EventBus();
 // The MCP server authenticates to the API as an admin (project secret).
 const ADMIN = process.env.LOUPE_ADMIN_KEY || "";
@@ -269,8 +280,49 @@ export async function proposeChange({ id, html, css, notes }: { id: string; html
   return wrap(`Proposal saved for #${id}. The dev team can now review your modified HTML/CSS in the dashboard.`);
 }
 
-const server = new McpServer({ name: "loupe", version: "0.10.25" });
-server.tool(
+
+/**
+ * Where the hook script lives.
+ *
+ * It is not next to the entry point in both cases: run from source it is `./hooks`,
+ * and in the published package the entry is bundled into `dist/` so it is `../hooks`.
+ * Resolving it wrongly would install a command pointing at a file that does not exist,
+ * which fails silently — the hook simply never runs.
+ */
+function hookScriptPath(): string {
+  const candidates = [
+    new URL("./hooks/loupe-hook.mjs", import.meta.url).pathname,
+    new URL("../hooks/loupe-hook.mjs", import.meta.url).pathname,
+  ];
+  return candidates.find((c) => existsSync(c)) ?? candidates[0]!;
+}
+
+const server = new McpServer({ name: "loupe", version: "0.10.26" });
+
+/**
+ * Carry any pending companion message on every tool result.
+ *
+ * The queue is taken only *after* the handler has returned, so a tool that throws does
+ * not consume a message it never delivered. And it is acked here, in the same breath as
+ * returning the result the agent will read — as close to "delivered exactly once" as a
+ * request/response protocol allows.
+ */
+function withCompanion<T extends (...args: any[]) => any>(handler: T): T {
+  return (async (...args: any[]) => {
+    const result = await handler(...args);
+    const pending = companion.take();
+    if (!pending.length) return result;
+    const wrapped = prependToResult(result, pending);
+    companion.ack(pending.map((m) => m.id));
+    return wrapped;
+  }) as T;
+}
+
+/** Register a tool with the companion wrapper applied — the single chokepoint. */
+function registerTool(name: string, description: string, schema: any, handler: any) {
+  return (server as any).tool(name, description, schema, withCompanion(handler));
+}
+registerTool(
   "list_comments",
   "List Loupe product-feedback comments for the project as a task backlog. Each item carries its board stage, priority and change type, so you can start with the most urgent. Use this to see what a PM has flagged, then work through the items.",
   {
@@ -283,19 +335,19 @@ server.tool(
   },
   listComments,
 );
-server.tool(
+registerTool(
   "get_comment",
   "Get the full context for one comment: the request, the page, the target element's HTML, and its computed styles — everything needed to make the change.",
   { id: z.string().describe("The comment id from list_comments.") },
   getComment,
 );
-server.tool(
+registerTool(
   "update_status",
   "Move a comment along the board. Set In Progress when you start it, and In Review when the change is ready for a human — only a person resolves a comment, so never set Resolved yourself.",
   { id: z.string(), status: STAGE_ARG },
   updateStatus,
 );
-server.tool(
+registerTool(
   "propose_change",
   "Submit the modified UI for a comment: the rewritten HTML (and optional CSS) that resolves the PM's request. This stores your proposal on the comment so the dev team can review the code and a live preview in the dashboard. Use get_comment first to see the original element, its computed styles, and the screenshot.",
   {
@@ -334,19 +386,19 @@ const SELECTION_ARGS = {
   ),
 };
 
-server.tool(
+registerTool(
   "get_latest_selection",
   "What the user last selected in the browser, with its element, computed styles and the source files most likely to render it. Use this when someone says \"this element\" or \"what I'm looking at\" and no thread exists yet.",
   {},
   async () => wrap((await elementTools.getLatestSelection()).text),
 );
-server.tool(
+registerTool(
   "get_selection_history",
   "The recent element selections, newest first — useful when the user clicked a few things and you need to pick the right one.",
   { limit: z.number().int().positive().max(50).optional().describe("How many to list. Defaults to 10.") },
   async ({ limit }) => wrap((await elementTools.getSelectionHistory({ limit })).text),
 );
-server.tool(
+registerTool(
   "get_element_context",
   "Full context for one element: the element, the page, its key computed styles, the ranked source files that probably render it, and a ready-made edit prompt. Pass thread_id to work from a stored comment, or nothing to use the latest live selection. Call this before editing anything.",
   {
@@ -356,12 +408,95 @@ server.tool(
   async ({ thread_id, selection_id, include_prompt }) =>
     wrap((await elementTools.getElementContext({ thread_id, selection_id }, { include_prompt })).text),
 );
-server.tool(
+registerTool(
   "find_source_for_selection",
   "Just the ranked source files for the current selection or a stored thread — for when you only need to know where the component lives. Heuristic: verify the top candidate before editing it.",
   SELECTION_ARGS,
   async ({ thread_id, selection_id }) =>
     wrap((await elementTools.findSourceForSelection({ thread_id, selection_id })).text),
+);
+
+// ---- companion + activity ---------------------------------------------------
+
+registerTool(
+  "get_companion_messages",
+  "Read what the person watching has said while you were working. Messages are ALSO delivered automatically on every other tool result, so you rarely need this — use it when you want to check before finishing a task, or when someone asked you to wait for their input.",
+  { drain: z.boolean().optional().describe("Set false to read without consuming. Default true.") },
+  async ({ drain }) => {
+    const messages = drain === false ? companion.peek() : companion.take();
+    if (drain !== false) companion.ack(messages.map((m) => m.id));
+    if (!messages.length) return wrap("No companion messages waiting.");
+    return wrap(
+      messages.map((m) => {
+        const where = m.contexts?.length ? ` (re: ${m.contexts.map((c) => c.label ?? c.url ?? c.id ?? c.kind).join(", ")})` : "";
+        const atts = m.attachments?.length ? ` [${m.attachments.map((a) => a.url).join(", ")}]` : "";
+        return `[${m.at}] ${m.author?.name ? `${m.author.name}: ` : ""}${m.body}${where}${atts}`;
+      }).join("\n"),
+    );
+  },
+);
+
+registerTool(
+  "reply_to_companion",
+  "Answer the person watching, in the panel they are looking at. Use this when a companion message needs a response, when you need a decision before continuing, or when you finish something they asked about.",
+  {
+    body: z.string().describe("Your reply. Markdown is fine."),
+    inReplyTo: z.string().optional().describe("The id of the message you are answering."),
+  },
+  async ({ body, inReplyTo }) => {
+    const reply = companion.addReply({ body, inReplyTo });
+    bus.publishCompanion("reply", reply);
+    return wrap(`Sent to the panel at ${reply.at}.`);
+  },
+);
+
+registerTool(
+  "get_activity_summary",
+  "What this machine's agent sessions have been doing: sessions, tool-call counts, files touched, and whether a session is still live. Use it to understand what has already been tried before starting, or to answer \"what have you been working on?\".",
+  {
+    session_id: z.string().optional().describe("Just this session."),
+    limit: z.number().int().positive().max(50).optional().describe("How many sessions to summarize. Default 5."),
+  },
+  async ({ session_id, limit }) => {
+    const all = sessionsFromEvents(events.recent(events.size()));
+    const picked = session_id ? all.filter((s) => s.id === session_id) : all.slice(0, limit ?? 5);
+    if (!picked.length) {
+      return wrap(
+        events.size()
+          ? `No session matched. Known sessions: ${all.map((s) => s.id).join(", ") || "(none)"}.`
+          : "No agent events recorded yet. The hooks may not be installed — install_agent_hooks adds them.",
+      );
+    }
+    return wrap(picked.map(sessionSummaryText).join("\n\n"));
+  },
+);
+
+registerTool(
+  "install_agent_hooks",
+  "Install the Claude Code hooks that report tool use, prompts and sessions to Loupe. Idempotent (running it twice changes nothing), backed up before writing, and it never touches another tool's hook entries. Opt-in: nothing installs these on its own.",
+  {
+    path: z.string().optional().describe("The settings file to write. Defaults to ~/.claude/settings.json."),
+  },
+  async ({ path: custom }) => {
+    const script = process.env.LOUPE_HOOK_SCRIPT || hookScriptPath();
+    const target = custom || process.env.LOUPE_CLAUDE_SETTINGS || `${process.env.HOME || ""}/.claude/settings.json`;
+    const result = installHooksFile(target, script);
+    if (result.error) return wrap(`Could not install: ${result.error}\n\nNothing was changed.`);
+    if (!result.wrote) {
+      return wrap(`Already installed and current — nothing to change (${result.preserved.length} events already wired).\n\nSettings: ${target}\nHook script: ${script}`);
+    }
+    const lines = [
+      `Installed into ${target}.`,
+      result.added.length ? `Added: ${result.added.join(", ")}` : null,
+      result.repaired.length ? `Repaired (pointed somewhere stale): ${result.repaired.join(", ")}` : null,
+      result.backup ? `Backup: ${result.backup}` : null,
+      `Hook script: ${script}`,
+      "",
+      "Restart Claude Code for the hooks to take effect. Loupe's own hooks are marked with",
+      `"${HOOK_MARKER}" and your other hook entries were left untouched.`,
+    ].filter(Boolean);
+    return wrap(lines.join("\n"));
+  },
 );
 
 // ---- handoff: the agent's half of the workflow ------------------------------
@@ -385,7 +520,7 @@ const handoff = createHandoffTools({
     (await api(`/v1/comments/${encodeURIComponent(threadId)}/messages`)) as ThreadMessage[],
 });
 
-server.tool(
+registerTool(
   "mark_thread_addressed",
   "Hand a thread back to a human: it moves to In Review and, optionally, posts your closing note. Use this when the change is ready. It CANNOT resolve a thread — only a person does that — which is why there is no status argument.",
   {
@@ -394,7 +529,7 @@ server.tool(
   },
   async ({ thread_id, message }) => wrap((await handoff.markThreadAddressed({ thread_id, message })).text),
 );
-server.tool(
+registerTool(
   "add_thread_message",
   "Reply on a thread without changing its status — progress notes, questions, or the preview URL when it goes live. The status is left exactly as it was.",
   {
@@ -403,14 +538,14 @@ server.tool(
   },
   async ({ thread_id, message }) => wrap((await handoff.addThreadMessage({ thread_id, message })).text),
 );
-server.tool(
+registerTool(
   "get_thread_conversation",
   "The whole conversation on a thread: the original request, then every reply with its author. Read it before answering so you are not repeating something already said.",
   { thread_id: z.string() },
   async ({ thread_id }) => wrap((await handoff.getThreadConversation({ thread_id })).text),
 );
 
-server.tool(
+registerTool(
   "create_pr_for_thread",
   "Open a pull request for a fix — or, more usually, add it to the one the repo already has. One working branch per repo accumulates every fix as its own commit, and the PR body keeps a table of them. If that PR was merged or closed, a fresh branch is started automatically. Use `get_element_context` first to find the file, then pass the full new contents of each file you changed.",
   {
@@ -474,7 +609,7 @@ function isEntrypoint(): boolean {
 if (isEntrypoint()) {
   // The bridge first: it is how the browser reaches us, and the tools still work
   // without it, so a busy port must not stop the server from connecting.
-  const bridge = BRIDGE_PORT ? await startHttpBridge(BRIDGE_PORT, { store, registry, presence, bus }) : null;
+  const bridge = BRIDGE_PORT ? await startHttpBridge(BRIDGE_PORT, { store, registry, presence, events, companion, bus }) : null;
 
   // Register this agent so the panel's picker shows it, and keep it alive. The id is
   // derived from the identity, so a restart lands on the same row instead of leaving

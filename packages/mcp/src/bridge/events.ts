@@ -15,6 +15,7 @@ export type BridgeEvent =
   | { type: "selection"; at: string; data: unknown }
   | { type: "agents"; at: string; data: AgentInfo[] }
   | { type: "presence"; at: string; data: unknown[] }
+  | { type: "companion"; at: string; eventType: "message" | "reply"; data?: unknown }
   | { type: "thread"; at: string; threadId: string; eventType: ThreadEventType; data?: unknown };
 
 export type Subscriber = (event: BridgeEvent) => void;
@@ -48,6 +49,11 @@ export class EventBus {
   }
 
   /** Publish a thread update. The seam the MCP tools use. */
+  /** A companion message or reply, so the panel updates without polling. */
+  publishCompanion(eventType: "message" | "reply", data?: unknown): void {
+    this.publish({ type: "companion", eventType, data, at: new Date().toISOString() });
+  }
+
   publishThread(threadId: string, eventType: ThreadEventType, data?: unknown): void {
     this.publish({ type: "thread", threadId, eventType, data, at: new Date().toISOString() });
   }

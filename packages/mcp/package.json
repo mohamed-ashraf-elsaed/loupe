@@ -5,7 +5,7 @@
     "email": "m.ashraf.saed@gmail.com",
     "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
   },
-  "version": "0.10.25",
+  "version": "0.10.26",
   "description": "MCP server that exposes Loupe comments to Claude Code as an actionable, fully-contextualized backlog.",
   "keywords": [
     "loupe",
@@ -30,7 +30,8 @@
   "type": "module",
   "main": "./dist/index.js",
   "files": [
-    "dist"
+    "dist",
+    "hooks"
   ],
   "bin": {
     "loupe-mcp": "./dist/index.js"
@@ -46,6 +47,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@loupekit/shared": "0.10.25"
+    "@loupekit/shared": "0.10.26"
   }
 }
