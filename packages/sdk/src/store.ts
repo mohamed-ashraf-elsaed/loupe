@@ -1,4 +1,4 @@
-import type { Attachment, Comment, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import type { Attachment, Comment, MessageAttachment, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { toggleReaction } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
@@ -103,12 +103,16 @@ export class LocalStorageAdapter implements StorageAdapter {
     }
   }
 
-  async addMessage(threadId: string, message: { author: ThreadAuthor; body: string }): Promise<ThreadMessage> {
+  async addMessage(
+    threadId: string,
+    message: { author: ThreadAuthor; body: string; attachments?: MessageAttachment[] },
+  ): Promise<ThreadMessage> {
     const stored: ThreadMessage = {
       id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       threadId,
       author: message.author,
       body: message.body,
+      attachments: message.attachments?.length ? message.attachments : undefined,
       createdAt: new Date().toISOString(),
     };
     const all = await this.listMessages(threadId);

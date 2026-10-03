@@ -18,16 +18,32 @@ function rowToMessage(r: any): ThreadMessage {
     body: r.body,
     attachments: r.attachments ?? undefined,
     createdAt: new Date(r.created_at).toISOString(),
+    deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : undefined,
   };
 }
 
 /** Replies on a thread, oldest first. The comment body is not included — see above. */
-export async function listMessages(threadId: string): Promise<ThreadMessage[]> {
+/**
+ * A thread's replies, oldest first.
+ *
+ * Retracted messages are excluded by default — a conversation with holes punched in it
+ * is a conversation nobody can audit, but it is also not what a reader should see. The
+ * dashboard and the MCP can ask for them with `includeDeleted` when the record matters.
+ */
+export async function listMessages(
+  threadId: string,
+  opts: { includeDeleted?: boolean } = {},
+): Promise<ThreadMessage[]> {
   const d = await db();
-  const { rows } = await d.query(
-    "SELECT * FROM thread_messages WHERE thread_id = $1 ORDER BY created_at ASC, id ASC",
-    [threadId],
-  );
+  const { rows } = opts.includeDeleted
+    ? await d.query(
+        "SELECT * FROM thread_messages WHERE thread_id = $1 ORDER BY created_at ASC, id ASC",
+        [threadId],
+      )
+    : await d.query(
+        "SELECT * FROM thread_messages WHERE thread_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC, id ASC",
+        [threadId],
+      );
   return rows.map(rowToMessage);
 }
 
@@ -95,11 +111,21 @@ export async function listParticipants(
   return out;
 }
 
-export async function deleteMessage(threadId: string, id: string): Promise<boolean> {
+/**
+ * Retract a message.
+ *
+ * Soft, and it stays soft: the row survives with `deleted_at` set, so the thread's
+ * history is intact for anyone auditing it and a second delete is a no-op rather than
+ * an error. Returns the message as it now stands, or null if there is nothing to
+ * retract — including one already retracted, so a retry is safe.
+ */
+export async function deleteMessage(threadId: string, id: string): Promise<ThreadMessage | null> {
   const d = await db();
   const { rows } = await d.query(
-    "DELETE FROM thread_messages WHERE thread_id = $1 AND id = $2 RETURNING id",
+    `UPDATE thread_messages SET deleted_at = now()
+      WHERE thread_id = $1 AND id = $2 AND deleted_at IS NULL
+      RETURNING *`,
     [threadId, id],
   );
-  return rows.length > 0;
+  return rows.length ? rowToMessage(rows[0]) : null;
 }

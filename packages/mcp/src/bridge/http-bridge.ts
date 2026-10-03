@@ -297,6 +297,29 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: BridgeDep
       return send(res, 200, { ok: gone }, origin);
     }
 
+    // ---- thread updates (ingest) -------------------------------------------
+    // The API owns the data and this process owns the SSE channel, so the API relays
+    // through here rather than the other way round. Same body a tool would publish.
+    if (method === "POST" && path === "/thread-updates") {
+      const body = await readBody(req);
+      if (!body.ok) return send(res, 400, { error: body.error }, origin);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body.text);
+      } catch {
+        return send(res, 400, { error: "body is not valid JSON" }, origin);
+      }
+      const evt = parsed as { threadId?: unknown; eventType?: unknown; data?: unknown };
+      if (!evt || typeof evt !== "object" || typeof evt.threadId !== "string" || !evt.threadId) {
+        return send(res, 400, { error: "threadId is required" }, origin);
+      }
+      if (typeof evt.eventType !== "string" || !evt.eventType) {
+        return send(res, 400, { error: "eventType is required" }, origin);
+      }
+      deps.bus.publishThread(evt.threadId, evt.eventType, evt.data);
+      return send(res, 202, { ok: true }, origin);
+    }
+
     // ---- events (SSE) ------------------------------------------------------
     // `/thread-updates` is the same stream filtered to thread events, kept because
     // that is the name the panel already knows.

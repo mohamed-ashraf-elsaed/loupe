@@ -14,7 +14,7 @@ import { migrate } from "./db.ts";
 import { addNotification, listNotifications, listPeople, markRead, unreadCount } from "./notifications.ts";
 import { listReactions, toggleReaction } from "./reactions.ts";
 import { addMessage, deleteMessage, listMessages, listParticipants } from "./messages.ts";
-import { REACTION_CHOICES, resolveMentions } from "@loupekit/shared";
+import { REACTION_CHOICES, THREAD_MESSAGE_ADDED, THREAD_MESSAGE_DELETED, resolveMentions } from "@loupekit/shared";
 import type { Comment } from "@loupekit/shared";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -69,6 +69,33 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
     }
   }
   return false;
+}
+
+
+/**
+ * Relay a thread event to the agent bridge, when one is configured.
+ *
+ * The SSE channel lives in the MCP process, not here, so the API cannot publish to it
+ * directly — it POSTs to the bridge's ingest instead. `LOUPE_BRIDGE_URL` is set when the
+ * two run side by side (the dev and demo setup); with it unset this is a no-op, which is
+ * the honest default for an API that may be shared by many developers.
+ *
+ * Never throws and never awaits for long: a reply must not fail because a browser-facing
+ * relay is unreachable.
+ */
+async function publishThreadEvent(threadId: string, eventType: string, data?: unknown): Promise<void> {
+  const base = process.env.LOUPE_BRIDGE_URL;
+  if (!base) return;
+  try {
+    await fetch(`${base.replace(/\/$/, "")}/thread-updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ threadId, eventType, data }),
+      signal: AbortSignal.timeout(1000),
+    });
+  } catch {
+    // The bridge is a convenience, never a dependency.
+  }
 }
 
 export async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -143,7 +170,11 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       const auth = await authenticate(comment.projectKey, req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
 
-      if (req.method === "GET") return send(res, 200, await listMessages(threadId));
+      if (req.method === "GET") {
+        return send(res, 200, await listMessages(threadId, {
+          includeDeleted: url.searchParams.get("includeDeleted") === "1",
+        }));
+      }
 
       if (req.method === "POST") {
         const body = await readBody(req);
@@ -179,6 +210,13 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
           });
         }
 
+        // Tell anyone with this thread open. Best-effort and env-gated: with no bridge
+        // configured there is nothing to tell, and that must not fail the post.
+        void publishThreadEvent(threadId, THREAD_MESSAGE_ADDED, {
+          messageId: message.id,
+          author: message.author.name,
+        });
+
         return send(res, 201, {
           ...message,
           mentions: resolution.resolved.map((r) => r.user.id),
@@ -205,10 +243,26 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       if (!comment) return send(res, 404, { error: "not found" });
       const auth = await authenticate(comment.projectKey, req);
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
-      return send(res, 200, { ok: await deleteMessage(threadId, decodeURIComponent(messageDelete[2]!)) });
+      const deleted = await deleteMessage(threadId, decodeURIComponent(messageDelete[2]!));
+      if (deleted) void publishThreadEvent(threadId, THREAD_MESSAGE_DELETED, { messageId: deleted.id });
+      // `ok: false` for an unknown or already-retracted message — a retry is a no-op,
+      // not an error, and the caller can tell the difference.
+      return send(res, deleted ? 200 : 404, { ok: Boolean(deleted), message: deleted ?? undefined });
     }
 
     // ---- reactions ---------------------------------------------------------
+    // Every reaction on a thread, in one call. The client aggregates them itself, so
+    // there is no count to drift and no need to ask per message.
+    const threadReactions = path.match(/^\/v1\/comments\/([^/]+)\/reactions$/);
+    if (threadReactions && req.method === "GET") {
+      const threadId = decodeURIComponent(threadReactions[1]!);
+      const comment = await store.getComment(threadId);
+      if (!comment) return send(res, 404, { error: "comment not found" });
+      const auth = await authenticate(comment.projectKey, req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      return send(res, 200, { reactions: await listReactions(threadId, url.searchParams.get("viewer") ?? undefined) });
+    }
+
     // `…/messages/:messageId/reactions` — toggle for the caller, then return the
     // full set so the client never has to guess the new count.
     const reactionMatch = path.match(/^\/v1\/comments\/([^/]+)\/messages\/([^/]+)\/reactions$/);

@@ -1,4 +1,4 @@
-import type { Attachment, Comment, LoupeUser, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import type { Attachment, Comment, LoupeUser, MessageAttachment, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
@@ -95,19 +95,24 @@ export class HttpAdapter implements StorageAdapter {
     return (await res.json()) as ThreadMessage[];
   }
 
-  async addMessage(threadId: string, message: { author: ThreadAuthor; body: string }): Promise<ThreadMessage> {
+  async addMessage(
+    threadId: string,
+    message: { author: ThreadAuthor; body: string; attachments?: MessageAttachment[] },
+  ): Promise<ThreadMessage & { mentions?: string[]; unknownMentions?: string[] }> {
     const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages`, this.opts({
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(message),
     }));
     if (!res.ok) throw new Error(`addMessage failed: ${res.status}`);
-    return (await res.json()) as ThreadMessage;
+    return (await res.json()) as ThreadMessage & { mentions?: string[]; unknownMentions?: string[] };
   }
 
   async listReactions(threadId: string): Promise<Reaction[]> {
-    const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages/all/reactions`, this.opts({ headers: this.headers() }));
-    // A 404 means the message is gone, which for reactions means there are none.
+    // Thread-level, not per message: a thread's reactions are one small set and the
+    // client aggregates them, so this is one request rather than one per reply.
+    const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/reactions`, this.opts({ headers: this.headers() }));
+    // A 404 means the thread is gone, which for its reactions means there are none.
     if (res.status === 404) return [];
     if (!res.ok) throw new Error(`listReactions failed: ${res.status}`);
     return ((await res.json()) as { reactions: Reaction[] }).reactions;

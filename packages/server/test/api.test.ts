@@ -205,6 +205,94 @@ describe("routes that take the project from auth", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("retracts a message without losing the record", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "oops" }),
+    }));
+
+    const gone = await fetch(`${base}/v1/comments/c1/messages/${msg.id}`, { method: "DELETE", headers: adminH });
+    expect(gone.status).toBe(200);
+    const body = await json(gone);
+    expect(body.ok).toBe(true);
+    // The row comes back with the retraction on it, not a bare ok.
+    expect(body.message.deletedAt).toBeTruthy();
+
+    const listed = await json(await fetch(`${base}/v1/comments/c1/messages`, { headers: adminH }));
+    expect(listed.map((m: any) => m.id)).not.toContain(msg.id);
+
+    // …and it is still there for whoever needs the record.
+    const all = await json(await fetch(`${base}/v1/comments/c1/messages?includeDeleted=1`, { headers: adminH }));
+    expect(all.map((m: any) => m.id)).toContain(msg.id);
+    expect(all.find((m: any) => m.id === msg.id).deletedAt).toBeTruthy();
+  });
+
+  it("treats retracting twice as a no-op, not an error", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "hi" }),
+    }));
+    const url = `${base}/v1/comments/c1/messages/${msg.id}`;
+    expect((await fetch(url, { method: "DELETE", headers: adminH })).status).toBe(200);
+    // A retry after a flaky network must not read as a failure…
+    const again = await fetch(url, { method: "DELETE", headers: adminH });
+    expect(again.status).toBe(404);
+    expect((await json(again)).ok).toBe(false);
+  });
+
+  it("does not retract a message that never existed", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    expect((await fetch(`${base}/v1/comments/c1/messages/nope`, { method: "DELETE", headers: adminH })).status).toBe(404);
+  });
+
+  it("round-trips a reply's attachments", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const attachments = [{ url: `${base}/v1/blobs/b1.png`, kind: "image", name: "shot.png", mime: "image/png" }];
+    const posted = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "see attached", attachments }),
+    }));
+    expect(posted.attachments).toEqual(attachments);
+
+    const listed = await json(await fetch(`${base}/v1/comments/c1/messages`, { headers: adminH }));
+    expect(listed[0].attachments).toEqual(attachments);
+  });
+
+  it("keeps a reply with only an attachment", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const res = await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH,
+      body: JSON.stringify({
+        author: { id: "bob", name: "Bob" }, body: " ",
+        attachments: [{ url: `${base}/v1/blobs/b2.png`, kind: "image" }],
+      }),
+    });
+    // A blank body is still a blank body — the endpoint requires text, so this is a 400.
+    expect(res.status).toBe(400);
+  });
+
+  it("lists a thread's reactions in one call", async () => {
+    await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
+    const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ author: { id: "bob", name: "Bob" }, body: "hi" }),
+    }));
+    await fetch(`${base}/v1/comments/c1/messages/${msg.id}/reactions`, {
+      method: "POST", headers: adminH, body: JSON.stringify({ emoji: "👍", userId: "u1", userName: "U" }),
+    });
+
+    // Thread-level, which is what the client asks for — the per-message route is for
+    // toggling, and a client that had to enumerate replies would need one call each.
+    const res = await fetch(`${base}/v1/comments/c1/reactions`, { headers: adminH });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.reactions.length).toBe(1);
+    expect(body.reactions[0]).toMatchObject({ messageId: msg.id, emoji: "👍", userId: "u1" });
+  });
+
+  it("404s a thread-level reactions request for a thread that does not exist", async () => {
+    expect((await fetch(`${base}/v1/comments/nope/reactions`, { headers: adminH })).status).toBe(404);
+  });
+
   it("keeps reactions to one project's thread only", async () => {
     await fetch(`${base}/v1/comments`, { method: "POST", headers: adminH, body: JSON.stringify(comment()) });
     const msg = await json(await fetch(`${base}/v1/comments/c1/messages`, {

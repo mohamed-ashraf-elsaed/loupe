@@ -3,6 +3,7 @@
 export * from "@loupekit/shared";
 
 import type {
+  MessageAttachment,
   Reaction,
   ActivityEventInput, Attachment, Comment, Iteration, IterationKind, LoupeUser, RegionRect,
   ThreadAuthor, ThreadMessage,
@@ -213,7 +214,7 @@ export interface StorageAdapter {
    */
   addMessage(
     threadId: string,
-    message: { author: ThreadAuthor; body: string },
+    message: { author: ThreadAuthor; body: string; attachments?: MessageAttachment[] },
   ): Promise<ThreadMessage & { mentions?: string[]; unknownMentions?: string[] }>;
   /** Everyone who has taken part in the project — the people you can mention. */
   listPeople(projectKey: string): Promise<{ id: string; name: string; email?: string }[]>;

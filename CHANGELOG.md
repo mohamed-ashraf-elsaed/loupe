@@ -11,6 +11,45 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.25] — 2026-10-02
+
+### Added
+
+- **Per-message attachments** (milestone 0.13; #19). A reply can carry images and video of its own, not
+  just the comment. The reply box gets an attach control with a removable chip per file, and uploads go
+  through the **same blob seam** as the comment form — sent before the optimistic row renders, so the row
+  shows the real URLs and never has to be patched once the blobs land. A reply with only an attachment is
+  still a reply; one with neither is not sent. Attachments render inline (images and `<video>`) under the
+  message that carries them.
+- **Soft delete** (milestone 0.13; #19). Retracting a reply sets `deleted_at`; the row survives, so a
+  thread's history stays auditable and an agent reading it later can tell "removed" from "never existed".
+  `listMessages` excludes them by default and `?includeDeleted=1` returns them; `threadConversation`
+  filters for display while `includeDeleted` opts in. Retracting twice is a **no-op returning 404**, not
+  an error — a retry after a flaky network is safe, and the test asserts a second delete does not claim
+  success.
+- **Thread-update events** (milestone 0.13; #19). A new reply and a retraction both publish
+  `message_added` / `message_deleted`. The SSE channel lives in the MCP process and the data lives in the
+  API, so the API relays through the bridge's `POST /thread-updates` ingest — **env-gated on
+  `LOUPE_BRIDGE_URL`** and best-effort (a 1 s timeout, never thrown), because a reply must not fail
+  because a browser-facing relay is unreachable, and an API shared by many developers has no single
+  bridge to talk to. With it unset this is a no-op, which is the honest default.
+  - The panel follows that channel while it is open and refetches a thread only when it is one whose
+    messages are already loaded — pulling a conversation nobody has open would be work for nothing. The
+    stream is closed on `destroy()`.
+
+### Fixed
+
+- **Reactions never loaded from the server.** The HTTP adapter requested
+  `/v1/comments/:id/messages/all/reactions` — a literal `all` in place of a message id, on an endpoint
+  that did not exist — so it 404'd, was treated as "no reactions", and **every reaction pill would have
+  been missing against a real backend**. There is now a thread-level `GET /v1/comments/:id/reactions`
+  (which is what the store function already returned) and the adapter uses it. The offline adapter
+  passed throughout, and the SDK tests stubbed `fetch`, so only a real browser against a real server
+  could show it.
+- **A 4 s timeout in the local-AI probe was aborted after the request settled**, leaving a stray
+  `AbortError` on the console. Cleared in `finally` now, and the SDK tests that configure a bridge stub
+  `fetch` for presence rather than letting a real request be aborted at teardown.
+
 ## [0.10.24] — 2026-10-02
 
 ### Added

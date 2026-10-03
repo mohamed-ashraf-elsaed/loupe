@@ -794,6 +794,19 @@ var Loupe = (() => {
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* attachments on a reply */
+.reply-attach {
+  padding: 3px 7px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--muted); font-size: 12px; cursor: pointer; line-height: 1.4;
+}
+.reply-attach:hover { border-color: var(--accent); color: var(--accent); }
+.reply-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.msg-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.msg-att {
+  max-width: 190px; max-height: 130px; border: 1px solid var(--line); border-radius: 8px;
+  object-fit: cover; cursor: pointer; background: var(--bg-2);
+}
+
 /* reactions */
 .rxns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; position: relative; }
 .rxn {
@@ -3137,8 +3150,9 @@ var Loupe = (() => {
       createdAt: comment.createdAt
     };
   }
-  function threadConversation(comment, replies) {
-    return [firstMessageFromComment(comment), ...replies].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  function threadConversation(comment, replies, opts = {}) {
+    const visible = opts.includeDeleted ? replies : replies.filter((m) => !m.deletedAt);
+    return [firstMessageFromComment(comment), ...visible].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
   function iterationLabel(link) {
     if (!link.parentThreadId || link.iterationType !== "revision")
@@ -3514,6 +3528,7 @@ var Loupe = (() => {
         threadId,
         author: message.author,
         body: message.body,
+        attachments: message.attachments?.length ? message.attachments : void 0,
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       const all = await this.listMessages(threadId);
@@ -3672,7 +3687,7 @@ var Loupe = (() => {
       return await res.json();
     }
     async listReactions(threadId) {
-      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/messages/all/reactions`, this.opts({ headers: this.headers() }));
+      const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(threadId)}/reactions`, this.opts({ headers: this.headers() }));
       if (res.status === 404) return [];
       if (!res.ok) throw new Error(`listReactions failed: ${res.status}`);
       return (await res.json()).reactions;
@@ -3727,7 +3742,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.24" : "dev";
+  var SDK_VERSION = true ? "0.10.25" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -4169,6 +4184,7 @@ var Loupe = (() => {
       this.renderList();
       this.renderHome();
       this.startPresence();
+      this.startLiveThreads();
       void this.loadNotifications();
       if (this.scope === "all") void this.loadAllComments();
       this.observe();
@@ -6511,6 +6527,30 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
         };
         pills.appendChild(add);
         row.appendChild(pills);
+        if (m.attachments?.length) {
+          const strip = el("div", "msg-atts");
+          for (const a of m.attachments) {
+            if (a.kind === "image") {
+              const img = el("img", "msg-att");
+              img.src = a.url;
+              img.alt = a.name ?? "attachment";
+              img.loading = "lazy";
+              img.onclick = (e) => {
+                e.stopPropagation();
+                window.open(a.url, "_blank", "noopener");
+              };
+              strip.appendChild(img);
+            } else if (a.kind === "video") {
+              const video = el("video", "msg-att");
+              video.src = a.url;
+              video.controls = true;
+              video.preload = "metadata";
+              video.onclick = (e) => e.stopPropagation();
+              strip.appendChild(video);
+            }
+          }
+          if (strip.childElementCount) row.appendChild(strip);
+        }
         if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending\u2026"));
         if (this.msgFailed.has(m.id)) {
           const failed = el("div", "msg-state failed");
@@ -6536,7 +6576,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       input.onkeydown = (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          void this.sendReply(c, input.value);
+          void this.sendReply(c, input.value, [...pending]);
         }
       };
       const foot = el("div", "reply-foot");
@@ -6544,9 +6584,51 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       send.setAttribute("aria-label", "Send reply");
       send.onclick = (e) => {
         e.stopPropagation();
-        void this.sendReply(c, input.value);
+        void this.sendReply(c, input.value, [...pending]);
       };
-      foot.append(el("span", "reply-hint", "@ to mention"), send);
+      const fileIn = el("input");
+      fileIn.type = "file";
+      fileIn.multiple = true;
+      fileIn.accept = "image/*,video/*";
+      fileIn.style.display = "none";
+      const attachBtn = el("button", "reply-attach", "\u{1F4CE}");
+      attachBtn.title = "Attach an image or video";
+      attachBtn.setAttribute("aria-label", "Attach a file");
+      attachBtn.onclick = (e) => {
+        e.stopPropagation();
+        fileIn.click();
+      };
+      const pending = [];
+      const chips = el("div", "reply-chips");
+      const repaintChips = () => {
+        chips.textContent = "";
+        pending.forEach((f, i) => {
+          const chip = el("span", "chip", `${attachmentKind(f.type) === "video" ? "\u{1F3AC}" : "\u{1F5BC}"} ${f.name}`);
+          const x = el("button", "chip-x", "\u2715");
+          x.title = "Remove";
+          x.onclick = (ev) => {
+            ev.stopPropagation();
+            pending.splice(i, 1);
+            repaintChips();
+          };
+          chip.appendChild(x);
+          chips.appendChild(chip);
+        });
+      };
+      fileIn.onchange = () => {
+        for (const f of Array.from(fileIn.files ?? [])) {
+          const cap = attachmentKind(f.type) === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+          if (f.size > cap) {
+            this.addActivity({ kind: "error", level: "error", label: `${f.name} is too large to attach` });
+            continue;
+          }
+          pending.push(f);
+        }
+        fileIn.value = "";
+        repaintChips();
+      };
+      chips.addEventListener("click", (e) => e.stopPropagation());
+      foot.append(el("span", "reply-hint", "@ to mention"), attachBtn, send);
       const suggest = el("div", "mention-list");
       suggest.style.display = "none";
       const refreshSuggestions = () => {
@@ -6580,7 +6662,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       input.onblur = () => setTimeout(() => {
         suggest.style.display = "none";
       }, 150);
-      reply.append(input, suggest, foot);
+      reply.append(input, suggest, chips, fileIn, foot);
       wrap.appendChild(reply);
       const timeline = threadTimeline(c, asRows);
       const tl = el("div", "tl");
@@ -6691,6 +6773,47 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       this.peerId = void 0;
       this.peers = [];
     }
+    /**
+     * Follow the bridge's thread channel while the panel is open.
+     *
+     * The SSE channel lives in the MCP process, so a reply posted by anyone — an agent, a
+     * teammate's browser — arrives here rather than being discovered by the 4 s list
+     * poll. Only the threads whose messages are already loaded are refetched: pulling a
+     * conversation nobody has open would be work for nothing.
+     */
+    startLiveThreads() {
+      const bridge = this.cfg.bridge;
+      if (!bridge || this.liveSource) return;
+      if (typeof EventSource === "undefined") return;
+      try {
+        const source = new EventSource(`${bridge.replace(/\/$/, "")}/thread-updates`);
+        source.onmessage = (ev) => {
+          let parsed;
+          try {
+            parsed = JSON.parse(ev.data);
+          } catch {
+            return;
+          }
+          if (!parsed || parsed.type !== "thread" || typeof parsed.threadId !== "string") return;
+          if (!this.messages.has(parsed.threadId)) return;
+          void this.refreshMessages(parsed.threadId);
+        };
+        source.onerror = () => {
+        };
+        this.liveSource = source;
+      } catch {
+      }
+    }
+    /** Re-read one thread's replies, replacing the cache. */
+    async refreshMessages(threadId) {
+      try {
+        const list = await this.store.listMessages(threadId);
+        if (!Array.isArray(list)) return;
+        this.messages.set(threadId, list);
+        this.renderList();
+      } catch {
+      }
+    }
     reactionsOf(threadId, messageId) {
       return this.reactions.get(`${threadId}:${messageId}`) ?? [];
     }
@@ -6760,20 +6883,22 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
      * The row appears immediately; if the store rejects it the row stays with a Retry,
      * because losing what someone typed is worse than showing a failed row.
      */
-    async sendReply(c, raw) {
+    async sendReply(c, raw, files = []) {
       const body = raw.trim();
-      if (!body) return;
+      if (!body && !files.length) return;
       const author = {
         id: this.cfg.user.id,
         name: this.cfg.user.name,
         email: this.cfg.user.email,
         type: "user"
       };
+      const attachments = files.length ? await this.uploadAttachments(files) : void 0;
       const optimistic = {
         id: `pending-${Date.now().toString(36)}`,
         threadId: c.id,
         author,
         body,
+        attachments,
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       this.messages.set(c.id, [...this.messages.get(c.id) ?? [], optimistic]);
@@ -6781,7 +6906,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       this.msgDrafts.delete(c.id);
       this.renderList();
       try {
-        const saved = await this.store.addMessage(c.id, { author, body });
+        const saved = await this.store.addMessage(c.id, { author, body, attachments });
         this.messages.set(c.id, (this.messages.get(c.id) ?? []).map((m) => m.id === optimistic.id ? saved : m));
         this.msgPending.delete(optimistic.id);
         this.addActivity({ kind: "message.create", label: `Replied on \u201C${c.title || body.slice(0, 40)}\u201D` });
@@ -6893,6 +7018,8 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       if (elx) elx.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     destroy() {
+      this.liveSource?.close();
+      this.liveSource = void 0;
       this.stopPresence();
       this.stopRecording?.();
       this.setMode("off");

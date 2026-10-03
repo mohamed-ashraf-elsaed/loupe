@@ -20,3 +20,11 @@ loupe-extension.zip
 
 # npm auth (CI writes this; never commit tokens)
 .npmrc
+
+# Local-only: secrets, agent config and this project's Claude Code setup.
+.env
+.env.*
+!.env.example
+AGENTS.md
+**/AGENTS.md
+.commandcode/

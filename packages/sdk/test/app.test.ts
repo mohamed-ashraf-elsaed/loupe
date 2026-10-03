@@ -1711,6 +1711,176 @@ describe("LoupeApp", () => {
     }
   });
 
+  it("renders a reply's attachment inline", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      {
+        id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "see attached",
+        createdAt: "2026-01-01T11:00:00.000Z",
+        attachments: [
+          { url: "/v1/blobs/b1.png", kind: "image", name: "shot.png" },
+          { url: "/v1/blobs/b2.webm", kind: "video", name: "clip.webm" },
+        ],
+      },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 30));
+
+    const strip = sr().querySelector<HTMLElement>(".msg-atts")!;
+    const img = strip.querySelector<HTMLImageElement>("img.msg-att")!;
+    expect(img.getAttribute("src")).toBe("/v1/blobs/b1.png");
+    expect(img.alt).toBe("shot.png");
+    // A video gets a player, not an image tag.
+    expect(strip.querySelector<HTMLVideoElement>("video.msg-att")!.getAttribute("src")).toBe("/v1/blobs/b2.webm");
+  });
+
+  it("does not draw an attachment strip for a reply without files", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+      { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "just text", createdAt: "2026-01-01T11:00:00.000Z" },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(sr().querySelector(".msg-atts")).toBeFalsy();
+  });
+
+  it("offers an attach control on the reply box", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    const attach = sr().querySelector<HTMLElement>(".reply-attach")!;
+    expect(attach).toBeTruthy();
+    expect(attach.getAttribute("aria-label")).toBe("Attach a file");
+    // The picker is hidden; the button drives it, so no stray file input is visible.
+    expect((sr().querySelector<HTMLInputElement>(".reply input[type=file]") as HTMLInputElement).style.display).toBe("none");
+  });
+
+  it("does not send an empty reply with no attachment", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 20));
+
+    sr().querySelector<HTMLElement>(".reply-send")!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    // Nothing was posted, so no optimistic row appeared.
+    expect(sr().querySelector(".msg.pending")).toBeFalsy();
+  });
+
+  it("refreshes an open thread when the bridge relays a new message", async () => {
+    const realES = (globalThis as any).EventSource;
+    const handlers: ((ev: unknown) => void)[] = [];
+    class FakeEventSource {
+      onmessage: ((ev: unknown) => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public url: string) { FakeES.last = this; }
+      close() { this.closed = true; }
+      closed = false;
+    }
+    const FakeES = FakeEventSource as any;
+    (globalThis as any).EventSource = FakeEventSource;
+    // Configuring a bridge also starts presence, which would otherwise make a real
+    // request to a host that does not exist — stubbed so this test only exercises SSE.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
+
+    try {
+      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+        seeded({ id: "t1", title: "T", body: "b", createdAt: "2026-01-01T10:00:00.000Z" }),
+      ]));
+      localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+        { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "first", createdAt: "2026-01-01T11:00:00.000Z" },
+      ]));
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(FakeES.last.url).toBe("http://bridge.test/thread-updates");
+
+      sr().querySelector<HTMLElement>(".item")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      // The comment's own body is message #1, so one reply reads as two.
+      expect(sr().querySelectorAll(".msg").length).toBe(2);
+
+      // A reply lands in the store, then the event says so.
+      localStorage.setItem("loupe:msgs:t1", JSON.stringify([
+        { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "first", createdAt: "2026-01-01T11:00:00.000Z" },
+        { id: "m2", threadId: "t1", author: { id: "u2", name: "Jane", type: "user" }, body: "second", createdAt: "2026-01-01T12:00:00.000Z" },
+      ]));
+      FakeES.last.onmessage({ data: JSON.stringify({ type: "thread", threadId: "t1", eventType: "message_added" }) });
+      await new Promise((r) => setTimeout(r, 40));
+
+      const bodies = [...sr().querySelectorAll<HTMLElement>(".msg-body")].map((b) => b.textContent);
+      expect(bodies).toContain("second");
+      expect(sr().querySelectorAll(".msg").length).toBe(3);
+    } finally {
+      (globalThis as any).EventSource = realES;
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("ignores a thread event for a thread nobody has open", async () => {
+    const realES = (globalThis as any).EventSource;
+    class FakeEventSource {
+      onmessage: ((ev: unknown) => void) | null = null;
+      onerror: (() => void) | null = null;
+      static last: any;
+      constructor(public url: string) { FakeEventSource.last = this; }
+      close() {}
+    }
+    (globalThis as any).EventSource = FakeEventSource;
+    const realFetch2 = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
+    try {
+      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      // Nothing is open, so this must not fetch or throw.
+      expect(() => FakeEventSource.last.onmessage({ data: JSON.stringify({ type: "thread", threadId: "other", eventType: "message_added" }) })).not.toThrow();
+      // A malformed frame is ignored rather than crashing the stream.
+      expect(() => FakeEventSource.last.onmessage({ data: "not json" })).not.toThrow();
+      await new Promise((r) => setTimeout(r, 20));
+    } finally {
+      (globalThis as any).EventSource = realES;
+      globalThis.fetch = realFetch2;
+    }
+  });
+
+  it("closes the live stream on destroy", async () => {
+    const realES = (globalThis as any).EventSource;
+    class FakeEventSource {
+      onmessage: ((ev: unknown) => void) | null = null;
+      onerror: (() => void) | null = null;
+      static last: any;
+      closed = false;
+      constructor(public url: string) { FakeEventSource.last = this; }
+      close() { this.closed = true; }
+    }
+    (globalThis as any).EventSource = FakeEventSource;
+    const realFetch3 = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
+    try {
+      localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      destroy();
+      expect(FakeEventSource.last.closed).toBe(true);
+    } finally {
+      (globalThis as any).EventSource = realES;
+      globalThis.fetch = realFetch3;
+    }
+  });
+
   it("does not initialize without projectKey or user id", () => {
     init({ projectKey: "", user: { id: "u", name: "U" } } as any);
     expect(document.getElementById("loupe-root")).toBeNull();

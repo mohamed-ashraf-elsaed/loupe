@@ -142,6 +142,9 @@ export async function migrate(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );`);
   await d.query(`CREATE INDEX IF NOT EXISTS thread_messages_lookup ON thread_messages (thread_id, created_at);`);
+  // Soft delete. Added after the table existed, so it is an ALTER rather than a column
+  // in the CREATE — an app that upgrades the package must not need a rebuild.
+  await d.query(`ALTER TABLE thread_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`);
   // Who took part. Maintained on write so a notification can target them without
   // walking the conversation; the comment's own author is folded in on read.
   await d.query(`

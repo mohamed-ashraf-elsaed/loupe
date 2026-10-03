@@ -758,6 +758,19 @@ export const STYLES = /* css */ `
 .voice:disabled { opacity: .45; cursor: not-allowed; }
 .voice.on { border-color: var(--pin); color: var(--pin); background: var(--bg-3); }
 
+/* attachments on a reply */
+.reply-attach {
+  padding: 3px 7px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--muted); font-size: 12px; cursor: pointer; line-height: 1.4;
+}
+.reply-attach:hover { border-color: var(--accent); color: var(--accent); }
+.reply-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.msg-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.msg-att {
+  max-width: 190px; max-height: 130px; border: 1px solid var(--line); border-radius: 8px;
+  object-fit: cover; cursor: pointer; background: var(--bg-2);
+}
+
 /* reactions */
 .rxns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; position: relative; }
 .rxn {

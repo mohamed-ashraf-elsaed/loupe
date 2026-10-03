@@ -157,3 +157,65 @@ describe("presence over the bridge", () => {
     }
   });
 });
+
+describe("relaying a thread update from the API", () => {
+  const boot2 = async () => {
+    const handle = await startHttpBridge(0, {
+      store: new SelectionStore(10),
+      registry: new AgentRegistry(),
+      presence: new PresenceRegistry(),
+      bus: new EventBus(),
+    });
+    if (!handle) throw new Error("bridge did not start");
+    return handle;
+  };
+
+  it("accepts a thread update and relays it to subscribers", async () => {
+    const h = await boot2();
+    try {
+      // Subscribe first, so the relayed event has somewhere to land.
+      const controller = new AbortController();
+      const stream = await fetch(`${h.url}/thread-updates`, { signal: controller.signal });
+      const reader = stream.body!.getReader();
+
+      const accepted = await post(`${h.url}/thread-updates`, {
+        threadId: "t1", eventType: "message_added", data: { messageId: "m1" },
+      });
+      expect(accepted.status).toBe(202);
+
+      const decoder = new TextDecoder();
+      let text = "";
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline && !text.includes("message_added")) {
+        const { value } = await reader.read();
+        if (value) text += decoder.decode(value);
+      }
+      expect(text).toContain("message_added");
+      expect(text).toContain("t1");
+      controller.abort();
+    } finally {
+      h.close();
+    }
+  });
+
+  it("rejects a thread update missing its identity", async () => {
+    const h = await boot2();
+    try {
+      for (const bad of [{}, { threadId: "t1" }, { eventType: "x" }, { threadId: "", eventType: "x" }]) {
+        expect((await post(`${h.url}/thread-updates`, bad)).status, JSON.stringify(bad)).toBe(400);
+      }
+      expect((await post(`${h.url}/thread-updates`, { threadId: "t1", eventType: "message_added" })).status).toBe(202);
+    } finally {
+      h.close();
+    }
+  });
+
+  it("rejects a body that is not JSON", async () => {
+    const h = await boot2();
+    try {
+      expect((await fetch(`${h.url}/thread-updates`, { method: "POST", body: "{" })).status).toBe(400);
+    } finally {
+      h.close();
+    }
+  });
+});

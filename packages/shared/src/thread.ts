@@ -35,6 +35,15 @@ export interface ThreadMessage {
   body: string;
   attachments?: MessageAttachment[];
   createdAt: string;
+  /**
+   * Set when the message was retracted.
+   *
+   * Deleting is soft on purpose: a conversation with holes punched in it is a
+   * conversation nobody can audit, and an agent reading the thread later cannot tell
+   * "this was removed" from "this never existed". `threadConversation` filters these
+   * out for display; a caller that needs the record passes `includeDeleted`.
+   */
+  deletedAt?: string;
 }
 
 /** A new message, before the store assigns an id. */
@@ -71,8 +80,17 @@ export function firstMessageFromComment(comment: {
 export function threadConversation(
   comment: Parameters<typeof firstMessageFromComment>[0],
   replies: ThreadMessage[],
+  opts: { includeDeleted?: boolean } = {},
 ): ThreadMessage[] {
-  return [firstMessageFromComment(comment), ...replies].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  // A retracted message is not part of the conversation as anyone reads it. The
+  // record survives in the store for whoever needs it.
+  const visible = opts.includeDeleted ? replies : replies.filter((m) => !m.deletedAt);
+  return [firstMessageFromComment(comment), ...visible].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/** Replies a reader should see — never the retracted ones. */
+export function visibleMessages(messages: ThreadMessage[]): ThreadMessage[] {
+  return messages.filter((m) => !m.deletedAt);
 }
 
 /** Who has taken part, in the order they first spoke. */
@@ -109,3 +127,9 @@ export function iterationLabel(link: RevisionLink): string | null {
   if (!link.parentThreadId || link.iterationType !== "revision") return null;
   return `Iteration ${link.iterationNumber ?? 2}`;
 }
+
+
+/** The event a new reply publishes, so an open thread can refresh itself. */
+export const THREAD_MESSAGE_ADDED = "message_added";
+/** …and a retraction, so the other side stops showing it. */
+export const THREAD_MESSAGE_DELETED = "message_deleted";

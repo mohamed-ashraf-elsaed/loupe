@@ -330,6 +330,7 @@ export class LoupeApp {
     this.renderList();
     this.renderHome();
     this.startPresence();
+    this.startLiveThreads();
     void this.loadNotifications();
     // A restored "All" scope needs the project-wide list.
     if (this.scope === "all") void this.loadAllComments();
@@ -3347,6 +3348,30 @@ export class LoupeApp {
       pills.appendChild(add);
       row.appendChild(pills);
 
+      // A message's own attachments, inline. Images and video only — the accept list
+      // already limits the picker, and anything else would have no way to render.
+      if (m.attachments?.length) {
+        const strip = el("div", "msg-atts");
+        for (const a of m.attachments) {
+          if (a.kind === "image") {
+            const img = el("img", "msg-att") as HTMLImageElement;
+            img.src = a.url;
+            img.alt = a.name ?? "attachment";
+            img.loading = "lazy";
+            img.onclick = (e) => { e.stopPropagation(); window.open(a.url, "_blank", "noopener"); };
+            strip.appendChild(img);
+          } else if (a.kind === "video") {
+            const video = el("video", "msg-att") as HTMLVideoElement;
+            video.src = a.url;
+            video.controls = true;
+            video.preload = "metadata";
+            video.onclick = (e) => e.stopPropagation();
+            strip.appendChild(video);
+          }
+        }
+        if (strip.childElementCount) row.appendChild(strip);
+      }
+
       if (this.msgPending.has(m.id)) row.appendChild(el("div", "msg-state", "Sending…"));
       if (this.msgFailed.has(m.id)) {
         const failed = el("div", "msg-state failed");
@@ -3370,13 +3395,51 @@ export class LoupeApp {
     input.oninput = () => this.msgDrafts.set(c.id, input.value);
     input.addEventListener("click", (e) => e.stopPropagation());
     input.onkeydown = (e) => {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void this.sendReply(c, input.value); }
+      // Enter sends; Shift+Enter is a newline. Attachments ride along.
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void this.sendReply(c, input.value, [...pending]); }
     };
     const foot = el("div", "reply-foot");
     const send = el("button", "reply-send", "➤ Send") as HTMLButtonElement;
     send.setAttribute("aria-label", "Send reply");
-    send.onclick = (e) => { e.stopPropagation(); void this.sendReply(c, input.value); };
-    foot.append(el("span", "reply-hint", "@ to mention"), send);
+    send.onclick = (e) => { e.stopPropagation(); void this.sendReply(c, input.value, [...pending]); };
+    // Attachments on a reply, through the same blob seam the comment form uses.
+    const fileIn = el("input") as HTMLInputElement;
+    fileIn.type = "file";
+    fileIn.multiple = true;
+    fileIn.accept = "image/*,video/*";
+    fileIn.style.display = "none";
+    const attachBtn = el("button", "reply-attach", "📎") as HTMLButtonElement;
+    attachBtn.title = "Attach an image or video";
+    attachBtn.setAttribute("aria-label", "Attach a file");
+    attachBtn.onclick = (e) => { e.stopPropagation(); fileIn.click(); };
+    const pending: File[] = [];
+    const chips = el("div", "reply-chips");
+    const repaintChips = () => {
+      chips.textContent = "";
+      pending.forEach((f, i) => {
+        const chip = el("span", "chip", `${attachmentKind(f.type) === "video" ? "🎬" : "🖼"} ${f.name}`);
+        const x = el("button", "chip-x", "✕") as HTMLButtonElement;
+        x.title = "Remove";
+        x.onclick = (ev) => { ev.stopPropagation(); pending.splice(i, 1); repaintChips(); };
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    };
+    fileIn.onchange = () => {
+      for (const f of Array.from(fileIn.files ?? [])) {
+        const cap = attachmentKind(f.type) === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+        if (f.size > cap) {
+          this.addActivity({ kind: "error", level: "error", label: `${f.name} is too large to attach` });
+          continue;
+        }
+        pending.push(f);
+      }
+      fileIn.value = "";
+      repaintChips();
+    };
+    // Typing and the picker must not bubble into the card's own click handling.
+    chips.addEventListener("click", (e) => e.stopPropagation());
+    foot.append(el("span", "reply-hint", "@ to mention"), attachBtn, send);
     // Autocomplete: shown while a handle is being typed, hidden otherwise. The list is
     // replaced in place rather than re-rendering the card, so the caret never moves.
     const suggest = el("div", "mention-list");
@@ -3405,7 +3468,7 @@ export class LoupeApp {
     input.oninput = () => { this.msgDrafts.set(c.id, input.value); refreshSuggestions(); };
     input.onkeyup = () => refreshSuggestions();
     input.onblur = () => setTimeout(() => { suggest.style.display = "none"; }, 150);
-    reply.append(input, suggest, foot);
+    reply.append(input, suggest, chips, fileIn, foot);
     wrap.appendChild(reply);
 
     // ---- timeline ----------------------------------------------------------
@@ -3523,6 +3586,50 @@ export class LoupeApp {
     this.peers = [];
   }
 
+  private liveSource?: EventSource;
+
+  /**
+   * Follow the bridge's thread channel while the panel is open.
+   *
+   * The SSE channel lives in the MCP process, so a reply posted by anyone — an agent, a
+   * teammate's browser — arrives here rather than being discovered by the 4 s list
+   * poll. Only the threads whose messages are already loaded are refetched: pulling a
+   * conversation nobody has open would be work for nothing.
+   */
+  private startLiveThreads() {
+    const bridge = this.cfg.bridge;
+    if (!bridge || this.liveSource) return;
+    // Absent in some test environments; the poll still covers us if it is.
+    if (typeof EventSource === "undefined") return;
+    try {
+      const source = new EventSource(`${bridge.replace(/\/$/, "")}/thread-updates`);
+      source.onmessage = (ev) => {
+        let parsed: any;
+        try { parsed = JSON.parse((ev as MessageEvent).data); } catch { return; }
+        if (!parsed || parsed.type !== "thread" || typeof parsed.threadId !== "string") return;
+        if (!this.messages.has(parsed.threadId)) return;
+        void this.refreshMessages(parsed.threadId);
+      };
+      // The browser reconnects on its own; a dead bridge is not worth surfacing.
+      source.onerror = () => {};
+      this.liveSource = source;
+    } catch {
+      // EventSource construction can throw on a malformed URL — never fatal.
+    }
+  }
+
+  /** Re-read one thread's replies, replacing the cache. */
+  private async refreshMessages(threadId: string) {
+    try {
+      const list = await this.store.listMessages(threadId);
+      if (!Array.isArray(list)) return;
+      this.messages.set(threadId, list);
+      this.renderList();
+    } catch {
+      // Leave what is on screen; the next poll or event will try again.
+    }
+  }
+
   /** Reactions per thread, keyed `${threadId}:${messageId}`, so a re-render is free. */
   private reactions = new Map<string, Reaction[]>();
 
@@ -3597,15 +3704,19 @@ export class LoupeApp {
    * The row appears immediately; if the store rejects it the row stays with a Retry,
    * because losing what someone typed is worse than showing a failed row.
    */
-  private async sendReply(c: Comment, raw: string) {
+  private async sendReply(c: Comment, raw: string, files: File[] = []) {
     const body = raw.trim();
-    if (!body) return;
+    // A reply with only an attachment is still a reply; one with neither is not.
+    if (!body && !files.length) return;
     const author: ThreadAuthor = {
       id: this.cfg.user.id, name: this.cfg.user.name, email: this.cfg.user.email, type: "user",
     };
+    // Uploaded before the optimistic row renders, so the row shows the real URLs and
+    // never has to be patched once the blobs land.
+    const attachments = files.length ? await this.uploadAttachments(files) : undefined;
     const optimistic: ThreadMessage = {
       id: `pending-${Date.now().toString(36)}`, threadId: c.id, author, body,
-      createdAt: new Date().toISOString(),
+      attachments, createdAt: new Date().toISOString(),
     };
     this.messages.set(c.id, [...(this.messages.get(c.id) ?? []), optimistic]);
     this.msgPending.add(optimistic.id);
@@ -3613,7 +3724,7 @@ export class LoupeApp {
     this.renderList();
 
     try {
-      const saved = await this.store.addMessage(c.id, { author, body });
+      const saved = await this.store.addMessage(c.id, { author, body, attachments });
       this.messages.set(c.id, (this.messages.get(c.id) ?? []).map((m) => (m.id === optimistic.id ? saved : m)));
       this.msgPending.delete(optimistic.id);
       this.addActivity({ kind: "message.create", label: `Replied on “${c.title || body.slice(0, 40)}”` });
@@ -3729,6 +3840,8 @@ export class LoupeApp {
   }
 
   destroy() {
+    this.liveSource?.close();
+    this.liveSource = undefined;
     this.stopPresence();
     this.stopRecording?.();
     this.setMode("off");
