@@ -655,7 +655,222 @@ const INTEGRATION_ICONS: Record<string, string> = {
 function renderIntegrations() {
   const row = document.getElementById("integrations");
   if (row) row.innerHTML = Object.entries(INTEGRATION_ICONS)
-    .map(([name, svg]) => `<span title="${name} — coming soon">${svg}</span>`).join("");
+    .map(([name, svg]) => `<span title="${name}">${svg}</span>`).join("");
+}
+
+// ---- Integrations page ------------------------------------------------------
+
+interface IntegrationField { key: string; label: string; hint?: string; required?: boolean }
+interface IntegrationMapping { id: string; repo: string; targetId: string; targetName: string }
+interface IntegrationSummary {
+  provider: string; label: string; blurb: string; fields: IntegrationField[];
+  connected: boolean; status: "connected" | "error" | "not_connected";
+  identity?: string; lastError?: string; storable: boolean; mappings: IntegrationMapping[];
+}
+
+let integrationSummaries: IntegrationSummary[] = [];
+/** Targets returned by the last successful test, per provider — what the mapper picks from. */
+const integrationTargets: Record<string, { id: string; name: string; note?: string }[]> = {};
+
+async function intApi(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${API}${path}${path.includes("?") ? "&" : "?"}projectKey=${encodeURIComponent(PROJECT)}`, {
+    ...init,
+    headers: { "X-Loupe-Admin": ADMIN, "Content-Type": "application/json", ...(init.headers ?? {}) },
+  });
+  let body: any = null;
+  try { body = await res.json(); } catch { /* an empty body is a valid answer for DELETE */ }
+  if (!res.ok) throw Object.assign(new Error(body?.error ?? `HTTP ${res.status}`), { body });
+  return body;
+}
+
+async function loadIntegrations() {
+  try {
+    const data = await intApi("/v1/integrations");
+    integrationSummaries = data.integrations ?? [];
+  } catch (e) {
+    integrationSummaries = [];
+    const host = document.getElementById("int-cards");
+    if (host) host.innerHTML = `<div class="empty">Could not load integrations: ${escapeHtml((e as Error).message)}</div>`;
+    return;
+  }
+  drawIntegrations();
+}
+
+function drawIntegrations() {
+  const host = document.getElementById("int-cards");
+  if (!host) return;
+  if (!integrationSummaries.length) {
+    host.innerHTML = `<div class="empty">No integration providers are registered.</div>`;
+    return;
+  }
+  // A missing encryption key is a configuration state, not a bug in the card — say so
+  // once, at the top, rather than on every Connect button.
+  const banner = integrationSummaries.some((i) => !i.storable)
+    ? `<div class="int-banner">Credentials cannot be stored: <code>LOUPE_CREDENTIAL_KEY</code> is missing or not a 32-byte key on the server. Generate one with <code>node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"</code> and restart. Loupe will not store tokens unencrypted.</div>`
+    : "";
+
+  host.innerHTML = banner + integrationSummaries.map((i) => {
+    const state = i.status === "connected" ? `<span class="int-pill ok">connected</span>`
+      : i.status === "error" ? `<span class="int-pill bad">needs attention</span>`
+      : `<span class="int-pill">not connected</span>`;
+    const fields = i.fields.map((f) =>
+      `<label class="int-field"><span>${escapeHtml(f.label)}${f.required ? " *" : ""}</span>` +
+      `<input type="password" data-provider="${i.provider}" data-field="${f.key}" placeholder="${i.connected ? "•••••••• (saved)" : ""}" autocomplete="off">` +
+      (f.hint ? `<em>${escapeHtml(f.hint)}</em>` : "") + `</label>`).join("");
+
+    const targets = integrationTargets[i.provider] ?? [];
+    const rows = i.mappings.map((m) =>
+      `<tr><td><code>${escapeHtml(m.repo)}</code></td><td>${escapeHtml(m.targetName)}</td>` +
+      `<td><button class="int-x" data-unmap="${escapeHtml(m.repo)}" data-unmap-provider="${i.provider}" title="Remove">✕</button></td></tr>`).join("");
+
+    const error = i.lastError ? `<div class="int-err">${escapeHtml(i.lastError)}</div>` : "";
+
+    return `<div class="int-card" data-provider-card="${i.provider}">
+      <div class="int-head">
+        <span class="int-mark">${INTEGRATION_ICONS[i.label] ?? "⧉"}</span>
+        <div>
+          <div class="int-name">${escapeHtml(i.label)} ${state}</div>
+          <div class="int-blurb">${escapeHtml(i.blurb)}${i.identity ? ` · <b>${escapeHtml(i.identity)}</b>` : ""}</div>
+        </div>
+      </div>
+      ${error}
+      <div class="int-form">${fields}
+        <div class="int-actions">
+          <button class="int-btn primary" data-connect="${i.provider}" ${i.storable ? "" : "disabled"}>${i.connected ? "Reconnect" : "Connect"}</button>
+          <button class="int-btn" data-test="${i.provider}" ${i.connected ? "" : "disabled"}>Test connection</button>
+          ${i.connected ? `<button class="int-btn danger" data-disconnect="${i.provider}">Disconnect</button>` : ""}
+        </div>
+        <div class="int-hint" data-hint-for="${i.provider}"></div>
+      </div>
+      ${i.connected ? `<div class="int-map">
+        <div class="int-map-title">Repo → destination</div>
+        ${rows ? `<table class="int-table"><thead><tr><th>Repo</th><th>Goes to</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">Nothing mapped yet — no thread will be sent anywhere.</div>`}
+        <div class="int-map-add">
+          <input class="int-repo" data-repo-for="${i.provider}" placeholder="org/repo, or * for all" list="repos-${i.provider}">
+          <datalist id="repos-${i.provider}">${knownRepos().map((r) => `<option value="${escapeHtml(r)}">`).join("")}</datalist>
+          <select class="int-target" data-target-for="${i.provider}">
+            <option value="">${targets.length ? "Pick a destination…" : "Run Test connection to list destinations"}</option>
+            ${targets.map((t) => `<option value="${escapeHtml(t.id)}" data-name="${escapeHtml(t.name)}">${escapeHtml(t.name)}${t.note ? ` (${escapeHtml(t.note)})` : ""}</option>`).join("")}
+          </select>
+          <button class="int-btn primary" data-map="${i.provider}" ${targets.length ? "" : "disabled"}>Map</button>
+        </div>
+      </div>` : ""}
+    </div>`;
+  }).join("");
+
+  wireIntegrations();
+}
+
+/** Repos seen on the board, so the mapping input is a choice rather than a guess. */
+function knownRepos(): string[] {
+  const repos = new Set<string>();
+  for (const c of comments) if ((c as any).repo) repos.add((c as any).repo);
+  return [...repos].sort();
+}
+
+function intHint(provider: string, text: string, bad = false) {
+  const el = document.querySelector<HTMLElement>(`[data-hint-for="${provider}"]`);
+  if (el) {
+    el.textContent = text;
+    el.className = "int-hint" + (bad ? " bad" : "");
+  }
+}
+
+function credentialsFrom(provider: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  document.querySelectorAll<HTMLInputElement>(`input[data-provider="${provider}"]`).forEach((input) => {
+    if (input.value.trim()) out[input.dataset.field!] = input.value.trim();
+  });
+  return out;
+}
+
+function wireIntegrations() {
+  document.querySelectorAll<HTMLElement>("[data-connect]").forEach((btn) => {
+    btn.onclick = async () => {
+      const provider = btn.dataset.connect!;
+      const credentials = credentialsFrom(provider);
+      if (!Object.keys(credentials).length) return intHint(provider, "Enter the credentials first.", true);
+      btn.setAttribute("disabled", "1");
+      intHint(provider, "Testing…");
+      try {
+        const result = await intApi(`/v1/integrations/${provider}/config`, {
+          method: "POST", body: JSON.stringify({ credentials }),
+        });
+        // Keep the targets from the connect response so the mapper is usable immediately.
+        integrationTargets[provider] = result.targets ?? [];
+        intHint(provider, result.identity ? `Connected as ${result.identity}.${result.hint ? ` ${result.hint}` : ""}` : "Connected.");
+        await loadIntegrations();
+      } catch (e) {
+        const body = (e as any).body ?? {};
+        // The provider's own words, plus the hint that makes them actionable.
+        intHint(provider, `${body.error ?? (e as Error).message}${body.hint ? ` — ${body.hint}` : ""}`, true);
+      } finally {
+        btn.removeAttribute("disabled");
+      }
+    };
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-test]").forEach((btn) => {
+    btn.onclick = async () => {
+      const provider = btn.dataset.test!;
+      intHint(provider, "Testing…");
+      try {
+        const result = await intApi(`/v1/integrations/${provider}/test`, { method: "POST", body: "{}" });
+        integrationTargets[provider] = result.targets ?? [];
+        intHint(provider, `OK${result.identity ? ` — ${result.identity}` : ""}.${result.hint ? ` ${result.hint}` : ""}`);
+        await loadIntegrations();
+      } catch (e) {
+        const body = (e as any).body ?? {};
+        intHint(provider, `${body.error ?? (e as Error).message}${body.hint ? ` — ${body.hint}` : ""}`, true);
+      }
+    };
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-disconnect]").forEach((btn) => {
+    btn.onclick = async () => {
+      const provider = btn.dataset.disconnect!;
+      if (!confirm(`Disconnect ${provider}? Stored credentials are deleted.`)) return;
+      try {
+        await intApi(`/v1/integrations/${provider}`, { method: "DELETE" });
+        delete integrationTargets[provider];
+        await loadIntegrations();
+      } catch (e) {
+        intHint(provider, (e as Error).message, true);
+      }
+    };
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-map]").forEach((btn) => {
+    btn.onclick = async () => {
+      const provider = btn.dataset.map!;
+      const repo = document.querySelector<HTMLInputElement>(`[data-repo-for="${provider}"]`)!.value.trim();
+      const select = document.querySelector<HTMLSelectElement>(`[data-target-for="${provider}"]`)!;
+      const targetId = select.value;
+      if (!repo || !targetId) return intHint(provider, "Pick a repo and a destination.", true);
+      const targetName = select.selectedOptions[0]?.dataset.name ?? targetId;
+      try {
+        await intApi(`/v1/integrations/${provider}/mappings`, {
+          method: "POST", body: JSON.stringify({ repo, targetId, targetName }),
+        });
+        await loadIntegrations();
+      } catch (e) {
+        intHint(provider, (e as Error).message, true);
+      }
+    };
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-unmap]").forEach((btn) => {
+    btn.onclick = async () => {
+      const provider = btn.dataset.unmapProvider!;
+      const repo = btn.dataset.unmap!;
+      try {
+        await intApi(`/v1/integrations/${provider}/mappings/${encodeURIComponent(repo)}`, { method: "DELETE" });
+        await loadIntegrations();
+      } catch (e) {
+        intHint(provider, (e as Error).message, true);
+      }
+    };
+  });
 }
 
 function renderConnect() {
@@ -686,16 +901,20 @@ function renderConnect() {
   };
 }
 
-let currentPage = localStorage.getItem("loupe_page") === "connect" ? "connect" : "comments";
+const VALID_PAGES = ["comments", "connect", "integrations"];
+let currentPage = VALID_PAGES.includes(localStorage.getItem("loupe_page") ?? "") ? localStorage.getItem("loupe_page")! : "comments";
 function setPage(page: string) {
   currentPage = page;
   localStorage.setItem("loupe_page", page);
   document.querySelectorAll<HTMLButtonElement>(".navitem").forEach((b) => b.classList.toggle("on", b.dataset.page === page));
   const comments = document.getElementById("page-comments");
   const connect = document.getElementById("page-connect");
+  const integrations = document.getElementById("page-integrations");
   if (comments) comments.hidden = page !== "comments";
   if (connect) connect.hidden = page !== "connect";
+  if (integrations) integrations.hidden = page !== "integrations";
   if (page === "connect") renderConnect();
+  if (page === "integrations") void loadIntegrations();
 }
 
 // ---- helpers ----

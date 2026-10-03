@@ -11,6 +11,49 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.10.28] — 2026-10-02
+
+### Added
+
+- **The integration framework** (milestone 0.16; #31). One lifecycle for every provider — *save
+  credentials → test connection → map repos to targets* — so a new provider is an adapter and nothing else.
+  - **Credentials are encrypted at rest (AES-256-GCM) and never returned by the API.** The write goes only
+    into a `sealed` column; the plaintext column is deliberately kept empty so a `SELECT *` cannot leak a
+    token, and the response carries *which fields are set*, never their values. There is no "reveal"
+    endpoint, because a reveal endpoint is a plaintext endpoint with extra steps.
+  - **Encryption is authenticated**, so a tampered ciphertext fails rather than yielding attacker-chosen
+    garbage that then gets sent somewhere as a credential. A wrong-size base64 key is **rejected with the
+    fix** rather than silently padded — a padded key is a key nobody can explain, and it would work right
+    up until it didn't. A missing key refuses to store anything at all, since a silent downgrade is how a
+    "we encrypt tokens" claim stops being true.
+  - **A connection-test contract** each provider implements, returning its identity and the targets a
+    person can map to. The failure modes are the point: Slack answers HTTP 200 with `{ok:false}` (so a
+    status code alone reports success for a rejected token), and its codes are not self-explanatory —
+    so `not_in_channel` becomes "invite the bot", `missing_scope` names the scope to add. Errors are
+    separated from `<b>hints</b>` because the provider's words and the fix are different things.
+  - **Delivery with bounded retries** (3 attempts, 1s then 4s), a timeout, and **a delivery log** — every
+    attempt, success or failure, so "it did not arrive" has an answer that is not guesswork. Dispatch is
+    fire-and-forget, because a Slack outage must not make creating a comment slow, and it never throws.
+    A *credential* rejection marks the integration broken and stops retrying it; a transient 500 does not.
+  - `scrubSecrets` runs over anything provider-shaped before it is logged, including tokens we were handed
+    directly — an API that echoes back the request it rejected is the most likely place for one to reappear.
+- **Slack and Telegram** (milestone 0.16; #32). Four lifecycle events each — thread created, agent
+  working, PR created, resolved — plus agent replies. Slack lists channels via `conversations.list`;
+  Telegram cannot list chats at all, so its targets come from `getUpdates` and the UI says what to do
+  about the empty first run instead of showing a blank table.
+- **The Integrations page** in the dashboard: a card per provider with Connect / Test / Disconnect, the
+  credential fields with their hints, and a repo → destination mapping table. An unencrypted-key server is
+  reported once at the top rather than on every card.
+
+### Fixed
+
+- **The dashboard could not load in a browser at all.** Its tsup config did not bundle workspace deps, so
+  the emitted file kept a **bare `@loupekit/shared` import** and the page died with "Failed to resolve
+  module specifier". It only ever worked for whoever's `dist` happened to be current — `dist` is
+  gitignored, so every fresh clone hit this. Now bundled, like the SDK has always been.
+- Two CSS blocks and a `@loupekit` import check that had silently not applied, because the check tested
+  the string being built rather than the file on disk.
+
 ## [0.10.27] — 2026-10-02
 
 ### Added

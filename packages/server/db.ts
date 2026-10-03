@@ -159,6 +159,47 @@ export async function migrate(): Promise<void> {
       last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (thread_id, author_id)
     );`);
+  // Integrations. The credential bag is stored ONLY in `sealed` (AES-256-GCM); the
+  // `credentials` column is kept empty on purpose so a `SELECT *` cannot leak a token.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS integrations (
+      id TEXT PRIMARY KEY,
+      project_key TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'connected',
+      credentials JSONB NOT NULL DEFAULT '{}',
+      sealed TEXT,
+      identity TEXT,
+      last_error TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (project_key, provider)
+    );`);
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS integration_mappings (
+      id TEXT PRIMARY KEY,
+      project_key TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      target_name TEXT NOT NULL,
+      UNIQUE (project_key, provider, repo)
+    );`);
+  // Every attempt at a delivery, success or failure, so "it did not arrive" has an
+  // answer that is not guesswork.
+  await d.query(`
+    CREATE TABLE IF NOT EXISTS integration_deliveries (
+      id TEXT PRIMARY KEY,
+      project_key TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL,
+      event TEXT NOT NULL,
+      target TEXT NOT NULL,
+      thread_id TEXT,
+      status TEXT NOT NULL,
+      http_status INTEGER,
+      attempts INTEGER NOT NULL DEFAULT 1,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );`);
   // In-app notifications. Created when someone is mentioned; read state is per person.
   await d.query(`
     CREATE TABLE IF NOT EXISTS notifications (

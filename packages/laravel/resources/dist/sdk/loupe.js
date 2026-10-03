@@ -3881,7 +3881,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.27" : "dev";
+  var SDK_VERSION = true ? "0.10.28" : "dev";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },

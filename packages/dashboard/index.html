@@ -234,6 +234,61 @@
       .nav { flex-direction: row; }
       .sidebar .sidefoot { display: none; }
     }
+
+    /* ---- Integrations ---- */
+    .int-banner {
+      border: 1px solid #e0a92c; border-radius: 10px; padding: 10px 12px;
+      background: var(--surface-2); font-size: 13px; margin-bottom: 14px; line-height: 1.5;
+    }
+    .int-card {
+      border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+      padding: 16px; margin-bottom: 14px;
+    }
+    .int-head { display: flex; gap: 11px; align-items: flex-start; }
+    .int-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); flex: none; }
+    .int-name { font-weight: 650; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .int-blurb { color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.5; }
+    .int-pill {
+      font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+      border: 1px solid var(--line); color: var(--muted);
+    }
+    .int-pill.ok { color: #1f9d63; border-color: currentColor; }
+    .int-pill.bad { color: var(--danger, #f2555a); border-color: currentColor; }
+    .int-err { margin: 10px 0 0; font-size: 12.5px; color: var(--danger, #f2555a); }
+    .int-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .int-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+    .int-field > span { font-weight: 600; }
+    .int-field input {
+      padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--surface-2); color: var(--ink); font: inherit; font-size: 13px; max-width: 420px;
+    }
+    .int-field input:focus { outline: none; border-color: var(--accent); }
+    .int-field em { color: var(--muted); font-size: 11.5px; font-style: normal; }
+    .int-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .int-btn {
+      padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--surface-2); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer;
+    }
+    .int-btn:hover:not([disabled]) { border-color: var(--accent); }
+    .int-btn[disabled] { opacity: .45; cursor: not-allowed; }
+    .int-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    .int-btn.danger:hover { border-color: var(--danger, #f2555a); color: var(--danger, #f2555a); }
+    .int-hint { font-size: 12.5px; color: var(--muted); min-height: 1em; line-height: 1.5; }
+    .int-hint.bad { color: var(--danger, #f2555a); }
+    .int-map { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+    .int-map-title { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 8px; }
+    .int-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; }
+    .int-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 8px 4px 0; font-size: 11.5px; }
+    .int-table td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); }
+    .int-x { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .int-x:hover { color: var(--danger, #f2555a); }
+    .int-map-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .int-repo, .int-target {
+      padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--surface-2); color: var(--ink); font: inherit; font-size: 12.5px;
+    }
+    .int-repo { min-width: 200px; }
+    .int-target { min-width: 220px; }
   </style>
 </head>
 <body>
@@ -242,6 +297,7 @@
       <div class="brand"><span class="mark"></span> Loupe</div>
       <nav class="nav">
         <button class="navitem on" data-page="comments"><span class="ni">▤</span> Comments</button>
+        <button class="navitem" data-page="integrations"><span class="ni">⧉</span> Integrations</button>
         <button class="navitem" data-page="connect"><span class="ni">◎</span> Connect Claude</button>
       </nav>
       <div class="sidefoot">
@@ -317,6 +373,15 @@
           <div id="board" class="board"></div>
           <div id="status" class="loading">Loading feedback…</div>
         </main>
+      </section>
+
+      <section class="page" id="page-integrations" hidden>
+        <div class="chero">
+          <span class="mark"></span>
+          <h1>Integrations</h1>
+          <p class="sub">Send thread activity to the tools the team already has open. Credentials are encrypted at rest and are never returned by the API.</p>
+        </div>
+        <div id="int-cards"></div>
       </section>
 
       <section class="page" id="page-connect" hidden>

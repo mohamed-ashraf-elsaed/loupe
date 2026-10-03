@@ -13,6 +13,14 @@ import { putBlob, getBlob, dataUrlToBuffer, extFromDataUrl, contentTypeForId } f
 import { migrate } from "./db.ts";
 import { addNotification, listNotifications, listPeople, markRead, unreadCount } from "./notifications.ts";
 import { listReactions, toggleReaction } from "./reactions.ts";
+import {
+  addMapping, disconnect, getIntegration, listDeliveries, listIntegrations, listMappings,
+  removeMapping, saveCredentials, storable,
+} from "./integrations.ts";
+import { providers } from "./providers/index.ts";
+import { redact } from "./credentials.ts";
+import { httpTransport } from "./integrations.ts";
+import { dispatchInBackground, lifecyclePayload } from "./delivery.ts";
 import { addMessage, deleteMessage, listMessages, listParticipants } from "./messages.ts";
 import { REACTION_CHOICES, THREAD_MESSAGE_ADDED, THREAD_MESSAGE_DELETED, resolveMentions } from "@loupekit/shared";
 import type { Comment } from "@loupekit/shared";
@@ -217,6 +225,15 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
           author: message.author.name,
         });
 
+        // An agent replying is a lifecycle moment; a person replying is not news to the
+        // people already in the thread.
+        if (author.type === "agent") {
+          dispatchInBackground(comment.projectKey, "agent_replied", lifecyclePayload({
+            id: comment.id, title: comment.title, body: body.body, status: comment.status,
+            url: comment.url, agent: author.name, repo: (comment as any).repo,
+          }), { registry: providers });
+        }
+
         return send(res, 201, {
           ...message,
           mentions: resolution.resolved.map((r) => r.user.id),
@@ -248,6 +265,122 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       // `ok: false` for an unknown or already-retracted message — a retry is a no-op,
       // not an error, and the caller can tell the difference.
       return send(res, deleted ? 200 : 404, { ok: Boolean(deleted), message: deleted ?? undefined });
+    }
+
+    // ---- integrations ------------------------------------------------------
+    // Management only: connect, test, map. A credential is written here and never read
+    // back — the response carries which fields are set, not their values.
+    if (path === "/v1/integrations" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      if (auth.mode !== "admin") return send(res, 403, { error: "administrators only" });
+      return send(res, 200, { integrations: await listIntegrations(auth.project.project_key, providers) });
+    }
+
+    // Deliberately before the `:provider` routes, or it would be read as a provider name.
+    if (path === "/v1/integrations/deliveries" && req.method === "GET") {
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      if (auth.mode !== "admin") return send(res, 403, { error: "administrators only" });
+      const limit = Number(url.searchParams.get("limit") ?? 50);
+      return send(res, 200, {
+        deliveries: await listDeliveries(url.searchParams.get("provider") ?? undefined, Number.isFinite(limit) ? limit : 50),
+      });
+    }
+
+    const integrationRoute = path.match(/^\/v1\/integrations\/([^/]+)(\/.*)?$/);
+    if (integrationRoute) {
+      const providerId = decodeURIComponent(integrationRoute[1]!);
+      const rest = integrationRoute[2] ?? "";
+      const provider = providers.get(providerId);
+      if (!provider) return send(res, 404, { error: `unknown integration provider ${providerId}` });
+
+      // The project comes from the query string on every method, the same as the other
+      // admin routes — reading it from the body would mean consuming the body here and
+      // then not having it in the handler.
+      const auth = await authenticate(url.searchParams.get("projectKey"), req);
+      if (!auth.ok) return send(res, auth.status, { error: auth.reason });
+      if (auth.mode !== "admin") return send(res, 403, { error: "administrators only" });
+      const projectKey = auth.project.project_key;
+
+      // --- credentials ---
+      if (rest === "/config" && req.method === "POST") {
+        const body = await readBody(req);
+        const credentials: Record<string, string> = {};
+        for (const field of provider.fields) {
+          const value = body.credentials?.[field.key];
+          if (typeof value === "string" && value.trim()) credentials[field.key] = value.trim();
+          else if (field.required) return send(res, 400, { error: `${field.key} is required` });
+        }
+        if (!storable()) {
+          return send(res, 400, {
+            error: "No credential key is configured. Set LOUPE_CREDENTIAL_KEY before connecting an integration — credentials are not stored unencrypted.",
+          });
+        }
+
+        // Test before saving: storing a token that does not work leaves a card that says
+        // "connected" and silently sends nothing.
+        const result = await provider.test(credentials, httpTransport);
+        if (!result.ok) {
+          return send(res, 400, { ok: false, error: result.error, hint: result.hint });
+        }
+        await saveCredentials(projectKey, provider.id, credentials, result.identity);
+        return send(res, 201, {
+          ok: true,
+          identity: result.identity,
+          targets: result.targets ?? [],
+          hint: result.hint,
+          // The response NEVER carries the credential back.
+          credentials: redact(Object.keys(credentials)),
+        });
+      }
+
+      if (rest === "/test" && req.method === "POST") {
+        const existing = await getIntegration(projectKey, provider.id);
+        const body = await readBody(req);
+        // Re-test with new values when supplied (the "I typed a new token" case), else
+        // with what is stored.
+        const supplied = body.credentials && typeof body.credentials === "object" ? body.credentials : null;
+        const credentials = supplied
+          ? Object.fromEntries(Object.entries(supplied).filter(([, v]) => typeof v === "string" && v))
+          : existing?.credentials;
+        if (!credentials) return send(res, 400, { error: "nothing to test — connect first" });
+
+        const result = await provider.test(credentials as Record<string, string>, httpTransport);
+        if (result.ok && existing && !supplied) {
+          // A successful re-test clears a previous credential error.
+          await saveCredentials(projectKey, provider.id, credentials as Record<string, string>, result.identity);
+        }
+        return send(res, result.ok ? 200 : 400, result);
+      }
+
+      if (rest === "" && req.method === "DELETE") {
+        if (!storable()) return send(res, 400, { error: "no credential key configured" });
+        return send(res, 200, { ok: await disconnect(projectKey, provider.id) });
+      }
+
+      // --- mappings ---
+      if (rest === "/mappings" && req.method === "GET") {
+        return send(res, 200, { mappings: await listMappings(projectKey, provider.id) });
+      }
+
+      if (rest === "/mappings" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!body.repo || !body.targetId) return send(res, 400, { error: "repo and targetId are required" });
+        if (!(await getIntegration(projectKey, provider.id))) {
+          return send(res, 400, { error: "connect the integration before mapping it" });
+        }
+        return send(res, 201, await addMapping(projectKey, provider.id, {
+          repo: String(body.repo), targetId: String(body.targetId), targetName: String(body.targetName ?? body.targetId),
+        }));
+      }
+
+      if (rest.startsWith("/mappings/") && req.method === "DELETE") {
+        const repo = decodeURIComponent(rest.slice("/mappings/".length));
+        return send(res, 200, { ok: await removeMapping(projectKey, provider.id, repo) });
+      }
+
+      return send(res, 404, { error: `no route for ${req.method} ${path}` });
     }
 
     // ---- reactions ---------------------------------------------------------
@@ -384,7 +517,15 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       if (!auth.ok) return send(res, auth.status, { error: auth.reason });
       if (!c?.id) return send(res, 400, { error: "id required" });
       if (auth.mode === "user" && c.author?.id !== auth.userId) return send(res, 403, { error: "cannot post as another user" });
-      return send(res, 201, await store.upsertComment(c));
+      const created = await store.upsertComment(c);
+      // Fire and forget: a slow provider must not make creating a comment slow.
+      dispatchInBackground(auth.project.project_key, "thread_created", lifecyclePayload({
+        id: created.id, title: created.title, body: created.body, status: created.status,
+        priority: (created as any).priority, url: created.url,
+        screenshotUrl: (created as any).screenshotUrl ?? (created as any).screenshot,
+        repo: (created as any).repo,
+      }), { registry: providers });
+      return send(res, 201, created);
     }
 
     // Single-comment ops — auth is resolved from the comment's own project.
@@ -399,7 +540,26 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
       if (req.method === "GET") return send(res, 200, existing);
       if (req.method === "PATCH") {
         const patch = await readBody(req);
-        return send(res, 200, await store.patchComment(id, patch));
+        const before = await store.getComment(id);
+        const updated = await store.patchComment(id, patch);
+        // Which lifecycle moment this is, if any. A PR appearing is its own event even
+        // when the status did not change.
+        if (updated) {
+          const event =
+            (patch as any).pr && !(before as any)?.pr ? "pr_created"
+            : (updated as any).status === "resolved" && (before as any)?.status !== "resolved" ? "thread_resolved"
+            : (updated as any).status === "in_progress" && (before as any)?.status !== "in_progress" ? "agent_working"
+            : null;
+          if (event) {
+            dispatchInBackground(auth.project.project_key, event, lifecyclePayload({
+              id: updated.id, title: updated.title, body: updated.body, status: (updated as any).status,
+              priority: (updated as any).priority, url: updated.url,
+              screenshotUrl: (updated as any).screenshotUrl ?? (updated as any).screenshot,
+              pr: (updated as any).pr, repo: (updated as any).repo,
+            }), { registry: providers });
+          }
+        }
+        return send(res, 200, updated);
       }
       if (req.method === "DELETE") {
         await store.removeComment(id);

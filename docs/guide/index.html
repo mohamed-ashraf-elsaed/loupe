@@ -1217,9 +1217,25 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.27</strong> (2026-10-02).</p>
+          release: <strong>0.10.28</strong> (2026-10-02).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.10.28</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Integrations.</strong> Slack and Telegram, with one lifecycle for every provider:
+              connect, test, then map repos to channels. Tokens are encrypted at rest and never returned
+              by the API — there is no reveal endpoint, and a failed test is reported with the fix rather
+              than just the error code.</li>
+            <li><strong>Delivery you can audit.</strong> Three attempts with backoff, a timeout, and a log
+              of every attempt so “it didn’t arrive” has an answer. A revoked token disables the
+              integration; a transient error doesn’t.</li>
+            <li><strong>Fixed — the dashboard could not load at all.</strong> Its bundle kept a bare
+              <code>@loupekit/shared</code> import the browser refuses to resolve, so it only worked for
+              whoever’s build output happened to be current.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.27</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>Chat in the panel.</strong> Gather several elements into one message — a visual
