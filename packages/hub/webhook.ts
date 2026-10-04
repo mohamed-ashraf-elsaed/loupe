@@ -18,13 +18,19 @@ export const transport = {
 };
 
 /**
- * POST `body` to the project's webhook, signed with its webhook secret:
+ * POST `body` to a webhook or a destination project's inbound URL, signed with `secret`:
  *   X-Loupe-Hub-Timestamp: <unix seconds>
  *   X-Loupe-Hub-Signature: hex(HMAC-SHA256(timestamp + "." + body, webhook_secret))
  * Any 2xx is success. Anything else (non-2xx, network error, 10s timeout) is
  * retried after 1s and then 4s. Each attempt is signed with a fresh timestamp.
  */
-export async function deliver(url: string, body: string, secret: string, deliveryId: string): Promise<DeliveryResult> {
+export async function deliver(
+  url: string,
+  body: string,
+  secret: string,
+  deliveryId: string,
+  extraHeaders: Record<string, string> = {},
+): Promise<DeliveryResult> {
   let httpStatus: number | null = null;
   let lastError: string | null = null;
   const maxAttempts = RETRY_BACKOFF_MS.length + 1;
@@ -41,6 +47,7 @@ export async function deliver(url: string, body: string, secret: string, deliver
           "X-Loupe-Hub-Delivery": deliveryId,
           "X-Loupe-Hub-Timestamp": ts,
           "X-Loupe-Hub-Signature": sign(ts, body, secret),
+          ...extraHeaders,
         },
         body,
         redirect: "manual",

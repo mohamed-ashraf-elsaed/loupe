@@ -1,4 +1,4 @@
-import type { Delivery, Member, OrgWithRole, Organization, Project, Role } from "./store.ts";
+import type { Delivery, Member, OrgWithRole, Organization, Project, ProjectSummary, Role } from "./store.ts";
 
 /** Escape text for HTML element bodies and double-quoted attributes. */
 export function esc(v: unknown): string {
@@ -82,9 +82,11 @@ export function orgPage(me: { email: string }, org: Organization, role: Role, me
     )
     .join("");
   const projectRows = projects.length
-    ? `<table><tr><th>Project</th><th>Project ID</th><th>Webhook</th></tr>${projects
+    ? `<table><tr><th>Project</th><th>Project ID</th><th>Tickets go to</th><th>Receives</th></tr>${projects
         .map(
-          (p) => `<tr><td><a href="/projects/${esc(p.id)}">${esc(p.name)}</a></td><td><code>${esc(p.id)}</code></td><td>${esc(p.webhook_url)}</td></tr>`,
+          (p) => `<tr><td><a href="/projects/${esc(p.id)}">${esc(p.name)}</a></td><td><code>${esc(p.id)}</code></td><td>${esc(
+            projects.find((d) => d.id === p.destination_project_id)?.name ?? p.webhook_url ?? "-",
+          )}</td><td>${p.inbound_url ? "yes" : "no"}</td></tr>`,
         )
         .join("")}</table>`
     : `<p class="muted">No projects yet.</p>`;
@@ -101,7 +103,7 @@ export function orgPage(me: { email: string }, org: Organization, role: Role, me
   const newProject = owner
     ? `<h2>New project</h2><form class="row" method="post" action="/orgs/${esc(org.id)}/projects">
 <input name="name" placeholder="Project name" required maxlength="100">
-<input name="webhook_url" type="url" placeholder="Webhook URL (https://…)" required>
+<input name="webhook_url" type="url" placeholder="External webhook URL (optional)">
 <button>Create project</button></form>`
     : "";
 
@@ -132,21 +134,34 @@ export function projectPage(
   p: Project,
   role: Role,
   deliveries: Delivery[],
+  siblings: ProjectSummary[],
   opts: { reveal?: string; error?: string } = {},
 ): string {
+  const destName = (id: string | null) => siblings.find((s) => s.id === id)?.name ?? null;
   const owner = role === "owner";
   const err = opts.error ? `<p class="error">${esc(opts.error)}</p>` : "";
   const rows = deliveries.length
-    ? `<table><tr><th>When</th><th>Issue</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Error</th></tr>${deliveries
+    ? `<table><tr><th>When</th><th>Issue</th><th>To</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Error</th></tr>${deliveries
         .map(
           (d) => `<tr><td>${esc(new Date(d.created_at).toISOString().replace("T", " ").slice(0, 19))}</td><td><code>${esc(d.issue_id)}</code></td>
+<td>${esc(d.destination_project_id ? destName(d.destination_project_id) ?? d.destination_project_id : "webhook")}</td>
 <td class="${esc(d.status)}">${esc(d.status)}</td><td>${esc(d.http_status ?? "-")}</td><td>${esc(d.attempts)}</td><td>${esc(d.last_error ?? "")}</td></tr>`,
         )
         .join("")}</table>`
     : `<p class="muted">No deliveries yet.</p>`;
   const ownerForms = owner
-    ? `<form class="row" method="post" action="/projects/${esc(p.id)}/webhook">
-<input name="webhook_url" type="url" value="${esc(p.webhook_url)}" required><button>Save webhook URL</button></form>
+    ? `<h2>Routing</h2>
+<form class="row" method="post" action="/projects/${esc(p.id)}/destination">
+<label for="dest">Send tickets to</label>
+<select id="dest" name="destination_project_id"><option value="">No project (use the external webhook)</option>${siblings
+        .filter((s) => s.receives)
+        .map((s) => `<option value="${esc(s.id)}"${s.id === p.destination_project_id ? " selected" : ""}>${esc(s.name)}</option>`)
+        .join("")}</select><button>Save route</button></form>
+<form class="row" method="post" action="/projects/${esc(p.id)}/inbound">
+<input name="inbound_url" type="url" value="${esc(p.inbound_url ?? "")}" placeholder="Inbound URL, e.g. https://app.example.com/loupe/v1/hub/inbound (empty: does not receive)">
+<button>Save inbound URL</button></form>
+<form class="row" method="post" action="/projects/${esc(p.id)}/webhook">
+<input name="webhook_url" type="url" value="${esc(p.webhook_url ?? "")}" placeholder="External webhook URL (optional)"><button>Save webhook URL</button></form>
 <form class="row" method="post" action="/projects/${esc(p.id)}/rotate">
 <input type="hidden" name="which" value="secret"><button>Rotate project secret</button></form>
 <form class="row" method="post" action="/projects/${esc(p.id)}/rotate">
@@ -156,7 +171,14 @@ export function projectPage(
     p.name,
     `<p><a href="/orgs/${esc(org.id)}">← ${esc(org.name)}</a></p><h1>${esc(p.name)}</h1>${err}${opts.reveal ?? ""}
 <p>Project ID <code>${esc(p.id)}</code></p>
-<p>Webhook URL <code>${esc(p.webhook_url)}</code></p>
+<p>Tickets go to <strong>${esc(destName(p.destination_project_id) ?? (p.webhook_url ? "the external webhook" : "nowhere yet"))}</strong></p>
+<p>Inbound URL <code>${esc(p.inbound_url ?? "not set: this project does not receive tickets")}</code></p>
+${p.webhook_url ? `<p>Webhook URL <code>${esc(p.webhook_url)}</code></p>` : ""}
+<h2>Install</h2>
+<p class="muted">Set these in the app's environment. The secret is shown once, when the project is created or rotated.</p>
+<pre class="card"><code>LOUPE_HUB_URL=https://&lt;this hub&gt;
+LOUPE_PROJECT_ID=${esc(p.id)}
+LOUPE_PROJECT_SECRET=psk_…</code></pre>
 <p class="muted">Secrets are hidden after creation. Rotate one to get a new value.</p>
 ${ownerForms}
 <h2>Last 20 deliveries</h2>${rows}`,

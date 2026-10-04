@@ -85,4 +85,14 @@ export async function migrate(): Promise<void> {
     );
   `);
   await d.query(`CREATE INDEX IF NOT EXISTS deliveries_project_created ON deliveries (project_id, created_at DESC);`);
+
+  // 0.12.0: project-to-project routing. A project can receive tickets at its
+  // inbound_url, and can send its own tickets to another project in the same
+  // organization. The external webhook becomes optional.
+  await d.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS inbound_url TEXT;`);
+  await d.query(
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS destination_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;`,
+  );
+  await d.query(`ALTER TABLE projects ALTER COLUMN webhook_url DROP NOT NULL;`);
+  await d.query(`ALTER TABLE deliveries ADD COLUMN IF NOT EXISTS destination_project_id TEXT;`);
 }

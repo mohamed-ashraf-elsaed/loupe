@@ -298,6 +298,224 @@ describe("sign-in", () => {
   });
 });
 
+// ---- routing between projects ----
+
+function getProjects(project: { id: string; secret: string }, opts: { ts?: number; secret?: string; omit?: string } = {}) {
+  const ts = String(opts.ts ?? Math.floor(Date.now() / 1000));
+  const headers: Record<string, string> = {
+    "X-Loupe-Project": project.id,
+    "X-Loupe-Timestamp": ts,
+    "X-Loupe-Signature": sign(ts, "", opts.secret ?? project.secret),
+  };
+  if (opts.omit) delete headers[opts.omit];
+  return fetch(`${base}/v1/projects`, { headers });
+}
+
+/** Acme with three projects: Web sends to Tracker, Tracker receives on the hook server, Admin does nothing. */
+async function routed() {
+  const { org, project: web } = await setup();
+  const tracker = await store.createProject(org.id, "Tracker");
+  await store.setInboundUrl(tracker.id, hookUrl.replace("/hook", "/inbound"));
+  expect(await store.setDestination(web.id, tracker.id)).toBeNull();
+  const admin = await store.createProject(org.id, "Admin");
+  return { org, web: (await store.getProject(web.id))!, tracker: (await store.getProject(tracker.id))!, admin };
+}
+
+describe("routing between projects", () => {
+  it("delivers to the destination's inbound URL, signed with the destination's own secret", async () => {
+    const { org, web, tracker } = await routed();
+    const r = await postIssue(web, { user: { email: "dev@acme.com", name: "Dev" }, issue: issue() });
+    expect(r.status).toBe(202);
+    expect(await r.json()).toEqual({
+      id: expect.stringMatching(/^dlv_/),
+      delivery: "ok",
+      destination: { id: tracker.id, name: "Tracker" },
+    });
+
+    expect(hookReceived).toHaveLength(1);
+    const { headers, body } = hookReceived[0]!;
+    expect(headers["x-loupe-hub-project"]).toBe(tracker.id);
+    const ts = String(headers["x-loupe-hub-timestamp"]);
+    const sig = String(headers["x-loupe-hub-signature"]);
+    expect(verifySignature(ts, body, sig, tracker.secret)).toEqual({ ok: true });
+    // Not the sender's secrets: the receiver only ever holds its own.
+    expect(verifySignature(ts, body, sig, web.secret).ok).toBe(false);
+    expect(verifySignature(ts, body, sig, web.webhook_secret).ok).toBe(false);
+    expect(JSON.parse(body)).toMatchObject({
+      project_id: web.id,
+      organization_id: org.id,
+      source: { project_id: web.id, project_name: "Web", organization_id: org.id, organization_name: "Acme" },
+      user: { email: "dev@acme.com", name: "Dev" },
+      issue: issue(),
+    });
+
+    const [log] = await store.listDeliveries(web.id);
+    expect(log).toMatchObject({ status: "ok", destination_project_id: tracker.id });
+  });
+
+  it("keeps the external webhook path when no destination is set, and adds the source block", async () => {
+    const { org, project } = await setup();
+    const r = await postIssue(project, { user: { email: "dev@acme.com" }, issue: issue() });
+    expect(await r.json()).toEqual({ id: expect.stringMatching(/^dlv_/), delivery: "ok" });
+    const { headers, body } = hookReceived[0]!;
+    expect(headers["x-loupe-hub-project"]).toBeUndefined();
+    expect(verifySignature(String(headers["x-loupe-hub-timestamp"]), body, String(headers["x-loupe-hub-signature"]), project.webhook_secret).ok).toBe(true);
+    expect(JSON.parse(body).source).toEqual({ project_id: project.id, project_name: "Web", organization_id: org.id, organization_name: "Acme" });
+    expect((await store.listDeliveries(project.id))[0]!.destination_project_id).toBeNull();
+  });
+
+  it("answers delivery none when a project has neither a destination nor a webhook", async () => {
+    const { admin } = await routed();
+    const r = await postIssue(admin, { user: { email: "dev@acme.com" }, issue: issue() });
+    expect(r.status).toBe(202);
+    expect(await r.json()).toEqual({ id: expect.stringMatching(/^dlv_/), delivery: "none" });
+    expect(hookReceived).toHaveLength(0);
+    expect(await store.listDeliveries(admin.id)).toHaveLength(0);
+  });
+
+  it("still checks membership before routing", async () => {
+    const { web } = await routed();
+    expect((await postIssue(web, { user: { email: "x@other.com" }, issue: issue() })).status).toBe(403);
+    expect(hookReceived).toHaveLength(0);
+  });
+
+  it("refuses a destination in another organization, the project itself, or one that cannot receive", async () => {
+    const { web, tracker, admin } = await routed();
+    const other = await store.createOrg("Other", "o@other.com");
+    const foreign = await store.createProject(other.id, "Foreign");
+    await store.setInboundUrl(foreign.id, "https://other.example/loupe/v1/hub/inbound");
+    expect(await store.setDestination(web.id, foreign.id)).toBe("other_org");
+    expect(await store.setDestination(tracker.id, tracker.id)).toBe("self");
+    expect(await store.setDestination(web.id, admin.id)).toBe("no_inbound_url");
+    expect(await store.setDestination(web.id, "prj_missing")).toBe("not_found");
+    expect((await store.getProject(web.id))!.destination_project_id).toBe(tracker.id);
+    expect(await store.setDestination(web.id, null)).toBeNull();
+    expect((await store.getProject(web.id))!.destination_project_id).toBeNull();
+  });
+
+  it("clears every route to a project when its inbound URL is removed", async () => {
+    const { web, tracker } = await routed();
+    await store.setInboundUrl(tracker.id, null);
+    expect((await store.getProject(web.id))!.destination_project_id).toBeNull();
+  });
+
+  it("lets an owner set the inbound URL and the route from the dashboard", async () => {
+    const { org, project: web } = await setup();
+    const tracker = await store.createProject(org.id, "Tracker");
+    const owner = await login("owner@acme.com");
+
+    let html = await (await page(`/projects/${web.id}`, owner)).text();
+    expect(html).toContain("Send tickets to");
+    expect(html).not.toContain(`<option value="${tracker.id}"`); // cannot receive yet
+    expect(html).toContain(`LOUPE_PROJECT_ID=${web.id}`);
+    expect(html).not.toContain(web.secret);
+
+    let r = await form(`/projects/${tracker.id}/inbound`, owner, { inbound_url: "javascript:x" });
+    expect(r.status).toBe(400);
+    expect(await r.text()).toContain("Inbound URL must be an http(s) URL");
+    r = await form(`/projects/${tracker.id}/inbound`, owner, { inbound_url: "https://tracker.example/loupe/v1/hub/inbound" });
+    expect(r.status).toBe(303);
+
+    html = await (await page(`/projects/${web.id}`, owner)).text();
+    expect(html).toContain(`<option value="${tracker.id}">Tracker</option>`);
+    r = await form(`/projects/${web.id}/destination`, owner, { destination_project_id: tracker.id });
+    expect(r.status).toBe(303);
+    html = await (await page(`/projects/${web.id}`, owner)).text();
+    expect(html).toContain(`<option value="${tracker.id}" selected>Tracker</option>`);
+    expect(html).toContain("Tickets go to <strong>Tracker</strong>");
+    const orgHtml = await (await page(`/orgs/${org.id}`, owner)).text();
+    expect(orgHtml).toContain("<td>Tracker</td><td>no</td>"); // Web's row: goes to Tracker, does not receive
+
+    r = await form(`/projects/${web.id}/destination`, owner, { destination_project_id: web.id });
+    expect(r.status).toBe(400);
+    expect(await r.text()).toContain("cannot send tickets to itself");
+
+    // Clearing the route and the webhook leaves the project routing nowhere.
+    expect((await form(`/projects/${web.id}/destination`, owner, { destination_project_id: "" })).status).toBe(303);
+    expect((await form(`/projects/${web.id}/webhook`, owner, { webhook_url: "" })).status).toBe(303);
+    expect((await store.getProject(web.id))!.webhook_url).toBeNull();
+    html = await (await page(`/projects/${web.id}`, owner)).text();
+    expect(html).toContain("Tickets go to <strong>nowhere yet</strong>");
+    // Clearing the inbound URL.
+    expect((await form(`/projects/${tracker.id}/inbound`, owner, { inbound_url: "" })).status).toBe(303);
+    expect((await store.getProject(tracker.id))!.inbound_url).toBeNull();
+  });
+
+  it("creates a project with no webhook URL", async () => {
+    const { org } = await setup();
+    const owner = await login("owner@acme.com");
+    const r = await form(`/orgs/${org.id}/projects`, owner, { name: "Tracker", webhook_url: "" });
+    expect(r.status).toBe(201);
+    const p = (await store.listProjects(org.id)).find((x) => x.name === "Tracker")!;
+    expect(p.webhook_url).toBeNull();
+  });
+
+  it("shows the destination of each delivery", async () => {
+    const { web } = await routed();
+    await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue() });
+    await store.recordDelivery({
+      id: "dlv_gone", project_id: web.id, issue_id: "c_9", destination_project_id: "prj_deleted",
+      status: "ok", http_status: 200, attempts: 1, last_error: null,
+    });
+    const owner = await login("owner@acme.com");
+    const html = await (await page(`/projects/${web.id}`, owner)).text();
+    expect(html).toContain("<td>Tracker</td>");
+    expect(html).toContain("<td>prj_deleted</td>");
+  });
+});
+
+describe("GET /v1/projects", () => {
+  it("returns the organization, the calling project and its siblings, with no secrets or URLs", async () => {
+    const { org, web, tracker, admin } = await routed();
+    const r = await getProjects(web);
+    expect(r.status).toBe(200);
+    const text = await r.text();
+    expect(JSON.parse(text)).toEqual({
+      organization: { id: org.id, name: "Acme" },
+      project: { id: web.id, name: "Web", destination: { id: tracker.id, name: "Tracker" }, receives: false },
+      projects: [
+        { id: tracker.id, name: "Tracker", receives: true, isDestination: true },
+        { id: admin.id, name: "Admin", receives: false, isDestination: false },
+      ],
+    });
+    for (const p of [web, tracker]) {
+      expect(text).not.toContain(p.secret);
+      expect(text).not.toContain(p.webhook_secret);
+    }
+    expect(text).not.toContain("inbound");
+    expect(text).not.toContain("127.0.0.1");
+  });
+
+  it("answers for a receiving project with no destination", async () => {
+    const { tracker } = await routed();
+    const out = (await (await getProjects(tracker)).json()) as any;
+    expect(out.project).toEqual({ id: tracker.id, name: "Tracker", destination: null, receives: true });
+    expect(out.projects.map((p: { name: string }) => p.name)).toEqual(["Web", "Admin"]);
+  });
+
+  it("never lists another organization's projects", async () => {
+    const { web } = await routed();
+    const other = await store.createOrg("Other", "o@other.com");
+    const foreign = await store.createProject(other.id, "Foreign");
+    const mine = await (await getProjects(web)).text();
+    expect(mine).not.toContain("Foreign");
+    const theirs = (await (await getProjects(foreign)).json()) as any;
+    expect(theirs.organization.name).toBe("Other");
+    expect(theirs.projects).toEqual([]);
+  });
+
+  it("fails closed on a bad signature, a wrong secret, a stale timestamp, missing headers or an unknown project", async () => {
+    const { web, tracker } = await routed();
+    expect((await getProjects(web, { secret: tracker.secret })).status).toBe(401);
+    expect((await getProjects(web, { ts: Math.floor(Date.now() / 1000) - 600 })).status).toBe(401);
+    for (const h of ["X-Loupe-Project", "X-Loupe-Timestamp", "X-Loupe-Signature"]) {
+      expect((await getProjects(web, { omit: h })).status, h).toBe(401);
+    }
+    expect((await getProjects({ id: "prj_missing", secret: "x" })).status).toBe(404);
+    expect((await fetch(`${base}/v1/projects`, { method: "POST" })).status).toBe(405);
+  });
+});
+
 // ---- dashboard: orgs, members, projects, permissions ----
 
 describe("organizations and projects", () => {
@@ -378,6 +596,8 @@ describe("organizations and projects", () => {
       [`/orgs/${org.id}/domain`, { allowed_domain: "gmail.com" }],
       [`/orgs/${org.id}/projects`, { name: "X", webhook_url: hookUrl }],
       [`/projects/${project.id}/webhook`, { webhook_url: "https://evil.example" }],
+      [`/projects/${project.id}/inbound`, { inbound_url: "https://evil.example" }],
+      [`/projects/${project.id}/destination`, { destination_project_id: "" }],
       [`/projects/${project.id}/rotate`, { which: "secret" }],
     ] as const) {
       const r = await form(path, member, fields);
@@ -446,7 +666,7 @@ describe("organizations and projects", () => {
     const { project } = await setup();
     for (let i = 0; i < 22; i++) {
       await store.recordDelivery({
-        id: `dlv_${String(i).padStart(2, "0")}`, project_id: project.id, issue_id: `c_${i}`,
+        id: `dlv_${String(i).padStart(2, "0")}`, project_id: project.id, issue_id: `c_${i}`, destination_project_id: null,
         status: i % 2 ? "failed" : "ok", http_status: i % 2 ? 500 : 200, attempts: i % 2 ? 3 : 1, last_error: i % 2 ? "HTTP 500" : null,
       });
     }

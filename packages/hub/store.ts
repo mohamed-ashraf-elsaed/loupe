@@ -23,14 +23,25 @@ export interface Project {
   org_id: string;
   name: string;
   secret: string;
-  webhook_url: string;
+  webhook_url: string | null;
   webhook_secret: string;
+  /** Where this project's app receives tickets from other projects (`/loupe/v1/hub/inbound`). */
+  inbound_url: string | null;
+  /** The project in the same organization that this project's tickets are sent to. */
+  destination_project_id: string | null;
   created_at: string;
+}
+/** A project as other projects in its organization see it: no secrets, no URLs. */
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  receives: boolean;
 }
 export interface Delivery {
   id: string;
   project_id: string;
   issue_id: string;
+  destination_project_id: string | null;
   status: "ok" | "failed";
   http_status: number | null;
   attempts: number;
@@ -143,7 +154,7 @@ export async function isAllowedSubmitter(org: Organization, email: string): Prom
 
 // ---- projects ----
 
-export async function createProject(orgId: string, name: string, webhookUrl: string): Promise<Project> {
+export async function createProject(orgId: string, name: string, webhookUrl: string | null = null): Promise<Project> {
   const d = await db();
   const { rows } = await d.query<Project>(
     `INSERT INTO projects (id, org_id, name, secret, webhook_url, webhook_secret)
@@ -165,9 +176,48 @@ export async function listProjects(orgId: string): Promise<Project[]> {
   return rows;
 }
 
-export async function setWebhookUrl(projectId: string, url: string): Promise<void> {
+export async function setWebhookUrl(projectId: string, url: string | null): Promise<void> {
   const d = await db();
   await d.query(`UPDATE projects SET webhook_url = $2 WHERE id = $1`, [projectId, url]);
+}
+
+export async function setInboundUrl(projectId: string, url: string | null): Promise<void> {
+  const d = await db();
+  await d.query(`UPDATE projects SET inbound_url = $2 WHERE id = $1`, [projectId, url]);
+  if (url === null) {
+    // A project that can no longer receive cannot stay anyone's destination.
+    await d.query(`UPDATE projects SET destination_project_id = NULL WHERE destination_project_id = $1`, [projectId]);
+  }
+}
+
+export type DestinationError = "not_found" | "other_org" | "self" | "no_inbound_url";
+
+/**
+ * Point a project's tickets at another project, or clear the route with null.
+ * Refuses a destination in another organization, the project itself, and a
+ * project that has no inbound URL to deliver to.
+ */
+export async function setDestination(projectId: string, destId: string | null): Promise<DestinationError | null> {
+  const d = await db();
+  if (destId !== null) {
+    const [src, dest] = await Promise.all([getProject(projectId), getProject(destId)]);
+    if (!src || !dest) return "not_found";
+    if (dest.id === src.id) return "self";
+    if (dest.org_id !== src.org_id) return "other_org";
+    if (!dest.inbound_url) return "no_inbound_url";
+  }
+  await d.query(`UPDATE projects SET destination_project_id = $2 WHERE id = $1`, [projectId, destId]);
+  return null;
+}
+
+/** The organization's projects, oldest first, without secrets or URLs. */
+export async function listOrgProjects(orgId: string): Promise<ProjectSummary[]> {
+  const d = await db();
+  const { rows } = await d.query<{ id: string; name: string; receives: boolean }>(
+    `SELECT id, name, (inbound_url IS NOT NULL) AS receives FROM projects WHERE org_id = $1 ORDER BY created_at, id`,
+    [orgId],
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name, receives: Boolean(r.receives) }));
 }
 
 /** Rotate the project secret (psk_) or the webhook signing secret (whs_). Returns the new value. */
@@ -184,9 +234,9 @@ export async function rotateSecret(projectId: string, which: "secret" | "webhook
 export async function recordDelivery(d0: Omit<Delivery, "created_at">): Promise<void> {
   const d = await db();
   await d.query(
-    `INSERT INTO deliveries (id, project_id, issue_id, status, http_status, attempts, last_error)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [d0.id, d0.project_id, d0.issue_id, d0.status, d0.http_status, d0.attempts, d0.last_error],
+    `INSERT INTO deliveries (id, project_id, issue_id, status, http_status, attempts, last_error, destination_project_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [d0.id, d0.project_id, d0.issue_id, d0.status, d0.http_status, d0.attempts, d0.last_error, d0.destination_project_id],
   );
 }
 

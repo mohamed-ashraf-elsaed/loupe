@@ -134,22 +134,53 @@ function validWebhookUrl(s: string): boolean {
   }
 }
 
-// ---- ingest: POST /v1/issues ----
+// ---- signed project API ----
 
-async function ingest(req: IncomingMessage, res: ServerResponse) {
+/**
+ * Authenticate a request signed by a project's app:
+ *   X-Loupe-Project, X-Loupe-Timestamp, X-Loupe-Signature = hex(HMAC(ts + "." + body, project secret)).
+ * A GET signs an empty body. Fails closed: any missing or bad part is an HttpError.
+ */
+async function signedProject(req: IncomingMessage, raw: string): Promise<store.Project> {
   const projectId = String(req.headers["x-loupe-project"] ?? "");
   const timestamp = String(req.headers["x-loupe-timestamp"] ?? "");
   const signature = String(req.headers["x-loupe-signature"] ?? "");
   if (!projectId || !timestamp || !signature) {
-    return json(res, 401, { error: "missing X-Loupe-Project, X-Loupe-Timestamp or X-Loupe-Signature" });
+    throw new HttpError(401, "missing X-Loupe-Project, X-Loupe-Timestamp or X-Loupe-Signature");
   }
-  const raw = await readRaw(req, INGEST_BODY_CAP);
-
   const project = await store.getProject(projectId);
-  if (!project) return json(res, 404, { error: "unknown project" });
-
+  if (!project) throw new HttpError(404, "unknown project");
   const check = verifySignature(timestamp, raw, signature, project.secret);
-  if (!check.ok) return json(res, 401, { error: check.reason });
+  if (!check.ok) throw new HttpError(401, check.reason);
+  return project;
+}
+
+// ---- GET /v1/projects: the calling project, its organization and its siblings ----
+
+async function projectsApi(req: IncomingMessage, res: ServerResponse) {
+  const project = await signedProject(req, "");
+  const org = (await store.getOrg(project.org_id))!;
+  const all = await store.listOrgProjects(org.id);
+  const dest = project.destination_project_id ? all.find((p) => p.id === project.destination_project_id) ?? null : null;
+  return json(res, 200, {
+    organization: { id: org.id, name: org.name },
+    project: {
+      id: project.id,
+      name: project.name,
+      destination: dest ? { id: dest.id, name: dest.name } : null,
+      receives: project.inbound_url !== null,
+    },
+    projects: all
+      .filter((p) => p.id !== project.id)
+      .map((p) => ({ id: p.id, name: p.name, receives: p.receives, isDestination: p.id === dest?.id })),
+  });
+}
+
+// ---- ingest: POST /v1/issues ----
+
+async function ingest(req: IncomingMessage, res: ServerResponse) {
+  const raw = await readRaw(req, INGEST_BODY_CAP);
+  const project = await signedProject(req, raw);
 
   let body: { user?: { email?: unknown; name?: unknown }; issue?: Comment };
   try {
@@ -174,22 +205,41 @@ async function ingest(req: IncomingMessage, res: ServerResponse) {
   const payload = JSON.stringify({
     project_id: project.id,
     organization_id: org.id,
+    source: { project_id: project.id, project_name: project.name, organization_id: org.id, organization_name: org.name },
     user,
     issue,
     received_at: new Date().toISOString(),
   });
-  const result = await deliver(project.webhook_url, payload, project.webhook_secret, deliveryId);
+
+  // Route: the destination project first, else the external webhook, else nowhere.
+  // A destination receives on its own inbound URL, signed with its own project secret,
+  // which its app already holds as LOUPE_PROJECT_SECRET.
+  const dest = project.destination_project_id ? await store.getProject(project.destination_project_id) : null;
+  const toDest = dest?.inbound_url ? dest : null;
+  let result;
+  if (toDest) {
+    result = await deliver(toDest.inbound_url!, payload, toDest.secret, deliveryId, { "X-Loupe-Hub-Project": toDest.id });
+  } else if (project.webhook_url) {
+    result = await deliver(project.webhook_url, payload, project.webhook_secret, deliveryId);
+  } else {
+    return json(res, 202, { id: deliveryId, delivery: "none" });
+  }
   await store.recordDelivery({
     id: deliveryId,
     project_id: project.id,
     issue_id: issue.id,
+    destination_project_id: toDest?.id ?? null,
     status: result.status,
     http_status: result.httpStatus,
     attempts: result.attempts,
     last_error: result.lastError,
   });
-  if (result.status === "failed") console.warn(`[hub] delivery ${deliveryId} to ${project.id} failed: ${result.lastError}`);
-  return json(res, 202, { id: deliveryId, delivery: result.status });
+  if (result.status === "failed") console.warn(`[hub] delivery ${deliveryId} from ${project.id} failed: ${result.lastError}`);
+  return json(res, 202, {
+    id: deliveryId,
+    delivery: result.status,
+    ...(toDest ? { destination: { id: toDest.id, name: toDest.name } } : {}),
+  });
 }
 
 // ---- dashboard ----
@@ -245,7 +295,8 @@ async function renderOrg(res: ServerResponse, me: Session, orgId: string, status
 
 async function renderProject(res: ServerResponse, me: Session, projectId: string, opts: { reveal?: string; error?: string } = {}, status = 200) {
   const { project, org, role } = await projectFor(me, projectId);
-  html(res, status, views.projectPage(me, org, project, role, await store.listDeliveries(project.id), opts));
+  const siblings = (await store.listOrgProjects(org.id)).filter((p) => p.id !== project.id);
+  html(res, status, views.projectPage(me, org, project, role, await store.listDeliveries(project.id), siblings, opts));
 }
 
 async function dashboard(req: IncomingMessage, res: ServerResponse, path: string) {
@@ -303,8 +354,8 @@ async function dashboard(req: IncomingMessage, res: ServerResponse, path: string
       const name = field(form, "name", 100);
       const url = field(form, "webhook_url", 4000);
       if (!name) return renderOrg(res, me, orgId, 400, "Project name is required");
-      if (!validWebhookUrl(url)) return renderOrg(res, me, orgId, 400, "Webhook URL must be an http(s) URL");
-      const p = await store.createProject(orgId, name, url);
+      if (url && !validWebhookUrl(url)) return renderOrg(res, me, orgId, 400, "Webhook URL must be an http(s) URL");
+      const p = await store.createProject(orgId, name, url || null);
       // Secrets are displayed exactly once, on this response.
       return renderProject(res, me, p.id, {
         reveal: views.secretsCard([
@@ -316,7 +367,7 @@ async function dashboard(req: IncomingMessage, res: ServerResponse, path: string
     return redirect(res, `/orgs/${orgId}`);
   }
 
-  m = path.match(/^\/projects\/([\w-]+)(?:\/(webhook|rotate))?$/);
+  m = path.match(/^\/projects\/([\w-]+)(?:\/(webhook|inbound|destination|rotate))?$/);
   if (m) {
     const projectId = m[1]!;
     const action = m[2];
@@ -327,10 +378,26 @@ async function dashboard(req: IncomingMessage, res: ServerResponse, path: string
     requireOwner(role);
     const form = await readForm(req);
 
-    if (action === "webhook") {
-      const url = field(form, "webhook_url", 4000);
-      if (!validWebhookUrl(url)) return renderProject(res, me, projectId, { error: "Webhook URL must be an http(s) URL" }, 400);
-      await store.setWebhookUrl(projectId, url);
+    if (action === "webhook" || action === "inbound") {
+      const url = field(form, action === "webhook" ? "webhook_url" : "inbound_url", 4000);
+      const label = action === "webhook" ? "Webhook URL" : "Inbound URL";
+      if (url && !validWebhookUrl(url)) return renderProject(res, me, projectId, { error: `${label} must be an http(s) URL` }, 400);
+      if (action === "webhook") await store.setWebhookUrl(projectId, url || null);
+      else await store.setInboundUrl(projectId, url || null);
+      return redirect(res, `/projects/${projectId}`);
+    }
+    if (action === "destination") {
+      const destId = field(form, "destination_project_id", 100);
+      const refused = await store.setDestination(projectId, destId || null);
+      if (refused) {
+        const why: Record<store.DestinationError, string> = {
+          not_found: "That project does not exist",
+          other_org: "Tickets can only go to a project in the same organization",
+          self: "A project cannot send tickets to itself",
+          no_inbound_url: "That project has no inbound URL, so it cannot receive tickets",
+        };
+        return renderProject(res, me, projectId, { error: why[refused] }, 400);
+      }
       return redirect(res, `/projects/${projectId}`);
     }
     const which = field(form, "which") === "webhook_secret" ? "webhook_secret" : "secret";
@@ -350,6 +417,10 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
   const isApi = path.startsWith("/v1/");
   try {
     if (path === "/v1/health") return json(res, 200, { ok: true });
+    if (path === "/v1/projects") {
+      if (req.method !== "GET") return json(res, 405, { error: "method not allowed" });
+      return await projectsApi(req, res);
+    }
     if (path === "/v1/issues") {
       if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
       return await ingest(req, res);
