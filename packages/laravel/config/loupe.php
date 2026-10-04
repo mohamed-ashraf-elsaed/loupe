@@ -133,6 +133,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Time zone & locale for the widget
+    |--------------------------------------------------------------------------
+    | Every timestamp the widget shows ("who raised this, and when") is rendered
+    | in this IANA time zone — e.g. "Africa/Cairo" — so a team in one place reads
+    | one clock whatever a reporter's laptop is set to. Null means the app's own
+    | timezone (config('app.timezone')). The locale (BCP 47, e.g. "en-GB" for
+    | day-first dates) is the browser's when null.
+    */
+    'timezone' => env('LOUPE_TIMEZONE'),
+    'locale' => env('LOUPE_LOCALE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Screenshot storage
     |--------------------------------------------------------------------------
     | Screenshots are stored on this filesystem disk under "blob_path". The

@@ -160,6 +160,9 @@ Either way, denied users never receive the widget markup, and the API/dashboard 
     apiBase: "https://your-app.test/loupe",
     headers: { "X-CSRF-TOKEN": "…" },
     credentials: "same-origin",
+    timeZone: "Africa/Cairo",      // config('loupe.timezone') ?: config('app.timezone')
+    locale: null,                  // config('loupe.locale'), null = the browser's
+    packageVersion: "v0.11.0",     // Composer's record of loupekit/laravel
   });
 </script>
 ```
@@ -174,6 +177,15 @@ Customize how the user is described to the SDK with a resolver:
     'email' => $user->email,
 ],
 ```
+
+Every thread shows its author and an absolute timestamp. The clock is `loupe.timezone`
+(`LOUPE_TIMEZONE`), falling back to `app.timezone`, so a team in one place reads one clock
+whatever a reporter's laptop is set to. `loupe.locale` (`LOUPE_LOCALE`) picks the date format,
+e.g. `en-GB` for day-first; leave it empty to use each browser's own.
+
+The widget also shows the version baked into the published JS beside the version Composer
+installed, and flags the pair when they differ. That is what you see after a `composer`
+upgrade without `vendor:publish --tag=loupe-assets --force`.
 
 ## The dashboard
 
@@ -277,6 +289,8 @@ return [
         'dashboard' => ['web', 'auth'],
     ],
     'authorize' => ['use' => null, 'dashboard' => null],
+    'timezone' => env('LOUPE_TIMEZONE'),   // null = app.timezone
+    'locale' => env('LOUPE_LOCALE'),       // null = the browser's
     'comment_model' => Loupekit\Loupe\Models\Comment::class,
     'disk' => env('LOUPE_DISK', 'public'),
     'hub' => [
@@ -380,4 +394,5 @@ the vendored bundles with `packages/laravel/bin/sync-assets.sh`.
   `asset()`), so a CDN `ASSET_URL` won't break it. If you serve `public/vendor/loupe` from
   a different origin, set `LOUPE_ASSET_URL` to that origin. Also make sure your deploy runs
   `php artisan vendor:publish --tag=loupe-assets --force` (the files aren't part of your
-  `npm`/Vite build).
+  `npm`/Vite build). The widget tells you when this was skipped: the Home footer and the
+  Settings menu show the bundle version and flag it when it differs from the installed package.

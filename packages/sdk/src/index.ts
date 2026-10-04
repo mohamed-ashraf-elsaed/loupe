@@ -2,6 +2,8 @@ import { LoupeApp } from "./app.js";
 import type { ActivityEventInput, ActivityStatus, LoupeConfig } from "./types.js";
 
 export { connectTab } from "./connect.js";
+/** The version baked into this bundle — `Loupe.version` from a script tag. "dev" from source. */
+export { SDK_VERSION as version } from "./app.js";
 export type {
   LoupeConfig, LoupeUser, Comment, Anchor, RegionRect, LoupeTab, LoupeTabContext,
   LocalAiConfig, GenerateRequest, GenerateResult, AccessRequest,
@@ -73,4 +75,17 @@ export function setLocalAi(config: { url: string; model: string } | null): void 
 /** Arm a tool from outside the panel — e.g. a browser context menu. */
 export function openTool(tool: "inspect" | "note"): void {
   app?.openTool(tool);
+}
+
+/**
+ * Bring the collapsed launcher back after a user hid it (the quick action, the
+ * Settings switch, or Alt+Shift+L). The host can wire this to its own menu item.
+ */
+export function showLauncher(): void {
+  app?.showLauncher();
+}
+
+/** Hide the collapsed launcher. Persisted per browser; `showLauncher()` or Alt+Shift+L undoes it. */
+export function hideLauncher(): void {
+  app?.hideLauncher();
 }

@@ -708,6 +708,9 @@ npm start</code></pre>
             <code>user.id</code>. Starts on <code>DOMContentLoaded</code>. <code>apiBase</code> set →
             <code>HttpAdapter</code>; omitted → <code>LocalStorageAdapter</code> (offline mode).</li>
           <li><code>destroy(): void</code> — tears down the control panel and all listeners.</li>
+          <li><code>hideLauncher(): void</code> / <code>showLauncher(): void</code> — hide or restore the
+            <code>◎</code> launcher; the same switch as <kbd>Alt+Shift+L</kbd>, persisted.</li>
+          <li><code>version: string</code> — the version baked into this bundle.</li>
         </ul>
         <p>The control is a single DevTools-style dockable panel: a header
           (<code>◎ Loupe</code> + dock controls) → tools (<strong>Inspect</strong>, <strong>Note</strong>,
@@ -715,8 +718,11 @@ npm start</code></pre>
           <strong>left</strong>, <strong>right</strong>, or <strong>bottom</strong> edge — docked edges push
           the host page over so the panel never covers content — or <strong>float</strong> it as a movable,
           resizable window. A <strong>theme toggle</strong> switches light/dark, and <strong>close</strong>
-          collapses it to a small <code>◎</code> launcher. Position, theme, and open state persist. On
-          viewports ≤ 640px it becomes a bottom sheet.</p>
+          collapses it to a small <code>◎</code> launcher. One tap on the launcher reopens the panel; the
+          chevron beside it expands the quick actions (pin a comment, drop a note, hide the markers, hide
+          the launcher). Drag the launcher to put it anywhere on the screen, and hide it from the quick
+          actions, the Settings menu or <kbd>Alt+Shift+L</kbd> when it covers something. Position, launcher
+          position, theme, and open state persist. On viewports ≤ 640px it becomes a bottom sheet.</p>
 
         <h3>LoupeConfig</h3>
         <div class="tablewrap">
@@ -733,6 +739,9 @@ npm start</code></pre>
               <tr><td><code>captureRegion</code></td><td>fn?</td><td>Region-shot override <code>(rect) =&gt; Promise&lt;string?&gt;</code>.</td></tr>
               <tr><td><code>headers</code></td><td>object?</td><td>Extra request headers (e.g. a CSRF token).</td></tr>
               <tr><td><code>credentials</code></td><td>RequestCredentials?</td><td>Fetch credentials mode (<code>include</code> for cross-origin cookies).</td></tr>
+              <tr><td><code>timeZone</code></td><td>string?</td><td>IANA zone every timestamp is rendered in (e.g. <code>"Africa/Cairo"</code>). Defaults to the browser's.</td></tr>
+              <tr><td><code>locale</code></td><td>string?</td><td>BCP 47 locale for dates (e.g. <code>"en-GB"</code> for day-first). Defaults to the browser's.</td></tr>
+              <tr><td><code>packageVersion</code></td><td>string?</td><td>Version of the host package that served this bundle. Shown beside the bundle version and flagged when the two differ.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1217,9 +1226,30 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.10.28</strong> (2026-10-02).</p>
+          release: <strong>0.11.0</strong> (2026-10-04).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.11.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Hide the launcher.</strong> The <code>◎</code> button can sit on top of a page's own
+              controls. A quick action hides it, and so do the Settings menu, <kbd>Alt+Shift+L</kbd> and
+              <code>hideLauncher()</code> / <code>showLauncher()</code>. The choice persists, and a toast
+              says how to bring it back.</li>
+            <li><strong>Drag the launcher anywhere.</strong> Press and move it. The position is clamped to the
+              viewport, anchored to the nearest edges so it survives a resize, remembered across reloads,
+              and reset from the Settings menu.</li>
+            <li><strong>Who raised it, and when.</strong> Every thread shows its author and an absolute
+              timestamp rendered in <code>init({ timeZone, locale })</code>, so one team reads one clock.</li>
+            <li><strong>Version check.</strong> <code>Loupe.version</code> exposes the bundle version;
+              <code>init({ packageVersion })</code> carries the host package's. When they differ the Home
+              footer and the Settings menu flag it, which is the state after an upgrade that skipped
+              re-publishing the assets.</li>
+            <li><strong>Changed: one tap opens the panel.</strong> Clicking the launcher opens the panel
+              directly. The quick actions moved behind a small chevron beside it.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.10.28</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>Integrations.</strong> Slack and Telegram, with one lifecycle for every provider:

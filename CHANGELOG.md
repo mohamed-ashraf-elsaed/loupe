@@ -11,6 +11,36 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.11.0] — 2026-10-04
+
+### Added
+
+- **Hide the launcher.** The `◎` button can sit on top of a page's own controls. A new quick
+  action hides it, and so do the Settings menu, the `Alt+Shift+L` shortcut and
+  `hideLauncher()` / `showLauncher()` from the SDK. The choice persists, and a toast tells the
+  user how to bring it back.
+- **Drag the launcher anywhere.** Press and move it to any spot on the screen. The position is
+  clamped to the viewport, anchored to the nearest edges so it survives a resize, remembered
+  across reloads, and reset from the Settings menu.
+- **Who raised it, and when.** Every thread in the panel shows its author's name and an absolute
+  timestamp. `init({ timeZone, locale })` picks the clock and the date format, so a team in one
+  place reads one clock whatever a reporter's laptop is set to. An unusable value falls back to
+  the browser's with one console warning.
+- **Version check.** `Loupe.version` exposes the bundle version, and `init({ packageVersion })`
+  lets a host pass the version of the package that served the bundle. When the two differ, the
+  Home footer and the Settings menu flag it. That is the state after a package upgrade without
+  re-publishing the assets, and until now it was invisible.
+- **Laravel:** `loupe.timezone` and `loupe.locale` config keys (`LOUPE_TIMEZONE`, `LOUPE_LOCALE`),
+  defaulting to the app's timezone and the browser's locale. The widget also receives the
+  installed `loupekit/laravel` version from Composer through `Loupe::packageVersion()`.
+
+### Changed
+
+- **One tap opens the panel.** Clicking the launcher opens the panel directly instead of
+  expanding the quick actions first. The quick actions are still there, behind a small chevron
+  beside the launcher. The launcher's own click is ignored right after a drag, so moving it never
+  opens the panel by accident.
+
 ## [0.10.28] — 2026-10-02
 
 ### Added

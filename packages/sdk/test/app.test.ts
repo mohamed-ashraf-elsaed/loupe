@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   destroy, init, trackActivity, setActivityStatus, clearActivity, connectTab, requestNavigation,
+  showLauncher, hideLauncher, version,
 } from "../src/index.ts";
 
 const sr = () => document.getElementById("loupe-root")!.shadowRoot!;
@@ -383,30 +384,153 @@ describe("LoupeApp", () => {
     expect(stored[0].anchor.tag).toBe("page");
   });
 
-  it("closes to the FAB cluster and reopens from a quick action", () => {
+  it("closes to the FAB cluster; the primary button reopens the panel, the chevron shows the quick actions", () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
     sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
     expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
 
-    // The primary FAB expands the quick actions rather than opening the panel.
-    sr().querySelector<HTMLElement>(".launcher")!.click();
+    // The chevron expands the quick actions without opening the panel…
+    const more = sr().querySelector<HTMLElement>('[data-fab="more"]')!;
+    more.click();
     expect(sr().querySelector(".fab-cluster")!.classList.contains("expanded")).toBe(true);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
+    more.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("expanded")).toBe(false);
 
-    // A quick action opens the panel again — and the cluster gets out of the way.
-    sr().querySelector<HTMLElement>('[data-fab="comment"]')!.click();
+    // …and ONE tap on the primary button opens the panel — no option to pick first.
+    sr().querySelector<HTMLElement>(".launcher")!.click();
     expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
     expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+
+    // A quick action still opens the panel with its tool armed.
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    sr().querySelector<HTMLElement>('[data-fab="comment"]')!.click();
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
     expect(sr().querySelector<HTMLElement>('[data-role="inspect"]')!.classList.contains("on")).toBe(true);
+  });
+
+  it("drags the launcher anywhere, persists the spot, and the drag does not open the panel", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    const cluster = sr().querySelector<HTMLElement>(".fab-cluster")!;
+    const launcher = sr().querySelector<HTMLElement>(".launcher")!;
+    // No saved position: the default corner on the dock's side (right).
+    expect(cluster.style.right).toBe("20px");
+
+    // Press, travel well past the tap threshold, release. (happy-dom reports the
+    // launcher's rect at 0,0 so the drop lands at the pointer delta.)
+    firePointer(launcher, "pointerdown", { clientX: 100, clientY: 100, button: 0 }, "mouse");
+    firePointer(launcher, "pointermove", { clientX: 103, clientY: 102 }, "mouse"); // under threshold: a tap so far
+    expect(cluster.classList.contains("dragging")).toBe(false);
+    firePointer(launcher, "pointermove", { clientX: 160, clientY: 700 }, "mouse");
+    expect(cluster.classList.contains("dragging")).toBe(true);
+    expect(cluster.style.left).toBe("60px");           // 160 - 100: left half → anchored left
+    expect(cluster.style.bottom).toBe(`${window.innerHeight - 600 - 46}px`); // 700 - 100: lower half → anchored bottom
+    expect(cluster.classList.contains("at-left")).toBe(true);
+    expect(cluster.classList.contains("at-top")).toBe(false);
+    firePointer(launcher, "pointerup", { clientX: 160, clientY: 700 }, "mouse");
+    expect(cluster.classList.contains("dragging")).toBe(false);
+
+    // The click the browser fires after the drop must not open the panel…
+    launcher.click();
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(false);
+    // …but the next real tap does.
+    await new Promise((r) => setTimeout(r, 0));
+    launcher.click();
+    expect(sr().querySelector(".dock")!.classList.contains("open")).toBe(true);
+
+    // Persisted beside the rest of the panel state, and offered for reset in Settings.
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).fab).toEqual({ x: 60, y: 600 });
+    const reset = sr().querySelector<HTMLElement>('[data-set="fabReset"]')!;
+    expect(reset.hidden).toBe(false);
+    reset.click();
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).fab).toBeNull();
+    expect(reset.hidden).toBe(true);
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(cluster.style.right).toBe("20px");
+  });
+
+  it("a dragged launcher is clamped inside the viewport and anchors to its nearest edges", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    const cluster = sr().querySelector<HTMLElement>(".fab-cluster")!;
+    const launcher = sr().querySelector<HTMLElement>(".launcher")!;
+    firePointer(launcher, "pointerdown", { clientX: 0, clientY: 0, button: 0 }, "mouse");
+    firePointer(launcher, "pointermove", { clientX: 5000, clientY: -300 }, "mouse"); // way off the top-right
+    firePointer(launcher, "pointerup", { clientX: 5000, clientY: -300 }, "mouse");
+    const saved = JSON.parse(localStorage.getItem("loupe:dock")!).fab;
+    expect(saved).toEqual({ x: window.innerWidth - 46 - 8, y: 8 });
+    // Upper-right: anchored top + right, minis open downward.
+    expect(cluster.style.top).toBe("8px");
+    expect(cluster.style.right).toBe("8px");
+    expect(cluster.style.left).toBe("auto");
+    expect(cluster.classList.contains("at-top")).toBe(true);
+    expect(cluster.classList.contains("at-left")).toBe(false);
+
+    // A saved spot survives a reload and is re-clamped against the current viewport.
+    destroy();
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(sr().querySelector<HTMLElement>(".fab-cluster")!.style.top).toBe("8px");
+  });
+
+  it("hides the launcher from a quick action, says how to get it back, and Alt+Shift+L does", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    const cluster = sr().querySelector<HTMLElement>(".fab-cluster")!;
+    expect(cluster.classList.contains("show")).toBe(true);
+
+    sr().querySelector<HTMLElement>('[data-fab="hide"]')!.click();
+    expect(cluster.classList.contains("show")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).launcherHidden).toBe(true);
+    // The way back is announced at the moment of hiding.
+    const toast = sr().querySelector<HTMLElement>(".toast")!;
+    expect(toast.classList.contains("show")).toBe(true);
+    expect(toast.textContent).toContain("Alt+Shift+L");
+    // Settings reflects it as the Launcher switch being off.
+    expect(sr().querySelector('[data-set="launcherHidden"]')!.getAttribute("aria-pressed")).toBe("false");
+
+    // Hidden survives a reload…
+    destroy();
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+
+    // …until the shortcut brings it back.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "L", code: "KeyL", altKey: true, shiftKey: true, bubbles: true }));
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).launcherHidden).toBe(false);
+    expect(sr().querySelector('[data-set="launcherHidden"]')!.getAttribute("aria-pressed")).toBe("true");
+    // Ctrl+Alt+Shift+L is somebody else's shortcut.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "L", code: "KeyL", altKey: true, shiftKey: true, ctrlKey: true, bubbles: true }));
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
+  });
+
+  it("the host can hide and show the launcher through the public API and the Settings switch", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    hideLauncher();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+    showLauncher();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
+
+    // Settings → Launcher, from inside the open panel: off hides it once the panel closes.
+    sr().querySelector<HTMLElement>(".launcher")!.click();
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    sr().querySelector<HTMLElement>('[data-set="launcherHidden"]')!.click();
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).launcherHidden).toBe(true);
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
   });
 
   it("quick action: Markers hides every pin without deleting it, and persists", async () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
     await leaveComment("hide my marker");
     sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
-    sr().querySelector<HTMLElement>(".launcher")!.click();
+    sr().querySelector<HTMLElement>('[data-fab="more"]')!.click();
 
     const markers = sr().querySelector<HTMLElement>('[data-fab="markers"]')!;
     markers.click();
@@ -816,12 +940,66 @@ describe("LoupeApp", () => {
   it("shows the running version in the panel", async () => {
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     // Baked in by tsup; "dev" when running from source without a build.
-    const version = sr().querySelector(".hfoot .hver")!.textContent!;
-    expect(version).toMatch(/^v/);
+    const shown = sr().querySelector(".hfoot .hver")!.textContent!;
+    expect(shown).toMatch(/^v/);
+    expect(shown).toBe(`v${version}`); // the same string the host can read off `Loupe.version`
     sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
-    expect(sr().querySelector(".menu-ver b")!.textContent).toBe(version);
+    expect(sr().querySelector(".menu-ver b")!.textContent).toBe(shown);
     // Offline because this init has no apiBase.
     expect(sr().querySelector(".menu-mode")!.textContent).toBe("offline");
+    // No package version passed → nothing to compare, nothing flagged.
+    expect(sr().querySelector(".ver-stale")).toBeNull();
+  });
+
+  it("flags a host package version that differs from the bundle, and stays quiet when they match", () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, packageVersion: "v9.9.9" });
+    const stale = sr().querySelector<HTMLElement>(".hfoot .ver-stale")!;
+    expect(stale.textContent).toBe("package v9.9.9");
+    expect(stale.title).toContain("installed package is v9.9.9");
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    expect(sr().querySelector(".menu-ver .ver-stale")!.textContent).toBe("package v9.9.9");
+    destroy();
+
+    // Same version (with or without a leading "v") → no flag.
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, packageVersion: `v${version}` });
+    expect(sr().querySelector(".ver-stale")).toBeNull();
+  });
+
+  it("each thread shows who raised it and when, in the configured time zone", async () => {
+    // A fixed instant: 2026-10-04T12:05:00Z is 15:05 in Cairo (UTC+3, no DST that week).
+    const key = `loupe:pk:${location.pathname}${location.search}`;
+    localStorage.setItem(key, JSON.stringify([{
+      id: "c1", projectKey: "pk", url: location.href, title: "Egypt time", body: "when?",
+      kind: "free", anchor: { tag: "page" }, status: "open", offset: { x: 0, y: 0 }, context: { html: "", styles: {} },
+      author: { id: "u2", name: "Sara PM" }, createdAt: "2026-10-04T12:05:00.000Z", updatedAt: "2026-10-04T12:05:00.000Z",
+    }]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, timeZone: "Africa/Cairo", locale: "en-GB" });
+    await new Promise((r) => setTimeout(r, 20));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    const who = sr().querySelector<HTMLElement>(".item .who")!;
+    expect(who.querySelector("b")!.textContent).toBe("Sara PM");
+    const t = who.querySelector("time")!;
+    expect(t.textContent).toBe("4 Oct 2026, 15:05");
+    expect(t.getAttribute("datetime")).toBe("2026-10-04T12:05:00.000Z");
+    expect(t.title).toMatch(/ago|just now/); // the relative form moves to the tooltip
+  });
+
+  it("an unknown time zone falls back to the browser's instead of breaking the list", async () => {
+    const key = `loupe:pk:${location.pathname}${location.search}`;
+    localStorage.setItem(key, JSON.stringify([{
+      id: "c1", projectKey: "pk", url: location.href, title: "bad zone", body: "x",
+      kind: "free", anchor: { tag: "page" }, status: "open", offset: { x: 0, y: 0 }, context: { html: "", styles: {} },
+      author: { id: "u2", name: "Sara PM" }, createdAt: "2026-10-04T12:05:00.000Z", updatedAt: "2026-10-04T12:05:00.000Z",
+    }]));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, timeZone: "Mars/Olympus_Mons", locale: "en-GB" });
+    await new Promise((r) => setTimeout(r, 20));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    const t = sr().querySelector<HTMLElement>(".item .who time")!;
+    // The browser's own locale and zone, so only the date is pinned down.
+    expect(t.textContent).toMatch(/Oct 4, 2026|4 Oct 2026/);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("renders a host-registered tab, with a usable context", async () => {

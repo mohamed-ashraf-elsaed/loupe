@@ -69,7 +69,8 @@ a route **you** own behind **your** auth.
 | 🎯 **Click-to-comment inspector** | Hover-highlight any element, click to pin a comment — dropped in with one `@loupeWidget` directive. |
 | 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
 | ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. Anchors to the element under its center so it tracks reflow and scrolling. |
-| 🧲 **Dockable control** | A DevTools-style panel — dock it left / right / bottom (pushes your page over so nothing is covered) or float it; light/dark theme, collapses to a small `◎` launcher, and a bottom sheet on mobile. |
+| 🧲 **Dockable control** | A DevTools-style panel — dock it left / right / bottom (pushes your page over so nothing is covered) or float it; light/dark theme, collapses to a draggable `◎` launcher that users can hide, and a bottom sheet on mobile. |
+| 🕒 **Who and when** | Every thread shows its author and an absolute timestamp in your app's timezone (or `LOUPE_TIMEZONE`). The widget also shows the installed package version and flags a published bundle that is behind it. |
 | 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint re-locates the element after the UI changes; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
 | 🗄️ **Your database** | Comments are an Eloquent `Comment` model in a `loupe_comments` table. Swap in your own subclass to add relations/scopes. |
 | 🔐 **Per-user gating** | `loupe:use` / `loupe:admin` Gate abilities **and** config closures decide who sees the widget and who opens the dashboard. |
@@ -219,6 +220,8 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | `guards` | `env('LOUPE_GUARDS')` | Auth guards to resolve the user through, in order (e.g. `web,admin`). Empty = default guard. |
 | `authorize.use` / `authorize.dashboard` | `null` | Closures `fn($user): bool` (take precedence over Gates). |
 | `user_resolver` | `null` | Customize the `{id,name,email}` payload sent to the SDK. |
+| `timezone` | `env('LOUPE_TIMEZONE')` | IANA zone the widget renders timestamps in (e.g. `Africa/Cairo`). Empty = `app.timezone`. |
+| `locale` | `env('LOUPE_LOCALE')` | BCP 47 locale for dates (e.g. `en-GB`). Empty = the browser's. |
 | `comment_model` | `Loupekit\Loupe\Models\Comment` | Swap for your own subclass. |
 | `disk` | `public` | Filesystem disk for screenshots. |
 | `asset_url` | `env('LOUPE_ASSET_URL')` | Origin Loupe's own JS is served from. Defaults to the app URL — see the CDN note below. |

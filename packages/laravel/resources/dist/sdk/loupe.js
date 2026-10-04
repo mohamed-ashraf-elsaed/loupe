@@ -24,12 +24,15 @@ var Loupe = (() => {
     clearActivity: () => clearActivity,
     connectTab: () => connectTab,
     destroy: () => destroy,
+    hideLauncher: () => hideLauncher,
     init: () => init,
     openTool: () => openTool,
     requestNavigation: () => requestNavigation2,
     setActivityStatus: () => setActivityStatus,
     setLocalAi: () => setLocalAi,
-    trackActivity: () => trackActivity
+    showLauncher: () => showLauncher,
+    trackActivity: () => trackActivity,
+    version: () => SDK_VERSION
   });
 
   // src/styles.ts
@@ -121,6 +124,14 @@ var Loupe = (() => {
   display: none; flex-direction: column; align-items: flex-end; gap: 10px;
 }
 .fab-cluster.show { display: flex; }
+/* A dragged launcher is anchored to its nearest edges (JS sets left/right/top/bottom),
+   and the quick actions grow INTO the page: downward from the upper half, labels to the
+   right from the left half. */
+.fab-cluster.at-top { flex-direction: column-reverse; }
+.fab-cluster.at-left, .fab-cluster.at-left .fab-minis { align-items: flex-start; }
+.fab-cluster.at-left .fab-mini .fab-tip { right: auto; left: calc(100% + 8px); }
+.fab-cluster.dragging .launcher { cursor: grabbing; border-color: var(--accent); }
+.fab-cluster.dragging .fab-mini .fab-tip { display: none; }
 
 .fab-minis { display: none; flex-direction: column; align-items: flex-end; gap: 10px; }
 .fab-cluster.expanded .fab-minis { display: flex; }
@@ -129,7 +140,10 @@ var Loupe = (() => {
 .fab-cluster.expanded .fab-minis .fab-mini:nth-child(2) { animation-delay: 30ms; }
 .fab-cluster.expanded .fab-minis .fab-mini:nth-child(3) { animation-delay: 60ms; }
 .fab-cluster.expanded .fab-minis .fab-mini:nth-child(4) { animation-delay: 90ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(5) { animation-delay: 120ms; }
 @keyframes loupe-fab-in { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+.fab-cluster.at-top.expanded .fab-minis .fab-mini { animation-name: loupe-fab-in-down; }
+@keyframes loupe-fab-in-down { from { opacity: 0; transform: translateY(-8px) scale(.9); } to { opacity: 1; transform: none; } }
 
 .fab-mini {
   position: relative; width: 40px; height: 40px; border-radius: 50%; padding: 0;
@@ -150,22 +164,32 @@ var Loupe = (() => {
 }
 .fab-mini:hover .fab-tip { opacity: 1; }
 
+/* The launcher and its chevron share a box so the chevron can sit on the launcher's
+   corner while being its own button (tap = quick actions; the launcher = open). */
+.fab-main { position: relative; display: inline-flex; }
 .launcher {
   position: relative; width: 46px; height: 46px; border-radius: 50%; padding: 0;
   border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
-  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  cursor: grab; display: inline-flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow);
+  touch-action: none; user-select: none; -webkit-user-select: none; /* drag with a finger too */
 }
 .launcher:hover { border-color: var(--accent); }
+.launcher:active { cursor: grabbing; }
 .launcher .logo { font-size: 24px; line-height: 1; color: var(--accent); }
 /* Chevron pinned to the corner: up = actions are tucked away, down = they are out. */
-.launcher .lchev {
-  position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%;
+.fab-more {
+  position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%;
+  padding: 0; cursor: pointer; z-index: 1;
   background: var(--bg); border: 1px solid var(--line); color: var(--muted);
   display: grid; place-items: center; transition: transform 160ms cubic-bezier(.16, 1, .3, 1);
 }
-.launcher .lchev svg { width: 11px; height: 11px; display: block; }
-.fab-cluster.expanded .launcher .lchev { transform: rotate(180deg); }
+.fab-more:hover { border-color: var(--accent); color: var(--accent); }
+.fab-more .lchev { display: grid; place-items: center; }
+.fab-more svg { width: 11px; height: 11px; display: block; }
+.fab-cluster.expanded .fab-more { transform: rotate(180deg); }
+.fab-cluster.at-top .fab-more { bottom: auto; top: -3px; transform: rotate(180deg); }
+.fab-cluster.at-top.expanded .fab-more { transform: none; }
 .launcher .lcount {
   position: absolute; top: -5px; right: -5px; background: var(--pin); color: #fff;
   font-size: 10px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 6px;
@@ -250,7 +274,10 @@ var Loupe = (() => {
 .item .num { background: var(--pin); color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
 .item .num.detached { background: #9aa0af; }
 .item .num.done { background: #10935a; }
-.item .who { font-size: 12px; font-weight: 600; }
+/* Author + absolute time, visible collapsed too. */
+.item .who { display: flex; flex-wrap: wrap; gap: 0 4px; font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.item .who b { color: var(--ink); font-weight: 600; }
+.item .who time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .item .device { font-size: 10px; color: var(--muted); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
 .item .body { font-size: 13px; line-height: 1.4; }
 .item .meta { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
@@ -445,6 +472,23 @@ var Loupe = (() => {
 @keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
 
+/* ---------------------------------------------------------------- toast */
+/* A short notice (e.g. how to bring a hidden launcher back). Click to dismiss. */
+.toast {
+  position: fixed; z-index: 2147483006; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(8px); opacity: 0; pointer-events: none;
+  max-width: calc(100vw - 32px); padding: 9px 14px; border-radius: 999px; text-align: center;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+  font-size: 12px; font-weight: 600; line-height: 1.4;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; cursor: pointer; }
+.toast kbd {
+  font-family: ui-monospace, Menlo, monospace; font-size: 11px; padding: 1px 5px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg-3);
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
 /* ---------------------------------------------- header popovers (pos + settings) */
 .menu-wrap { position: relative; }
 .menu {
@@ -619,6 +663,8 @@ var Loupe = (() => {
 }
 .menu-ver b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
 .menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
+/* The host package's version, shown only when it differs from this bundle's (a stale publish). */
+.ver-stale { color: var(--pin); font-family: ui-monospace, Menlo, monospace; font-weight: 600; cursor: help; }
 
 /* ------------------------------------------------ lifecycle chips + review flow */
 .lifechip {
@@ -3881,7 +3927,10 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.10.28" : "dev";
+  var SDK_VERSION = true ? "0.11.0" : "dev";
+  var FAB_SIZE = 46;
+  var FAB_DRAG_THRESHOLD = 6;
+  var LAUNCHER_SHORTCUT = "Alt+Shift+L";
   var ACCENTS = [
     { id: "indigo", dark: "#6b73e6", light: "#4a55d6", soft: "rgba(107,115,230,0.12)" },
     { id: "violet", dark: "#a06be6", light: "#7c3fd4", soft: "rgba(160,107,230,0.14)" },
@@ -3988,6 +4037,21 @@ var Loupe = (() => {
       this.fabExpanded = false;
       /** Whether pin markers are hidden on the page (a quick-action toggle, persisted). */
       this.markersHidden = false;
+      /**
+       * Whether the collapsed launcher is hidden altogether (persisted). The way back is
+       * Alt+Shift+L, Settings → Launcher, or the host calling `showLauncher()`.
+       */
+      this.launcherHidden = false;
+      /**
+       * Where the user dragged the launcher to — the launcher's top-left in viewport px —
+       * or null for the default corner on the dock's side. Persisted; clamped on apply so
+       * a position saved on a wide screen still lands inside a narrow one.
+       */
+      this.fabPos = null;
+      /** The in-flight launcher drag: pointer start, launcher origin, and whether it has moved past the tap threshold. */
+      this.fabDrag = null;
+      /** Set for one tick after a drag so the click the browser fires afterwards does not open the panel. */
+      this.fabSuppressClick = false;
       this.comments = [];
       /** Free-text filter over the list (title / body / author). */
       this.search = "";
@@ -4088,6 +4152,56 @@ var Loupe = (() => {
       this.lastReplyId = "";
       /** In-app notifications: mentions of you, newest first. */
       this.notifications = [];
+      // ---- launcher: drag anywhere, hide, bring back ------------------------------
+      this.onFabPointerDown = (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        const target = e.currentTarget;
+        const r = target.getBoundingClientRect();
+        this.fabDrag = { px: e.clientX, py: e.clientY, ox: r.left, oy: r.top, moved: false };
+        let captured = false;
+        try {
+          if (typeof target.setPointerCapture === "function") {
+            target.setPointerCapture(e.pointerId);
+            captured = true;
+          }
+        } catch {
+          captured = false;
+        }
+        if (!captured) {
+          window.addEventListener("pointermove", this.onFabPointerMove);
+          window.addEventListener("pointerup", this.onFabPointerUp);
+          window.addEventListener("pointercancel", this.onFabPointerUp);
+        }
+      };
+      this.onFabPointerMove = (e) => {
+        const d = this.fabDrag;
+        if (!d) return;
+        const dx = e.clientX - d.px, dy = e.clientY - d.py;
+        if (!d.moved && Math.hypot(dx, dy) < FAB_DRAG_THRESHOLD) return;
+        if (!d.moved) {
+          d.moved = true;
+          this.fabCluster.classList.add("dragging");
+          this.collapseFab();
+        }
+        e.preventDefault();
+        this.fabPos = this.clampFabPos(d.ox + dx, d.oy + dy);
+        this.applyFabPosition();
+      };
+      this.onFabPointerUp = () => {
+        window.removeEventListener("pointermove", this.onFabPointerMove);
+        window.removeEventListener("pointerup", this.onFabPointerUp);
+        window.removeEventListener("pointercancel", this.onFabPointerUp);
+        const d = this.fabDrag;
+        this.fabDrag = null;
+        if (!d?.moved) return;
+        this.fabCluster.classList.remove("dragging");
+        this.saveState();
+        this.renderSettings();
+        this.fabSuppressClick = true;
+        window.setTimeout(() => {
+          this.fabSuppressClick = false;
+        }, 0);
+      };
       // ---- inspector ------------------------------------------------------------
       // Pointer Events, not mouse events: a touch drag on a phone never fires
       // mousemove/mouseup, so Region/Record selection was impossible on touch devices.
@@ -4129,6 +4243,18 @@ var Loupe = (() => {
           this.setMode("off");
           this.closeComposer();
         }
+      };
+      /**
+       * Alt+Shift+L toggles the launcher — the way back once it has been hidden, so it is
+       * listened for the whole time the widget is mounted (unlike Escape, which only
+       * matters while a tool is armed). `code` is checked too: on some keyboard layouts
+       * Alt+Shift+L yields a different `key`.
+       */
+      this.onLauncherKey = (e) => {
+        if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return;
+        if (e.code !== "KeyL" && (e.key ?? "").toLowerCase() !== "l") return;
+        e.preventDefault();
+        this.setLauncherHidden(!this.launcherHidden);
       };
       // ---- region ("free-size screenshot") selection ----------------------------
       this.onRegionDown = (e) => {
@@ -4331,6 +4457,7 @@ var Loupe = (() => {
       this.loadState();
       this.loadProject();
       this.buildDom();
+      document.addEventListener("keydown", this.onLauncherKey);
       if (this.cfg.autoOpen) this.open = true;
       this.applyDockLayout();
       this.lastUrl = this.url;
@@ -4404,11 +4531,15 @@ var Loupe = (() => {
       this.dock = this.buildDock();
       this.fabCluster = this.buildFabCluster();
       this.recBar = this.buildRecBar();
+      this.toastEl = el("div", "toast");
+      this.toastEl.setAttribute("role", "status");
+      this.toastEl.setAttribute("aria-live", "polite");
+      this.toastEl.onclick = () => this.toastEl.classList.remove("show");
       this.tourEl = el("div", "tour");
       this.tourSpot = el("div", "tour-spot");
       this.tourCard = el("div", "tour-card");
       this.tourEl.append(this.tourSpot, this.tourCard);
-      this.shadow.append(this.dock, this.fabCluster, this.recBar, this.tourEl);
+      this.shadow.append(this.dock, this.fabCluster, this.recBar, this.toastEl, this.tourEl);
       this.shadow.addEventListener("click", (e) => {
         const t = e.target;
         if (t?.closest && t.closest(".menu-wrap")) return;
@@ -4461,7 +4592,7 @@ var Loupe = (() => {
       setBtn.innerHTML = I_GEAR;
       setBtn.onclick = () => this.toggleMenu(this.settingsMenu);
       this.settingsMenu = el("div", "menu");
-      this.settingsMenu.innerHTML = `<div class="menu-label">Appearance</div><div class="acc-dots">` + ACCENTS.map((a) => `<button class="acc-dot" data-accent="${a.id}" style="background:${a.dark}" title="${a.id}" aria-label="${a.id} accent"></button>`).join("") + `</div><div class="menu-sep"></div><div class="menu-label">Show</div><button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button><button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button><button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button><div class="menu-sep"></div><button class="menu-row" data-set="tour"><span>Restart tour</span></button><div class="menu-ver">Loupe <b>v${escapeHtml(SDK_VERSION)}</b><span class="menu-mode">${this.cfg.apiBase ? "server" : "offline"}</span></div>`;
+      this.settingsMenu.innerHTML = `<div class="menu-label">Appearance</div><div class="acc-dots">` + ACCENTS.map((a) => `<button class="acc-dot" data-accent="${a.id}" style="background:${a.dark}" title="${a.id}" aria-label="${a.id} accent"></button>`).join("") + `</div><div class="menu-sep"></div><div class="menu-label">Show</div><button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button><button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button><button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button><button class="menu-row" data-set="launcherHidden" aria-pressed="true" title="The \u25CE button shown while the panel is closed. ${LAUNCHER_SHORTCUT} toggles it too."><span>Launcher</span><span class="sw"></span></button><div class="menu-sep"></div><button class="menu-row" data-set="fabReset" hidden><span>Reset launcher position</span></button><button class="menu-row" data-set="tour"><span>Restart tour</span></button><div class="menu-ver"><span>Loupe <b>v${escapeHtml(SDK_VERSION)}</b>${this.packageVersionNote()}</span><span class="menu-mode">${this.cfg.apiBase ? "server" : "offline"}</span></div>`;
       this.settingsMenu.querySelectorAll("[data-accent]").forEach((b) => {
         b.onclick = () => this.setAccent(b.dataset.accent);
       });
@@ -4471,6 +4602,11 @@ var Loupe = (() => {
           if (key === "tour") {
             this.closeMenus();
             this.startTour();
+            return;
+          }
+          if (key === "fabReset") {
+            this.closeMenus();
+            this.resetLauncherPosition();
             return;
           }
           this.toggleSetting(key);
@@ -5071,7 +5207,7 @@ var Loupe = (() => {
      */
     buildHomePanel() {
       const title = this.cfg.label ?? "Loupe";
-      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-repo"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hnotif" id="loupe-hnotif"></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
+      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-repo"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hnotif" id="loupe-hnotif"></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span>${this.packageVersionNote()}</div>`;
       this.homeEl.querySelector('[data-role="proj-open"]').onclick = (e) => {
         e.stopPropagation();
         this.setProjectOpen(!this.projOpen);
@@ -5164,7 +5300,7 @@ var Loupe = (() => {
       feed.innerHTML = recent.length ? recent.map((c) => {
         const stage = STAGE_LABELS[normalizeStatus(c.status)];
         const prio = normalizePriority(c.priority);
-        return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}"><span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span><span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} \xB7 ${fmtAgo(c.createdAt)} \xB7 <span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span><span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
+        return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}"><span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span><span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} \xB7 <span title="${escapeAttr(this.fmtWhen(c.createdAt))}">${fmtAgo(c.createdAt)}</span> \xB7 <span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span><span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
       }).join("") : `<div class="hempty">Nothing here yet.</div>`;
       feed.querySelectorAll(".hfeed-i").forEach((b) => {
         b.onclick = () => {
@@ -5431,20 +5567,21 @@ var Loupe = (() => {
     }
     /**
      * The collapsed-state FAB cluster. The primary brand button carries the comment
-     * count and toggles the quick actions out and back; the actions are the four
-     * ways into the product without opening the full panel first:
-     * pin a comment, drop a note, hide/show the markers already on the page, and
-     * jump straight to the Claude/MCP setup.
+     * count and OPENS the panel — one tap, the thing most people came for. A drag on
+     * it moves the whole cluster anywhere on screen (persisted). The chevron beside it
+     * is its own button and toggles the quick actions: pin a comment, drop a note,
+     * hide/show the markers already on the page, hide the launcher itself, and — when
+     * the host registered one — jump straight to the Connect tab.
      */
     buildFabCluster() {
       const cluster = el("div", "fab-cluster");
       const minis = el("div", "fab-minis");
-      const mini = (role, icon, label, title) => {
+      const mini = (role, icon, label2, title) => {
         const b = el("button", "fab-mini");
         b.dataset.fab = role;
         b.title = title;
         b.setAttribute("aria-label", title);
-        b.innerHTML = `${icon}<span class="fab-tip">${label}</span>`;
+        b.innerHTML = `${icon}<span class="fab-tip">${label2}</span>`;
         return b;
       };
       const comment = mini("comment", I_COMMENT, "Pin comment", "Pin feedback on any element");
@@ -5461,7 +5598,9 @@ var Loupe = (() => {
       };
       const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
       markers.onclick = () => this.toggleMarkers();
-      minis.append(comment, note, markers);
+      const hide = mini("hide", I_EYE_OFF, "Hide launcher", `Hide this launcher \u2014 ${LAUNCHER_SHORTCUT} brings it back`);
+      hide.onclick = () => this.setLauncherHidden(true);
+      minis.append(comment, note, markers, hide);
       if (this.tabList.some((t) => t.id === "connect")) {
         const connect = mini("connect", I_PLUG, "Connect Claude", "Set up the Claude/MCP connection");
         connect.onclick = () => {
@@ -5471,14 +5610,33 @@ var Loupe = (() => {
         };
         minis.appendChild(connect);
       }
+      const label = this.cfg.label ?? "Loupe";
       const primary = el("button", "launcher");
-      primary.title = `Open ${this.cfg.label ?? "Loupe"}`;
-      primary.setAttribute("aria-label", `${this.cfg.label ?? "Loupe"} \u2014 quick actions`);
-      primary.setAttribute("aria-expanded", "false");
-      primary.innerHTML = `<span class="logo">\u25CE</span>${I_FAB_CHEVRON}<span class="lcount"></span>`;
+      primary.title = `Open ${label} \u2014 drag to move`;
+      primary.setAttribute("aria-label", `Open ${label}`);
+      primary.innerHTML = `<span class="logo">\u25CE</span><span class="lcount"></span>`;
       this.fabBadge = primary.querySelector(".lcount");
-      primary.onclick = () => this.toggleFab();
-      cluster.append(minis, primary);
+      primary.onclick = () => {
+        if (this.fabSuppressClick) return;
+        this.openDock();
+      };
+      primary.addEventListener("pointerdown", this.onFabPointerDown);
+      primary.addEventListener("pointermove", this.onFabPointerMove);
+      primary.addEventListener("pointerup", this.onFabPointerUp);
+      primary.addEventListener("pointercancel", this.onFabPointerUp);
+      const more = el("button", "fab-more");
+      more.dataset.fab = "more";
+      more.title = "Quick actions";
+      more.setAttribute("aria-label", "Quick actions");
+      more.setAttribute("aria-expanded", "false");
+      more.innerHTML = I_FAB_CHEVRON;
+      more.onclick = (e) => {
+        e.stopPropagation();
+        this.toggleFab();
+      };
+      const main = el("div", "fab-main");
+      main.append(primary, more);
+      cluster.append(minis, main);
       this.fabMinis = minis;
       return cluster;
     }
@@ -5486,6 +5644,79 @@ var Loupe = (() => {
     toggleFab() {
       this.fabExpanded = !this.fabExpanded;
       this.applyFab();
+    }
+    /** Keep the launcher fully on screen, with a small margin so it never kisses the edge. */
+    clampFabPos(x, y) {
+      const m = 8;
+      return {
+        x: clampPx(Math.round(x), m, Math.max(m, window.innerWidth - FAB_SIZE - m)),
+        y: clampPx(Math.round(y), m, Math.max(m, window.innerHeight - FAB_SIZE - m))
+      };
+    }
+    /**
+     * Place the cluster. A dragged launcher is anchored to the viewport edge it is
+     * nearest, so the quick actions always grow INTO the page: minis open upward from
+     * the lower half and downward from the upper half, and their labels point away
+     * from the nearest side. With no saved position the cluster sits in the default
+     * corner on the dock's side, so reopening feels like the panel sliding back in.
+     */
+    applyFabPosition() {
+      const s = this.fabCluster.style;
+      if (this.fabPos) {
+        const { x, y } = this.clampFabPos(this.fabPos.x, this.fabPos.y);
+        const atTop = y + FAB_SIZE / 2 < window.innerHeight / 2;
+        const atLeft = x + FAB_SIZE / 2 < window.innerWidth / 2;
+        s.left = atLeft ? `${x}px` : "auto";
+        s.right = atLeft ? "auto" : `${Math.max(0, window.innerWidth - x - FAB_SIZE)}px`;
+        s.top = atTop ? `${y}px` : "auto";
+        s.bottom = atTop ? "auto" : `${Math.max(0, window.innerHeight - y - FAB_SIZE)}px`;
+        this.fabCluster.classList.toggle("at-top", atTop);
+        this.fabCluster.classList.toggle("at-left", atLeft);
+        return;
+      }
+      const leftSide = this.dockMode === "left";
+      s.left = leftSide ? "20px" : "auto";
+      s.right = leftSide ? "auto" : "20px";
+      s.top = "auto";
+      s.bottom = "";
+      this.fabCluster.classList.remove("at-top");
+      this.fabCluster.classList.toggle("at-left", leftSide);
+    }
+    resetLauncherPosition() {
+      this.fabPos = null;
+      this.saveState();
+      this.applyDockLayout();
+      this.renderSettings();
+    }
+    /**
+     * Hide or show the collapsed launcher. Hidden is persisted, and the way back is
+     * announced at the moment of hiding — a control that vanishes with no stated way
+     * to return is a support ticket, not a feature.
+     */
+    setLauncherHidden(hidden) {
+      if (this.launcherHidden === hidden) return;
+      this.launcherHidden = hidden;
+      this.fabExpanded = false;
+      this.saveState();
+      this.applyDockLayout();
+      this.renderSettings();
+      const label = this.cfg.label ?? "Loupe";
+      this.toast(hidden ? `${escapeHtml(label)} launcher hidden \u2014 press <kbd>${LAUNCHER_SHORTCUT}</kbd> to bring it back` : `${escapeHtml(label)} launcher is back`);
+    }
+    /** Public seam for the host (`Loupe.showLauncher()`). */
+    showLauncher() {
+      this.setLauncherHidden(false);
+    }
+    /** Public seam for the host (`Loupe.hideLauncher()`). */
+    hideLauncher() {
+      this.setLauncherHidden(true);
+    }
+    /** A short notice at the bottom of the viewport. `html` is trusted markup built by the caller. */
+    toast(html, ms = 6e3) {
+      this.toastEl.innerHTML = html;
+      this.toastEl.classList.add("show");
+      window.clearTimeout(this.toastTimer);
+      this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove("show"), ms);
     }
     collapseFab() {
       if (!this.fabExpanded) return;
@@ -5501,9 +5732,9 @@ var Loupe = (() => {
     /** Reflect cluster expansion + marker visibility into the DOM. */
     applyFab() {
       this.fabCluster.classList.toggle("expanded", this.fabExpanded);
-      const primary = this.fabCluster.querySelector(".launcher");
-      primary?.setAttribute("aria-expanded", String(this.fabExpanded));
-      primary?.setAttribute("aria-label", this.fabExpanded ? "Close quick actions" : `Open ${this.cfg.label ?? "Loupe"} quick actions`);
+      const more = this.fabCluster.querySelector('[data-fab="more"]');
+      more?.setAttribute("aria-expanded", String(this.fabExpanded));
+      more?.setAttribute("aria-label", this.fabExpanded ? "Close quick actions" : "Quick actions");
       const markers = this.fabCluster.querySelector('[data-fab="markers"]');
       markers?.classList.toggle("on", this.markersHidden);
       markers?.setAttribute("aria-pressed", String(this.markersHidden));
@@ -6067,6 +6298,10 @@ var Loupe = (() => {
     }
     /** Flip one of the "Show …" settings and repaint whatever it governs. */
     toggleSetting(key) {
+      if (key === "launcherHidden") {
+        this.setLauncherHidden(!this.launcherHidden);
+        return;
+      }
       if (key === "markersHidden") this.markersHidden = !this.markersHidden;
       else if (key === "hoverHints") this.hoverHints = !this.hoverHints;
       else this.showPaths = !this.showPaths;
@@ -6085,11 +6320,13 @@ var Loupe = (() => {
       const on = {
         hoverHints: this.hoverHints,
         markersHidden: !this.markersHidden,
-        showPaths: this.showPaths
+        showPaths: this.showPaths,
+        launcherHidden: !this.launcherHidden
       };
       this.settingsMenu.querySelectorAll("[data-set]").forEach((b) => {
         const key = b.dataset.set;
         if (key in on) b.setAttribute("aria-pressed", String(on[key]));
+        if (key === "fabReset") b.hidden = !this.fabPos;
       });
       this.settingsMenu.querySelectorAll("[data-accent]").forEach((b) => b.classList.toggle("on", b.dataset.accent === this.accent));
     }
@@ -6223,6 +6460,8 @@ var Loupe = (() => {
         if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
         if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
+        if (typeof p?.launcherHidden === "boolean") this.launcherHidden = p.launcherHidden;
+        if (p?.fab && typeof p.fab.x === "number" && typeof p.fab.y === "number") this.fabPos = { x: p.fab.x, y: p.fab.y };
         if (p?.accent && ACCENT_IDS.includes(p.accent)) this.accent = p.accent;
         if (typeof p?.minimized === "boolean") this.minimized = p.minimized;
         if (typeof p?.hoverHints === "boolean") this.hoverHints = p.hoverHints;
@@ -6241,6 +6480,8 @@ var Loupe = (() => {
           tab: this.tab,
           float: this.floatRect,
           markersHidden: this.markersHidden,
+          launcherHidden: this.launcherHidden,
+          fab: this.fabPos,
           scope: this.scope,
           statFilter: this.statFilter,
           repoFilter: this.repoFilter,
@@ -6293,10 +6534,8 @@ var Loupe = (() => {
         for (const p of ["left", "top", "right", "bottom", "width", "height"]) d.style[p] = "";
       }
       d.querySelectorAll(".dctl [data-dock]").forEach((b) => b.classList.toggle("on", b.dataset.dock === this.dockMode));
-      this.fabCluster.classList.toggle("show", !this.open);
-      const leftSide = this.dockMode === "left";
-      this.fabCluster.style.left = leftSide ? "20px" : "auto";
-      this.fabCluster.style.right = leftSide ? "auto" : "20px";
+      this.fabCluster.classList.toggle("show", !this.open && !this.launcherHidden);
+      this.applyFabPosition();
       this.applyFab();
       this.pushPage();
     }
@@ -6425,6 +6664,10 @@ var Loupe = (() => {
       item.appendChild(top);
       const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
       item.appendChild(el("div", "summary", summary));
+      const who = el("div", "who");
+      const when = this.fmtWhen(c.createdAt);
+      who.innerHTML = `<b>${escapeHtml(c.author?.name?.trim() || "Unknown")}</b>` + (when ? ` \xB7 <time datetime="${escapeAttr(c.createdAt)}" title="${escapeAttr(fmtAgo(c.createdAt))}">${escapeHtml(when)}</time>` : "");
+      item.appendChild(who);
       const detail = el("div", "detail");
       const repliesForState = this.messages.get(c.id) ?? [];
       const lastMsg = repliesForState.length ? repliesForState[repliesForState.length - 1] : void 0;
@@ -6997,6 +7240,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
           el("b", "msg-name", m.author.name),
           el("span", "msg-when", fmtAgo(m.createdAt))
         );
+        head.lastElementChild.title = this.fmtWhen(m.createdAt);
         if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
         const body = el("div", "msg-body");
         for (const seg of mentionSegments(m.body, parseMentions(m.body))) {
@@ -7525,6 +7769,21 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       const elx = this.resolved.get(id);
       if (elx) elx.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+    /** Absolute timestamp in the host's configured time zone and locale (see `LoupeConfig.timeZone`). */
+    fmtWhen(iso) {
+      return fmtAbsolute(iso, this.cfg.locale, this.cfg.timeZone);
+    }
+    /**
+     * " · package v0.11.0", flagged, when the host's package version differs from this
+     * bundle's. The two agree on a healthy install; they differ exactly when the
+     * package was upgraded but its published JS was not — the trap this makes visible.
+     */
+    packageVersionNote() {
+      const pkg = (this.cfg.packageVersion ?? "").trim().replace(/^v/i, "");
+      if (!pkg || pkg === SDK_VERSION) return "";
+      const why = `This widget bundle is v${SDK_VERSION} but the installed package is v${pkg}. Re-publish the package assets so the served bundle matches.`;
+      return ` \xB7 <span class="ver-stale" title="${escapeAttr(why)}">package v${escapeHtml(pkg)}</span>`;
+    }
     destroy() {
       this.liveSource?.close();
       this.liveSource = void 0;
@@ -7543,6 +7802,11 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       window.removeEventListener("pointerup", this.onHeadPointerUp);
       window.removeEventListener("pointermove", this.onResizeMove);
       window.removeEventListener("pointerup", this.onResizeUp);
+      window.removeEventListener("pointermove", this.onFabPointerMove);
+      window.removeEventListener("pointerup", this.onFabPointerUp);
+      window.removeEventListener("pointercancel", this.onFabPointerUp);
+      window.clearTimeout(this.toastTimer);
+      document.removeEventListener("keydown", this.onLauncherKey);
       document.removeEventListener("keydown", this.onKey, true);
       const de = document.documentElement;
       de.style.marginLeft = de.style.marginRight = de.style.marginBottom = "";
@@ -7568,6 +7832,27 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
     const h = Math.round(m / 60);
     if (h < 24) return `${h}h ago`;
     return `${Math.round(h / 24)}d ago`;
+  }
+  var warnedBadTimeZone = false;
+  function fmtAbsolute(iso, locale, timeZone) {
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return "";
+    const opts = {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    };
+    try {
+      return new Intl.DateTimeFormat(locale || void 0, { ...opts, timeZone: timeZone || void 0 }).format(t);
+    } catch (err) {
+      if (!warnedBadTimeZone) {
+        warnedBadTimeZone = true;
+        console.warn(`[loupe] unusable timeZone/locale (${timeZone ?? "-"} / ${locale ?? "-"}); using the browser's`, err);
+      }
+      return new Intl.DateTimeFormat(void 0, opts).format(t);
+    }
   }
   function shortPath(url) {
     try {
@@ -7650,6 +7935,9 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
   );
   var I_PLUG = svg(
     `<path d="M6 1.8v3.1M10 1.8v3.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.4 4.9h7.2v2.3a3.6 3.6 0 0 1-7.2 0z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 10.8v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`
+  );
+  var I_EYE_OFF = svg(
+    `<path d="M2 2l12 12M6.6 6.7A2 2 0 0 0 9.3 9.4M4.3 4.5C2.9 5.4 1.9 6.7 1.5 8c1.1 3 3.7 5 6.5 5 1.3 0 2.5-.4 3.6-1.1M6.9 3.2C7.3 3.1 7.6 3 8 3c2.8 0 5.4 2 6.5 5-.3.8-.8 1.6-1.4 2.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`
   );
   var I_FAB_CHEVRON = `<span class="lchev">${svg(`<path d="M4.4 9.6 8 6l3.6 3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`)}</span>`;
   var REGION_ICON = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 1.8"/></svg>`;
@@ -7778,6 +8066,12 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
   }
   function openTool(tool) {
     app?.openTool(tool);
+  }
+  function showLauncher() {
+    app?.showLauncher();
+  }
+  function hideLauncher() {
+    app?.hideLauncher();
   }
   return __toCommonJS(src_exports);
 })();

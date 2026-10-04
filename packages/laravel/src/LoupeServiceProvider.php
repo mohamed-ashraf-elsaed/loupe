@@ -113,6 +113,10 @@ class LoupeServiceProvider extends ServiceProvider
             'projectKey' => config('loupe.project_key', 'app'),
             'apiBase' => url(config('loupe.path', 'loupe')),
             'csrf' => csrf_token(),
+            // The clock the widget renders timestamps in: Loupe's own setting, else the app's.
+            'timeZone' => config('loupe.timezone') ?: config('app.timezone'),
+            'locale' => config('loupe.locale') ?: null,
+            'packageVersion' => $loupe->packageVersion(),
             // App-origin asset URL (bypasses ASSET_URL/CDN — see Url::asset()),
             // versioned so a new build is a new URL and no cache serves the old SDK.
             'sdkSrc' => Url::versioned('vendor/loupe/sdk/loupe.js'),

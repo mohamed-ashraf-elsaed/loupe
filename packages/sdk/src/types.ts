@@ -183,6 +183,22 @@ export interface LoupeConfig {
    */
   headers?: Record<string, string>;
   /**
+   * IANA time zone every absolute timestamp in the panel is rendered in, e.g.
+   * "Africa/Cairo". Defaults to the browser's zone. A team that sits in one place
+   * sets it so everyone reads the same clock whatever their laptop says. An
+   * unknown zone falls back to the browser's and is reported once in the console.
+   */
+  timeZone?: string;
+  /** BCP 47 locale for dates (e.g. "en-GB" for day-first). Defaults to the browser's. */
+  locale?: string;
+  /**
+   * Version of the host-side package that serves this bundle — the Laravel package
+   * passes its Composer version. Shown beside the SDK build, and flagged when the
+   * two differ: that gap is exactly the "I updated the package and nothing changed"
+   * trap, where the package was upgraded but the published JS was not.
+   */
+  packageVersion?: string;
+  /**
    * `credentials` mode for backend requests. Defaults to the browser default
    * (`same-origin`). Set to `include` for cross-origin cookie auth (e.g. a
    * Sanctum SPA on a different subdomain).

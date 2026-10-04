@@ -3,6 +3,7 @@
 namespace Loupekit\Loupe;
 
 use Closure;
+use Composer\InstalledVersions;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -114,6 +115,20 @@ class Loupe
             'name' => $this->attr($user, 'name') ?? $this->attr($user, 'email') ?? 'User',
             'email' => $this->attr($user, 'email'),
         ];
+    }
+
+    /**
+     * The installed version of this package, as Composer records it ("v0.11.0", or a
+     * "dev-…" string from a VCS checkout). The widget shows it beside the version baked
+     * into the JS bundle and flags a mismatch — which is exactly the state after the
+     * package was upgraded but `vendor:publish --tag=loupe-assets --force` was not run.
+     * Null when Composer has no record of the package (e.g. a vendored copy).
+     */
+    public function packageVersion(string $package = 'loupekit/laravel'): ?string
+    {
+        return InstalledVersions::isInstalled($package)
+            ? InstalledVersions::getPrettyVersion($package)
+            : null;
     }
 
     private function decide(?Authenticatable $user, ?Closure $registered, string $configKey, string $ability): bool

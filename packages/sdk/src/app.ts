@@ -67,7 +67,13 @@ import type {
 
 declare const __LOUPE_VERSION__: string | undefined;
 /** The build that produced this bundle (baked in by tsup); recorded on every comment. */
-const SDK_VERSION = typeof __LOUPE_VERSION__ === "string" ? __LOUPE_VERSION__ : "dev";
+export const SDK_VERSION = typeof __LOUPE_VERSION__ === "string" ? __LOUPE_VERSION__ : "dev";
+/** The launcher button's rendered size, used to keep a dragged launcher inside the viewport. */
+const FAB_SIZE = 46;
+/** Pointer travel (px) before a press on the launcher counts as a drag rather than a tap. */
+const FAB_DRAG_THRESHOLD = 6;
+/** Keyboard shortcut that shows a hidden launcher again (and hides a shown one). */
+const LAUNCHER_SHORTCUT = "Alt+Shift+L";
 
 type Mode = "off" | "inspect" | "region" | "free" | "record";
 /** Accent presets — a variant per theme, since light needs a darker hue to stay legible. */
@@ -216,6 +222,24 @@ export class LoupeApp {
   private fabExpanded = false;
   /** Whether pin markers are hidden on the page (a quick-action toggle, persisted). */
   private markersHidden = false;
+  /**
+   * Whether the collapsed launcher is hidden altogether (persisted). The way back is
+   * Alt+Shift+L, Settings → Launcher, or the host calling `showLauncher()`.
+   */
+  private launcherHidden = false;
+  /**
+   * Where the user dragged the launcher to — the launcher's top-left in viewport px —
+   * or null for the default corner on the dock's side. Persisted; clamped on apply so
+   * a position saved on a wide screen still lands inside a narrow one.
+   */
+  private fabPos: { x: number; y: number } | null = null;
+  /** The in-flight launcher drag: pointer start, launcher origin, and whether it has moved past the tap threshold. */
+  private fabDrag: { px: number; py: number; ox: number; oy: number; moved: boolean } | null = null;
+  /** Set for one tick after a drag so the click the browser fires afterwards does not open the panel. */
+  private fabSuppressClick = false;
+  /** Transient notice at the bottom of the viewport (e.g. how to bring a hidden launcher back). */
+  private toastEl!: HTMLElement;
+  private toastTimer?: number;
   private themeBtn!: HTMLButtonElement;
   private listEl!: HTMLElement;
   private countEl!: HTMLElement;
@@ -340,6 +364,7 @@ export class LoupeApp {
     this.loadState();
     this.loadProject();
     this.buildDom();
+    document.addEventListener("keydown", this.onLauncherKey);
     if (this.cfg.autoOpen) this.open = true;
     this.applyDockLayout();
     this.lastUrl = this.url;
@@ -425,6 +450,10 @@ export class LoupeApp {
     this.dock = this.buildDock();
     this.fabCluster = this.buildFabCluster();
     this.recBar = this.buildRecBar();
+    this.toastEl = el("div", "toast");
+    this.toastEl.setAttribute("role", "status");
+    this.toastEl.setAttribute("aria-live", "polite");
+    this.toastEl.onclick = () => this.toastEl.classList.remove("show");
 
     // Guided tour overlay — click-through by design (see STYLES), so it can never
     // trap someone mid-task.
@@ -433,7 +462,7 @@ export class LoupeApp {
     this.tourCard = el("div", "tour-card");
     this.tourEl.append(this.tourSpot, this.tourCard);
 
-    this.shadow.append(this.dock, this.fabCluster, this.recBar, this.tourEl);
+    this.shadow.append(this.dock, this.fabCluster, this.recBar, this.toastEl, this.tourEl);
 
     // A click anywhere outside a popover dismisses it.
     this.shadow.addEventListener("click", (e) => {
@@ -510,9 +539,11 @@ export class LoupeApp {
       `<button class="menu-row" data-set="hoverHints" aria-pressed="true"><span>Hover hints</span><span class="sw"></span></button>` +
       `<button class="menu-row" data-set="markersHidden" aria-pressed="true"><span>Markers</span><span class="sw"></span></button>` +
       `<button class="menu-row" data-set="showPaths" aria-pressed="false"><span>Page paths</span><span class="sw"></span></button>` +
+      `<button class="menu-row" data-set="launcherHidden" aria-pressed="true" title="The ◎ button shown while the panel is closed. ${LAUNCHER_SHORTCUT} toggles it too."><span>Launcher</span><span class="sw"></span></button>` +
       `<div class="menu-sep"></div>` +
+      `<button class="menu-row" data-set="fabReset" hidden><span>Reset launcher position</span></button>` +
       `<button class="menu-row" data-set="tour"><span>Restart tour</span></button>` +
-      `<div class="menu-ver">Loupe <b>v${escapeHtml(SDK_VERSION)}</b>` +
+      `<div class="menu-ver"><span>Loupe <b>v${escapeHtml(SDK_VERSION)}</b>${this.packageVersionNote()}</span>` +
       `<span class="menu-mode">${this.cfg.apiBase ? "server" : "offline"}</span></div>`;
     this.settingsMenu.querySelectorAll<HTMLElement>("[data-accent]").forEach((b) => {
       b.onclick = () => this.setAccent(b.dataset.accent!);
@@ -521,7 +552,8 @@ export class LoupeApp {
       b.onclick = () => {
         const key = b.dataset.set!;
         if (key === "tour") { this.closeMenus(); this.startTour(); return; }
-        this.toggleSetting(key as "markersHidden" | "hoverHints" | "showPaths");
+        if (key === "fabReset") { this.closeMenus(); this.resetLauncherPosition(); return; }
+        this.toggleSetting(key as "markersHidden" | "hoverHints" | "showPaths" | "launcherHidden");
       };
     });
     setWrap.append(setBtn, this.settingsMenu);
@@ -1291,7 +1323,7 @@ export class LoupeApp {
       `<div class="hnotif" id="loupe-hnotif"></div>` +
       `<div class="hlabel">Recent</div>` +
       `<div class="hfeed" id="loupe-hfeed"></div>` +
-      `<div class="hfoot">${escapeHtml(title)} · <span class="hver">v${escapeHtml(SDK_VERSION)}</span></div>`;
+      `<div class="hfoot">${escapeHtml(title)} · <span class="hver">v${escapeHtml(SDK_VERSION)}</span>${this.packageVersionNote()}</div>`;
 
     (this.homeEl.querySelector('[data-role="proj-open"]') as HTMLElement).onclick = (e) => {
       e.stopPropagation();
@@ -1406,7 +1438,7 @@ export class LoupeApp {
           const prio = normalizePriority(c.priority);
           return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}">` +
             `<span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span>` +
-            `<span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} · ${fmtAgo(c.createdAt)} · ` +
+            `<span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} · <span title="${escapeAttr(this.fmtWhen(c.createdAt))}">${fmtAgo(c.createdAt)}</span> · ` +
             `<span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span>` +
             `<span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
         }).join("")
@@ -1738,10 +1770,11 @@ export class LoupeApp {
 
   /**
    * The collapsed-state FAB cluster. The primary brand button carries the comment
-   * count and toggles the quick actions out and back; the actions are the four
-   * ways into the product without opening the full panel first:
-   * pin a comment, drop a note, hide/show the markers already on the page, and
-   * jump straight to the Claude/MCP setup.
+   * count and OPENS the panel — one tap, the thing most people came for. A drag on
+   * it moves the whole cluster anywhere on screen (persisted). The chevron beside it
+   * is its own button and toggles the quick actions: pin a comment, drop a note,
+   * hide/show the markers already on the page, hide the launcher itself, and — when
+   * the host registered one — jump straight to the Connect tab.
    */
   private buildFabCluster(): HTMLElement {
     const cluster = el("div", "fab-cluster");
@@ -1761,7 +1794,9 @@ export class LoupeApp {
     note.onclick = () => { this.collapseFab(); this.openDock(); this.setMode("free"); };
     const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
     markers.onclick = () => this.toggleMarkers();
-    minis.append(comment, note, markers);
+    const hide = mini("hide", I_EYE_OFF, "Hide launcher", `Hide this launcher — ${LAUNCHER_SHORTCUT} brings it back`);
+    hide.onclick = () => this.setLauncherHidden(true);
+    minis.append(comment, note, markers, hide);
     // The Connect shortcut only exists when a "connect" tab is registered — the
     // panel no longer ships one, so it is opt-in via connectTab().
     if (this.tabList.some((t) => t.id === "connect")) {
@@ -1770,15 +1805,33 @@ export class LoupeApp {
       minis.appendChild(connect);
     }
 
+    const label = this.cfg.label ?? "Loupe";
     const primary = el("button", "launcher") as HTMLButtonElement;
-    primary.title = `Open ${this.cfg.label ?? "Loupe"}`;
-    primary.setAttribute("aria-label", `${this.cfg.label ?? "Loupe"} — quick actions`);
-    primary.setAttribute("aria-expanded", "false");
-    primary.innerHTML = `<span class="logo">◎</span>${I_FAB_CHEVRON}<span class="lcount"></span>`;
+    primary.title = `Open ${label} — drag to move`;
+    primary.setAttribute("aria-label", `Open ${label}`);
+    primary.innerHTML = `<span class="logo">◎</span><span class="lcount"></span>`;
     this.fabBadge = primary.querySelector(".lcount") as HTMLElement;
-    primary.onclick = () => this.toggleFab();
+    // A tap opens the panel; a drag moves the launcher. Distance tells them apart, so
+    // a shaky tap still opens and a real drag never opens by accident.
+    primary.onclick = () => { if (this.fabSuppressClick) return; this.openDock(); };
+    primary.addEventListener("pointerdown", this.onFabPointerDown);
+    primary.addEventListener("pointermove", this.onFabPointerMove);
+    primary.addEventListener("pointerup", this.onFabPointerUp);
+    primary.addEventListener("pointercancel", this.onFabPointerUp);
 
-    cluster.append(minis, primary);
+    // The chevron is a separate button so the quick actions stay one tap away without
+    // costing the primary tap, which now opens the panel.
+    const more = el("button", "fab-more") as HTMLButtonElement;
+    more.dataset.fab = "more";
+    more.title = "Quick actions";
+    more.setAttribute("aria-label", "Quick actions");
+    more.setAttribute("aria-expanded", "false");
+    more.innerHTML = I_FAB_CHEVRON;
+    more.onclick = (e) => { e.stopPropagation(); this.toggleFab(); };
+
+    const main = el("div", "fab-main");
+    main.append(primary, more);
+    cluster.append(minis, main);
     this.fabMinis = minis;
     return cluster;
   }
@@ -1787,6 +1840,134 @@ export class LoupeApp {
   private toggleFab() {
     this.fabExpanded = !this.fabExpanded;
     this.applyFab();
+  }
+
+  // ---- launcher: drag anywhere, hide, bring back ------------------------------
+
+  private onFabPointerDown = (e: PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const target = e.currentTarget as HTMLElement;
+    const r = target.getBoundingClientRect();
+    this.fabDrag = { px: e.clientX, py: e.clientY, ox: r.left, oy: r.top, moved: false };
+    // Capture the pointer so a fast drag that leaves the button keeps reporting to the
+    // button's own listeners. Without capture support, follow the pointer on window.
+    let captured = false;
+    try {
+      if (typeof target.setPointerCapture === "function") { target.setPointerCapture(e.pointerId); captured = true; }
+    } catch { captured = false; /* pointer already up — a tap */ }
+    if (!captured) {
+      window.addEventListener("pointermove", this.onFabPointerMove);
+      window.addEventListener("pointerup", this.onFabPointerUp);
+      window.addEventListener("pointercancel", this.onFabPointerUp);
+    }
+  };
+
+  private onFabPointerMove = (e: PointerEvent) => {
+    const d = this.fabDrag;
+    if (!d) return;
+    const dx = e.clientX - d.px, dy = e.clientY - d.py;
+    if (!d.moved && Math.hypot(dx, dy) < FAB_DRAG_THRESHOLD) return;
+    if (!d.moved) {
+      d.moved = true;
+      this.fabCluster.classList.add("dragging");
+      this.collapseFab();
+    }
+    e.preventDefault();
+    this.fabPos = this.clampFabPos(d.ox + dx, d.oy + dy);
+    this.applyFabPosition();
+  };
+
+  private onFabPointerUp = () => {
+    window.removeEventListener("pointermove", this.onFabPointerMove);
+    window.removeEventListener("pointerup", this.onFabPointerUp);
+    window.removeEventListener("pointercancel", this.onFabPointerUp);
+    const d = this.fabDrag;
+    this.fabDrag = null;
+    if (!d?.moved) return;
+    this.fabCluster.classList.remove("dragging");
+    this.saveState();
+    this.renderSettings();
+    // The browser fires a click right after this pointerup; that one must not open the panel.
+    this.fabSuppressClick = true;
+    window.setTimeout(() => { this.fabSuppressClick = false; }, 0);
+  };
+
+  /** Keep the launcher fully on screen, with a small margin so it never kisses the edge. */
+  private clampFabPos(x: number, y: number): { x: number; y: number } {
+    const m = 8;
+    return {
+      x: clampPx(Math.round(x), m, Math.max(m, window.innerWidth - FAB_SIZE - m)),
+      y: clampPx(Math.round(y), m, Math.max(m, window.innerHeight - FAB_SIZE - m)),
+    };
+  }
+
+  /**
+   * Place the cluster. A dragged launcher is anchored to the viewport edge it is
+   * nearest, so the quick actions always grow INTO the page: minis open upward from
+   * the lower half and downward from the upper half, and their labels point away
+   * from the nearest side. With no saved position the cluster sits in the default
+   * corner on the dock's side, so reopening feels like the panel sliding back in.
+   */
+  private applyFabPosition() {
+    const s = this.fabCluster.style;
+    if (this.fabPos) {
+      const { x, y } = this.clampFabPos(this.fabPos.x, this.fabPos.y);
+      const atTop = y + FAB_SIZE / 2 < window.innerHeight / 2;
+      const atLeft = x + FAB_SIZE / 2 < window.innerWidth / 2;
+      s.left = atLeft ? `${x}px` : "auto";
+      s.right = atLeft ? "auto" : `${Math.max(0, window.innerWidth - x - FAB_SIZE)}px`;
+      s.top = atTop ? `${y}px` : "auto";
+      s.bottom = atTop ? "auto" : `${Math.max(0, window.innerHeight - y - FAB_SIZE)}px`;
+      this.fabCluster.classList.toggle("at-top", atTop);
+      this.fabCluster.classList.toggle("at-left", atLeft);
+      return;
+    }
+    const leftSide = this.dockMode === "left";
+    s.left = leftSide ? "20px" : "auto";
+    s.right = leftSide ? "auto" : "20px";
+    s.top = "auto";
+    s.bottom = ""; // the stylesheet's corner offset (20px, 16px on phones)
+    this.fabCluster.classList.remove("at-top");
+    this.fabCluster.classList.toggle("at-left", leftSide);
+  }
+
+  private resetLauncherPosition() {
+    this.fabPos = null;
+    this.saveState();
+    this.applyDockLayout();
+    this.renderSettings();
+  }
+
+  /**
+   * Hide or show the collapsed launcher. Hidden is persisted, and the way back is
+   * announced at the moment of hiding — a control that vanishes with no stated way
+   * to return is a support ticket, not a feature.
+   */
+  private setLauncherHidden(hidden: boolean) {
+    if (this.launcherHidden === hidden) return;
+    this.launcherHidden = hidden;
+    this.fabExpanded = false;
+    this.saveState();
+    this.applyDockLayout();
+    this.renderSettings();
+    const label = this.cfg.label ?? "Loupe";
+    this.toast(hidden
+      ? `${escapeHtml(label)} launcher hidden — press <kbd>${LAUNCHER_SHORTCUT}</kbd> to bring it back`
+      : `${escapeHtml(label)} launcher is back`);
+  }
+
+  /** Public seam for the host (`Loupe.showLauncher()`). */
+  showLauncher() { this.setLauncherHidden(false); }
+
+  /** Public seam for the host (`Loupe.hideLauncher()`). */
+  hideLauncher() { this.setLauncherHidden(true); }
+
+  /** A short notice at the bottom of the viewport. `html` is trusted markup built by the caller. */
+  private toast(html: string, ms = 6000) {
+    this.toastEl.innerHTML = html;
+    this.toastEl.classList.add("show");
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove("show"), ms);
   }
 
   private collapseFab() {
@@ -1805,9 +1986,9 @@ export class LoupeApp {
   /** Reflect cluster expansion + marker visibility into the DOM. */
   private applyFab() {
     this.fabCluster.classList.toggle("expanded", this.fabExpanded);
-    const primary = this.fabCluster.querySelector(".launcher") as HTMLElement | null;
-    primary?.setAttribute("aria-expanded", String(this.fabExpanded));
-    primary?.setAttribute("aria-label", this.fabExpanded ? "Close quick actions" : `Open ${this.cfg.label ?? "Loupe"} quick actions`);
+    const more = this.fabCluster.querySelector('[data-fab="more"]') as HTMLElement | null;
+    more?.setAttribute("aria-expanded", String(this.fabExpanded));
+    more?.setAttribute("aria-label", this.fabExpanded ? "Close quick actions" : "Quick actions");
     const markers = this.fabCluster.querySelector('[data-fab="markers"]') as HTMLElement | null;
     markers?.classList.toggle("on", this.markersHidden);
     markers?.setAttribute("aria-pressed", String(this.markersHidden));
@@ -1860,6 +2041,19 @@ export class LoupeApp {
 
   private onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") { this.cancelDrag(); this.setMode("off"); this.closeComposer(); }
+  };
+
+  /**
+   * Alt+Shift+L toggles the launcher — the way back once it has been hidden, so it is
+   * listened for the whole time the widget is mounted (unlike Escape, which only
+   * matters while a tool is armed). `code` is checked too: on some keyboard layouts
+   * Alt+Shift+L yields a different `key`.
+   */
+  private onLauncherKey = (e: KeyboardEvent) => {
+    if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return;
+    if (e.code !== "KeyL" && (e.key ?? "").toLowerCase() !== "l") return;
+    e.preventDefault();
+    this.setLauncherHidden(!this.launcherHidden);
   };
 
   // ---- region ("free-size screenshot") selection ----------------------------
@@ -2596,7 +2790,8 @@ export class LoupeApp {
   }
 
   /** Flip one of the "Show …" settings and repaint whatever it governs. */
-  private toggleSetting(key: "markersHidden" | "hoverHints" | "showPaths") {
+  private toggleSetting(key: "markersHidden" | "hoverHints" | "showPaths" | "launcherHidden") {
+    if (key === "launcherHidden") { this.setLauncherHidden(!this.launcherHidden); return; }
     if (key === "markersHidden") this.markersHidden = !this.markersHidden;
     else if (key === "hoverHints") this.hoverHints = !this.hoverHints;
     else this.showPaths = !this.showPaths;
@@ -2614,10 +2809,13 @@ export class LoupeApp {
       hoverHints: this.hoverHints,
       markersHidden: !this.markersHidden,
       showPaths: this.showPaths,
+      launcherHidden: !this.launcherHidden,
     };
     this.settingsMenu.querySelectorAll<HTMLElement>("[data-set]").forEach((b) => {
       const key = b.dataset.set!;
       if (key in on) b.setAttribute("aria-pressed", String(on[key]));
+      // Only offered once there is a custom position to reset.
+      if (key === "fabReset") b.hidden = !this.fabPos;
     });
     this.settingsMenu.querySelectorAll<HTMLElement>("[data-accent]").forEach((b) =>
       b.classList.toggle("on", b.dataset.accent === this.accent));
@@ -2778,6 +2976,8 @@ export class LoupeApp {
       if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
       if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
+      if (typeof p?.launcherHidden === "boolean") this.launcherHidden = p.launcherHidden;
+      if (p?.fab && typeof p.fab.x === "number" && typeof p.fab.y === "number") this.fabPos = { x: p.fab.x, y: p.fab.y };
       if (p?.accent && ACCENT_IDS.includes(p.accent)) this.accent = p.accent;
       if (typeof p?.minimized === "boolean") this.minimized = p.minimized;
       if (typeof p?.hoverHints === "boolean") this.hoverHints = p.hoverHints;
@@ -2791,7 +2991,7 @@ export class LoupeApp {
     try {
       localStorage.setItem("loupe:dock", JSON.stringify({
         mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
-        markersHidden: this.markersHidden,
+        markersHidden: this.markersHidden, launcherHidden: this.launcherHidden, fab: this.fabPos,
         scope: this.scope, statFilter: this.statFilter, repoFilter: this.repoFilter,
         accent: this.accent, minimized: this.minimized, hoverHints: this.hoverHints,
         showPaths: this.showPaths, tourDone: this.tourDone, hintsSeen: [...this.hintsSeen],
@@ -2849,12 +3049,10 @@ export class LoupeApp {
     d.querySelectorAll<HTMLElement>(".dctl [data-dock]").forEach((b) =>
       b.classList.toggle("on", b.dataset.dock === this.dockMode));
 
-    // FAB cluster: visible only while the panel is closed and always on the same
-    // side as the dock edge, so reopening it feels like the panel sliding back in.
-    this.fabCluster.classList.toggle("show", !this.open);
-    const leftSide = this.dockMode === "left";
-    this.fabCluster.style.left = leftSide ? "20px" : "auto";
-    this.fabCluster.style.right = leftSide ? "auto" : "20px";
+    // FAB cluster: visible only while the panel is closed and the user has not hidden
+    // it; placed where it was dragged, or on the dock's side by default.
+    this.fabCluster.classList.toggle("show", !this.open && !this.launcherHidden);
+    this.applyFabPosition();
     this.applyFab();
 
     this.pushPage();
@@ -2993,7 +3191,6 @@ export class LoupeApp {
     const item = el("div", "item" + (open ? "" : " collapsed"));
     const top = el("div", "top");
     const num = el("span", "num" + (isResolved(c) ? " done" : detached ? " detached" : ""), String(i + 1));
-    // No author identity is shown in the widget list (privacy — see the dashboard for triage).
     top.append(num);
     if (c.recording) top.appendChild(el("span", "rectag", "⏺ recording"));
     const vw = c.viewport?.w;
@@ -3070,6 +3267,16 @@ export class LoupeApp {
     // Collapsed, the item is a single summary line; expanding reveals the detail.
     const summary = c.title || (c.body.split("\n")[0] ?? "").slice(0, 140) || "(no description)";
     item.appendChild(el("div", "summary", summary));
+
+    // Who raised it and when, in the configured time zone — shown collapsed too, so a
+    // reporter can find their own thread in the list without opening every card.
+    // (This used to be withheld from the widget; teams asked for it back.)
+    const who = el("div", "who");
+    const when = this.fmtWhen(c.createdAt);
+    who.innerHTML =
+      `<b>${escapeHtml(c.author?.name?.trim() || "Unknown")}</b>` +
+      (when ? ` · <time datetime="${escapeAttr(c.createdAt)}" title="${escapeAttr(fmtAgo(c.createdAt))}">${escapeHtml(when)}</time>` : "");
+    item.appendChild(who);
 
     const detail = el("div", "detail");
     // With the messages loaded, the predicate can see the two reasons the stage cannot
@@ -3716,6 +3923,7 @@ export class LoupeApp {
         el("b", "msg-name", m.author.name),
         el("span", "msg-when", fmtAgo(m.createdAt)),
       );
+      (head.lastElementChild as HTMLElement).title = this.fmtWhen(m.createdAt);
       if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
       // The body is rendered as segments so a mentioned name is highlightable — and
       // so the highlight lands on the right occurrence rather than the first.
@@ -4247,6 +4455,24 @@ export class LoupeApp {
     if (elx) elx.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  /** Absolute timestamp in the host's configured time zone and locale (see `LoupeConfig.timeZone`). */
+  private fmtWhen(iso: string): string {
+    return fmtAbsolute(iso, this.cfg.locale, this.cfg.timeZone);
+  }
+
+  /**
+   * " · package v0.11.0", flagged, when the host's package version differs from this
+   * bundle's. The two agree on a healthy install; they differ exactly when the
+   * package was upgraded but its published JS was not — the trap this makes visible.
+   */
+  private packageVersionNote(): string {
+    const pkg = (this.cfg.packageVersion ?? "").trim().replace(/^v/i, "");
+    if (!pkg || pkg === SDK_VERSION) return "";
+    const why = `This widget bundle is v${SDK_VERSION} but the installed package is v${pkg}. ` +
+      `Re-publish the package assets so the served bundle matches.`;
+    return ` · <span class="ver-stale" title="${escapeAttr(why)}">package v${escapeHtml(pkg)}</span>`;
+  }
+
   destroy() {
     this.liveSource?.close();
     this.liveSource = undefined;
@@ -4265,6 +4491,11 @@ export class LoupeApp {
     window.removeEventListener("pointerup", this.onHeadPointerUp);
     window.removeEventListener("pointermove", this.onResizeMove);
     window.removeEventListener("pointerup", this.onResizeUp);
+    window.removeEventListener("pointermove", this.onFabPointerMove);
+    window.removeEventListener("pointerup", this.onFabPointerUp);
+    window.removeEventListener("pointercancel", this.onFabPointerUp);
+    window.clearTimeout(this.toastTimer);
+    document.removeEventListener("keydown", this.onLauncherKey);
     document.removeEventListener("keydown", this.onKey, true);
     // Release the page-push margins we set for docked modes.
     const de = document.documentElement;
@@ -4293,6 +4524,29 @@ function fmtAgo(iso: string): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.round(h / 24)}d ago`;
+}
+let warnedBadTimeZone = false;
+/**
+ * "4 Oct 2026, 3:42 PM" — the absolute form, in the given zone and locale (both
+ * optional: the browser's by default). An unknown zone or locale falls back to the
+ * browser's and says so once, rather than throwing out of a render: a wrong clock
+ * is recoverable, a panel that never paints is not.
+ */
+function fmtAbsolute(iso: string, locale?: string, timeZone?: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const opts: Intl.DateTimeFormatOptions = {
+    day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+  };
+  try {
+    return new Intl.DateTimeFormat(locale || undefined, { ...opts, timeZone: timeZone || undefined }).format(t);
+  } catch (err) {
+    if (!warnedBadTimeZone) {
+      warnedBadTimeZone = true;
+      console.warn(`[loupe] unusable timeZone/locale (${timeZone ?? "-"} / ${locale ?? "-"}); using the browser's`, err);
+    }
+    return new Intl.DateTimeFormat(undefined, opts).format(t);
+  }
 }
 /** "https://x.test/a/b?q=1" → "/a/b" — what the page-path tag shows. */
 function shortPath(url: string): string {
@@ -4388,6 +4642,9 @@ const I_PLUG = svg(
   `<path d="M4.4 4.9h7.2v2.3a3.6 3.6 0 0 1-7.2 0z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>` +
   `<path d="M8 10.8v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`);
 /** Points up when collapsed, flips down (via CSS) when the actions are out. */
+const I_EYE_OFF = svg(
+  `<path d="M2 2l12 12M6.6 6.7A2 2 0 0 0 9.3 9.4M4.3 4.5C2.9 5.4 1.9 6.7 1.5 8c1.1 3 3.7 5 6.5 5 1.3 0 2.5-.4 3.6-1.1M6.9 3.2C7.3 3.1 7.6 3 8 3c2.8 0 5.4 2 6.5 5-.3.8-.8 1.6-1.4 2.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+);
 const I_FAB_CHEVRON =
   `<span class="lchev">${svg(`<path d="M4.4 9.6 8 6l3.6 3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`)}</span>`;
 

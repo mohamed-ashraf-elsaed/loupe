@@ -60,7 +60,8 @@ the moment of the comment, so the feedback stays actionable even after the UI ch
 | 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
 | ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. The region anchors to the element under its center, so it tracks responsive reflow and scrolling. |
 | ⏺ **Screen recording** | The **Record** tool drags the same box, then captures a screen video of it (via `getDisplayMedia` + canvas crop) as `.webm` — duration-capped with a Stop button. Recordings play back inline in the widget and the dashboard. |
-| 🧲 **Dockable control** | A DevTools-style panel: dock it to the left / right / bottom edge (which pushes your page over so it's never covered) or float it as a movable, resizable window. Light/dark theme, collapses to a `◎` FAB cluster (quick actions to pin a comment, drop a note, hide the markers, or open the Claude setup), and becomes a bottom sheet on mobile. Position, theme and marker visibility persist. |
+| 🧲 **Dockable control** | A DevTools-style panel: dock it to the left / right / bottom edge (which pushes your page over so it's never covered) or float it as a movable, resizable window. Light/dark theme, collapses to a draggable `◎` launcher (one tap reopens the panel; a chevron expands the quick actions to pin a comment, drop a note, hide the markers or hide the launcher itself), and becomes a bottom sheet on mobile. Position, launcher position, theme and marker visibility persist. |
+| 🕒 **Who and when** | Every thread shows its author and an absolute timestamp rendered in `init({ timeZone, locale })`, so one team reads one clock. The Home footer shows the bundle version and flags it when the host's `packageVersion` differs. |
 | 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint (stable id/testid, CSS path, XPath, text, attributes, position) re-locates the element on the current page; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
 | 📸 **Screenshot capture** | `[data-loupe-redact]` regions are painted over **before any pixels leave the browser**. |
 | 🧩 **Shadow-DOM isolation** | The widget's CSS never leaks into your page and vice-versa. |
@@ -103,9 +104,12 @@ Pass `repo` and `branch` to `init()` to make
 threads branch-aware — the board can then be filtered by repository and branch.
 Use the header's dock controls to dock it left / right /
 bottom (which pushes your page over) or float it, toggle light/dark, or close it to the `◎`
-FAB cluster — the primary button carries the comment count and expands four quick actions
-(pin a comment, drop a note, hide the markers, open the Claude setup). Call `destroy()` to
-tear it down. `init()` is idempotent — safe to call more
+launcher. The launcher carries the comment count; one tap reopens the panel, and the chevron
+beside it expands the quick actions (pin a comment, drop a note, hide the markers, hide the
+launcher). Drag the launcher to move it anywhere — the spot is remembered, and **Reset launcher
+position** in the Settings menu puts it back. Hide it from a quick action, the Settings menu,
+`Alt+Shift+L`, or `hideLauncher()` / `showLauncher()` when it covers something on your page.
+Call `destroy()` to tear it down. `init()` is idempotent — safe to call more
 than once. Pass `label` to change the brand name shown in the header.
 
 ### Adding your own tab
@@ -256,6 +260,9 @@ and reordered, yet the pin follows it:
 | `captureRecording` | `(rect, opts?) => Promise<string \| undefined>` | Override screen-recording capture (returns a webm data URL). Defaults to `getDisplayMedia` + canvas crop; `opts` carries a duration cap and a `register(stop)` hook. |
 | `headers` | `Record<string, string>` | Extra headers merged into every backend request (e.g. a CSRF token). |
 | `credentials` | `RequestCredentials` | `credentials` mode for backend requests — set `"include"` for cross-origin cookie auth. |
+| `timeZone` | `string` | IANA time zone every timestamp is rendered in (e.g. `"Africa/Cairo"`). Defaults to the browser's. |
+| `locale` | `string` | BCP 47 locale for dates (e.g. `"en-GB"` for day-first). Defaults to the browser's. |
+| `packageVersion` | `string` | Version of the host package that served this bundle (`Loupe.version` is the bundle's own). Flagged in the widget when the two differ. |
 
 ## Redaction
 

@@ -9,6 +9,9 @@
             apiBase: @json($apiBase),
             headers: { 'X-CSRF-TOKEN': @json($csrf) },
             credentials: 'same-origin',
+            timeZone: @json($timeZone),
+            locale: @json($locale),
+            packageVersion: @json($packageVersion),
         });
     })();
 </script>

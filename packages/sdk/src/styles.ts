@@ -85,6 +85,14 @@ export const STYLES = /* css */ `
   display: none; flex-direction: column; align-items: flex-end; gap: 10px;
 }
 .fab-cluster.show { display: flex; }
+/* A dragged launcher is anchored to its nearest edges (JS sets left/right/top/bottom),
+   and the quick actions grow INTO the page: downward from the upper half, labels to the
+   right from the left half. */
+.fab-cluster.at-top { flex-direction: column-reverse; }
+.fab-cluster.at-left, .fab-cluster.at-left .fab-minis { align-items: flex-start; }
+.fab-cluster.at-left .fab-mini .fab-tip { right: auto; left: calc(100% + 8px); }
+.fab-cluster.dragging .launcher { cursor: grabbing; border-color: var(--accent); }
+.fab-cluster.dragging .fab-mini .fab-tip { display: none; }
 
 .fab-minis { display: none; flex-direction: column; align-items: flex-end; gap: 10px; }
 .fab-cluster.expanded .fab-minis { display: flex; }
@@ -93,7 +101,10 @@ export const STYLES = /* css */ `
 .fab-cluster.expanded .fab-minis .fab-mini:nth-child(2) { animation-delay: 30ms; }
 .fab-cluster.expanded .fab-minis .fab-mini:nth-child(3) { animation-delay: 60ms; }
 .fab-cluster.expanded .fab-minis .fab-mini:nth-child(4) { animation-delay: 90ms; }
+.fab-cluster.expanded .fab-minis .fab-mini:nth-child(5) { animation-delay: 120ms; }
 @keyframes loupe-fab-in { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+.fab-cluster.at-top.expanded .fab-minis .fab-mini { animation-name: loupe-fab-in-down; }
+@keyframes loupe-fab-in-down { from { opacity: 0; transform: translateY(-8px) scale(.9); } to { opacity: 1; transform: none; } }
 
 .fab-mini {
   position: relative; width: 40px; height: 40px; border-radius: 50%; padding: 0;
@@ -114,22 +125,32 @@ export const STYLES = /* css */ `
 }
 .fab-mini:hover .fab-tip { opacity: 1; }
 
+/* The launcher and its chevron share a box so the chevron can sit on the launcher's
+   corner while being its own button (tap = quick actions; the launcher = open). */
+.fab-main { position: relative; display: inline-flex; }
 .launcher {
   position: relative; width: 46px; height: 46px; border-radius: 50%; padding: 0;
   border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
-  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  cursor: grab; display: inline-flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow);
+  touch-action: none; user-select: none; -webkit-user-select: none; /* drag with a finger too */
 }
 .launcher:hover { border-color: var(--accent); }
+.launcher:active { cursor: grabbing; }
 .launcher .logo { font-size: 24px; line-height: 1; color: var(--accent); }
 /* Chevron pinned to the corner: up = actions are tucked away, down = they are out. */
-.launcher .lchev {
-  position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%;
+.fab-more {
+  position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%;
+  padding: 0; cursor: pointer; z-index: 1;
   background: var(--bg); border: 1px solid var(--line); color: var(--muted);
   display: grid; place-items: center; transition: transform 160ms cubic-bezier(.16, 1, .3, 1);
 }
-.launcher .lchev svg { width: 11px; height: 11px; display: block; }
-.fab-cluster.expanded .launcher .lchev { transform: rotate(180deg); }
+.fab-more:hover { border-color: var(--accent); color: var(--accent); }
+.fab-more .lchev { display: grid; place-items: center; }
+.fab-more svg { width: 11px; height: 11px; display: block; }
+.fab-cluster.expanded .fab-more { transform: rotate(180deg); }
+.fab-cluster.at-top .fab-more { bottom: auto; top: -3px; transform: rotate(180deg); }
+.fab-cluster.at-top.expanded .fab-more { transform: none; }
 .launcher .lcount {
   position: absolute; top: -5px; right: -5px; background: var(--pin); color: #fff;
   font-size: 10px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 6px;
@@ -214,7 +235,10 @@ export const STYLES = /* css */ `
 .item .num { background: var(--pin); color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; }
 .item .num.detached { background: #9aa0af; }
 .item .num.done { background: #10935a; }
-.item .who { font-size: 12px; font-weight: 600; }
+/* Author + absolute time, visible collapsed too. */
+.item .who { display: flex; flex-wrap: wrap; gap: 0 4px; font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.item .who b { color: var(--ink); font-weight: 600; }
+.item .who time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .item .device { font-size: 10px; color: var(--muted); background: var(--bg-3); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
 .item .body { font-size: 13px; line-height: 1.4; }
 .item .meta { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
@@ -409,6 +433,23 @@ export const STYLES = /* css */ `
 @keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
 
+/* ---------------------------------------------------------------- toast */
+/* A short notice (e.g. how to bring a hidden launcher back). Click to dismiss. */
+.toast {
+  position: fixed; z-index: 2147483006; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(8px); opacity: 0; pointer-events: none;
+  max-width: calc(100vw - 32px); padding: 9px 14px; border-radius: 999px; text-align: center;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+  font-size: 12px; font-weight: 600; line-height: 1.4;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; cursor: pointer; }
+.toast kbd {
+  font-family: ui-monospace, Menlo, monospace; font-size: 11px; padding: 1px 5px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg-3);
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
 /* ---------------------------------------------- header popovers (pos + settings) */
 .menu-wrap { position: relative; }
 .menu {
@@ -583,6 +624,8 @@ export const STYLES = /* css */ `
 }
 .menu-ver b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
 .menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
+/* The host package's version, shown only when it differs from this bundle's (a stale publish). */
+.ver-stale { color: var(--pin); font-family: ui-monospace, Menlo, monospace; font-weight: 600; cursor: help; }
 
 /* ------------------------------------------------ lifecycle chips + review flow */
 .lifechip {
