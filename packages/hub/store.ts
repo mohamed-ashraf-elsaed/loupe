@@ -42,6 +42,8 @@ export interface Delivery {
   project_id: string;
   issue_id: string;
   destination_project_id: string | null;
+  /** The source app's receiver for updates on this ticket (`/loupe/v1/hub/inbound`). */
+  reply_url: string | null;
   status: "ok" | "failed";
   http_status: number | null;
   attempts: number;
@@ -234,10 +236,32 @@ export async function rotateSecret(projectId: string, which: "secret" | "webhook
 export async function recordDelivery(d0: Omit<Delivery, "created_at">): Promise<void> {
   const d = await db();
   await d.query(
-    `INSERT INTO deliveries (id, project_id, issue_id, status, http_status, attempts, last_error, destination_project_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [d0.id, d0.project_id, d0.issue_id, d0.status, d0.http_status, d0.attempts, d0.last_error, d0.destination_project_id],
+    `INSERT INTO deliveries (id, project_id, issue_id, status, http_status, attempts, last_error, destination_project_id, reply_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [d0.id, d0.project_id, d0.issue_id, d0.status, d0.http_status, d0.attempts, d0.last_error, d0.destination_project_id, d0.reply_url],
   );
+}
+
+/**
+ * The newest successful project-to-project delivery of `issueId`, and whether
+ * `projectId` took part in it. `null` when the ticket was never delivered to a
+ * destination project.
+ */
+export async function findSharedTicket(
+  issueId: string,
+  projectId: string,
+): Promise<{ delivery: Delivery; party: boolean } | null> {
+  const d = await db();
+  const { rows } = await d.query<Delivery>(
+    `SELECT * FROM deliveries
+      WHERE issue_id = $1 AND status = 'ok' AND destination_project_id IS NOT NULL
+      ORDER BY (project_id = $2 OR destination_project_id = $2) DESC, created_at DESC, id DESC
+      LIMIT 1`,
+    [issueId, projectId],
+  );
+  const delivery = rows[0];
+  if (!delivery) return null;
+  return { delivery, party: delivery.project_id === projectId || delivery.destination_project_id === projectId };
 }
 
 export async function listDeliveries(projectId: string, limit = 20): Promise<Delivery[]> {

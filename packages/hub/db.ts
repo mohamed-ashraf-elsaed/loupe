@@ -95,4 +95,8 @@ export async function migrate(): Promise<void> {
   );
   await d.query(`ALTER TABLE projects ALTER COLUMN webhook_url DROP NOT NULL;`);
   await d.query(`ALTER TABLE deliveries ADD COLUMN IF NOT EXISTS destination_project_id TEXT;`);
+
+  // 0.13.0: two-way sync. Where the source app hears back about a ticket it sent.
+  await d.query(`ALTER TABLE deliveries ADD COLUMN IF NOT EXISTS reply_url TEXT;`);
+  await d.query(`CREATE INDEX IF NOT EXISTS deliveries_issue ON deliveries (issue_id, created_at DESC);`);
 }

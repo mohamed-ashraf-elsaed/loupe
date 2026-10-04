@@ -14,6 +14,7 @@ const PORT = Number(process.env.PORT || 8790);
 const SESSION_COOKIE = "hub_session";
 const INGEST_BODY_CAP = 5_000_000;
 const FORM_BODY_CAP = 64_000;
+const UPDATE_BODY_CAP = 1_000_000;
 
 // ---- config (read lazily so tests can set env per file) ----
 
@@ -182,7 +183,7 @@ async function ingest(req: IncomingMessage, res: ServerResponse) {
   const raw = await readRaw(req, INGEST_BODY_CAP);
   const project = await signedProject(req, raw);
 
-  let body: { user?: { email?: unknown; name?: unknown }; issue?: Comment };
+  let body: { user?: { email?: unknown; name?: unknown }; issue?: Comment; reply_url?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
@@ -224,11 +225,14 @@ async function ingest(req: IncomingMessage, res: ServerResponse) {
   } else {
     return json(res, 202, { id: deliveryId, delivery: "none" });
   }
+  // Only kept for a project-to-project delivery: that is the only kind updates can follow.
+  const replyUrl = toDest && typeof body.reply_url === "string" && validWebhookUrl(body.reply_url) ? body.reply_url : null;
   await store.recordDelivery({
     id: deliveryId,
     project_id: project.id,
     issue_id: issue.id,
     destination_project_id: toDest?.id ?? null,
+    reply_url: replyUrl,
     status: result.status,
     http_status: result.httpStatus,
     attempts: result.attempts,
@@ -240,6 +244,57 @@ async function ingest(req: IncomingMessage, res: ServerResponse) {
     delivery: result.status,
     ...(toDest ? { destination: { id: toDest.id, name: toDest.name } } : {}),
   });
+}
+
+// ---- updates: POST /v1/issues/{id}/updates ----
+
+/**
+ * A status change or a reply on a ticket two projects share. The caller is one
+ * side of the newest successful delivery of that ticket; Hub sends the update to
+ * the other side, signed with the receiver's own secret, exactly like a ticket:
+ *
+ *   caller is the source       -> the destination's inbound_url, destination secret
+ *   caller is the destination  -> the delivery's reply_url,      source secret
+ *
+ * Body in: {kind: "status"|"message", ...}. Body out to the receiver:
+ *   {type: "update", issue_id, from: {project_id, project_name}, update}
+ * Answers 202 {delivery: "ok"|"failed"|"none"}; "none" when the other side has no
+ * URL to receive it. Updates are not retried by the caller, so Hub retries them.
+ */
+async function updates(req: IncomingMessage, res: ServerResponse, issueId: string) {
+  const raw = await readRaw(req, UPDATE_BODY_CAP);
+  const project = await signedProject(req, raw);
+
+  let update: { kind?: unknown };
+  try {
+    update = JSON.parse(raw);
+  } catch {
+    return json(res, 400, { error: "invalid JSON" });
+  }
+  if (!update || typeof update !== "object" || Array.isArray(update) || (update.kind !== "status" && update.kind !== "message")) {
+    return json(res, 400, { error: "kind must be status or message" });
+  }
+
+  const shared = await store.findSharedTicket(issueId, project.id);
+  if (!shared) return json(res, 404, { error: "unknown ticket" });
+  if (!shared.party) return json(res, 403, { error: "this project does not hold the ticket" });
+
+  const { delivery } = shared;
+  const toDestination = delivery.project_id === project.id;
+  const other = await store.getProject(toDestination ? delivery.destination_project_id! : delivery.project_id);
+  const url = toDestination ? other?.inbound_url : delivery.reply_url;
+  if (!other || !url) return json(res, 202, { delivery: "none" });
+
+  const deliveryId = newId("dlv");
+  const payload = JSON.stringify({
+    type: "update",
+    issue_id: issueId,
+    from: { project_id: project.id, project_name: project.name },
+    update,
+  });
+  const result = await deliver(url, payload, other.secret, deliveryId, { "X-Loupe-Hub-Project": other.id });
+  if (result.status === "failed") console.warn(`[hub] update ${deliveryId} for ${issueId} from ${project.id} failed: ${result.lastError}`);
+  return json(res, 202, { id: deliveryId, delivery: result.status });
 }
 
 // ---- dashboard ----
@@ -424,6 +479,17 @@ export async function handler(req: IncomingMessage, res: ServerResponse) {
     if (path === "/v1/issues") {
       if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
       return await ingest(req, res);
+    }
+    const update = /^\/v1\/issues\/([^/]{1,191})\/updates$/.exec(path);
+    if (update) {
+      if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
+      let issueId: string;
+      try {
+        issueId = decodeURIComponent(update[1]!);
+      } catch {
+        return json(res, 400, { error: "bad issue id" });
+      }
+      return await updates(req, res, issueId);
     }
     if (isApi) return json(res, 404, { error: "not found" });
     await dashboard(req, res, path);

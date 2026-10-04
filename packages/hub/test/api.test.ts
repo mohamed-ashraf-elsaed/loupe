@@ -464,6 +464,113 @@ describe("routing between projects", () => {
   });
 });
 
+function postUpdate(project: { id: string; secret: string }, issueId: string, body: unknown, opts: { secret?: string } = {}) {
+  const raw = typeof body === "string" ? body : JSON.stringify(body);
+  const ts = String(Math.floor(Date.now() / 1000));
+  return fetch(`${base}/v1/issues/${issueId}/updates`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Loupe-Project": project.id,
+      "X-Loupe-Timestamp": ts,
+      "X-Loupe-Signature": sign(ts, raw, opts.secret ?? project.secret),
+    },
+    body: raw,
+  });
+}
+
+describe("POST /v1/issues/{id}/updates", () => {
+  const replyUrl = () => hookUrl.replace("/hook", "/reply");
+
+  async function shared() {
+    const r = await routed();
+    const sent = await postIssue(r.web, { user: { email: "dev@acme.com" }, issue: issue(), reply_url: replyUrl() });
+    expect((await sent.json()).delivery).toBe("ok");
+    hookReceived = [];
+    return r;
+  }
+
+  it("stores the source's reply URL with a project-to-project delivery", async () => {
+    const { web } = await shared();
+    expect((await store.listDeliveries(web.id))[0]!.reply_url).toBe(replyUrl());
+  });
+
+  it("does not keep a reply URL that is not http(s), or for a webhook delivery", async () => {
+    const { web } = await routed();
+    await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue(), reply_url: "javascript:alert(1)" });
+    expect((await store.listDeliveries(web.id))[0]!.reply_url).toBeNull();
+    const { project } = await setup();
+    await postIssue(project, { user: { email: "dev@acme.com" }, issue: issue({ id: "c_2" }), reply_url: replyUrl() });
+    expect((await store.listDeliveries(project.id))[0]!.reply_url).toBeNull();
+  });
+
+  it("sends the destination's status back to the source's reply URL, signed with the source secret", async () => {
+    const { web, tracker } = await shared();
+    const update = { kind: "status", status: "in_progress", label: "In progress", reference: "CT-1405" };
+    const r = await postUpdate(tracker, "c_1", update);
+    expect(r.status).toBe(202);
+    expect(await r.json()).toEqual({ id: expect.stringMatching(/^dlv_/), delivery: "ok" });
+
+    expect(hookReceived).toHaveLength(1);
+    const { headers, body } = hookReceived[0]!;
+    expect(headers["x-loupe-hub-project"]).toBe(web.id);
+    expect(verifySignature(String(headers["x-loupe-hub-timestamp"]), body, String(headers["x-loupe-hub-signature"]), web.secret)).toEqual({ ok: true });
+    expect(verifySignature(String(headers["x-loupe-hub-timestamp"]), body, String(headers["x-loupe-hub-signature"]), tracker.secret).ok).toBe(false);
+    expect(JSON.parse(body)).toEqual({ type: "update", issue_id: "c_1", from: { project_id: tracker.id, project_name: "Tracker" }, update });
+  });
+
+  it("sends the source's reply to the destination's inbound URL, signed with the destination secret", async () => {
+    const { web, tracker } = await shared();
+    const update = { kind: "message", message: { id: "m_1", author: { name: "Sara" }, body: "Any news?" } };
+    expect(await (await postUpdate(web, "c_1", update)).json()).toMatchObject({ delivery: "ok" });
+
+    const { headers, body } = hookReceived[0]!;
+    expect(headers["x-loupe-hub-project"]).toBe(tracker.id);
+    expect(verifySignature(String(headers["x-loupe-hub-timestamp"]), body, String(headers["x-loupe-hub-signature"]), tracker.secret).ok).toBe(true);
+    expect(JSON.parse(body)).toEqual({ type: "update", issue_id: "c_1", from: { project_id: web.id, project_name: "Web" }, update });
+  });
+
+  it("refuses a project that does not hold the ticket, and an unknown ticket", async () => {
+    const { admin, tracker } = await shared();
+    const r = await postUpdate(admin, "c_1", { kind: "status", status: "todo" });
+    expect(r.status).toBe(403);
+    expect((await postUpdate(tracker, "c_unknown", { kind: "status", status: "todo" })).status).toBe(404);
+    expect(hookReceived).toHaveLength(0);
+  });
+
+  it("fails closed on a bad signature, a bad body and a bad method", async () => {
+    const { web, tracker } = await shared();
+    expect((await postUpdate(tracker, "c_1", { kind: "status" }, { secret: web.secret })).status).toBe(401);
+    expect((await postUpdate(tracker, "c_1", "not json")).status).toBe(400);
+    expect((await postUpdate(tracker, "c_1", { kind: "nudge" })).status).toBe(400);
+    expect((await postUpdate(tracker, "c_1", [1])).status).toBe(400);
+    expect((await postUpdate(tracker, "%E0%A4%A", { kind: "status" })).status).toBe(400);
+    expect((await fetch(`${base}/v1/issues/c_1/updates`)).status).toBe(405);
+    expect(hookReceived).toHaveLength(0);
+  });
+
+  it("answers none when the other side cannot receive, and failed when it is down", async () => {
+    const { web, tracker } = await routed();
+    await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue() }); // no reply_url: an older package
+    hookReceived = [];
+    expect(await (await postUpdate(tracker, "c_1", { kind: "status", status: "todo" })).json()).toEqual({ delivery: "none" });
+    expect(hookReceived).toHaveLength(0);
+
+    hookReplies = [500, 500, 500];
+    expect(await (await postUpdate(web, "c_1", { kind: "status", status: "todo" })).json()).toMatchObject({ delivery: "failed" });
+  });
+
+  it("follows the newest delivery of a resent ticket", async () => {
+    const { web, tracker } = await shared();
+    const second = replyUrl().replace("/reply", "/reply2");
+    await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue(), reply_url: second });
+    hookReceived = [];
+    await postUpdate(tracker, "c_1", { kind: "status", status: "todo" });
+    expect(hookReceived).toHaveLength(1);
+    expect(await store.findSharedTicket("c_1", tracker.id)).toMatchObject({ party: true, delivery: { reply_url: second } });
+  });
+});
+
 describe("GET /v1/projects", () => {
   it("returns the organization, the calling project and its siblings, with no secrets or URLs", async () => {
     const { org, web, tracker, admin } = await routed();
