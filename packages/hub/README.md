@@ -141,6 +141,31 @@ Any 2xx is success. A non-2xx reply, a network error or the 10 s timeout is retr
 1 s and then 4 s (3 attempts in total). Redirects are not followed. Every issue produces one
 `deliveries` row. The ingest call answers only after delivery finishes (up to ~35 s).
 
+## Updates
+
+After a project-to-project delivery, either project can send an update about the ticket:
+
+```
+POST /v1/issues/{issue id}/updates     signed like ingest (X-Loupe-Project, -Timestamp, -Signature)
+{ "kind": "status", "status": "in_review", "label": "Ready for testing", "reference": "CT-1405", "url": "https://…" }
+{ "kind": "message", "message": { "id": "…", "author": { "name": "…", "email": "…" }, "body": "…", "createdAt": "…" } }
+```
+
+Hub finds the newest successful delivery of that ticket that the caller took part in, and
+sends the update to the other project:
+
+| Caller | Sent to | Signed with |
+| --- | --- | --- |
+| the source | the destination's Inbound URL | the destination's secret |
+| the destination | the `reply_url` the source sent with the ticket | the source's secret |
+
+The receiver gets `{ "type": "update", "issue_id", "from": { "project_id", "project_name" },
+"update" }` with the usual `X-Loupe-Hub-*` headers. Answers: `202 { delivery: "ok" |
+"failed" | "none" }`, `400` for a bad body, `401` for a bad signature, `403` when the caller
+is not part of the delivery, `404` for an unknown ticket. `none` means the other side has no
+URL, for example a ticket sent by a package older than 0.13.0. Delivery retries like ingest.
+Updates do not add rows to `deliveries`.
+
 ## Laravel
 
 `loupekit/laravel` forwards every new comment when `LOUPE_HUB_URL`, `LOUPE_PROJECT_ID` and

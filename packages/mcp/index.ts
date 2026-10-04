@@ -300,7 +300,7 @@ function hookScriptPath(): string {
   return candidates.find((c) => existsSync(c)) ?? candidates[0]!;
 }
 
-const server = new McpServer({ name: "loupe", version: "0.12.0" });
+const server = new McpServer({ name: "loupe", version: "0.13.0" });
 
 /**
  * Carry any pending companion message on every tool result.

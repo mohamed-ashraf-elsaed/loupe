@@ -11,6 +11,45 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.13.0] — 2026-10-04
+
+### Added
+
+- **Two-way sync between projects.** After Hub delivers a ticket to another project, the
+  two apps stay in step. When the receiving app changes the ticket's status, the sending app
+  moves its own card and its chip reads "→ Converted OS · CT-1405 · In progress", linked to
+  the ticket over there. A reply written on either side appears in the other side's thread
+  with a "from <project>" tag. The receiving project owns the status, so a status change on
+  the sending side stays local.
+- **Hub relays updates.** Ingest stores the sender's `reply_url`. The new
+  `POST /v1/issues/{id}/updates` takes a status or a reply from either project and sends it to
+  the other one, signed with the receiver's own secret. A project that is not part of the
+  delivery gets 403.
+- **Replies, reactions, mentions and the inbox on Laravel.** The package now serves the four
+  routes the widget already called: `v1/comments/{id}/messages`, `.../reactions`,
+  `v1/people` and `v1/notifications`. Before this, replies failed, the mention picker was
+  empty and the inbox stayed empty on every Laravel app. People are the users whose email is
+  in `loupe.allowed_emails` plus everyone who has taken part in a thread. Set
+  `loupe.people_resolver` to supply your own list. A reply notifies the people it mentions
+  and the reporter.
+- **Events for host apps.** `CommentCreated`, `CommentStatusChanged`, `CommentDeleted`,
+  `MessageAdded` and `HubUpdateReceived`. They fire from Eloquent, so a host that saves the
+  comment model directly triggers them too.
+- **`Loupe::reply()` and `Loupe::describeTicket()`.** A host can add a reply from its own
+  tracker, and can say what its next status change means ("Ready for testing", "CT-1405", a
+  link) before it saves the status.
+
+### Changed
+
+- **An unknown status is refused.** `PATCH v1/comments/{id}` answers 422 for a status that is
+  not a board stage or a legacy alias. It used to move the comment to the queue.
+- **Only the author or an admin deletes a comment.** Anyone else gets 403. An admin is a user
+  who passes the dashboard authorization.
+- **Run `php artisan migrate`.** Three new migrations create `loupe_messages`,
+  `loupe_reactions` and `loupe_notifications`.
+- **Redeploy Hub.** It adds `deliveries.reply_url` on start. Tickets sent before this release
+  have no reply URL, so the receiver's updates for them answer `delivery: "none"`.
+
 ## [0.12.0] — 2026-10-04
 
 ### Added

@@ -383,6 +383,32 @@ Event::listen(function (TicketReceived $e) {
 });
 ```
 
+### Keep the two projects in step
+
+When both apps run 0.13.0 or later, a ticket Hub delivered stays in sync:
+
+- **Status flows from the receiver to the sender.** Every status change on a received ticket
+  goes to Hub, which sends it to the app that filed it. That app sets the same board stage and
+  stores the receiver's description on `forwarded.remote`
+  (`{ status, label, reference, url, projectName, at }`). Changes on the sending side stay
+  local.
+- **Replies flow both ways.** A reply added on either side, through the widget or with
+  `Loupe::reply()`, reaches the other side's thread. A reply that came through Hub has an
+  `origin` (`{ projectId, projectName }`) and is never sent back.
+
+To label a status change in your own words, call `describeTicket` right before you save the
+status:
+
+```php
+use Loupekit\Loupe\Facades\Loupe;
+
+Loupe::describeTicket($comment->id, 'Ready for testing', 'CT-1405', route('tickets.show', $ticket));
+$comment->update(['status' => 'in_review']);
+```
+
+To act on what the other project sends, listen for `HubUpdateReceived`. `$e->update['kind']` is
+`status` or `message`, and `$e->from` names the project.
+
 ### The organization and Activity endpoints
 
 - `GET {path}/v1/org` returns this project, its organization, its destination and the

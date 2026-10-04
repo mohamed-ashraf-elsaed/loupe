@@ -682,6 +682,12 @@ var Loupe = (() => {
 }
 .fwdchip { border-color: var(--accent); color: var(--accent); }
 .fwdchip.bad { border-color: #d9534f; color: #d9534f; }
+a.fwdchip { text-decoration: none; cursor: pointer; }
+.fwdchip[class*="st-"] { max-width: 220px; }
+.fwdchip.st-queue { border-color: var(--line); color: var(--muted); }
+.fwdchip.st-in_progress { border-color: #3f8ae0; color: #3f8ae0; }
+.fwdchip.st-in_review { border-color: #c98a1b; color: #c98a1b; }
+.fwdchip.st-resolved { border-color: #2f9e6a; color: #2f9e6a; }
 
 /* ------------------------------------------------ lifecycle chips + review flow */
 .lifechip {
@@ -3977,7 +3983,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.12.0" : "dev";
+  var SDK_VERSION = true ? "0.13.0" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";
@@ -6707,9 +6713,25 @@ var Loupe = (() => {
       if (fwd && fwd.status !== "none") {
         const where = fwd.destinationName || (fwd.status === "ok" ? "webhook" : "Hub");
         const ok = fwd.status === "ok";
-        const chip = el("span", ok ? "fwdchip" : "fwdchip bad", ok ? `\u2192 ${where}` : `\u2192 ${where} failed`);
-        chip.title = ok ? `Sent to ${where}` : `Could not send to ${where}${fwd.error ? `: ${fwd.error}` : ""}`;
-        top.appendChild(chip);
+        const remote = ok ? fwd.remote : void 0;
+        if (remote) {
+          const said = remote.label || STAGE_LABELS[normalizeStatus(remote.status)];
+          const text = [`\u2192 ${where}`, remote.reference, said].filter(Boolean).join(" \xB7 ");
+          const link = remote.url && /^https?:\/\//i.test(remote.url) ? remote.url : null;
+          const chip = el(link ? "a" : "span", `fwdchip st-${normalizeStatus(remote.status)}`, text);
+          chip.title = `${where}: ${said}${remote.at ? ` \u2014 updated ${fmtAgo(remote.at)}` : ""}`;
+          if (link) {
+            chip.href = link;
+            chip.setAttribute("target", "_blank");
+            chip.setAttribute("rel", "noreferrer");
+            chip.addEventListener("click", (e) => e.stopPropagation());
+          }
+          top.appendChild(chip);
+        } else {
+          const chip = el("span", ok ? "fwdchip" : "fwdchip bad", ok ? `\u2192 ${where}` : `\u2192 ${where} failed`);
+          chip.title = ok ? `Sent to ${where}` : `Could not send to ${where}${fwd.error ? `: ${fwd.error}` : ""}`;
+          top.appendChild(chip);
+        }
       }
       if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
       else if (detached) {
@@ -7338,6 +7360,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
         );
         head.lastElementChild.title = this.fmtWhen(m.createdAt);
         if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
+        if (m.origin) head.appendChild(el("span", "msg-tag origin", `from ${m.origin.projectName || m.origin.projectId}`));
         const body = el("div", "msg-body");
         for (const seg of mentionSegments(m.body, parseMentions(m.body))) {
           if (seg.mention) body.appendChild(el("span", "mention", seg.text));
