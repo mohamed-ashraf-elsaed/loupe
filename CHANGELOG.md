@@ -11,6 +11,18 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.13.1] — 2026-10-05
+
+### Fixed
+
+- **The widget now updates without a page reload.** Before this, a status change made in
+  another app, a reply relayed through Hub or a teammate's new comment showed only after the
+  page reloaded, unless an agent bridge was connected. The panel now re-reads the page's
+  comments, the project list, every open thread and the mentions inbox every 10 seconds. It
+  pauses while the tab is hidden and reads again as soon as the tab is shown. It skips a read
+  while someone types in a reply or comment box, so the caret never jumps. A reply that is
+  still sending, or that failed and shows Retry, stays on screen through the refresh.
+
 ## [0.13.0] — 2026-10-04
 
 ### Added

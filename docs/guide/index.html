@@ -1251,9 +1251,17 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.13.0</strong> (2026-10-04).</p>
+          release: <strong>0.13.1</strong> (2026-10-05).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.13.1</span><span class="cl-date">2026-10-05</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Updates without a reload.</strong> The panel re-reads comments, open threads and mentions
+              every 10 seconds, pauses while the tab is hidden, and never refreshes under someone typing.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.13.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
           <ul class="bul">
             <li><strong>Two-way sync between projects.</strong> The receiving project's status changes move the

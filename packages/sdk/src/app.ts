@@ -143,6 +143,8 @@ const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
 const RECORD_MAX_MS = 20000;
 /** Attachment limits for the composer — small enough to survive a base64 POST. */
 const MAX_FILES = 10;
+/** How often the panel re-reads comments, open threads and mentions when no bridge pushes them. */
+const SYNC_POLL_MS = 10_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 
@@ -328,6 +330,9 @@ export class LoupeApp {
   private activityPoll?: ReturnType<typeof setInterval>;
   /** The backend answered that it keeps no feed, so the panel stops asking. */
   private activityNone = false;
+  /** The no-bridge refresh: re-reads comments, open threads and mentions every SYNC_POLL_MS. */
+  private syncPoll?: ReturnType<typeof setInterval>;
+  private syncBusy = false;
   /** Iteration history per thread — generating a change is a stack, not a one-shot. */
   private iterations = new Map<string, IterationState>();
   /** The thread whose generate pane is open, if any. */
@@ -391,6 +396,7 @@ export class LoupeApp {
     void this.loadOrg();
     void this.loadActivity();
     this.syncActivityPoll();
+    this.startSyncPoll();
     // The project-wide list feeds the "All" chip's count as well as the All scope, so it
     // is read on every start rather than only once the scope is switched.
     void this.loadAllComments();
@@ -438,6 +444,70 @@ export class LoupeApp {
       this.renderPins();
       this.renderList();
     } catch { /* keep the current view on transient errors */ }
+  }
+
+  /**
+   * Keep the panel current without a reload.
+   *
+   * A status moved in another app (CRM approving a ticket), a reply relayed through Hub,
+   * or a teammate's new pin otherwise appears only after the page reloads. The bridge's
+   * SSE covers threads when one is configured; this covers everything else, for every
+   * host. It pauses while the tab is hidden and catches up the moment it is shown again.
+   */
+  private startSyncPoll() {
+    if (this.syncPoll) return;
+    this.syncPoll = setInterval(() => void this.syncTick(), SYNC_POLL_MS);
+    document.addEventListener("visibilitychange", this.onSyncVisible);
+  }
+
+  private onSyncVisible = () => {
+    if (document.visibilityState === "visible") void this.syncTick();
+  };
+
+  private async syncTick() {
+    if (this.syncBusy || document.visibilityState === "hidden") return;
+    // A re-render rebuilds the list, which would take the caret out of a reply box.
+    const active = this.shadow?.activeElement;
+    if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) return;
+    this.syncBusy = true;
+    try {
+      const url = this.url;
+      const threads = [...this.messages.keys()];
+      const [page, all, ...replies] = await Promise.all([
+        this.store.list(this.cfg.projectKey, url).catch(() => null),
+        this.allLoaded || this.scope === "all" ? this.store.listAll(this.cfg.projectKey).catch(() => null) : null,
+        ...threads.map((id) => this.store.listMessages(id).catch(() => null)),
+      ]);
+      // Navigated while the reads were in flight: watchNavigation already reloaded.
+      if (url !== this.url) return;
+      let changed = false;
+      if (Array.isArray(page) && JSON.stringify(page) !== JSON.stringify(this.comments)) {
+        this.comments = page;
+        changed = true;
+      }
+      if (Array.isArray(all) && JSON.stringify(all) !== JSON.stringify(this.allComments)) {
+        this.allComments = all;
+        changed = true;
+      }
+      threads.forEach((id, i) => {
+        const list = replies[i];
+        if (!Array.isArray(list)) return;
+        // Replies still sending, or failed with a Retry, exist only here; keep them.
+        const local = (this.messages.get(id) ?? []).filter((m) => this.msgPending.has(m.id) || this.msgFailed.has(m.id));
+        const next = [...list, ...local];
+        if (JSON.stringify(next) === JSON.stringify(this.messages.get(id))) return;
+        this.messages.set(id, next);
+        changed = true;
+      });
+      if (changed) {
+        this.renderPins();
+        this.renderList();
+        this.renderHome();
+      }
+    } finally {
+      this.syncBusy = false;
+    }
+    void this.loadNotifications();
   }
 
   // ---- DOM construction -----------------------------------------------------
@@ -4567,6 +4637,9 @@ export class LoupeApp {
     if (this.companionPoll) clearInterval(this.companionPoll);
     if (this.activityPoll) clearInterval(this.activityPoll);
     this.activityPoll = undefined;
+    if (this.syncPoll) clearInterval(this.syncPoll);
+    this.syncPoll = undefined;
+    document.removeEventListener("visibilitychange", this.onSyncVisible);
     this.stopVoice();
     this.stopPresence();
     this.stopRecording?.();

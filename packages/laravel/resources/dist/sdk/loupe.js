@@ -3983,7 +3983,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.13.0" : "dev";
+  var SDK_VERSION = true ? "0.13.1" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";
@@ -4047,6 +4047,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   var DOCK_MODES = ["left", "right", "bottom", "float"];
   var RECORD_MAX_MS = 2e4;
   var MAX_FILES = 10;
+  var SYNC_POLL_MS = 1e4;
   var MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   var MAX_VIDEO_BYTES = 25 * 1024 * 1024;
   var uid2 = () => crypto.randomUUID ? crypto.randomUUID() : "c_" + Math.abs(hash(String(performance.now()))).toString(36);
@@ -4170,6 +4171,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.activitySince = "";
       /** The backend answered that it keeps no feed, so the panel stops asking. */
       this.activityNone = false;
+      this.syncBusy = false;
       /** Iteration history per thread — generating a change is a stack, not a one-shot. */
       this.iterations = /* @__PURE__ */ new Map();
       /** The thread whose generate pane is open, if any. */
@@ -4190,6 +4192,9 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.floatDrag = null;
       this.floatResize = null;
       this.raf = 0;
+      this.onSyncVisible = () => {
+        if (document.visibilityState === "visible") void this.syncTick();
+      };
       /** Tab id → its hint slot (custom tabs only; the built-ins have named fields). */
       this.customHintSlots = /* @__PURE__ */ new Map();
       /** The tab strip, in order. */
@@ -4554,6 +4559,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       void this.loadOrg();
       void this.loadActivity();
       this.syncActivityPoll();
+      this.startSyncPoll();
       void this.loadAllComments();
       this.observe();
       this.watchNavigation();
@@ -4594,6 +4600,61 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         this.renderList();
       } catch {
       }
+    }
+    /**
+     * Keep the panel current without a reload.
+     *
+     * A status moved in another app (CRM approving a ticket), a reply relayed through Hub,
+     * or a teammate's new pin otherwise appears only after the page reloads. The bridge's
+     * SSE covers threads when one is configured; this covers everything else, for every
+     * host. It pauses while the tab is hidden and catches up the moment it is shown again.
+     */
+    startSyncPoll() {
+      if (this.syncPoll) return;
+      this.syncPoll = setInterval(() => void this.syncTick(), SYNC_POLL_MS);
+      document.addEventListener("visibilitychange", this.onSyncVisible);
+    }
+    async syncTick() {
+      if (this.syncBusy || document.visibilityState === "hidden") return;
+      const active = this.shadow?.activeElement;
+      if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) return;
+      this.syncBusy = true;
+      try {
+        const url = this.url;
+        const threads = [...this.messages.keys()];
+        const [page, all, ...replies] = await Promise.all([
+          this.store.list(this.cfg.projectKey, url).catch(() => null),
+          this.allLoaded || this.scope === "all" ? this.store.listAll(this.cfg.projectKey).catch(() => null) : null,
+          ...threads.map((id) => this.store.listMessages(id).catch(() => null))
+        ]);
+        if (url !== this.url) return;
+        let changed = false;
+        if (Array.isArray(page) && JSON.stringify(page) !== JSON.stringify(this.comments)) {
+          this.comments = page;
+          changed = true;
+        }
+        if (Array.isArray(all) && JSON.stringify(all) !== JSON.stringify(this.allComments)) {
+          this.allComments = all;
+          changed = true;
+        }
+        threads.forEach((id, i) => {
+          const list = replies[i];
+          if (!Array.isArray(list)) return;
+          const local = (this.messages.get(id) ?? []).filter((m) => this.msgPending.has(m.id) || this.msgFailed.has(m.id));
+          const next = [...list, ...local];
+          if (JSON.stringify(next) === JSON.stringify(this.messages.get(id))) return;
+          this.messages.set(id, next);
+          changed = true;
+        });
+        if (changed) {
+          this.renderPins();
+          this.renderList();
+          this.renderHome();
+        }
+      } finally {
+        this.syncBusy = false;
+      }
+      void this.loadNotifications();
     }
     // ---- DOM construction -----------------------------------------------------
     buildDom() {
@@ -7911,6 +7972,9 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       if (this.companionPoll) clearInterval(this.companionPoll);
       if (this.activityPoll) clearInterval(this.activityPoll);
       this.activityPoll = void 0;
+      if (this.syncPoll) clearInterval(this.syncPoll);
+      this.syncPoll = void 0;
+      document.removeEventListener("visibilitychange", this.onSyncVisible);
       this.stopVoice();
       this.stopPresence();
       this.stopRecording?.();

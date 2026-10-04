@@ -2573,6 +2573,94 @@ describe("LoupeApp", () => {
     }
   });
 
+  it("re-reads comments and open threads every 10 s with no bridge, so another app's changes appear", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let title = "Pay button overlaps";
+    let replies: unknown[] = [];
+    const api = withApi({
+      "/messages": () => replies,
+      "/v1/comments": () => [seeded({ id: "t1", title, body: "b" })],
+    });
+    const listCalls = () => api.urls.filter((u) => u.includes("/v1/comments?"));
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>(".item")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      const before = listCalls().length;
+
+      // CRM moved the ticket and replied; nothing on this page was touched.
+      title = "Pay button overlaps (approved)";
+      replies = [{ id: "m1", threadId: "t1", author: { id: "crm", name: "Tech team", type: "user" }, body: "Approved, starting now.", createdAt: "2026-10-04T10:00:00.000Z" }];
+      vi.advanceTimersByTime(10_000);
+      await new Promise((r) => setTimeout(r, 30));
+
+      expect(listCalls().length).toBeGreaterThan(before);
+      expect(sr().querySelector(".item")!.textContent).toContain("Pay button overlaps (approved)");
+      const bodies = [...sr().querySelectorAll<HTMLElement>(".msg-body")].map((b) => b.textContent);
+      expect(bodies).toContain("Approved, starting now.");
+    } finally {
+      api.restore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not re-render under someone typing, keeps an unsent reply, and pauses while hidden", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const comment = seeded({ id: "t1", title: "T", body: "b" });
+    const realFetch = globalThis.fetch;
+    const urls: string[] = [];
+    globalThis.fetch = (async (url: string, init: any = {}) => {
+      urls.push(url);
+      if (url.includes("/messages") && init.method === "POST") return new Response(JSON.stringify({ error: "boom" }), { status: 500 });
+      if (url.includes("/messages")) return new Response("[]", { status: 200 });
+      if (url.includes("/notifications")) return new Response(JSON.stringify({ notifications: [] }), { status: 200 });
+      if (url.includes("/v1/comments")) return new Response(JSON.stringify([comment]), { status: 200 });
+      return new Response("[]", { status: 200 });
+    }) as unknown as typeof fetch;
+    // The page's own list; a tick also re-reads the project-wide one.
+    const reads = () => urls.filter((u) => u.includes("/v1/comments?") && u.includes("url=")).length;
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "Ada" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>(".item")!.click();
+      await new Promise((r) => setTimeout(r, 30));
+
+      // A failed reply lives only in the browser; a sync must not drop it.
+      const input = sr().querySelector<HTMLTextAreaElement>(".reply-in")!;
+      input.value = "this will not save";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      sr().querySelector<HTMLElement>(".reply-send")!.click();
+      await new Promise((r) => setTimeout(r, 40));
+      vi.advanceTimersByTime(10_000);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(sr().querySelector(".msg.failed .msg-body")!.textContent).toBe("this will not save");
+
+      // Typing: the tick reads nothing, so the caret stays where it is.
+      sr().querySelector<HTMLTextAreaElement>(".reply-in")!.focus();
+      let n = reads();
+      vi.advanceTimersByTime(10_000);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(reads()).toBe(n);
+      (sr().activeElement as HTMLElement).blur();
+
+      // Hidden tab: no reads. Shown again: one read at once, without waiting a tick.
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+      n = reads();
+      vi.advanceTimersByTime(30_000);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(reads()).toBe(n);
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((r) => setTimeout(r, 30));
+      expect(reads()).toBe(n + 1);
+    } finally {
+      delete (document as any).visibilityState;
+      globalThis.fetch = realFetch;
+      vi.useRealTimers();
+    }
+  });
+
   it("reads the server's activity feed and polls it only while the view is open", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     let round = 0;
