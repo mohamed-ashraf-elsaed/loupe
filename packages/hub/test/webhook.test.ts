@@ -143,13 +143,17 @@ describe("the private-address guard", () => {
   });
 
   it("posts through node:http when the resolved address passes, sending headers and body", async () => {
+    // "localhost" is 127.0.0.1 on some machines and ::1 first on others (CI), so pin
+    // a name to the receiver's address rather than trusting the runner's resolver.
     const realBlocked = transport.blocked;
+    const realResolve = transport.resolve;
     transport.blocked = (ip) => ip !== "127.0.0.1" && realBlocked(ip);
+    transport.resolve = (_host, _opts, cb) => cb(null, [{ address: "127.0.0.1", family: 4 }]);
     try {
       await guarded(async () => {
         const port = new URL(url).port;
         replies = [204];
-        const r = await deliver(`http://localhost:${port}/hook`, '{"a":1}', "s", "dlv_ok");
+        const r = await deliver(`http://receiver.test:${port}/hook`, '{"a":1}', "s", "dlv_ok");
         expect(r).toEqual({ status: "ok", httpStatus: 204, attempts: 1, lastError: null });
         expect(received).toHaveLength(1);
         expect(received[0]!.body).toBe('{"a":1}');
@@ -161,6 +165,7 @@ describe("the private-address guard", () => {
       });
     } finally {
       transport.blocked = realBlocked;
+      transport.resolve = realResolve;
     }
   });
 });

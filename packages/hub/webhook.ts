@@ -27,6 +27,12 @@ export const transport = {
   sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
   /** The address check guardedPost applies; tests narrow it to reach a local receiver. */
   blocked: (ip: string): boolean => blockedIp(ip),
+  /** The DNS lookup the guard checks; tests pin it so a name resolves the same on every machine. */
+  resolve: dnsLookup as (
+    hostname: string,
+    options: { all: true },
+    callback: (err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void,
+  ) => void,
 };
 
 // ---- outbound address guard ----
@@ -96,7 +102,7 @@ function guardedLookup(
   options: object,
   callback: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
 ): void {
-  dnsLookup(hostname, { ...options, all: true }, (err, addresses) => {
+  transport.resolve(hostname, { ...options, all: true }, (err, addresses) => {
     if (err) return callback(err, []);
     const bad = addresses.find((a) => transport.blocked(a.address));
     if (bad) return callback(new BlockedAddressError(hostname, bad.address), []);
