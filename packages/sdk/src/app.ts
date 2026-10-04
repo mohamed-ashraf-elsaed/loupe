@@ -132,6 +132,8 @@ type Tab = string;
 type Scope = "page" | "all";
 /** A stat tile the user clicked — narrows the list to that bucket. */
 type StatFilter = "" | "open" | "needs_you" | "resolved" | "stale";
+/** List order. "" follows the scope: page order on This page, newest first on All. */
+type SortOrder = "" | "newest" | "oldest" | "page";
 /** What the composer is about to attach a comment to. */
 type ComposeTarget =
   | { kind: "element"; element: Element }
@@ -286,6 +288,13 @@ export class LoupeApp {
   private allLoaded = false;
   /** A clicked stat tile, which narrows the list. */
   private statFilter: StatFilter = "";
+  /** One board stage to show, or "" for every stage. */
+  private statusFilter = "";
+  private sortOrder: SortOrder = "";
+  /** Day groups the reader folded shut. Session only: "Today" means another day tomorrow. */
+  private collapsedDays = new Set<string>();
+  private statusSel?: HTMLSelectElement;
+  private sortSel?: HTMLSelectElement;
   /** The Home overview container (stat tiles + activity), rebuilt on render. */
   private homeEl!: HTMLElement;
   /** Accent preset id (see ACCENTS), applied as inline --accent / --accent-soft. */
@@ -738,6 +747,17 @@ export class LoupeApp {
     search.value = this.search;
     search.oninput = () => { this.search = search.value; this.renderList(); };
     listHead.appendChild(search);
+    const filters = el("div", "listfilters");
+    this.statusSel = el("select", "lf-status") as HTMLSelectElement;
+    this.statusSel.setAttribute("aria-label", "Filter by status");
+    this.statusSel.append(optionEl("All statuses", "", !this.statusFilter),
+      ...(Object.keys(STAGE_LABELS) as (keyof typeof STAGE_LABELS)[]).map((k) => optionEl(STAGE_LABELS[k], k, this.statusFilter === k)));
+    this.statusSel.onchange = () => { this.statusFilter = this.statusSel!.value; this.saveState(); this.renderList(); };
+    this.sortSel = el("select", "lf-sort") as HTMLSelectElement;
+    this.sortSel.setAttribute("aria-label", "Order");
+    this.sortSel.append(optionEl("Newest first", "newest", false), optionEl("Oldest first", "oldest", false), optionEl("Page order", "page", false));
+    this.sortSel.onchange = () => { this.sortOrder = this.sortSel!.value as SortOrder; this.saveState(); this.renderList(); };
+    filters.append(this.statusSel, this.sortSel);
     this.listEl = el("div", "list");
 
     // Home view = the overview surface the panel opens on.
@@ -749,7 +769,7 @@ export class LoupeApp {
     this.commentsHint = el("div", "hint-slot");
     this.reviewBar = el("div", "reviewbar");
     this.reviewBar.style.display = "none";
-    commentsView.append(this.commentsHint, tools, listHead, this.reviewBar, this.listEl, this.buildIntegrations());
+    commentsView.append(this.commentsHint, tools, listHead, filters, this.reviewBar, this.listEl, this.buildIntegrations());
 
     // Activity view = the live monitor (status, summary, chips, feed). The hint slot
     // is part of this panel's own markup — appending it beforehand would be wiped by
@@ -1587,22 +1607,51 @@ export class LoupeApp {
       ? recent.map((c) => {
           const stage = STAGE_LABELS[normalizeStatus(c.status)];
           const prio = normalizePriority(c.priority);
-          return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}">` +
+          // A div, not a button: the row holds its own action buttons.
+          return `<div class="hfeed-i" role="button" tabindex="0" data-id="${escapeAttr(c.id)}">` +
             `<span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span>` +
             `<span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} · <span title="${escapeAttr(this.fmtWhen(c.createdAt))}">${fmtAgo(c.createdAt)}</span> · ` +
             `<span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span>` +
-            `<span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
+            `<span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span>` +
+            `<span class="hfeed-a">` +
+            `<button class="hfeed-act" data-act="resolve">${isResolved(c) ? "Reopen" : "Resolve"}</button>` +
+            `<button class="hfeed-act" data-act="open">Open</button>` +
+            `<button class="hfeed-act danger" data-act="delete">Delete</button>` +
+            `</span></div>`;
         }).join("")
       : `<div class="hempty">Nothing here yet.</div>`;
     feed.querySelectorAll<HTMLElement>(".hfeed-i").forEach((b) => {
-      b.onclick = () => {
-        const id = b.dataset.id!;
+      const id = b.dataset.id!;
+      const open = () => {
         this.statFilter = "";
+        this.statusFilter = "";
         this.setTab("comments");
         this.expanded.add(id);
+        const c = recent.find((x) => x.id === id);
+        if (c) void this.loadMessages(c);
         this.renderList();
         this.flash(id);
       };
+      b.onclick = open;
+      b.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+      b.querySelectorAll<HTMLButtonElement>(".hfeed-act").forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const c = recent.find((x) => x.id === id);
+          if (!c) return;
+          if (btn.dataset.act === "open") open();
+          else if (btn.dataset.act === "resolve") void this.toggleResolved(c);
+          else if (btn.dataset.act === "delete") {
+            // A row on Home is a small target, so delete asks once before it acts.
+            if (btn.dataset.armed) void this.deleteComment(c);
+            else {
+              btn.dataset.armed = "1";
+              btn.textContent = "Confirm delete";
+              setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = "Delete"; } }, 3000);
+            }
+          }
+        };
+      });
     });
   }
 
@@ -3107,6 +3156,8 @@ export class LoupeApp {
       if (typeof p?.tab === "string" && known.includes(p.tab)) this.tab = p.tab;
       if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
       if (typeof p?.statFilter === "string") this.statFilter = p.statFilter as StatFilter;
+      if (typeof p?.statusFilter === "string" && p.statusFilter in STAGE_LABELS) this.statusFilter = p.statusFilter;
+      if (["newest", "oldest", "page"].includes(p?.sortOrder)) this.sortOrder = p.sortOrder;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
       if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
       if (typeof p?.launcherHidden === "boolean") this.launcherHidden = p.launcherHidden;
@@ -3125,7 +3176,7 @@ export class LoupeApp {
       localStorage.setItem("loupe:dock", JSON.stringify({
         mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
         markersHidden: this.markersHidden, launcherHidden: this.launcherHidden, fab: this.fabPos,
-        scope: this.scope, statFilter: this.statFilter,
+        scope: this.scope, statFilter: this.statFilter, statusFilter: this.statusFilter, sortOrder: this.sortOrder,
         accent: this.accent, minimized: this.minimized, hoverHints: this.hoverHints,
         showPaths: this.showPaths, tourDone: this.tourDone, hintsSeen: [...this.hintsSeen],
       }));
@@ -3274,12 +3325,21 @@ export class LoupeApp {
       if (this.statFilter === "needs_you" && !needsYou({ status: c.status }).needs) return false;
       if (this.statFilter === "resolved" && stage !== "resolved") return false;
       if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
+      if (this.statusFilter && stage !== this.statusFilter) return false;
       return !q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q);
     });
 
-    // The project scope is a timeline — newest first, grouped by day. The page
-    // scope keeps file order, which follows the pins down the page.
-    if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // By default the project scope is a timeline, newest first, and the page scope
+    // keeps file order, which follows the pins down the page. Either can be overridden.
+    const order = this.sortOrder || (this.scope === "all" ? "newest" : "page");
+    if (this.sortSel) this.sortSel.value = order;
+    if (this.statusSel) this.statusSel.value = this.statusFilter;
+    if (order === "newest") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    if (order === "oldest") items = [...items].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    // A date order reads as a timeline, so it is grouped by day; page order is not.
+    const grouped = order !== "page";
+    const perDay = new Map<string, number>();
+    if (grouped) for (const c of items) perDay.set(dayLabel(c.createdAt), (perDay.get(dayLabel(c.createdAt)) ?? 0) + 1);
 
     this.renderReviewBar();
 
@@ -3287,6 +3347,8 @@ export class LoupeApp {
       this.listEl.appendChild(el("div", "empty",
         this.statFilter
           ? "Nothing in this bucket."
+          : this.statusFilter
+            ? `Nothing in ${STAGE_LABELS[this.statusFilter as keyof typeof STAGE_LABELS]}.`
           : q
             ? "No comments match your search."
             : this.scope === "all"
@@ -3296,12 +3358,23 @@ export class LoupeApp {
 
     let lastDay = "";
     items.forEach((c, i) => {
-      if (this.scope === "all") {
+      if (grouped) {
         const day = dayLabel(c.createdAt);
+        const shut = this.collapsedDays.has(day);
         if (day !== lastDay) {
-          this.listEl.appendChild(el("div", "daylabel", day));
+          // The caret and the count are drawn by CSS, so the header's text is the day.
+          const head = el("button", "daylabel" + (shut ? " shut" : ""), day);
+          head.dataset.n = String(perDay.get(day) ?? 0);
+          head.setAttribute("aria-expanded", String(!shut));
+          head.onclick = () => {
+            if (shut) this.collapsedDays.delete(day);
+            else this.collapsedDays.add(day);
+            this.renderList();
+          };
+          this.listEl.appendChild(head);
           lastDay = day;
         }
+        if (shut) return;
       }
       this.listEl.appendChild(this.itemView(c, i));
     });
@@ -3490,29 +3563,9 @@ export class LoupeApp {
 
     const actions = el("div", "actions");
     const doneBtn = el("button", "", isResolved(c) ? "Reopen" : "Resolve") as HTMLButtonElement;
-    doneBtn.onclick = async (e) => {
-      e.stopPropagation();
-      const status = isResolved(c) ? "queue" : "resolved";
-      c.status = status; await this.store.update(c.id, { status });
-      this.renderPins(); this.renderList();
-      this.addActivity({
-        kind: status === "resolved" ? "comment.resolve" : "comment.reopen",
-        label: `${status === "resolved" ? "Resolved" : "Reopened"} “${c.title || c.body.split("\n")[0] || "comment"}”`,
-      });
-    };
+    doneBtn.onclick = (e) => { e.stopPropagation(); void this.toggleResolved(c); };
     const del = el("button", "", "Delete") as HTMLButtonElement;
-    del.onclick = async (e) => {
-      e.stopPropagation();
-      await this.store.remove(c.id);
-      this.comments = this.comments.filter((x) => x.id !== c.id);
-      this.resolved.delete(c.id);
-      this.renderPins(); this.renderList();
-      this.addActivity({
-        kind: "comment.delete",
-        label: `Deleted “${c.title || c.body.split("\n")[0] || "comment"}”`,
-        level: "warn",
-      });
-    };
+    del.onclick = (e) => { e.stopPropagation(); void this.deleteComment(c); };
     actions.append(doneBtn, del);
     detail.appendChild(actions);
     // The conversation: replies, a reply box, the timeline and the copy actions.
@@ -3531,6 +3584,35 @@ export class LoupeApp {
       this.renderList();
     };
     return item;
+  }
+
+  /**
+   * Resolve or reopen a comment. Shared by the card and the Home feed. The page list
+   * and the project list are separate reads, so the change is applied to both.
+   */
+  private async toggleResolved(c: Comment) {
+    const status = isResolved(c) ? "queue" : "resolved";
+    await this.store.update(c.id, { status });
+    for (const x of [c, ...this.comments, ...this.allComments]) if (x.id === c.id) x.status = status;
+    this.renderPins(); this.renderList(); this.renderHome();
+    this.addActivity({
+      kind: status === "resolved" ? "comment.resolve" : "comment.reopen",
+      label: `${status === "resolved" ? "Resolved" : "Reopened"} “${c.title || c.body.split("\n")[0] || "comment"}”`,
+    });
+  }
+
+  /** Delete a comment, from the card or the Home feed. */
+  private async deleteComment(c: Comment) {
+    await this.store.remove(c.id);
+    this.comments = this.comments.filter((x) => x.id !== c.id);
+    this.allComments = this.allComments.filter((x) => x.id !== c.id);
+    this.resolved.delete(c.id);
+    this.renderPins(); this.renderList(); this.renderHome();
+    this.addActivity({
+      kind: "comment.delete",
+      label: `Deleted “${c.title || c.body.split("\n")[0] || "comment"}”`,
+      level: "warn",
+    });
   }
 
   /**

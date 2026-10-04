@@ -881,6 +881,108 @@ describe("LoupeApp", () => {
     expect(sr().querySelectorAll(".item").length).toBe(2);
   });
 
+  it("acts on a comment from the Home feed: resolve, reopen, open, and a confirmed delete", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "a", status: "queue", title: "Fix the header" }),
+      seeded({ id: "b", status: "queue", title: "Drop this one" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    const row = (id: string) => sr().querySelector<HTMLElement>(`.hfeed-i[data-id="${id}"]`)!;
+    const act = (id: string, name: string) => row(id).querySelector<HTMLButtonElement>(`[data-act="${name}"]`)!;
+    const stored = () => JSON.parse(localStorage.getItem(keyFor(location.pathname))!) as { id: string; status: string }[];
+
+    act("a", "resolve").click();
+    await new Promise((r) => setTimeout(r, 10));
+    // Still on Home: the action does not navigate away.
+    expect(sr().querySelector(".dock")!.classList.contains("tab-home")).toBe(true);
+    expect(stored().find((c) => c.id === "a")!.status).toBe("resolved");
+    expect(row("a").querySelector(".hfeed-s")!.textContent).toBe("Resolved");
+    expect(act("a", "resolve").textContent).toBe("Reopen");
+    act("a", "resolve").click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(stored().find((c) => c.id === "a")!.status).toBe("queue");
+
+    // Delete asks once, then acts.
+    act("b", "delete").click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(stored().length).toBe(2);
+    expect(act("b", "delete").textContent).toBe("Confirm delete");
+    act("b", "delete").click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(stored().map((c) => c.id)).toEqual(["a"]);
+    expect(sr().querySelectorAll(".hfeed-i").length).toBe(1);
+
+    act("a", "open").click();
+    expect(sr().querySelector(".dock")!.classList.contains("tab-comments")).toBe(true);
+    expect(sr().querySelector(".item")!.classList.contains("collapsed")).toBe(false);
+  });
+
+  it("filters the list by status and orders it newest or oldest first, and remembers both", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "mid", status: "queue", title: "Middle", createdAt: "2026-01-02T00:00:00.000Z" }),
+      seeded({ id: "new", status: "resolved", title: "Newest", createdAt: "2026-01-03T00:00:00.000Z" }),
+      seeded({ id: "old", status: "queue", title: "Oldest", createdAt: "2026-01-01T00:00:00.000Z" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    const titles = () => [...sr().querySelectorAll<HTMLElement>(".item .summary")].map((t) => t.textContent);
+    const pick = (cls: string, value: string) => {
+      const sel = sr().querySelector<HTMLSelectElement>(cls)!;
+      sel.value = value;
+      sel.dispatchEvent(new Event("change"));
+    };
+
+    // The page scope starts in page order, ungrouped.
+    expect(sr().querySelector<HTMLSelectElement>(".lf-sort")!.value).toBe("page");
+    expect(titles()).toEqual(["Middle", "Newest", "Oldest"]);
+    expect(sr().querySelectorAll(".daylabel").length).toBe(0);
+
+    pick(".lf-sort", "newest");
+    expect(titles()).toEqual(["Newest", "Middle", "Oldest"]);
+    expect(sr().querySelectorAll(".daylabel").length).toBe(3);
+    pick(".lf-sort", "oldest");
+    expect(titles()).toEqual(["Oldest", "Middle", "Newest"]);
+
+    pick(".lf-status", "queue");
+    expect(titles()).toEqual(["Oldest", "Middle"]);
+    pick(".lf-status", "in_review");
+    expect(sr().querySelector(".list .empty")!.textContent).toBe("Nothing in In Review.");
+
+    const saved = JSON.parse(localStorage.getItem("loupe:dock")!);
+    expect(saved.statusFilter).toBe("in_review");
+    expect(saved.sortOrder).toBe("oldest");
+  });
+
+  it("folds a day group shut and open again, with its count on the header", async () => {
+    localStorage.setItem(keyFor(location.pathname), JSON.stringify([
+      seeded({ id: "t1", title: "Today one" }),
+      seeded({ id: "t2", title: "Today two" }),
+      seeded({ id: "o1", title: "Ancient one", createdAt: "2020-01-01T00:00:00.000Z" }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+    const sel = sr().querySelector<HTMLSelectElement>(".lf-sort")!;
+    sel.value = "newest";
+    sel.dispatchEvent(new Event("change"));
+
+    const today = () => sr().querySelector<HTMLElement>(".daylabel")!;
+    expect(today().textContent).toBe("Today");
+    expect(today().dataset.n).toBe("2");
+    expect(sr().querySelectorAll(".item").length).toBe(3);
+
+    today().click();
+    // Header stays, so it can be opened again; its items go.
+    expect(today().classList.contains("shut")).toBe(true);
+    expect(today().getAttribute("aria-expanded")).toBe("false");
+    expect([...sr().querySelectorAll<HTMLElement>(".item .summary")].map((t) => t.textContent)).toEqual(["Ancient one"]);
+
+    today().click();
+    expect(sr().querySelectorAll(".item").length).toBe(3);
+  });
+
   it("updates and removes a comment after the panel has persisted its state", async () => {
     // Regression: loupe:dock is an OBJECT under the same `loupe:` prefix as the
     // comment lists, so update()/remove() used to throw the moment the panel

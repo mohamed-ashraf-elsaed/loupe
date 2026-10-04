@@ -388,11 +388,35 @@ export const STYLES = /* css */ `
 .hfeed-p { font-weight: 700; }
 .hfeed-p-critical { color: var(--pin); }
 .hfeed-p-high { color: #e0a92c; }
+.hfeed-a { display: flex; gap: 4px; margin-top: 3px; }
+.hfeed-act {
+  font-size: 11px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg-3); color: var(--ink); cursor: pointer;
+}
+.hfeed-act:hover { border-color: var(--accent); }
+.hfeed-act.danger:hover, .hfeed-act.danger[data-armed] { border-color: var(--pin); color: var(--pin); }
 .hempty { padding: 14px; text-align: center; color: var(--muted); font-size: 12px; }
 .hfoot { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); text-align: center; }
 
 /* Timeline grouping (project scope) + the repo filter. */
-.daylabel { margin: 8px 2px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.daylabel {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin: 8px 0 0; padding: 4px 2px;
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700;
+}
+.daylabel::before { content: "▾"; font-size: 10px; width: 10px; }
+.daylabel.shut::before { content: "▸"; }
+.daylabel::after {
+  content: attr(data-n); padding: 0 6px; border-radius: 999px; background: var(--bg-3);
+  font-size: 10px; letter-spacing: 0;
+}
+.daylabel:hover { color: var(--ink); }
+.listfilters { display: flex; gap: 6px; margin: 6px 0 2px; }
+.listfilters select {
+  flex: 1; min-width: 0; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg-2); color: var(--ink); outline: none; cursor: pointer;
+}
+.listfilters select:focus { border-color: var(--accent); }
 /* The page a comment belongs to, shown in the project scope (Settings → Page paths). */
 .pathtag {
   padding: 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--muted);

@@ -427,11 +427,35 @@ var Loupe = (() => {
 .hfeed-p { font-weight: 700; }
 .hfeed-p-critical { color: var(--pin); }
 .hfeed-p-high { color: #e0a92c; }
+.hfeed-a { display: flex; gap: 4px; margin-top: 3px; }
+.hfeed-act {
+  font-size: 11px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg-3); color: var(--ink); cursor: pointer;
+}
+.hfeed-act:hover { border-color: var(--accent); }
+.hfeed-act.danger:hover, .hfeed-act.danger[data-armed] { border-color: var(--pin); color: var(--pin); }
 .hempty { padding: 14px; text-align: center; color: var(--muted); font-size: 12px; }
 .hfoot { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); text-align: center; }
 
 /* Timeline grouping (project scope) + the repo filter. */
-.daylabel { margin: 8px 2px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.daylabel {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin: 8px 0 0; padding: 4px 2px;
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700;
+}
+.daylabel::before { content: "\u25BE"; font-size: 10px; width: 10px; }
+.daylabel.shut::before { content: "\u25B8"; }
+.daylabel::after {
+  content: attr(data-n); padding: 0 6px; border-radius: 999px; background: var(--bg-3);
+  font-size: 10px; letter-spacing: 0;
+}
+.daylabel:hover { color: var(--ink); }
+.listfilters { display: flex; gap: 6px; margin: 6px 0 2px; }
+.listfilters select {
+  flex: 1; min-width: 0; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg-2); color: var(--ink); outline: none; cursor: pointer;
+}
+.listfilters select:focus { border-color: var(--accent); }
 /* The page a comment belongs to, shown in the project scope (Settings \u2192 Page paths). */
 .pathtag {
   padding: 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--muted);
@@ -3983,7 +4007,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.13.1" : "dev";
+  var SDK_VERSION = true ? "0.14.0" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";
@@ -4138,6 +4162,11 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.allLoaded = false;
       /** A clicked stat tile, which narrows the list. */
       this.statFilter = "";
+      /** One board stage to show, or "" for every stage. */
+      this.statusFilter = "";
+      this.sortOrder = "";
+      /** Day groups the reader folded shut. Session only: "Today" means another day tomorrow. */
+      this.collapsedDays = /* @__PURE__ */ new Set();
       /** Accent preset id (see ACCENTS), applied as inline --accent / --accent-soft. */
       this.accent = "indigo";
       /** Collapsed to the one-line minimize bar. */
@@ -4831,6 +4860,27 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         this.renderList();
       };
       listHead.appendChild(search);
+      const filters = el("div", "listfilters");
+      this.statusSel = el("select", "lf-status");
+      this.statusSel.setAttribute("aria-label", "Filter by status");
+      this.statusSel.append(
+        optionEl("All statuses", "", !this.statusFilter),
+        ...Object.keys(STAGE_LABELS).map((k) => optionEl(STAGE_LABELS[k], k, this.statusFilter === k))
+      );
+      this.statusSel.onchange = () => {
+        this.statusFilter = this.statusSel.value;
+        this.saveState();
+        this.renderList();
+      };
+      this.sortSel = el("select", "lf-sort");
+      this.sortSel.setAttribute("aria-label", "Order");
+      this.sortSel.append(optionEl("Newest first", "newest", false), optionEl("Oldest first", "oldest", false), optionEl("Page order", "page", false));
+      this.sortSel.onchange = () => {
+        this.sortOrder = this.sortSel.value;
+        this.saveState();
+        this.renderList();
+      };
+      filters.append(this.statusSel, this.sortSel);
       this.listEl = el("div", "list");
       const homeView = el("div", "view home-view");
       this.homeEl = homeView;
@@ -4838,7 +4888,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.commentsHint = el("div", "hint-slot");
       this.reviewBar = el("div", "reviewbar");
       this.reviewBar.style.display = "none";
-      commentsView.append(this.commentsHint, tools, listHead, this.reviewBar, this.listEl, this.buildIntegrations());
+      commentsView.append(this.commentsHint, tools, listHead, filters, this.reviewBar, this.listEl, this.buildIntegrations());
       const activityView = el("div", "view activity-view");
       this.activityEl = activityView;
       const chatView = el("div", "view chat-view");
@@ -5500,17 +5550,49 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       feed.innerHTML = recent.length ? recent.map((c) => {
         const stage = STAGE_LABELS[normalizeStatus(c.status)];
         const prio = normalizePriority(c.priority);
-        return `<button class="hfeed-i" data-id="${escapeAttr(c.id)}"><span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span><span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} \xB7 <span title="${escapeAttr(this.fmtWhen(c.createdAt))}">${fmtAgo(c.createdAt)}</span> \xB7 <span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span><span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span></button>`;
+        return `<div class="hfeed-i" role="button" tabindex="0" data-id="${escapeAttr(c.id)}"><span class="hfeed-t">${escapeHtml(c.title || (c.body.split("\n")[0] ?? "").slice(0, 60))}</span><span class="hfeed-m">${escapeHtml(c.author?.name ?? "")} \xB7 <span title="${escapeAttr(this.fmtWhen(c.createdAt))}">${fmtAgo(c.createdAt)}</span> \xB7 <span class="hfeed-s hfeed-s-${normalizeStatus(c.status)}">${stage}</span><span class="hfeed-p hfeed-p-${prio}">${PRIORITY_LABELS[prio]}</span></span><span class="hfeed-a"><button class="hfeed-act" data-act="resolve">${isResolved(c) ? "Reopen" : "Resolve"}</button><button class="hfeed-act" data-act="open">Open</button><button class="hfeed-act danger" data-act="delete">Delete</button></span></div>`;
       }).join("") : `<div class="hempty">Nothing here yet.</div>`;
       feed.querySelectorAll(".hfeed-i").forEach((b) => {
-        b.onclick = () => {
-          const id = b.dataset.id;
+        const id = b.dataset.id;
+        const open = () => {
           this.statFilter = "";
+          this.statusFilter = "";
           this.setTab("comments");
           this.expanded.add(id);
+          const c = recent.find((x) => x.id === id);
+          if (c) void this.loadMessages(c);
           this.renderList();
           this.flash(id);
         };
+        b.onclick = open;
+        b.onkeydown = (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            open();
+          }
+        };
+        b.querySelectorAll(".hfeed-act").forEach((btn) => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const c = recent.find((x) => x.id === id);
+            if (!c) return;
+            if (btn.dataset.act === "open") open();
+            else if (btn.dataset.act === "resolve") void this.toggleResolved(c);
+            else if (btn.dataset.act === "delete") {
+              if (btn.dataset.armed) void this.deleteComment(c);
+              else {
+                btn.dataset.armed = "1";
+                btn.textContent = "Confirm delete";
+                setTimeout(() => {
+                  if (btn.isConnected) {
+                    delete btn.dataset.armed;
+                    btn.textContent = "Delete";
+                  }
+                }, 3e3);
+              }
+            }
+          };
+        });
       });
     }
     async loadNotifications() {
@@ -6619,6 +6701,8 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         if (typeof p?.tab === "string" && known.includes(p.tab)) this.tab = p.tab;
         if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
         if (typeof p?.statFilter === "string") this.statFilter = p.statFilter;
+        if (typeof p?.statusFilter === "string" && p.statusFilter in STAGE_LABELS) this.statusFilter = p.statusFilter;
+        if (["newest", "oldest", "page"].includes(p?.sortOrder)) this.sortOrder = p.sortOrder;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
         if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
         if (typeof p?.launcherHidden === "boolean") this.launcherHidden = p.launcherHidden;
@@ -6645,6 +6729,8 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
           fab: this.fabPos,
           scope: this.scope,
           statFilter: this.statFilter,
+          statusFilter: this.statusFilter,
+          sortOrder: this.sortOrder,
           accent: this.accent,
           minimized: this.minimized,
           hoverHints: this.hoverHints,
@@ -6727,25 +6813,43 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         if (this.statFilter === "needs_you" && !needsYou({ status: c.status }).needs) return false;
         if (this.statFilter === "resolved" && stage !== "resolved") return false;
         if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
+        if (this.statusFilter && stage !== this.statusFilter) return false;
         return !q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q);
       });
-      if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const order = this.sortOrder || (this.scope === "all" ? "newest" : "page");
+      if (this.sortSel) this.sortSel.value = order;
+      if (this.statusSel) this.statusSel.value = this.statusFilter;
+      if (order === "newest") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      if (order === "oldest") items = [...items].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      const grouped = order !== "page";
+      const perDay = /* @__PURE__ */ new Map();
+      if (grouped) for (const c of items) perDay.set(dayLabel(c.createdAt), (perDay.get(dayLabel(c.createdAt)) ?? 0) + 1);
       this.renderReviewBar();
       if (!items.length) {
         this.listEl.appendChild(el(
           "div",
           "empty",
-          this.statFilter ? "Nothing in this bucket." : q ? "No comments match your search." : this.scope === "all" ? "No feedback in this project yet." : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
+          this.statFilter ? "Nothing in this bucket." : this.statusFilter ? `Nothing in ${STAGE_LABELS[this.statusFilter]}.` : q ? "No comments match your search." : this.scope === "all" ? "No feedback in this project yet." : "No comments yet. Use Inspect to pick an element, or Note to drop a comment anywhere on the page."
         ));
       }
       let lastDay = "";
       items.forEach((c, i) => {
-        if (this.scope === "all") {
+        if (grouped) {
           const day = dayLabel(c.createdAt);
+          const shut = this.collapsedDays.has(day);
           if (day !== lastDay) {
-            this.listEl.appendChild(el("div", "daylabel", day));
+            const head = el("button", "daylabel" + (shut ? " shut" : ""), day);
+            head.dataset.n = String(perDay.get(day) ?? 0);
+            head.setAttribute("aria-expanded", String(!shut));
+            head.onclick = () => {
+              if (shut) this.collapsedDays.delete(day);
+              else this.collapsedDays.add(day);
+              this.renderList();
+            };
+            this.listEl.appendChild(head);
             lastDay = day;
           }
+          if (shut) return;
         }
         this.listEl.appendChild(this.itemView(c, i));
       });
@@ -6892,31 +6996,14 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       }
       const actions = el("div", "actions");
       const doneBtn = el("button", "", isResolved(c) ? "Reopen" : "Resolve");
-      doneBtn.onclick = async (e) => {
+      doneBtn.onclick = (e) => {
         e.stopPropagation();
-        const status = isResolved(c) ? "queue" : "resolved";
-        c.status = status;
-        await this.store.update(c.id, { status });
-        this.renderPins();
-        this.renderList();
-        this.addActivity({
-          kind: status === "resolved" ? "comment.resolve" : "comment.reopen",
-          label: `${status === "resolved" ? "Resolved" : "Reopened"} \u201C${c.title || c.body.split("\n")[0] || "comment"}\u201D`
-        });
+        void this.toggleResolved(c);
       };
       const del = el("button", "", "Delete");
-      del.onclick = async (e) => {
+      del.onclick = (e) => {
         e.stopPropagation();
-        await this.store.remove(c.id);
-        this.comments = this.comments.filter((x) => x.id !== c.id);
-        this.resolved.delete(c.id);
-        this.renderPins();
-        this.renderList();
-        this.addActivity({
-          kind: "comment.delete",
-          label: `Deleted \u201C${c.title || c.body.split("\n")[0] || "comment"}\u201D`,
-          level: "warn"
-        });
+        void this.deleteComment(c);
       };
       actions.append(doneBtn, del);
       detail.appendChild(actions);
@@ -6932,6 +7019,37 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         this.renderList();
       };
       return item;
+    }
+    /**
+     * Resolve or reopen a comment. Shared by the card and the Home feed. The page list
+     * and the project list are separate reads, so the change is applied to both.
+     */
+    async toggleResolved(c) {
+      const status = isResolved(c) ? "queue" : "resolved";
+      await this.store.update(c.id, { status });
+      for (const x of [c, ...this.comments, ...this.allComments]) if (x.id === c.id) x.status = status;
+      this.renderPins();
+      this.renderList();
+      this.renderHome();
+      this.addActivity({
+        kind: status === "resolved" ? "comment.resolve" : "comment.reopen",
+        label: `${status === "resolved" ? "Resolved" : "Reopened"} \u201C${c.title || c.body.split("\n")[0] || "comment"}\u201D`
+      });
+    }
+    /** Delete a comment, from the card or the Home feed. */
+    async deleteComment(c) {
+      await this.store.remove(c.id);
+      this.comments = this.comments.filter((x) => x.id !== c.id);
+      this.allComments = this.allComments.filter((x) => x.id !== c.id);
+      this.resolved.delete(c.id);
+      this.renderPins();
+      this.renderList();
+      this.renderHome();
+      this.addActivity({
+        kind: "comment.delete",
+        label: `Deleted \u201C${c.title || c.body.split("\n")[0] || "comment"}\u201D`,
+        level: "warn"
+      });
     }
     /**
      * The review banner. This is the one place the panel asks a human to decide

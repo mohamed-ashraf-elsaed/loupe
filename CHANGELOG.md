@@ -11,6 +11,24 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.14.0] — 2026-10-05
+
+### Added
+
+- **Act from Home.** Each row in Home's Recent list has Resolve (or Reopen), Open and Delete
+  buttons, so a comment can be handled without leaving the overview. Delete asks once
+  ("Confirm delete") before it acts, because a Home row is a small target.
+- **Status filter and sort order on Comments.** Two menus under the search box. One narrows
+  the list to a single status. The other orders it newest first, oldest first, or in page
+  order. Both are remembered per browser.
+- **Collapsible day groups.** Click a day header ("Today", "3 days ago") to fold that day's
+  comments away, and click again to show them. Each header shows how many comments it holds.
+
+### Fixed
+
+- Resolving, reopening or deleting a comment now updates the "All" list and the Home feed at
+  once. Before, a comment deleted from the card stayed in the All list until the next read.
+
 ## [0.13.1] — 2026-10-05
 
 ### Fixed
