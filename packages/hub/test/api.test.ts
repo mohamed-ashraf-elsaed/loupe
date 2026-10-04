@@ -1,6 +1,8 @@
 process.env.HUB_PG_DIR = "memory://";
 process.env.HUB_SESSION_SECRET = "test-session-secret";
 process.env.GOOGLE_CLIENT_ID = "client-123.apps.googleusercontent.com";
+// The receivers below listen on 127.0.0.1; webhook.test.ts covers the guard itself.
+process.env.HUB_ALLOW_PRIVATE_URLS = "1";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
@@ -480,7 +482,7 @@ function postUpdate(project: { id: string; secret: string }, issueId: string, bo
 }
 
 describe("POST /v1/issues/{id}/updates", () => {
-  const replyUrl = () => hookUrl.replace("/hook", "/reply");
+  const replyUrl = () => hookUrl.replace("/hook", "/loupe/v1/hub/inbound");
 
   async function shared() {
     const r = await routed();
@@ -502,6 +504,42 @@ describe("POST /v1/issues/{id}/updates", () => {
     const { project } = await setup();
     await postIssue(project, { user: { email: "dev@acme.com" }, issue: issue({ id: "c_2" }), reply_url: replyUrl() });
     expect((await store.listDeliveries(project.id))[0]!.reply_url).toBeNull();
+  });
+
+  it("keeps a reply URL only on the receiver path, with no credentials, on the source's registered origin", async () => {
+    const kept = async (reply_url: string, id: string) => {
+      await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue({ id }), reply_url });
+      return (await store.listDeliveries(web.id)).find((d) => d.issue_id === id)!.reply_url;
+    };
+    const { web: w } = await routed();
+    let web = w;
+    const origin = new URL(hookUrl).origin;
+    expect(await kept(`${origin}/admin/delete-everything`, "c_path")).toBeNull();
+    expect(await kept(replyUrl().replace("http://", "http://user:pw@"), "c_creds")).toBeNull();
+    expect(await kept("http://169.254.169.254/loupe/v1/hub/inbound", "c_meta")).toBe("http://169.254.169.254/loupe/v1/hub/inbound");
+
+    // Once the source has an inbound URL registered, the reply URL must share its origin.
+    await store.setInboundUrl(web.id, replyUrl());
+    web = (await store.getProject(web.id))!;
+    expect(await kept("http://169.254.169.254/loupe/v1/hub/inbound", "c_meta2")).toBeNull();
+    expect(await kept(replyUrl().replace("/loupe/", "/app/loupe/"), "c_same")).toBe(replyUrl().replace("/loupe/", "/app/loupe/"));
+  });
+
+  it("does not send to a stored reply URL that no longer passes the check", async () => {
+    const { web, tracker } = await routed();
+    // A row written before the check existed.
+    await store.recordDelivery({
+      id: "dlv_old", project_id: web.id, issue_id: "c_old", destination_project_id: tracker.id,
+      reply_url: `${new URL(hookUrl).origin}/admin`, status: "ok", http_status: 200, attempts: 1, last_error: null,
+    });
+    expect(await (await postUpdate(tracker, "c_old", { kind: "status", status: "todo" })).json()).toEqual({ delivery: "none" });
+
+    // And a source whose registered inbound URL moved after the ticket was sent.
+    await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue(), reply_url: replyUrl() });
+    await store.setInboundUrl(web.id, "https://moved.example/loupe/v1/hub/inbound");
+    hookReceived = [];
+    expect(await (await postUpdate(tracker, "c_1", { kind: "status", status: "todo" })).json()).toEqual({ delivery: "none" });
+    expect(hookReceived).toHaveLength(0);
   });
 
   it("sends the destination's status back to the source's reply URL, signed with the source secret", async () => {
@@ -562,7 +600,7 @@ describe("POST /v1/issues/{id}/updates", () => {
 
   it("follows the newest delivery of a resent ticket", async () => {
     const { web, tracker } = await shared();
-    const second = replyUrl().replace("/reply", "/reply2");
+    const second = replyUrl().replace("/loupe/", "/app/loupe/");
     await postIssue(web, { user: { email: "dev@acme.com" }, issue: issue(), reply_url: second });
     hookReceived = [];
     await postUpdate(tracker, "c_1", { kind: "status", status: "todo" });

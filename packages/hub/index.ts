@@ -135,6 +135,20 @@ function validWebhookUrl(s: string): boolean {
   }
 }
 
+/**
+ * A reply_url comes from the source app, not from an operator, so it is held to
+ * more than an http(s) check: it must be the package's receiver path
+ * (`<prefix>/v1/hub/inbound`), carry no credentials, and, when the source
+ * project has an inbound URL registered in the dashboard, sit on that origin.
+ * deliver() separately refuses private addresses for every URL.
+ */
+function validReplyUrl(s: unknown, source: store.Project): s is string {
+  if (typeof s !== "string" || !validWebhookUrl(s)) return false;
+  const u = new URL(s);
+  if (u.username || u.password || !u.pathname.endsWith("/v1/hub/inbound")) return false;
+  return source.inbound_url === null || new URL(source.inbound_url).origin === u.origin;
+}
+
 // ---- signed project API ----
 
 /**
@@ -226,7 +240,7 @@ async function ingest(req: IncomingMessage, res: ServerResponse) {
     return json(res, 202, { id: deliveryId, delivery: "none" });
   }
   // Only kept for a project-to-project delivery: that is the only kind updates can follow.
-  const replyUrl = toDest && typeof body.reply_url === "string" && validWebhookUrl(body.reply_url) ? body.reply_url : null;
+  const replyUrl = toDest && validReplyUrl(body.reply_url, project) ? body.reply_url : null;
   await store.recordDelivery({
     id: deliveryId,
     project_id: project.id,
@@ -282,7 +296,9 @@ async function updates(req: IncomingMessage, res: ServerResponse, issueId: strin
   const { delivery } = shared;
   const toDestination = delivery.project_id === project.id;
   const other = await store.getProject(toDestination ? delivery.destination_project_id! : delivery.project_id);
-  const url = toDestination ? other?.inbound_url : delivery.reply_url;
+  // Re-checked here as well as at ingest: rows stored before the check existed,
+  // and a source whose registered inbound URL has moved since, are covered too.
+  const url = toDestination ? other?.inbound_url : other && validReplyUrl(delivery.reply_url, other) ? delivery.reply_url : null;
   if (!other || !url) return json(res, 202, { delivery: "none" });
 
   const deliveryId = newId("dlv");

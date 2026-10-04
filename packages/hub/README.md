@@ -26,8 +26,11 @@ node packages/hub/seed.ts owner@acme.com http://127.0.0.1:8791/webhook acme.com
 # → prints LOUPE_PROJECT_ID, LOUPE_PROJECT_SECRET and WEBHOOK_SECRET
 
 WEBHOOK_SECRET=whs_… node packages/hub/tools/webhook-receiver.ts   # :8791, verifies + logs
-node packages/hub/index.ts                                          # :8790
+HUB_ALLOW_PRIVATE_URLS=1 node packages/hub/index.ts                 # :8790
 ```
+
+`HUB_ALLOW_PRIVATE_URLS=1` is only for local runs, where the receiver is on 127.0.0.1. Without
+it, Hub refuses to post to any private address.
 
 The dashboard needs `GOOGLE_CLIENT_ID` (a Google OAuth **web** client with
 `http://localhost:8790` as an authorized JavaScript origin). `seed.ts` creates an org and
@@ -40,6 +43,7 @@ project without signing in.
 | `HUB_SESSION_SECRET` | random per process (dev) | Signs the session cookie. **Required** when `NODE_ENV=production`. |
 | `GOOGLE_CLIENT_ID` | — | OAuth web client ID. ID tokens must have this `aud`. |
 | `PORT` / `HOST` | `8790` / `127.0.0.1` | Listen address. |
+| `HUB_ALLOW_PRIVATE_URLS` | unset | `1` lets Hub post to private, loopback and link-local addresses. Local development only: without it, every delivery to such an address fails with `refused: … private address`. Never set it in production. |
 
 ## Dashboard rules
 

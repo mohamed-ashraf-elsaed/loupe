@@ -9,7 +9,21 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Security
+
+- **Hub no longer posts to private addresses.** Every URL Hub delivers to comes from outside
+  Hub: a dashboard user sets the webhook and inbound URLs, and the source app sends a
+  `reply_url` with each ticket. Any of them could point Hub at its own loopback port, the
+  VM's metadata server or the private network. Hub now resolves each host and refuses
+  loopback, private, link-local, carrier-grade NAT, multicast and reserved addresses. The
+  check runs in the connection's own DNS lookup, so a host that answers with a public
+  address first and a private one later is still refused. Set `HUB_ALLOW_PRIVATE_URLS=1`
+  for local development only.
+- **Hub keeps a `reply_url` only when it is the package's receiver.** The path must end in
+  `/v1/hub/inbound` and the URL must carry no credentials. When the source project has an
+  inbound URL registered in the dashboard, the `reply_url` must also share its origin. Hub
+  checks again before each update, so `reply_url` values stored before this release are
+  covered too.
 
 ## [0.14.0] — 2026-10-05
 

@@ -1,7 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { verifySignature } from "../crypto.ts";
-import { deliver, transport } from "../webhook.ts";
+import { blockedIp, deliver, guardedPost, transport } from "../webhook.ts";
+
+// The receiver below listens on 127.0.0.1. The guard's own tests turn this off.
+process.env.HUB_ALLOW_PRIVATE_URLS = "1";
 
 // A real local receiver whose replies each test scripts.
 let server: Server;
@@ -100,5 +103,64 @@ describe("deliver", () => {
     };
     const r = await deliver(url, "{}", "s", "dlv_7");
     expect(r).toEqual({ status: "ok", httpStatus: 200, attempts: 2, lastError: null });
+  });
+});
+
+describe("the private-address guard", () => {
+  const guarded = async (fn: () => Promise<void>) => {
+    delete process.env.HUB_ALLOW_PRIVATE_URLS;
+    try {
+      await fn();
+    } finally {
+      process.env.HUB_ALLOW_PRIVATE_URLS = "1";
+    }
+  };
+
+  it("blocks every non-public address and allows public ones", () => {
+    for (const ip of [
+      "0.0.0.0", "10.1.2.3", "127.0.0.1", "100.64.0.1", "169.254.169.254", "172.16.0.1", "172.31.255.255",
+      "192.0.0.1", "192.168.1.1", "198.18.0.1", "224.0.0.1", "255.255.255.255",
+      "::", "::1", "fc00::1", "fd12::1", "fe80::1", "ff02::1", "::ffff:127.0.0.1", "::ffff:7f00:1",
+      "64:ff9b::a9fe:a9fe", "not an ip",
+    ]) expect(blockedIp(ip), ip).toBe(true);
+    for (const ip of ["8.8.8.8", "1.1.1.1", "172.32.0.1", "100.128.0.1", "2606:4700::1111", "::ffff:8.8.8.8"]) {
+      expect(blockedIp(ip), ip).toBe(false);
+    }
+  });
+
+  it("refuses to post to a private IP literal, a host that resolves to one, and a non-http URL", async () => {
+    await guarded(async () => {
+      const port = new URL(url).port;
+      for (const target of [url, `http://localhost:${port}/hook`, `http://[::1]:${port}/hook`, "http://169.254.169.254/x"]) {
+        const r = await deliver(target, "{}", "s", "dlv_g");
+        expect(r.status, target).toBe("failed");
+        expect(r.lastError, target).toMatch(/^refused: .* private address/);
+      }
+      expect((await deliver("ftp://example.com/x", "{}", "s", "dlv_g")).lastError).toBe("refused: ftp: URL");
+      expect((await deliver("not a url", "{}", "s", "dlv_g")).lastError).toBe("invalid URL: not a url");
+      expect(received).toHaveLength(0);
+    });
+  });
+
+  it("posts through node:http when the resolved address passes, sending headers and body", async () => {
+    const realBlocked = transport.blocked;
+    transport.blocked = (ip) => ip !== "127.0.0.1" && realBlocked(ip);
+    try {
+      await guarded(async () => {
+        const port = new URL(url).port;
+        replies = [204];
+        const r = await deliver(`http://localhost:${port}/hook`, '{"a":1}', "s", "dlv_ok");
+        expect(r).toEqual({ status: "ok", httpStatus: 204, attempts: 1, lastError: null });
+        expect(received).toHaveLength(1);
+        expect(received[0]!.body).toBe('{"a":1}');
+        expect(received[0]!.headers["x-loupe-hub-delivery"]).toBe("dlv_ok");
+
+        // A timeout surfaces as the signal's reason, which deliver() reports by name.
+        const aborted = AbortSignal.abort(new DOMException("timed out", "TimeoutError"));
+        await expect(guardedPost(url, { method: "POST", body: "{}", signal: aborted })).rejects.toMatchObject({ name: "TimeoutError" });
+      });
+    } finally {
+      transport.blocked = realBlocked;
+    }
   });
 });
