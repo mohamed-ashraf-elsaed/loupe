@@ -3,6 +3,8 @@
 namespace Loupekit\Loupe\Support;
 
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Loupekit\Loupe\Jobs\SendToHub;
 use Throwable;
@@ -18,6 +20,73 @@ class Hub
         return filled(config('loupe.hub.url'))
             && filled(config('loupe.hub.project_id'))
             && filled(config('loupe.hub.project_secret'));
+    }
+
+    /** How long a good answer from Hub's `GET /v1/projects` is reused. */
+    public const ORG_CACHE_SECONDS = 300;
+
+    public const ORG_TIMEOUT_SECONDS = 5;
+
+    /**
+     * This app's project, its organization and the organization's other
+     * projects, as Loupe Hub knows them (`GET {hub.url}/v1/projects`, signed with
+     * the project secret over an empty body). Read-only and free of secrets.
+     *
+     * Never throws. Not configured, or Hub unreachable, gives the same shape with
+     * `organization: null`; the second also carries `error: "hub_unreachable"`.
+     * Only a good answer is cached, so an outage is not remembered for 5 minutes.
+     *
+     * @return array<string, mixed>
+     */
+    public static function organization(): array
+    {
+        $key = (string) config('loupe.project_key', 'app');
+        $none = ['organization' => null, 'project' => ['key' => $key, 'name' => null, 'destination' => null], 'projects' => []];
+        if (! static::enabled()) {
+            return $none;
+        }
+
+        $cached = Cache::get('loupe.hub.org');
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        try {
+            $timestamp = (string) time();
+            $response = Http::timeout(self::ORG_TIMEOUT_SECONDS)
+                ->acceptJson()
+                ->withHeaders([
+                    'X-Loupe-Project' => (string) config('loupe.hub.project_id'),
+                    'X-Loupe-Timestamp' => $timestamp,
+                    'X-Loupe-Signature' => hash_hmac('sha256', $timestamp.'.', (string) config('loupe.hub.project_secret')),
+                ])
+                ->get(rtrim((string) config('loupe.hub.url'), '/').'/v1/projects');
+            $body = $response->json();
+            if ($response->failed() || ! is_array($body['organization'] ?? null) || ! is_array($body['project'] ?? null)) {
+                Log::warning('[loupe] Hub did not return the organization', ['status' => $response->status()]);
+
+                return $none + ['error' => 'hub_unreachable'];
+            }
+        } catch (Throwable $e) {
+            Log::warning('[loupe] could not reach Hub for the organization', ['error' => $e->getMessage()]);
+
+            return $none + ['error' => 'hub_unreachable'];
+        }
+
+        $org = [
+            'organization' => ['id' => (string) ($body['organization']['id'] ?? ''), 'name' => (string) ($body['organization']['name'] ?? '')],
+            'project' => [
+                'key' => $key,
+                'id' => (string) ($body['project']['id'] ?? ''),
+                'name' => $body['project']['name'] ?? null,
+                'destination' => is_array($body['project']['destination'] ?? null) ? $body['project']['destination'] : null,
+                'receives' => (bool) ($body['project']['receives'] ?? false),
+            ],
+            'projects' => array_values(array_filter($body['projects'] ?? [], 'is_array')),
+        ];
+        Cache::put('loupe.hub.org', $org, self::ORG_CACHE_SECONDS);
+
+        return $org;
     }
 
     /**

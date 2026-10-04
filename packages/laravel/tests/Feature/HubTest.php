@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Loupekit\Loupe\Jobs\SendToHub;
+use Loupekit\Loupe\Models\Activity;
+use Loupekit\Loupe\Models\Comment;
 use Loupekit\Loupe\Support\Hub;
 use Loupekit\Loupe\Tests\TestCase;
 use RuntimeException;
@@ -219,5 +221,110 @@ class HubTest extends TestCase
 
         $this->assertSame(1, $job->tries);
         $this->assertGreaterThan(35, SendToHub::TIMEOUT_SECONDS);
+    }
+
+    /** Run the job for a stored comment and return what it recorded. */
+    private function forwardStored(array $hubResponse, int $status = 202, array $issue = []): array
+    {
+        $this->enableHub();
+        $user = $this->actingAsAllowed();
+        Bus::fake();
+        $this->postJson('/loupe/v1/comments', $this->payload('c1', $user->id, ['title' => 'Pay button']))->assertCreated();
+        Http::fake(['hub.test/*' => Http::response($hubResponse, $status)]);
+
+        (new SendToHub(['email' => 'a@b.co'], array_merge(['id' => 'c1', 'title' => 'Pay button'], $issue)))->handle();
+
+        $forwarded = Comment::query()->findOrFail('c1')->forwarded;
+        $event = Activity::query()->where('kind', 'like', 'ticket.%')->sole();
+
+        return [$forwarded, $event];
+    }
+
+    public function test_a_delivery_to_a_destination_project_is_recorded_on_the_comment_and_the_feed(): void
+    {
+        [$fwd, $event] = $this->forwardStored(['id' => 'dlv_1', 'delivery' => 'ok', 'destination' => ['id' => 'prj_crm', 'name' => 'CRM']]);
+
+        $this->assertSame('ok', $fwd['status']);
+        $this->assertSame('dlv_1', $fwd['deliveryId']);
+        $this->assertSame('prj_crm', $fwd['destinationProjectId']);
+        $this->assertSame('CRM', $fwd['destinationName']);
+        $this->assertNotEmpty($fwd['at']);
+        $this->assertSame($fwd, Comment::query()->findOrFail('c1')->toLoupeArray()['forwarded']);
+        $this->assertSame(['ticket.forwarded', 'Sent “Pay button” to CRM', 'info'], [$event->kind, $event->label, $event->level]);
+    }
+
+    public function test_a_webhook_delivery_and_no_destination_are_recorded(): void
+    {
+        [$fwd, $event] = $this->forwardStored(['id' => 'dlv_1', 'delivery' => 'ok']);
+        $this->assertNull($fwd['destinationName']);
+        $this->assertSame('Sent “Pay button” to the webhook', $event->label);
+    }
+
+    public function test_hub_with_no_route_is_recorded_without_a_warning(): void
+    {
+        Log::spy();
+        [$fwd, $event] = $this->forwardStored(['id' => 'dlv_1', 'delivery' => 'none']);
+
+        $this->assertSame('none', $fwd['status']);
+        $this->assertSame('Hub accepted “Pay button”; no destination is set for this project', $event->label);
+        Log::shouldNotHaveReceived('warning');
+    }
+
+    public function test_a_failed_delivery_and_a_rejection_are_recorded_as_warnings(): void
+    {
+        [$fwd, $event] = $this->forwardStored(['id' => 'dlv_1', 'delivery' => 'failed', 'destination' => ['id' => 'prj_crm', 'name' => 'CRM']]);
+        $this->assertSame('failed', $fwd['status']);
+        $this->assertSame(['ticket.forward_failed', 'Could not send “Pay button” to CRM', 'warn'], [$event->kind, $event->label, $event->level]);
+    }
+
+    public function test_a_rejection_keeps_hubs_reason(): void
+    {
+        [$fwd, $event] = $this->forwardStored(['error' => 'user not in organization'], 403, ['title' => '', 'body' => 'Body text']);
+        $this->assertSame(['status' => 'rejected', 'error' => 'user not in organization'], array_diff_key($fwd, ['at' => 1]));
+        $this->assertSame('Could not send “Body text”', $event->label);
+        $this->assertSame('user not in organization', $event->detail);
+    }
+
+    public function test_a_rejection_without_a_reason_and_an_odd_answer(): void
+    {
+        [$fwd] = $this->forwardStored([], 500);
+        $this->assertSame('HTTP 500', $fwd['error']);
+    }
+
+    public function test_an_unexpected_delivery_value_is_recorded_as_unknown(): void
+    {
+        [$fwd, $event] = $this->forwardStored(['id' => 'dlv_2', 'delivery' => 42]);
+        $this->assertSame('unknown', $fwd['status']);
+        $this->assertSame('ticket.forward_failed', $event->kind);
+    }
+
+    public function test_an_unreachable_hub_is_recorded(): void
+    {
+        $this->enableHub();
+        $user = $this->actingAsAllowed();
+        Bus::fake();
+        $this->postJson('/loupe/v1/comments', $this->payload('c1', $user->id))->assertCreated();
+        Http::fake(fn () => throw new ConnectionException('cURL error 7: Failed to connect'));
+
+        (new SendToHub(['email' => 'a@b.co'], ['id' => 'c1', 'body' => 'x']))->handle();
+
+        $this->assertSame('unreachable', Comment::query()->findOrFail('c1')->forwarded['status']);
+    }
+
+    public function test_recording_skips_a_missing_id_or_comment_and_never_throws(): void
+    {
+        $this->enableHub();
+        Log::spy();
+        Http::fake(['hub.test/*' => Http::response(['id' => 'dlv_1', 'delivery' => 'ok'], 202)]);
+
+        (new SendToHub(['email' => 'a@b.co'], ['body' => 'no id']))->handle();
+        $this->assertSame(0, Activity::query()->count());
+
+        (new SendToHub(['email' => 'a@b.co'], ['id' => 'gone']))->handle(); // deleted meanwhile
+        $this->assertSame(1, Activity::query()->count());
+
+        config()->set('loupe.comment_model', \stdClass::class); // a broken model must not escape the job
+        (new SendToHub(['email' => 'a@b.co'], ['id' => 'c9']))->handle();
+        Log::shouldHaveReceived('warning')->withArgs(fn ($m, $ctx) => $m === '[loupe] could not record the Hub result' && $ctx['comment'] === 'c9');
     }
 }

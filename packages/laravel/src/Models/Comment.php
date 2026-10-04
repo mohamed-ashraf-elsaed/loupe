@@ -30,6 +30,8 @@ use Loupekit\Loupe\Support\Triage;
  * @property array|null $attachments
  * @property array|null $proposal
  * @property array|null $pr
+ * @property array|null $source
+ * @property array|null $forwarded
  */
 class Comment extends Model
 {
@@ -49,6 +51,8 @@ class Comment extends Model
         'attachments' => 'array',
         'proposal' => 'array',
         'pr' => 'array',
+        'source' => 'array',
+        'forwarded' => 'array',
     ];
 
     public function getTable()
@@ -120,6 +124,16 @@ class Comment extends Model
         // The pull request carrying this thread's fix (panel lifecycle chip).
         if (! empty($this->pr)) {
             $out['pr'] = $this->pr;
+        }
+
+        // A ticket received from another project in the organization, through Loupe Hub.
+        if (! empty($this->source)) {
+            $out['source'] = $this->source;
+        }
+
+        // Where Loupe Hub sent this comment, and whether it arrived.
+        if (! empty($this->forwarded)) {
+            $out['forwarded'] = $this->forwarded;
         }
 
         return $out;

@@ -174,4 +174,18 @@ return [
         'project_secret' => env('LOUPE_PROJECT_SECRET'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Activity feed
+    |--------------------------------------------------------------------------
+    | The widget's Activity tab reads its feed from this app: comments added,
+    | edited, moved and deleted, and tickets sent to or received from other
+    | projects through Loupe Hub. Rows older than "retention_days" are pruned
+    | as new ones are written. Needs the loupe_activity migration.
+    */
+    'activity' => [
+        'enabled' => env('LOUPE_ACTIVITY', true),
+        'retention_days' => 30,
+    ],
+
 ];

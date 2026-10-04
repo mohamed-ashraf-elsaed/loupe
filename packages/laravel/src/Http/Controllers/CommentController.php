@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Loupekit\Loupe\Loupe;
+use Loupekit\Loupe\Support\ActivityLog;
+use Loupekit\Loupe\Support\Columns;
 use Loupekit\Loupe\Support\Hub;
 use Loupekit\Loupe\Support\Stages;
 use Loupekit\Loupe\Support\Triage;
@@ -20,41 +20,6 @@ use Loupekit\Loupe\Support\Url;
  */
 class CommentController extends Controller
 {
-    /**
-     * Keep only the attributes this table actually has.
-     *
-     * A package upgrade must never make an app *unable to file feedback*. That is
-     * exactly what happened when `pr` landed: the controller wrote a column the host
-     * had not migrated yet, so every create raised a QueryException and returned a
-     * 500. Dropping unknown attributes degrades instead — the newest fields simply
-     * stay empty until `php artisan migrate` runs — and says so in the log.
-     *
-     * The column list is fetched on every call rather than cached. Caching it in a
-     * static looked tempting and is wrong: under Octane or a queue worker the process
-     * outlives a migration, so a worker started before `php artisan migrate` would
-     * keep writing the old shape until it was restarted. This runs on the write path
-     * only, where one metadata query is nothing.
-     *
-     * @param  array<string, mixed>  $attributes
-     * @return array<string, mixed>
-     */
-    protected function onlyExistingColumns(array $attributes): array
-    {
-        $table = $this->model()->getTable();
-        $columns = array_fill_keys(Schema::getColumnListing($table), true);
-
-        $kept = array_filter($attributes, static fn ($value, $key) => isset($columns[$key]), ARRAY_FILTER_USE_BOTH);
-        $missing = array_keys(array_diff_key($attributes, $kept));
-        if ($missing) {
-            Log::warning(
-                '[loupe] '.$table.' is missing '.implode(', ', $missing).
-                ' — run `php artisan migrate` to add '.(count($missing) === 1 ? 'it' : 'them').'.'
-            );
-        }
-
-        return $kept;
-    }
-
     /** GET /{path}/v1/comments?projectKey=&url= — list, newest first. */
     public function index(Request $request): JsonResponse
     {
@@ -171,8 +136,16 @@ class CommentController extends Controller
             $comment->setUpdatedAt($created);
         }
 
-        $comment->fill($this->onlyExistingColumns($attributes))->save();
+        $comment->fill(Columns::only($this->model(), $attributes))->save();
         $issue = $comment->fresh()->toLoupeArray();
+        $actor = $this->actor($loupe);
+        ActivityLog::record(
+            $isNew ? 'comment.create' : 'comment.update',
+            ($isNew ? ActivityLog::actorName($actor).' added “' : ActivityLog::actorName($actor).' edited “').$this->titleOf($issue).'”',
+            $issue['url'] ?? null,
+            commentId: $issue['id'],
+            actor: $actor,
+        );
 
         // Only brand-new comments go to Loupe Hub (not later edits of the same id).
         if ($isNew && Hub::enabled()) {
@@ -183,7 +156,7 @@ class CommentController extends Controller
     }
 
     /** PATCH /{path}/v1/comments/{id} — status, body, or proposal (Claude's modified UI). */
-    public function update(Request $request, string $id): JsonResponse
+    public function update(Request $request, Loupe $loupe, string $id): JsonResponse
     {
         $comment = $this->model()->newQuery()
             ->where('project_key', $this->projectKey())
@@ -210,24 +183,61 @@ class CommentController extends Controller
             $patch['change_type'] = Triage::normalizeType($request->input('changeType'));
         }
         if ($patch !== []) {
-            $comment->fill($this->onlyExistingColumns($patch))->save();
+            $before = Stages::normalize($comment->status);
+            $comment->fill(Columns::only($this->model(), $patch))->save();
+            $issue = $comment->fresh()->toLoupeArray();
+            $actor = $this->actor($loupe);
+            $moved = isset($patch['status']) && $issue['status'] !== $before;
+            ActivityLog::record(
+                $moved ? 'comment.status' : 'comment.update',
+                $moved
+                    ? ActivityLog::actorName($actor).' moved “'.$this->titleOf($issue).'” to '.(Stages::LABELS[$issue['status']] ?? $issue['status'])
+                    : ActivityLog::actorName($actor).' edited “'.$this->titleOf($issue).'”',
+                commentId: $issue['id'],
+                actor: $actor,
+            );
+
+            return response()->json($issue);
         }
 
         return response()->json($comment->fresh()->toLoupeArray());
     }
 
     /** DELETE /{path}/v1/comments/{id}. */
-    public function destroy(string $id): JsonResponse
+    public function destroy(Loupe $loupe, string $id): JsonResponse
     {
         $comment = $this->model()->newQuery()
             ->where('project_key', $this->projectKey())
             ->find($id);
 
         if ($comment !== null) {
+            $title = $this->titleOf($comment->toLoupeArray());
             $comment->delete();
+            $actor = $this->actor($loupe);
+            ActivityLog::record('comment.delete', ActivityLog::actorName($actor).' deleted “'.$title.'”', commentId: $id, actor: $actor);
         }
 
         return response()->json([], 204);
+    }
+
+    /**
+     * `{id, name}` of the signed-in user, for the Activity feed. The routes sit
+     * behind loupe.auth, so a user is always present; null is only the type's honesty.
+     */
+    private function actor(Loupe $loupe): ?array
+    {
+        $user = $loupe->resolveUser();
+        $who = $user === null ? null : $loupe->describeUser($user);
+
+        return $who === null ? null : ['id' => (string) ($who['id'] ?? ''), 'name' => (string) ($who['name'] ?? '')];
+    }
+
+    /** A short display title: the title, else the start of the body. */
+    private function titleOf(array $issue): string
+    {
+        $title = trim((string) ($issue['title'] ?? ''));
+
+        return $title !== '' ? mb_substr($title, 0, 80) : mb_substr(trim((string) ($issue['body'] ?? '')), 0, 60);
     }
 
     private function model(): Model
