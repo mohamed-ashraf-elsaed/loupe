@@ -4,6 +4,7 @@ import {
   destroy, init, trackActivity, setActivityStatus, clearActivity, connectTab, requestNavigation,
   showLauncher, hideLauncher, version,
 } from "../src/index.ts";
+import { STYLES } from "../src/styles.ts";
 
 const sr = () => document.getElementById("loupe-root")!.shadowRoot!;
 const fire = (el: Element, type: string, extra: Record<string, number> = {}) =>
@@ -87,6 +88,11 @@ const seeded = (over: Record<string, unknown> = {}) => ({
   context: { html: "", styles: {} }, offset: { x: 0, y: 0 }, createdAt: new Date().toISOString(), ...over,
 });
 const keyFor = (url: string) => `loupe:pk:${url}`;
+/** Give an element a layout box — happy-dom reports every rect as zero. */
+const boxOf = (elx: Element, left: number, top: number, width: number, height: number) => {
+  (elx as any).getBoundingClientRect = () =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON() {} });
+};
 
 beforeEach(() => {
   localStorage.clear();
@@ -198,6 +204,9 @@ describe("LoupeApp", () => {
       projectKey: "pk", user: { id: "u", name: "U" },
       captureRegion: async () => "data:image/png;base64,REGION",
     });
+    // happy-dom has no layout: give the button under the drag a 200×200 box so it
+    // covers the region and qualifies as its anchor.
+    boxOf(document.querySelector('[data-testid="save"]')!, 0, 0, 200, 200);
     // Enter region mode and drag a box with pointer events.
     sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
     firePointer(document.body, "pointerdown", { clientX: 10, clientY: 20, button: 0 }, "mouse");
@@ -216,9 +225,62 @@ describe("LoupeApp", () => {
     expect(stored[0].kind).toBe("region");
     expect(stored[0].region).toMatchObject({ x: 10, y: 20, w: 120, h: 90 });
     expect(stored[0].screenshot).toBe("data:image/png;base64,REGION");
-    // The region anchors to the element under its center (survives reflow), so it
-    // carries that element's real fingerprint rather than a synthetic one.
+    // The region anchors to the smallest element covering most of it (survives
+    // reflow), so it carries that element's real fingerprint rather than a synthetic
+    // one, plus the rect as fractions of that element.
     expect(stored[0].anchor.testid).toBe("save");
+    expect(stored[0].region.rel).toEqual({ fx: 0.05, fy: 0.1, fw: 0.6, fh: 0.45 });
+  });
+
+  it("a region no element covers is page-level: synthetic anchor, no fractions, pin still placed", async () => {
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      captureRegion: async () => "data:image/png;base64,REGION",
+    });
+    // The element under the region's center is a 10×10 control: anchoring the region to
+    // it stored fractions like fx=-7 before 0.11.1, and the pin then landed on whatever
+    // sat at those coordinates on the next viewport.
+    boxOf(document.querySelector('[data-testid="save"]')!, 60, 60, 10, 10);
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    firePointer(document.body, "pointerdown", { clientX: 10, clientY: 20, button: 0 }, "mouse");
+    firePointer(document.body, "pointermove", { clientX: 130, clientY: 110 }, "mouse");
+    firePointer(document.body, "pointerup", { clientX: 130, clientY: 110, button: 0 }, "mouse");
+    await new Promise((r) => setTimeout(r, 10));
+    fillComposer("whole area", "this whole area is misaligned");
+    sr().querySelector<HTMLElement>(".composer .primary")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const stored = JSON.parse(localStorage.getItem(`loupe:pk:${location.pathname}${location.search}`)!);
+    expect(stored[0].anchor.tag).toBe("region");
+    expect(stored[0].region.rel).toBeUndefined();
+    const pin = sr().querySelector<HTMLElement>(".pin")!;
+    expect(pin.style.display).toBe("grid");
+    expect(pin.classList.contains("detached")).toBe(false); // page-level is not "moved"
+    sr().querySelector<HTMLElement>(".item")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(sr().querySelector(".item .meta")!.textContent).toBe("Area 120×90 · page-level");
+  });
+
+  it("a region whose stored fractions are implausible is placed from document coordinates and marked moved", async () => {
+    // Data saved by 0.11.0: a full-screen recording anchored to one word inside it.
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({
+        id: "r1", kind: "region", title: "Recording",
+        anchor: { ...seeded().anchor, tag: "span", cssPath: ".x", testid: "save", text: "Save" },
+        region: { x: 0, y: 82, w: 1319, h: 876, rel: { fx: -6.9, fy: -9.0, fw: 14.78, fh: 19.36 } },
+      }),
+    ]));
+    boxOf(document.querySelector('[data-testid="save"]')!, 500, 300, 40, 20);
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const pin = sr().querySelector<HTMLElement>(".pin")!;
+    // Not 500 + (-6.9 × 40) = 224: the fractions are ignored and the stored x=0 is used,
+    // nudged to 4px so the marker is not flush against the viewport edge.
+    expect(pin.style.left).toBe("4px");
+    expect(pin.style.top).toBe("82px");
+    expect(pin.classList.contains("detached")).toBe(true);
+    sr().querySelector<HTMLElement>(".item")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(sr().querySelector(".item .meta")!.textContent).toBe('Area 1319×876 · near span[data-testid="save"]');
   });
 
   it("touch: Region grabs the visible viewport and pre-attaches it — no drag, no scroll lock", async () => {
@@ -507,6 +569,47 @@ describe("LoupeApp", () => {
     // Ctrl+Alt+Shift+L is somebody else's shortcut.
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "L", code: "KeyL", altKey: true, shiftKey: true, ctrlKey: true, bubbles: true }));
     expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
+  });
+
+  it("on a touch screen a hidden launcher leaves a tab at the screen edge, and tapping it brings the launcher back", () => {
+    setPointer("coarse");
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    const handle = sr().querySelector<HTMLElement>(".fab-handle")!;
+    expect(handle.getAttribute("aria-label")).toBe("Show the launcher");
+    expect(handle.classList.contains("show")).toBe(false);
+    // The quick action's own tooltip names the tab, not a keyboard shortcut nobody has.
+    expect(sr().querySelector<HTMLElement>('[data-fab="hide"]')!.title).toContain("tab at the screen edge");
+
+    sr().querySelector<HTMLElement>('[data-fab="hide"]')!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+    expect(handle.classList.contains("show")).toBe(true);
+    const toast = sr().querySelector<HTMLElement>(".toast")!;
+    expect(toast.textContent).toContain("tab at the right edge");
+    expect(toast.textContent).not.toContain("Alt+Shift+L");
+
+    // Hidden survives a reload, and so does the way back.
+    destroy();
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+    expect(sr().querySelector(".fab-handle")!.classList.contains("show")).toBe(true);
+
+    // One tap restores the launcher; the tab goes away with the need for it.
+    sr().querySelector<HTMLElement>(".fab-handle")!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(true);
+    expect(sr().querySelector(".fab-handle")!.classList.contains("show")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("loupe:dock")!).launcherHidden).toBe(false);
+  });
+
+  it("a mouse user who hides the launcher gets no edge tab; the shortcut is the way back", () => {
+    setPointer("fine");
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    sr().querySelector<HTMLElement>('.dctl [data-role="close"]')!.click();
+    sr().querySelector<HTMLElement>('[data-fab="hide"]')!.click();
+    expect(sr().querySelector(".fab-cluster")!.classList.contains("show")).toBe(false);
+    expect(sr().querySelector(".fab-handle")!.classList.contains("show")).toBe(false);
+    expect(sr().querySelector<HTMLElement>('[data-fab="hide"]')!.title).toContain("Alt+Shift+L");
   });
 
   it("the host can hide and show the launcher through the public API and the Settings switch", () => {
@@ -806,6 +909,53 @@ describe("LoupeApp", () => {
 
     sr().querySelector<HTMLElement>(".tabs")!.click();
     expect(sr().querySelectorAll(".menu.open").length).toBe(0);
+
+    // A click on the HOST page never reaches the shadow root; it has to close the menu too.
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    expect(sr().querySelectorAll(".menu.open").length).toBe(1);
+    fire(document.body, "click");
+    expect(sr().querySelectorAll(".menu.open").length).toBe(0);
+
+    // So does Escape, with no tool armed.
+    sr().querySelector<HTMLElement>('.dctl [data-role="settings"]')!.click();
+    expect(sr().querySelectorAll(".menu.open").length).toBe(1);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(sr().querySelectorAll(".menu.open").length).toBe(0);
+  });
+
+  it("the header's icon-button sizing does not reach into the popovers", () => {
+    // 0.11.0 shipped `.dctl button { width: 26px; height: 26px }`, which also matched the
+    // settings rows and accent swatches inside the menu and squeezed them to 26px.
+    expect(STYLES).not.toMatch(/\.dctl button\s*\{/);
+    expect(STYLES).toMatch(/\.dctl > button, \.dctl > \.menu-wrap > button\s*\{/);
+  });
+
+  it("the chat view only lays out while it is the active tab", () => {
+    // 0.11.0 shipped `.chat-view { display: flex }`, which outranked `.view { display: none }`
+    // by source order: the chat rendered under every tab and swallowed the Comments tools' clicks.
+    expect(STYLES).not.toMatch(/\n\.chat-view\s*\{/);
+    expect(STYLES).toMatch(/\.view\.on\.chat-view\s*\{\s*display: flex/);
+  });
+
+  it("a thread names its target by text or test id, not by selector", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "a", title: "By text", anchor: { ...seeded().anchor, tag: "button", text: "Red Sea",
+        cssPath: "#delPanel > div:nth-of-type(3) > button:nth-of-type(24)" } }),
+      seeded({ id: "b", title: "By test id", anchor: { ...seeded().anchor, tag: "div", testid: "coIdentityRow" } }),
+      seeded({ id: "c", title: "By label", anchor: { ...seeded().anchor, tag: "input", attrs: { placeholder: "Search" } } }),
+      seeded({ id: "d", title: "Selector only", anchor: { ...seeded().anchor, tag: "div", cssPath: "main > div:nth-of-type(2)" } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    const items = [...sr().querySelectorAll<HTMLElement>(".item")];
+    items.forEach((i) => i.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    const metas = [...sr().querySelectorAll<HTMLElement>(".item .meta")].map((m) => m.textContent);
+    expect(metas).toEqual([
+      "button · “Red Sea”",
+      'div[data-testid="coIdentityRow"]',
+      "input · “Search”",
+      "main > div:nth-of-type(2)",
+    ]);
   });
 
   it("applies an accent from settings and keeps it across a reload", async () => {
@@ -1117,9 +1267,9 @@ describe("LoupeApp", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     const chips = () => [...sr().querySelectorAll<HTMLElement>(".hscope-b")].map((b) => b.textContent!.replace(/\s+/g, " ").trim());
-    // The project total is unknown until the project list has been read — it says so
-    // rather than inventing a number.
-    expect(chips()).toEqual(["This page 1", "All ⋯"]);
+    // The project list is read on start, so the All chip carries its count before anyone
+    // clicks it. (Until that read lands it shows ⋯ rather than a number we would be inventing.)
+    expect(chips()).toEqual(["This page 1", "All 2"]);
     expect(sr().querySelector(".hscope-b")!.getAttribute("aria-pressed")).toBe("true");
 
     sr().querySelectorAll<HTMLElement>(".hscope-b")[1]!.click();

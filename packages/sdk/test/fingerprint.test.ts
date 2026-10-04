@@ -63,6 +63,15 @@ describe("resolveAnchor", () => {
     expect(resolveAnchor(a)).toBeNull();
   });
 
+  it("prefers the visible duplicate when the browser can tell a hidden one apart", () => {
+    document.body.innerHTML = `<button data-testid="x">Save</button><button data-testid="x">Save</button>`;
+    const [hidden, shown] = [...document.querySelectorAll<HTMLElement>('[data-testid="x"]')];
+    (hidden as any).checkVisibility = () => false; // display:none, as a browser would report it
+    const a = captureAnchor(shown!);
+    expect(resolveAnchor(a)!.element).toBe(shown);
+    expect(resolveAnchor(a)!.via).toBe("testid"); // one usable hit, so the strong tier takes it
+  });
+
   it("never resolves to elements inside the Loupe UI", () => {
     document.body.innerHTML = `<div id="loupe-root"><button data-testid="save">x</button></div>`;
     const a = captureAnchor(document.querySelector("#loupe-root button")!);

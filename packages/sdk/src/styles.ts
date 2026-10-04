@@ -85,6 +85,15 @@ export const STYLES = /* css */ `
   display: none; flex-direction: column; align-items: flex-end; gap: 10px;
 }
 .fab-cluster.show { display: flex; }
+/* The way back on a touch screen once the launcher is hidden (no keyboard for Alt+Shift+L):
+   a slim tab on the right edge, shown only while the panel is closed. */
+.fab-handle {
+  position: fixed; z-index: 2147483003; right: 0; bottom: 96px; width: 12px; height: 56px;
+  display: none; padding: 0; border: 0; border-radius: 8px 0 0 8px;
+  background: var(--accent); opacity: .6; cursor: pointer; touch-action: manipulation;
+}
+.fab-handle.show { display: block; }
+.fab-handle:hover, .fab-handle:focus-visible { opacity: 1; }
 /* A dragged launcher is anchored to its nearest edges (JS sets left/right/top/bottom),
    and the quick actions grow INTO the page: downward from the upper half, labels to the
    right from the left half. */
@@ -191,13 +200,15 @@ export const STYLES = /* css */ `
 .brand .logo { font-size: 16px; line-height: 1; color: var(--accent); flex: none; }
 .brand .title { font-size: 13px; }
 .dctl { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-.dctl button {
+/* Only the header's own icon buttons. The position and settings popovers live inside
+   .dctl too, and a bare .dctl button squeezed their rows and swatches to 26px. */
+.dctl > button, .dctl > .menu-wrap > button {
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px;
   background: transparent; color: var(--muted); cursor: pointer;
 }
-.dctl button:hover { background: var(--bg-3); color: var(--ink); }
-.dctl button.on { background: var(--bg-3); color: var(--accent); }
+.dctl > button:hover, .dctl > .menu-wrap > button:hover { background: var(--bg-3); color: var(--ink); }
+.dctl > button.on, .dctl > .menu-wrap > button.on { background: var(--bg-3); color: var(--accent); }
 .dctl svg { display: block; }
 .dctl .gap { width: 1px; height: 16px; background: var(--line); margin: 0 4px; flex: none; }
 
@@ -816,8 +827,10 @@ export const STYLES = /* css */ `
 
 /* ------------------------------------------------------------- companion chat */
 /* Same inset as the Activity view — without it the composer and its Send button sit
-   flush against the panel's edge, which reads as a clipped button. */
-.chat-view { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px 12px 16px; }
+   flush against the panel's edge, which reads as a clipped button. Scoped to .view.on:
+   a bare .chat-view display:flex outranked .view display:none by source
+   order, so the chat rendered under every other tab and swallowed their clicks. */
+.view.on.chat-view { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px 12px 16px; }
 .chat-tray {
   display: flex; flex-direction: column; gap: 4px; padding: 8px;
   border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);

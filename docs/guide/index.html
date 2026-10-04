@@ -721,8 +721,9 @@ npm start</code></pre>
           collapses it to a small <code>◎</code> launcher. One tap on the launcher reopens the panel; the
           chevron beside it expands the quick actions (pin a comment, drop a note, hide the markers, hide
           the launcher). Drag the launcher to put it anywhere on the screen, and hide it from the quick
-          actions, the Settings menu or <kbd>Alt+Shift+L</kbd> when it covers something. Position, launcher
-          position, theme, and open state persist. On viewports ≤ 640px it becomes a bottom sheet.</p>
+          actions, the Settings menu or <kbd>Alt+Shift+L</kbd> when it covers something. On a touch screen,
+          where there is no shortcut, a slim tab at the right edge brings a hidden launcher back. Position,
+          launcher position, theme, and open state persist. On viewports ≤ 640px it becomes a bottom sheet.</p>
 
         <h3>LoupeConfig</h3>
         <div class="tablewrap">
@@ -1226,9 +1227,32 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.11.0</strong> (2026-10-04).</p>
+          release: <strong>0.11.1</strong> (2026-10-04).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.11.1</span><span class="cl-date">2026-10-04</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>The chat view rendered under every tab.</strong> Its <code>display: flex</code>
+              outranked the hidden-view rule by source order, so the chat sat behind Home, Comments and
+              Activity and swallowed clicks meant for the Comments tools.</li>
+            <li><strong>Squeezed menus.</strong> The header's 26px icon-button rule also matched the rows,
+              switches and swatches inside the Settings and Position popovers.</li>
+            <li><strong>Menus stayed open over the page.</strong> A click on the host page, or <kbd>Esc</kbd>,
+              now closes an open popover.</li>
+            <li><strong>Region pins landed on the wrong element.</strong> A region now anchors to the smallest
+              element covering at least 60% of it, or is page-level when nothing does. Implausible fractions
+              stored by earlier versions are ignored and the pin is marked “moved”.</li>
+            <li><strong>Re-anchoring skips hidden duplicates</strong> where the browser can tell
+              (<code>checkVisibility</code>), and element pins off to the side are no longer drawn.</li>
+            <li><strong>A thread's location reads as text</strong> (<code>button · “Red Sea”</code>), not a
+              CSS path, and the “All” scope chip carries its count from the first paint.</li>
+            <li><strong>A hidden launcher could not be brought back on a phone.</strong> The only way back was
+              <kbd>Alt+Shift+L</kbd>. On a touch screen a slim tab now sits at the right edge while the
+              launcher is hidden; tapping it restores the launcher.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.11.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
           <ul class="bul">
             <li><strong>Hide the launcher.</strong> The <code>◎</code> button can sit on top of a page's own

@@ -11,6 +11,42 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.11.1] — 2026-10-04
+
+### Fixed
+
+- **The chat view rendered under every tab.** `.chat-view { display: flex }` outranked
+  `.view { display: none }` by source order, so the companion chat was laid out behind Home,
+  Comments and Activity, and its composer swallowed clicks meant for the Comments tools.
+  Present since 0.10.27; the hosts that reported it had just moved up from 0.10.7.
+- **The Settings and Position menus were squeezed.** The header's `.dctl button` rule
+  (26×26px) also matched the rows, switches and accent swatches inside the two popovers. It
+  is now scoped to the header's own buttons.
+- **Menus stayed open over the page.** A click on the host page, or Escape, closes an open
+  popover. Before, only a click inside the widget did.
+- **Region pins landed on the wrong element.** A region anchored to the element under its
+  center, which for a large area is some small control inside it, so the stored fractions
+  ran to −7 and +15 and the pin sat far from the area on any other viewport. A region now
+  anchors to the smallest element covering at least 60% of it, and a region nothing covers
+  is page-level. Fractions stored by earlier versions that fall outside that range are
+  ignored: the pin is placed from document coordinates, kept on the visible part of the
+  area, and marked "moved".
+- **Re-anchoring could pick a hidden duplicate.** Resolution skips elements the browser
+  reports as not rendered (`checkVisibility`, where the browser has it), so a pin follows the
+  visible copy of a repeated control.
+- **Element pins off to the side were still drawn.** The on-screen test only checked the
+  vertical axis.
+- **A thread's location reads as text, not a selector.** The card shows the target's visible
+  text, label or test id (`button · “Red Sea”`), and a region shows its size and what it sits
+  in. The raw CSS path is the last resort.
+- **The "All" scope chip showed ⋯ until it was clicked.** The project-wide list is read on
+  start, so the count is there from the first paint.
+- **A hidden launcher could not be brought back on a phone.** The only way back was
+  `Alt+Shift+L`, and the choice persists, so a touch user who hid the launcher had lost the
+  widget until they cleared site data. On a touch screen a slim tab now sits at the right edge
+  of the screen while the launcher is hidden; tapping it restores the launcher, and the toast
+  and the quick action's tooltip name the tab instead of the shortcut.
+
 ## [0.11.0] — 2026-10-04
 
 ### Added

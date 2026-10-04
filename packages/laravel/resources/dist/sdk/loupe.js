@@ -124,6 +124,15 @@ var Loupe = (() => {
   display: none; flex-direction: column; align-items: flex-end; gap: 10px;
 }
 .fab-cluster.show { display: flex; }
+/* The way back on a touch screen once the launcher is hidden (no keyboard for Alt+Shift+L):
+   a slim tab on the right edge, shown only while the panel is closed. */
+.fab-handle {
+  position: fixed; z-index: 2147483003; right: 0; bottom: 96px; width: 12px; height: 56px;
+  display: none; padding: 0; border: 0; border-radius: 8px 0 0 8px;
+  background: var(--accent); opacity: .6; cursor: pointer; touch-action: manipulation;
+}
+.fab-handle.show { display: block; }
+.fab-handle:hover, .fab-handle:focus-visible { opacity: 1; }
 /* A dragged launcher is anchored to its nearest edges (JS sets left/right/top/bottom),
    and the quick actions grow INTO the page: downward from the upper half, labels to the
    right from the left half. */
@@ -230,13 +239,15 @@ var Loupe = (() => {
 .brand .logo { font-size: 16px; line-height: 1; color: var(--accent); flex: none; }
 .brand .title { font-size: 13px; }
 .dctl { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-.dctl button {
+/* Only the header's own icon buttons. The position and settings popovers live inside
+   .dctl too, and a bare .dctl button squeezed their rows and swatches to 26px. */
+.dctl > button, .dctl > .menu-wrap > button {
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px;
   background: transparent; color: var(--muted); cursor: pointer;
 }
-.dctl button:hover { background: var(--bg-3); color: var(--ink); }
-.dctl button.on { background: var(--bg-3); color: var(--accent); }
+.dctl > button:hover, .dctl > .menu-wrap > button:hover { background: var(--bg-3); color: var(--ink); }
+.dctl > button.on, .dctl > .menu-wrap > button.on { background: var(--bg-3); color: var(--accent); }
 .dctl svg { display: block; }
 .dctl .gap { width: 1px; height: 16px; background: var(--line); margin: 0 4px; flex: none; }
 
@@ -855,8 +866,10 @@ var Loupe = (() => {
 
 /* ------------------------------------------------------------- companion chat */
 /* Same inset as the Activity view \u2014 without it the composer and its Send button sit
-   flush against the panel's edge, which reads as a clipped button. */
-.chat-view { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px 12px 16px; }
+   flush against the panel's edge, which reads as a clipped button. Scoped to .view.on:
+   a bare .chat-view display:flex outranked .view display:none by source
+   order, so the chat rendered under every other tab and swallowed their clicks. */
+.view.on.chat-view { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px 12px 16px; }
 .chat-tray {
   display: flex; flex-direction: column; gap: 4px; padding: 8px;
   border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
@@ -1276,6 +1289,7 @@ var Loupe = (() => {
   function usable(el2) {
     if (el2.id === "loupe-root" || el2.closest("#loupe-root")) return false;
     if (el2 === document.body || el2 === document.documentElement) return false;
+    if (typeof el2.checkVisibility === "function" && !el2.checkVisibility()) return false;
     return true;
   }
   function byXPath(xp) {
@@ -3927,7 +3941,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.11.0" : "dev";
+  var SDK_VERSION = true ? "0.11.1" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";
@@ -4077,6 +4091,8 @@ var Loupe = (() => {
       this.scope = "page";
       /** Every-page comments, fetched the first time the "All" scope is opened. */
       this.allComments = [];
+      /** True once the project-wide list has been read, so an empty project still shows 0, not ⋯. */
+      this.allLoaded = false;
       /** A clicked stat tile, which narrows the list. */
       this.statFilter = "";
       /** Repo filter, offered once the scope is "all". */
@@ -4256,6 +4272,20 @@ var Loupe = (() => {
         e.preventDefault();
         this.setLauncherHidden(!this.launcherHidden);
       };
+      /**
+       * The header popovers (position, settings) close on a click anywhere. The shadow-root
+       * click listener in buildDom() only sees clicks inside the widget, so a click on the
+       * host page used to leave the menu open over it. Capture phase, so a host that stops
+       * propagation on its own controls still dismisses the menu.
+       */
+      this.onDocumentClick = (e) => {
+        if (e.composedPath().includes(this.root)) return;
+        this.closeMenus();
+      };
+      /** Escape closes an open popover, whether or not a tool is armed (onKey covers tools). */
+      this.onMenuKey = (e) => {
+        if (e.key === "Escape") this.closeMenus();
+      };
       // ---- region ("free-size screenshot") selection ----------------------------
       this.onRegionDown = (e) => {
         if (this.mode !== "region" && this.mode !== "record") return;
@@ -4346,8 +4376,10 @@ var Loupe = (() => {
             const box = this.regionRect(c, elx);
             if (box) {
               const onScreen = box.x + box.w > 0 && box.x < window.innerWidth && box.y + box.h > 0 && box.y < window.innerHeight;
-              Object.assign(pin.style, { left: box.x + "px", top: box.y + "px", display: onScreen ? "grid" : "none" });
-              pin.classList.toggle("detached", !elx && !c.region?.rel);
+              const px = box.x < 4 ? Math.min(4, box.x + box.w - 30) : box.x;
+              const py = box.y < 4 ? Math.min(4, box.y + box.h - 30) : box.y;
+              Object.assign(pin.style, { left: px + "px", top: py + "px", display: onScreen ? "grid" : "none" });
+              pin.classList.toggle("detached", !(elx && relUsable(c.region?.rel)) && c.anchor.tag !== "region");
             } else {
               pin.style.display = "none";
               pin.classList.add("detached");
@@ -4358,7 +4390,7 @@ var Loupe = (() => {
             const rect = elx.getBoundingClientRect();
             const px = rect.left + c.offset.x * rect.width;
             const py = rect.top + c.offset.y * rect.height;
-            const onScreen = rect.bottom > 0 && rect.top < window.innerHeight && rect.width > 0;
+            const onScreen = rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth && rect.width > 0;
             Object.assign(pin.style, { left: px + "px", top: py + "px", display: onScreen ? "grid" : "none" });
             pin.classList.remove("detached");
           } else {
@@ -4458,6 +4490,8 @@ var Loupe = (() => {
       this.loadProject();
       this.buildDom();
       document.addEventListener("keydown", this.onLauncherKey);
+      document.addEventListener("click", this.onDocumentClick, true);
+      document.addEventListener("keydown", this.onMenuKey);
       if (this.cfg.autoOpen) this.open = true;
       this.applyDockLayout();
       this.lastUrl = this.url;
@@ -4469,7 +4503,7 @@ var Loupe = (() => {
       this.startLiveThreads();
       this.startCompanionStream();
       void this.loadNotifications();
-      if (this.scope === "all") void this.loadAllComments();
+      void this.loadAllComments();
       this.observe();
       this.watchNavigation();
       if (!this.tourDone && this.open && !this.isMobile()) this.startTour();
@@ -4530,6 +4564,11 @@ var Loupe = (() => {
       this.shadow.appendChild(this.composer);
       this.dock = this.buildDock();
       this.fabCluster = this.buildFabCluster();
+      this.fabHandle = el("button", "fab-handle");
+      this.fabHandle.type = "button";
+      this.fabHandle.title = "Show the launcher";
+      this.fabHandle.setAttribute("aria-label", "Show the launcher");
+      this.fabHandle.onclick = () => this.setLauncherHidden(false);
       this.recBar = this.buildRecBar();
       this.toastEl = el("div", "toast");
       this.toastEl.setAttribute("role", "status");
@@ -4539,7 +4578,7 @@ var Loupe = (() => {
       this.tourSpot = el("div", "tour-spot");
       this.tourCard = el("div", "tour-card");
       this.tourEl.append(this.tourSpot, this.tourCard);
-      this.shadow.append(this.dock, this.fabCluster, this.recBar, this.toastEl, this.tourEl);
+      this.shadow.append(this.dock, this.fabCluster, this.fabHandle, this.recBar, this.toastEl, this.tourEl);
       this.shadow.addEventListener("click", (e) => {
         const t = e.target;
         if (t?.closest && t.closest(".menu-wrap")) return;
@@ -5239,6 +5278,7 @@ var Loupe = (() => {
     async loadAllComments() {
       try {
         this.allComments = await this.store.listAll(this.cfg.projectKey);
+        this.allLoaded = true;
         this.renderHome();
         this.renderList();
       } catch {
@@ -5279,7 +5319,7 @@ var Loupe = (() => {
           };
         });
       }
-      const allKnown = this.allComments.length > 0 || this.scope === "all";
+      const allKnown = this.allLoaded || this.scope === "all";
       const counts = {
         page: String(this.comments.length),
         all: allKnown ? String(this.allComments.length) : "\u22EF"
@@ -5598,7 +5638,12 @@ var Loupe = (() => {
       };
       const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
       markers.onclick = () => this.toggleMarkers();
-      const hide = mini("hide", I_EYE_OFF, "Hide launcher", `Hide this launcher \u2014 ${LAUNCHER_SHORTCUT} brings it back`);
+      const hide = mini(
+        "hide",
+        I_EYE_OFF,
+        "Hide launcher",
+        isTouchDevice() ? "Hide this launcher \u2014 the tab at the screen edge brings it back" : `Hide this launcher \u2014 ${LAUNCHER_SHORTCUT} brings it back`
+      );
       hide.onclick = () => this.setLauncherHidden(true);
       minis.append(comment, note, markers, hide);
       if (this.tabList.some((t) => t.id === "connect")) {
@@ -5701,7 +5746,8 @@ var Loupe = (() => {
       this.applyDockLayout();
       this.renderSettings();
       const label = this.cfg.label ?? "Loupe";
-      this.toast(hidden ? `${escapeHtml(label)} launcher hidden \u2014 press <kbd>${LAUNCHER_SHORTCUT}</kbd> to bring it back` : `${escapeHtml(label)} launcher is back`);
+      const back = isTouchDevice() ? "tap the tab at the right edge of the screen" : `press <kbd>${LAUNCHER_SHORTCUT}</kbd>`;
+      this.toast(hidden ? `${escapeHtml(label)} launcher hidden \u2014 ${back} to bring it back` : `${escapeHtml(label)} launcher is back`);
     }
     /** Public seam for the host (`Loupe.showLauncher()`). */
     showLauncher() {
@@ -5765,26 +5811,28 @@ var Loupe = (() => {
       document.removeEventListener("pointercancel", this.onRegionCancel, true);
     }
     /**
-     * Anchor a dragged viewport rect to the element under its center so it survives
-     * reflow. `rel` (element-relative fractions) is preferred; document coords are the
-     * fallback. Shared by both the Region (screenshot) and Record (video) tools.
+     * Anchor a dragged viewport rect to the smallest element that covers most of it, so it
+     * survives reflow. The rule used to take the element under the region's CENTER, which
+     * for a large region is some small control inside it: the stored fractions then ran to
+     * −7 and +15, and on any other viewport the pin landed far from the area. `rel`
+     * (element-relative fractions) is preferred when an anchor is found; document coords
+     * are the fallback. Shared by both the Region (screenshot) and Record (video) tools.
      */
     regionFromViewport(vp) {
       const centerEl = this.pick(vp.x + vp.w / 2, vp.y + vp.h / 2);
+      const anchorEl = regionContainer2(centerEl, vp);
       let rel;
-      if (centerEl) {
-        const er = centerEl.getBoundingClientRect();
-        if (er.width > 0 && er.height > 0) {
-          rel = {
-            fx: (vp.x - er.left) / er.width,
-            fy: (vp.y - er.top) / er.height,
-            fw: vp.w / er.width,
-            fh: vp.h / er.height
-          };
-        }
+      if (anchorEl) {
+        const er = anchorEl.getBoundingClientRect();
+        rel = {
+          fx: (vp.x - er.left) / er.width,
+          fy: (vp.y - er.top) / er.height,
+          fw: vp.w / er.width,
+          fh: vp.h / er.height
+        };
       }
       const region = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
-      return { region, element: centerEl };
+      return { region, element: anchorEl };
     }
     /**
      * Touch path for the Region tool: capture what is on screen right now and open the
@@ -6205,7 +6253,7 @@ var Loupe = (() => {
      */
     regionRect(c, elx) {
       const rel = c.region?.rel;
-      if (elx && rel) {
+      if (elx && relUsable(rel)) {
         const r = elx.getBoundingClientRect();
         return { x: r.left + rel.fx * r.width, y: r.top + rel.fy * r.height, w: rel.fw * r.width, h: rel.fh * r.height };
       }
@@ -6535,6 +6583,7 @@ var Loupe = (() => {
       }
       d.querySelectorAll(".dctl [data-dock]").forEach((b) => b.classList.toggle("on", b.dataset.dock === this.dockMode));
       this.fabCluster.classList.toggle("show", !this.open && !this.launcherHidden);
+      this.fabHandle.classList.toggle("show", !this.open && this.launcherHidden && isTouchDevice());
       this.applyFabPosition();
       this.applyFab();
       this.pushPage();
@@ -7807,6 +7856,8 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       window.removeEventListener("pointercancel", this.onFabPointerUp);
       window.clearTimeout(this.toastTimer);
       document.removeEventListener("keydown", this.onLauncherKey);
+      document.removeEventListener("click", this.onDocumentClick, true);
+      document.removeEventListener("keydown", this.onMenuKey);
       document.removeEventListener("keydown", this.onKey, true);
       const de = document.documentElement;
       de.style.marginLeft = de.style.marginRight = de.style.marginBottom = "";
@@ -7987,7 +8038,40 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
   }
   function describeAnchor(c) {
     if (c.kind === "free") return "Free note \xB7 page-level";
-    return c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
+    if (c.kind === "region" && c.region) {
+      const size = `${Math.round(c.region.w)}\xD7${Math.round(c.region.h)}`;
+      if (c.anchor.tag === "region") return `Area ${size} \xB7 page-level`;
+      return `Area ${size} \xB7 ${relUsable(c.region.rel) ? "in" : "near"} ${anchorLabel(c.anchor)}`;
+    }
+    return anchorLabel(c.anchor);
+  }
+  function anchorLabel(a) {
+    const tag = a.tag || "element";
+    if (a.testid) return `${tag}[data-testid="${a.testid}"]`;
+    const text = (a.text || "").replace(/\s+/g, " ").trim();
+    if (text) return `${tag} \xB7 \u201C${text.length > 32 ? text.slice(0, 32).trimEnd() + "\u2026" : text}\u201D`;
+    const attrs = a.attrs ?? {};
+    const named = attrs["aria-label"] || attrs.title || attrs.placeholder || attrs.alt || attrs.name;
+    if (named) return `${tag} \xB7 \u201C${named}\u201D`;
+    return a.cssPath || tag;
+  }
+  var REGION_COVER_MIN = 0.6;
+  function regionContainer2(from, vp) {
+    const area = vp.w * vp.h;
+    if (area <= 0) return null;
+    for (let n = from; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      const r = n.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      const ix = Math.max(0, Math.min(r.right, vp.x + vp.w) - Math.max(r.left, vp.x));
+      const iy = Math.max(0, Math.min(r.bottom, vp.y + vp.h) - Math.max(r.top, vp.y));
+      if (ix * iy / area >= REGION_COVER_MIN) return n;
+    }
+    return null;
+  }
+  function relUsable(rel) {
+    if (!rel) return false;
+    const lo = -1.5, hi = 2.5;
+    return rel.fw > 0 && rel.fh > 0 && rel.fx > lo && rel.fy > lo && rel.fx + rel.fw < hi && rel.fy + rel.fh < hi;
   }
   function isResolved(c) {
     return normalizeStatus(c.status) === "resolved";

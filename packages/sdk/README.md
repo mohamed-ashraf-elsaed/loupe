@@ -108,7 +108,8 @@ launcher. The launcher carries the comment count; one tap reopens the panel, and
 beside it expands the quick actions (pin a comment, drop a note, hide the markers, hide the
 launcher). Drag the launcher to move it anywhere — the spot is remembered, and **Reset launcher
 position** in the Settings menu puts it back. Hide it from a quick action, the Settings menu,
-`Alt+Shift+L`, or `hideLauncher()` / `showLauncher()` when it covers something on your page.
+`Alt+Shift+L`, or `hideLauncher()` / `showLauncher()` when it covers something on your page. On a
+touch screen a slim tab at the right edge of the screen brings a hidden launcher back.
 Call `destroy()` to tear it down. `init()` is idempotent — safe to call more
 than once. Pass `label` to change the brand name shown in the header.
 

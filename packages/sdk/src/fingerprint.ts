@@ -193,10 +193,15 @@ function normText(t: string | null): string {
   return (t || "").replace(/\s+/g, " ").trim().slice(0, TEXT_MAX);
 }
 
-/** Exclude anything inside our own Shadow-DOM host and non-visible nodes. */
+/**
+ * Exclude anything inside our own Shadow-DOM host, the document itself, and — where the
+ * browser can tell (`checkVisibility`: Chrome 105+, Firefox 106+, Safari 17.4+) — nodes
+ * that are not rendered, so a hidden duplicate never wins over the visible one.
+ */
 function usable(el: Element): boolean {
   if (el.id === "loupe-root" || el.closest("#loupe-root")) return false;
   if (el === document.body || el === document.documentElement) return false;
+  if (typeof el.checkVisibility === "function" && !el.checkVisibility()) return false;
   return true;
 }
 

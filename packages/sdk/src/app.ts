@@ -227,6 +227,8 @@ export class LoupeApp {
    * Alt+Shift+L, Settings → Launcher, or the host calling `showLauncher()`.
    */
   private launcherHidden = false;
+  /** The way back on a touch screen once the launcher is hidden: a slim tab at the viewport edge. */
+  private fabHandle!: HTMLButtonElement;
   /**
    * Where the user dragged the launcher to — the launcher's top-left in viewport px —
    * or null for the default corner on the dock's side. Persisted; clamped on apply so
@@ -278,6 +280,8 @@ export class LoupeApp {
   private scope: Scope = "page";
   /** Every-page comments, fetched the first time the "All" scope is opened. */
   private allComments: Comment[] = [];
+  /** True once the project-wide list has been read, so an empty project still shows 0, not ⋯. */
+  private allLoaded = false;
   /** A clicked stat tile, which narrows the list. */
   private statFilter: StatFilter = "";
   /** Repo filter, offered once the scope is "all". */
@@ -365,6 +369,8 @@ export class LoupeApp {
     this.loadProject();
     this.buildDom();
     document.addEventListener("keydown", this.onLauncherKey);
+    document.addEventListener("click", this.onDocumentClick, true);
+    document.addEventListener("keydown", this.onMenuKey);
     if (this.cfg.autoOpen) this.open = true;
     this.applyDockLayout();
     this.lastUrl = this.url;
@@ -376,8 +382,9 @@ export class LoupeApp {
     this.startLiveThreads();
     this.startCompanionStream();
     void this.loadNotifications();
-    // A restored "All" scope needs the project-wide list.
-    if (this.scope === "all") void this.loadAllComments();
+    // The project-wide list feeds the "All" chip's count as well as the All scope, so it
+    // is read on every start rather than only once the scope is switched.
+    void this.loadAllComments();
     this.observe();
     this.watchNavigation();
     // First run: walk through the panel once. Skippable, never repeated, and off on
@@ -449,6 +456,11 @@ export class LoupeApp {
 
     this.dock = this.buildDock();
     this.fabCluster = this.buildFabCluster();
+    this.fabHandle = el("button", "fab-handle") as HTMLButtonElement;
+    this.fabHandle.type = "button";
+    this.fabHandle.title = "Show the launcher";
+    this.fabHandle.setAttribute("aria-label", "Show the launcher");
+    this.fabHandle.onclick = () => this.setLauncherHidden(false);
     this.recBar = this.buildRecBar();
     this.toastEl = el("div", "toast");
     this.toastEl.setAttribute("role", "status");
@@ -462,7 +474,7 @@ export class LoupeApp {
     this.tourCard = el("div", "tour-card");
     this.tourEl.append(this.tourSpot, this.tourCard);
 
-    this.shadow.append(this.dock, this.fabCluster, this.recBar, this.toastEl, this.tourEl);
+    this.shadow.append(this.dock, this.fabCluster, this.fabHandle, this.recBar, this.toastEl, this.tourEl);
 
     // A click anywhere outside a popover dismisses it.
     this.shadow.addEventListener("click", (e) => {
@@ -1361,6 +1373,7 @@ export class LoupeApp {
   private async loadAllComments() {
     try {
       this.allComments = await this.store.listAll(this.cfg.projectKey);
+      this.allLoaded = true;
       this.renderHome();
       this.renderList();
     } catch { /* keep whatever we have */ }
@@ -1411,7 +1424,7 @@ export class LoupeApp {
     // Scope chips carry the counts, so "All" is a decision, not a guess. The project
     // total is only known once the project list has been read; until then it shows ⋯
     // rather than a number we would be inventing.
-    const allKnown = this.allComments.length > 0 || this.scope === "all";
+    const allKnown = this.allLoaded || this.scope === "all";
     const counts: Record<Scope, string> = {
       page: String(this.comments.length),
       all: allKnown ? String(this.allComments.length) : "⋯",
@@ -1794,7 +1807,8 @@ export class LoupeApp {
     note.onclick = () => { this.collapseFab(); this.openDock(); this.setMode("free"); };
     const markers = mini("markers", I_EYE, "Markers", "Show or hide the markers on this page");
     markers.onclick = () => this.toggleMarkers();
-    const hide = mini("hide", I_EYE_OFF, "Hide launcher", `Hide this launcher — ${LAUNCHER_SHORTCUT} brings it back`);
+    const hide = mini("hide", I_EYE_OFF, "Hide launcher",
+      isTouchDevice() ? "Hide this launcher — the tab at the screen edge brings it back" : `Hide this launcher — ${LAUNCHER_SHORTCUT} brings it back`);
     hide.onclick = () => this.setLauncherHidden(true);
     minis.append(comment, note, markers, hide);
     // The Connect shortcut only exists when a "connect" tab is registered — the
@@ -1951,8 +1965,9 @@ export class LoupeApp {
     this.applyDockLayout();
     this.renderSettings();
     const label = this.cfg.label ?? "Loupe";
+    const back = isTouchDevice() ? "tap the tab at the right edge of the screen" : `press <kbd>${LAUNCHER_SHORTCUT}</kbd>`;
     this.toast(hidden
-      ? `${escapeHtml(label)} launcher hidden — press <kbd>${LAUNCHER_SHORTCUT}</kbd> to bring it back`
+      ? `${escapeHtml(label)} launcher hidden — ${back} to bring it back`
       : `${escapeHtml(label)} launcher is back`);
   }
 
@@ -2056,6 +2071,22 @@ export class LoupeApp {
     this.setLauncherHidden(!this.launcherHidden);
   };
 
+  /**
+   * The header popovers (position, settings) close on a click anywhere. The shadow-root
+   * click listener in buildDom() only sees clicks inside the widget, so a click on the
+   * host page used to leave the menu open over it. Capture phase, so a host that stops
+   * propagation on its own controls still dismisses the menu.
+   */
+  private onDocumentClick = (e: MouseEvent) => {
+    if (e.composedPath().includes(this.root)) return; // inside the widget: buildDom()'s listener decides
+    this.closeMenus();
+  };
+
+  /** Escape closes an open popover, whether or not a tool is armed (onKey covers tools). */
+  private onMenuKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") this.closeMenus();
+  };
+
   // ---- region ("free-size screenshot") selection ----------------------------
 
   private onRegionDown = (e: PointerEvent) => {
@@ -2120,24 +2151,26 @@ export class LoupeApp {
   }
 
   /**
-   * Anchor a dragged viewport rect to the element under its center so it survives
-   * reflow. `rel` (element-relative fractions) is preferred; document coords are the
-   * fallback. Shared by both the Region (screenshot) and Record (video) tools.
+   * Anchor a dragged viewport rect to the smallest element that covers most of it, so it
+   * survives reflow. The rule used to take the element under the region's CENTER, which
+   * for a large region is some small control inside it: the stored fractions then ran to
+   * −7 and +15, and on any other viewport the pin landed far from the area. `rel`
+   * (element-relative fractions) is preferred when an anchor is found; document coords
+   * are the fallback. Shared by both the Region (screenshot) and Record (video) tools.
    */
   private regionFromViewport(vp: RegionRect): { region: RegionRect; element: Element | null } {
     const centerEl = this.pick(vp.x + vp.w / 2, vp.y + vp.h / 2);
+    const anchorEl = regionContainer(centerEl, vp);
     let rel: RegionRect["rel"];
-    if (centerEl) {
-      const er = centerEl.getBoundingClientRect();
-      if (er.width > 0 && er.height > 0) {
-        rel = {
-          fx: (vp.x - er.left) / er.width, fy: (vp.y - er.top) / er.height,
-          fw: vp.w / er.width, fh: vp.h / er.height,
-        };
-      }
+    if (anchorEl) {
+      const er = anchorEl.getBoundingClientRect();
+      rel = {
+        fx: (vp.x - er.left) / er.width, fy: (vp.y - er.top) / er.height,
+        fw: vp.w / er.width, fh: vp.h / er.height,
+      };
     }
     const region: RegionRect = { x: vp.x + window.scrollX, y: vp.y + window.scrollY, w: vp.w, h: vp.h, rel };
-    return { region, element: centerEl };
+    return { region, element: anchorEl };
   }
 
   /**
@@ -2639,12 +2672,17 @@ export class LoupeApp {
 
       if (c.kind === "region") {
         // Compute the region's live viewport rect from its anchor element; fall
-        // back to stored document coords (older data / no anchor found).
+        // back to stored document coords (older data / no anchor found). A region
+        // that was page-level from the start (synthetic anchor) is not "moved".
         const box = this.regionRect(c, elx);
         if (box) {
           const onScreen = box.x + box.w > 0 && box.x < window.innerWidth && box.y + box.h > 0 && box.y < window.innerHeight;
-          Object.assign(pin.style, { left: box.x + "px", top: box.y + "px", display: onScreen ? "grid" : "none" });
-          pin.classList.toggle("detached", !elx && !c.region?.rel);
+          // Keep the marker on the visible part of a large area: its top-left corner is
+          // often scrolled off while most of the area is still on screen.
+          const px = box.x < 4 ? Math.min(4, box.x + box.w - 30) : box.x;
+          const py = box.y < 4 ? Math.min(4, box.y + box.h - 30) : box.y;
+          Object.assign(pin.style, { left: px + "px", top: py + "px", display: onScreen ? "grid" : "none" });
+          pin.classList.toggle("detached", !(elx && relUsable(c.region?.rel)) && c.anchor.tag !== "region");
         } else {
           pin.style.display = "none";
           pin.classList.add("detached");
@@ -2656,7 +2694,8 @@ export class LoupeApp {
         const rect = elx.getBoundingClientRect();
         const px = rect.left + c.offset.x * rect.width;
         const py = rect.top + c.offset.y * rect.height;
-        const onScreen = rect.bottom > 0 && rect.top < window.innerHeight && rect.width > 0;
+        const onScreen = rect.bottom > 0 && rect.top < window.innerHeight &&
+          rect.right > 0 && rect.left < window.innerWidth && rect.width > 0;
         Object.assign(pin.style, { left: px + "px", top: py + "px", display: onScreen ? "grid" : "none" });
         pin.classList.remove("detached");
       } else {
@@ -2684,7 +2723,7 @@ export class LoupeApp {
    */
   private regionRect(c: Comment, elx: Element | null): { x: number; y: number; w: number; h: number } | null {
     const rel = c.region?.rel;
-    if (elx && rel) {
+    if (elx && relUsable(rel)) {
       const r = elx.getBoundingClientRect();
       return { x: r.left + rel.fx * r.width, y: r.top + rel.fy * r.height, w: rel.fw * r.width, h: rel.fh * r.height };
     }
@@ -3052,6 +3091,9 @@ export class LoupeApp {
     // FAB cluster: visible only while the panel is closed and the user has not hidden
     // it; placed where it was dragged, or on the dock's side by default.
     this.fabCluster.classList.toggle("show", !this.open && !this.launcherHidden);
+    // A touch screen has no Alt+Shift+L: while the launcher is hidden and the panel is
+    // closed, a slim tab at the screen edge is the only way back, so it has to exist.
+    this.fabHandle.classList.toggle("show", !this.open && this.launcherHidden && isTouchDevice());
     this.applyFabPosition();
     this.applyFab();
 
@@ -4496,6 +4538,8 @@ export class LoupeApp {
     window.removeEventListener("pointercancel", this.onFabPointerUp);
     window.clearTimeout(this.toastTimer);
     document.removeEventListener("keydown", this.onLauncherKey);
+    document.removeEventListener("click", this.onDocumentClick, true);
+    document.removeEventListener("keydown", this.onMenuKey);
     document.removeEventListener("keydown", this.onKey, true);
     // Release the page-push margins we set for docked modes.
     const de = document.documentElement;
@@ -4733,9 +4777,64 @@ function describe(elx: Element): string {
   const txt = (elx.textContent || "").trim().replace(/\s+/g, " ").slice(0, 32);
   return txt ? `${tag} · “${txt}”` : tag;
 }
+/**
+ * Where a thread points, for a reader: the element's visible text or label, or its test
+ * id, before any selector. The raw cssPath (`#delPanel > div:nth-of-type(3) >
+ * button:nth-of-type(24)`) is the last resort, not the headline.
+ */
 function describeAnchor(c: Comment): string {
   if (c.kind === "free") return "Free note · page-level";
-  return c.anchor.testid ? `[data-testid="${c.anchor.testid}"]` : c.anchor.cssPath;
+  if (c.kind === "region" && c.region) {
+    const size = `${Math.round(c.region.w)}×${Math.round(c.region.h)}`;
+    if (c.anchor.tag === "region") return `Area ${size} · page-level`;
+    // "in" only when the stored fractions say the area sits inside the anchor; a region
+    // saved by an earlier version was anchored to whatever was under its center.
+    return `Area ${size} · ${relUsable(c.region.rel) ? "in" : "near"} ${anchorLabel(c.anchor)}`;
+  }
+  return anchorLabel(c.anchor);
+}
+function anchorLabel(a: Anchor): string {
+  const tag = a.tag || "element";
+  if (a.testid) return `${tag}[data-testid="${a.testid}"]`;
+  const text = (a.text || "").replace(/\s+/g, " ").trim();
+  if (text) return `${tag} · “${text.length > 32 ? text.slice(0, 32).trimEnd() + "…" : text}”`;
+  const attrs = a.attrs ?? {};
+  const named = attrs["aria-label"] || attrs.title || attrs.placeholder || attrs.alt || attrs.name;
+  if (named) return `${tag} · “${named}”`;
+  return a.cssPath || tag;
+}
+
+/** How much of a region an element must cover to anchor it. */
+const REGION_COVER_MIN = 0.6;
+
+/**
+ * The nearest ancestor of `from` (itself included) whose box covers at least
+ * REGION_COVER_MIN of the region. `body` and `html` never qualify: a region nothing
+ * smaller contains is page-level, and says so through a synthetic anchor.
+ */
+function regionContainer(from: Element | null, vp: RegionRect): Element | null {
+  const area = vp.w * vp.h;
+  if (area <= 0) return null;
+  for (let n: Element | null = from; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    const r = n.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    const ix = Math.max(0, Math.min(r.right, vp.x + vp.w) - Math.max(r.left, vp.x));
+    const iy = Math.max(0, Math.min(r.bottom, vp.y + vp.h) - Math.max(r.top, vp.y));
+    if ((ix * iy) / area >= REGION_COVER_MIN) return n;
+  }
+  return null;
+}
+
+/**
+ * Stored fractions a region can trust: ones that keep it roughly within its anchor.
+ * Regions saved before 0.11.1 anchored to the element under their center, so a
+ * full-screen recording anchored to one word carries fx≈−7 and fw≈15; those place the
+ * pin from document coordinates instead.
+ */
+function relUsable(rel: RegionRect["rel"]): rel is NonNullable<RegionRect["rel"]> {
+  if (!rel) return false;
+  const lo = -1.5, hi = 2.5;
+  return rel.fw > 0 && rel.fh > 0 && rel.fx > lo && rel.fy > lo && rel.fx + rel.fw < hi && rel.fy + rel.fh < hi;
 }
 
 /**
