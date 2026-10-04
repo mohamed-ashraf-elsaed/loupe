@@ -743,6 +743,7 @@ npm start</code></pre>
               <tr><td><code>timeZone</code></td><td>string?</td><td>IANA zone every timestamp is rendered in (e.g. <code>"Africa/Cairo"</code>). Defaults to the browser's.</td></tr>
               <tr><td><code>locale</code></td><td>string?</td><td>BCP 47 locale for dates (e.g. <code>"en-GB"</code> for day-first). Defaults to the browser's.</td></tr>
               <tr><td><code>packageVersion</code></td><td>string?</td><td>Version of the host package that served this bundle. Shown beside the bundle version and flagged when the two differ.</td></tr>
+              <tr><td><code>chat</code></td><td>boolean?</td><td>Turn on the experimental Chat page. Off by default: the tab shows dimmed and does not open.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1031,9 +1032,10 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
       <section class="doc" id="laravel-hub">
         <h2><a class="anchor" href="#laravel-hub">Loupe Hub (optional)</a></h2>
         <p><strong>Loupe Hub</strong> is a small hosted service. Organization owners sign in with Google,
-          add allowed members (Google emails and/or one email domain) and create projects. Each project has a
-          Project ID, a Project Secret, a webhook URL and a webhook signing secret. Hub accepts an issue only
-          when its author belongs to the organization, then forwards it to the webhook, signed.</p>
+          add allowed members (Google emails and/or one email domain) and create one project per app. Each
+          project has a Project ID and a Project Secret, and can have an Inbound URL, a project to send tickets
+          to, and a webhook. Hub accepts an issue only when its author belongs to the organization, then sends
+          it to the destination project, or else to the webhook, signed.</p>
         <p>Create a project in Hub, then set all three keys. Forwarding is off unless all three are set:</p>
         <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">.env</span></div>
 <pre><code><span class="tp">LOUPE_HUB_URL</span>=https://hub.example.com
@@ -1051,7 +1053,20 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
           <li>A Hub failure (for example <code>403 user not in organization</code>, a network error or a failed
             webhook delivery) is logged as a warning and <strong>never breaks comment creation</strong>. Users
             without an email are skipped.</li>
+          <li>Hub's answer is stored on the comment as <code>forwarded</code>. The card shows
+            <strong>→ CRM</strong>, in red when delivery failed.</li>
         </ul>
+        <h3>Send tickets to another project</h3>
+        <p>To collect every app's tickets in one app, such as a CRM: install the package on the receiving app with
+          its own Hub keys, set its <strong>Inbound URL</strong> in Hub to
+          <code>https://&lt;app&gt;/loupe/v1/hub/inbound</code>, and choose it under <strong>Send tickets to</strong>
+          on each sending project. Hub signs each delivery with the receiving project's own secret. The receiver
+          fails closed (503 without Hub keys; 401 for a missing header, another project, a stale timestamp or a bad
+          signature; 413 over 6 MB), stores each issue id once, and fires
+          <code>Loupekit\Loupe\Events\TicketReceived</code> for your own listener.</p>
+        <p><code>GET /loupe/v1/org</code> feeds the panel's project chip and menu with the organization's projects.
+          <code>GET /loupe/v1/activity</code> feeds the Activity view; set <code>LOUPE_ACTIVITY=false</code> to stop
+          recording. Run <code>php artisan migrate</code> after upgrading to 0.12.0.</p>
         <p>Hub itself, its API, webhook format and deployment: see
           <a href="https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/packages/hub">packages/hub</a>.</p>
       </section>
@@ -1103,6 +1118,9 @@ php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (op
           <table>
             <thead><tr><th>Feature</th><th>What it does</th><th>Since</th></tr></thead>
             <tbody>
+              <tr><td>Tickets between projects</td><td>A Hub project sends its tickets to another project in the organization. The Laravel package receives them, shows "from" and "→" chips, and fires <code>TicketReceived</code>.</td><td class="tabular">0.12.0</td></tr>
+              <tr><td>Organization projects</td><td>The Home project chip and menu show the organization and its projects, read from Hub. Replaces repo linking.</td><td class="tabular">0.12.0</td></tr>
+              <tr><td>Live Activity on Laravel</td><td>The package records comment, status and ticket events, and the Activity view polls them while open.</td><td class="tabular">0.12.0</td></tr>
               <tr><td>Loupe Hub</td><td>Optional hosted service: orgs, allowed members (emails / one domain), projects; verifies signed issues, checks org membership, forwards to a signed per-project webhook with retries + delivery log.</td><td class="tabular">0.10.12</td></tr>
               <tr><td>Laravel → Hub</td><td>Set <code>LOUPE_HUB_URL</code> + <code>LOUPE_PROJECT_ID</code> + <code>LOUPE_PROJECT_SECRET</code> and every new comment is also sent to Hub (queued, never blocks comment creation).</td><td class="tabular">0.10.12</td></tr>
               <tr><td>Free comments</td><td>Drop a page-level note anywhere via the <strong>Note</strong> mode — no element, no screenshot (<code>kind: "free"</code>).</td><td class="tabular">0.5.0</td></tr>
@@ -1227,9 +1245,26 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
       <section class="doc" id="changelog">
         <h2><a class="anchor" href="#changelog">Changelog</a></h2>
         <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.11.1</strong> (2026-10-04).</p>
+          release: <strong>0.12.0</strong> (2026-10-04).</p>
 
         <div class="cl-entry latest">
+          <div class="cl-head"><span class="cl-ver">0.12.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
+          <ul class="bul">
+            <li><strong>Tickets between projects.</strong> In Loupe Hub, a project can send its tickets to another
+              project in the same organization. The Laravel package receives them at
+              <code>/loupe/v1/hub/inbound</code>, shows "from" and "→" chips, and fires <code>TicketReceived</code>.</li>
+            <li><strong>The organization in the panel.</strong> The Home project chip reads "Project ·
+              Organization", and the project menu lists the organization's projects and where tickets go.</li>
+            <li><strong>Live Activity on Laravel.</strong> The package records comment, status and ticket events.
+              The Activity view polls them every 15 seconds while it is open and shows Live or Offline.</li>
+            <li><strong>Changed: Chat is off by default.</strong> The tab shows dimmed. Pass
+              <code>chat: true</code> to turn it on.</li>
+            <li><strong>Removed: repository linking.</strong> The <code>repo</code>, <code>branch</code> and
+              <code>repos</code> options and the repo picker are gone.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.11.1</span><span class="cl-date">2026-10-04</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>The chat view rendered under every tab.</strong> Its <code>display: flex</code>

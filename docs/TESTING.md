@@ -22,20 +22,24 @@ Runner: **Vitest** + **v8 coverage**. DOM code runs under **happy-dom** (files o
 | `sdk/store` | unit (happy-dom) | LocalStorage adapter CRUD + bad-JSON handling |
 | `sdk/http-adapter` | unit (mocked fetch) | Identity headers, blob-upload-then-save, fallback, PATCH/DELETE, errors |
 | `sdk/capture` | unit (happy-dom) | Element context, truncation, screenshot success + error swallow |
-| `sdk/app` | integration (happy-dom) | Mount, inspect→comment→pin→persist, free note, reload+re-anchor, comment list, done, delete, dock position + theme + push/reflow + mobile-inspect, FAB cluster + markers toggle, launcher drag + clamp + hide/restore (Alt+Shift+L, edge tab on touch), author + absolute time in `timeZone`, `packageVersion` mismatch flag, Escape, menu dismissal from the host page + Escape, region anchoring (covering element, page-level, legacy fractions), thread target labels, two CSS scoping pins |
+| `sdk/app` | integration (happy-dom) | Mount, inspect→comment→pin→persist, free note, reload+re-anchor, comment list, done, delete, dock position + theme + push/reflow + mobile-inspect, FAB cluster + markers toggle, launcher drag + clamp + hide/restore (Alt+Shift+L, edge tab on touch), author + absolute time in `timeZone`, `packageVersion` mismatch flag, Escape, menu dismissal from the host page + Escape, region anchoring (covering element, page-level, legacy fractions), thread target labels, two CSS scoping pins, organization chip and menu, Activity feed polled only while open, Chat off unless `chat: true`, source and forwarded chips |
 | `mcp/handlers` | unit (canned API) | All four tools in-process (incl. `propose_change` + the screenshot image block), both anchor branches, filters, error path |
 | `mcp/mcp` | integration (stdio) | Real MCP server spawned + driven by an MCP client end-to-end |
 | `extension/manifest` | unit | Valid MV3 manifest; referenced files exist |
 | `hub/crypto` | unit | HMAC sign/verify (valid, tampered, wrong secret, ±5 min expiry, bad timestamp), session cookie round-trip + forgery/expiry |
 | `hub/webhook` | integration (local receiver) | Signed delivery, 1 s/4 s retry backoff, give-up after 3, redirects not followed, network error, 10 s timeout |
 | `hub/google` | unit (mocked library) | ID token audience check, `email_verified` required, missing email, invalid token |
-| `hub/api` | integration | Real `node:http` on port 0 — ingest auth matrix, membership by email and by domain, 403 path, delivery log, sign-in, owner/member/non-member permissions, CSRF, one-time secrets + rotation, input validation |
+| `hub/api` | integration | Real `node:http` on port 0 — ingest auth matrix, membership by email and by domain, 403 path, delivery log, sign-in, owner/member/non-member permissions, CSRF, one-time secrets + rotation, input validation, routing to a destination project (its secret, `X-Loupe-Hub-Project`), refused destinations (other org, itself, no Inbound URL), `delivery: "none"`, `GET /v1/projects` (auth, org scoping, no secrets) |
 
 **Laravel** (`packages/laravel`, PHPUnit + Testbench) has a hard **100% line-coverage** gate
 (`composer test:coverage-100`). `HubTest` covers the Hub forwarding with `Http::fake()` /
 `Bus::fake()`: off unless all keys are set, signature + payload, new-comments-only, real
 queue vs after-response, queue-down fallback, users without email, and failures logged
-without breaking comment creation.
+without breaking comment creation, plus the stored `forwarded` result. `InboundTicketTest`
+covers the receiver's fail-closed matrix (no Hub, missing headers, wrong project, stale
+timestamp, bad signature, oversize body), the duplicate path and the `TicketReceived` event.
+`OrganizationTest` and `ActivityTest` cover `v1/org` (cached, Hub down, not configured) and
+`v1/activity` (each writer, `since`, the 200 cap, project scoping, pruning).
 
 > Node 25+ ships a built-in global `localStorage` that would shadow happy-dom's in the DOM
 > suites; `vitest.config.ts` starts the test workers with `--no-experimental-webstorage`

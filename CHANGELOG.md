@@ -11,6 +11,56 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 _Nothing yet._
 
+## [0.12.0] — 2026-10-04
+
+### Added
+
+- **Tickets between projects.** In Loupe Hub, a project can send its tickets to another
+  project in the same organization. Give the receiving project an Inbound URL, then choose it
+  under "Send tickets to" on each sending project. Hub signs each delivery with the receiving
+  project's own secret, so the receiving app needs no new key. A ticket filed on one app appears
+  on the other app's board with a "from <project>" chip. The sender's card shows
+  "→ <project>", in red when delivery failed.
+- **A receiver in the Laravel package.** `POST {path}/v1/hub/inbound` checks the Hub signature
+  over the raw body. It rejects a request for another project, a timestamp more than 5 minutes
+  off and a body over 6 MB, and it stores each issue id once. It fires
+  `Loupekit\Loupe\Events\TicketReceived`, so the host app can create its own record from the
+  ticket.
+- **The organization in the panel.** `GET {path}/v1/org` reads the project, its organization
+  and the organization's other projects from Hub's new `GET /v1/projects`, cached for 5
+  minutes. The project chip on Home reads "Project · Organization". The project menu lists the
+  organization's projects and says where this project's tickets go.
+- **Live Activity on Laravel.** The package records new comments, status changes, edits,
+  deletes, forwarded tickets and received tickets in a new `loupe_activity` table and serves
+  them at `GET {path}/v1/activity`. The panel reads the feed on start and polls it every 15
+  seconds while the Activity view is open. Rows older than `loupe.activity.retention_days`
+  (30) are pruned on about one write in a hundred. `LOUPE_ACTIVITY=false` turns recording off.
+- **The `chat` option.** `init({ chat: true })` turns the Chat page back on. It is
+  experimental.
+- The MCP `list_comments` tool reports `from` and `sentTo` for tickets between projects.
+
+### Changed
+
+- **Chat is off by default.** The tab shows dimmed and does not open, and the panel no longer
+  opens the bridge's reply stream.
+- **Activity says whether it is connected.** A backend with an activity feed shows "Live"
+  beside the status dot, or "Offline" when a poll fails, and an empty feed reads "No activity
+  yet." The "Monitor unavailable" text now shows only when the backend has no feed.
+- **The Hub webhook URL is optional.** Hub sends a ticket to the destination project first,
+  then to the project's webhook, and otherwise nowhere. Ingest answers
+  `202 { id, delivery: "ok" | "failed" | "none", destination? }`, and the webhook payload gains
+  `source` with the sending project and organization.
+- **Run `php artisan migrate`.** Two new migrations add `source` and `forwarded` to
+  `loupe_comments` and create `loupe_activity`. The package works before you run them: it
+  skips the new columns and records no activity.
+
+### Removed
+
+- **Repository linking.** The `repo`, `branch` and `repos` options are gone, with the repo
+  picker in the project menu and the repo filter on the board. The package is installed once
+  per project, so the project already says which code a ticket is about. Existing comments
+  keep their `repo` and `branch` fields. The Environments and Local AI settings stay.
+
 ## [0.11.1] — 2026-10-04
 
 ### Fixed

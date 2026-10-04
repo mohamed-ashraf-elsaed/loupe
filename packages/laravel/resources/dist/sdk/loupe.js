@@ -378,6 +378,8 @@ var Loupe = (() => {
 }
 .tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
 .tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs .tab.off { opacity: .45; cursor: not-allowed; }
+.tabs .tab.off:hover { color: inherit; background: transparent; }
 
 /* Only the active page shows. Driven by an "on" class rather than a .tab-<id>
    selector, so host-registered tab ids need no CSS of their own. */
@@ -435,11 +437,6 @@ var Loupe = (() => {
   padding: 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--muted);
   font-size: 10.5px; font-family: ui-monospace, Menlo, monospace;
   max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.listhead .reposel {
-  margin-left: 6px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line);
-  border-radius: 7px; background: var(--bg-2); color: var(--ink);
-  text-transform: none; letter-spacing: 0; max-width: 130px;
 }
 
 /* recording marker + video in the list */
@@ -554,6 +551,9 @@ var Loupe = (() => {
 .activity-view { padding: 10px 12px 16px; }
 .mon-status { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .mon-spacer { flex: 1; }
+.mon-live { font-size: 10px; font-weight: 600; color: var(--muted); }
+.mon-live.live { color: #2f9e6a; }
+.mon-live.offline { color: #d9534f; }
 .mon-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .mon-status.st-working .mon-dot { background: var(--accent); animation: loupe-pulse 1.4s ease-in-out infinite; }
 .mon-status.st-error .mon-dot { background: var(--pin); }
@@ -617,8 +617,7 @@ var Loupe = (() => {
   color: var(--ink); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace; cursor: pointer;
 }
 .proj-chip:hover { border-color: var(--accent); }
-.proj-chip .proj-repo { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-.proj-chip.unset .proj-repo { color: var(--muted); font-style: italic; }
+.proj-chip .proj-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .proj-caret { color: var(--muted); font-family: inherit; }
 .proj-pop {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 25;
@@ -631,19 +630,17 @@ var Loupe = (() => {
 .pp-x:hover { background: var(--bg-3); color: var(--ink); }
 .pp-cur { margin-bottom: 8px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .pp-cur b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; }
-.pp-search {
-  width: 100%; margin-bottom: 6px; padding: 6px 8px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 12px;
-}
-.pp-search:focus { outline: none; border-color: var(--accent); }
 .pp-list { display: flex; flex-direction: column; gap: 2px; max-height: 30vh; overflow-y: auto; }
-.pp-item {
-  padding: 6px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent;
-  color: var(--ink); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace;
-  text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.pp-proj {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid transparent;
+  border-radius: 7px; font-size: 11.5px; color: var(--ink);
 }
-.pp-item:hover { background: var(--bg-3); }
-.pp-item.on { border-color: var(--accent); color: var(--accent); }
+.pp-proj.on { border-color: var(--accent); }
+.pp-proj-n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-badge {
+  flex: none; padding: 1px 6px; border-radius: 999px; background: var(--bg-3);
+  color: var(--muted); font-size: 10px; white-space: nowrap;
+}
 .pp-empty { padding: 8px 6px; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .pp-empty code { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
 .pp-clear {
@@ -676,6 +673,15 @@ var Loupe = (() => {
 .menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
 /* The host package's version, shown only when it differs from this bundle's (a stale publish). */
 .ver-stale { color: var(--pin); font-family: ui-monospace, Menlo, monospace; font-weight: 600; cursor: help; }
+
+/* ------------------------------------------------ tickets between projects */
+.srcchip, .fwdchip {
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap; font-size: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+}
+.fwdchip { border-color: var(--accent); color: var(--accent); }
+.fwdchip.bad { border-color: #d9534f; color: #d9534f; }
 
 /* ------------------------------------------------ lifecycle chips + review flow */
 .lifechip {
@@ -3796,6 +3802,14 @@ var Loupe = (() => {
         }
       }
     }
+    /** Offline: there is no organization to read. */
+    async getOrg() {
+      return null;
+    }
+    /** Offline: no server feed; the panel shows only what this browser reports. */
+    async listActivity(_projectKey, _since) {
+      return null;
+    }
   };
 
   // src/http-adapter.ts
@@ -3931,6 +3945,28 @@ var Loupe = (() => {
       }));
       if (!res.ok) throw new Error(`update failed: ${res.status}`);
     }
+    /** The organization, read through the host app. A 404 means the backend has no such endpoint. */
+    async getOrg() {
+      const res = await fetch(`${this.base}/v1/org`, this.opts({ headers: this.headers() }));
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`getOrg failed: ${res.status}`);
+      const body = await res.json();
+      if (!body || typeof body !== "object" || !body.project || !Array.isArray(body.projects)) {
+        throw new Error("getOrg: the answer was not an organization");
+      }
+      return body;
+    }
+    /** The server's activity feed. A 404 means the backend keeps none. */
+    async listActivity(projectKey, since) {
+      const q = new URLSearchParams({ projectKey });
+      if (since) q.set("since", since);
+      const res = await fetch(`${this.base}/v1/activity?${q}`, this.opts({ headers: this.headers() }));
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`listActivity failed: ${res.status}`);
+      const body = await res.json();
+      if (!Array.isArray(body)) throw new Error("listActivity: the answer was not a list");
+      return body;
+    }
     async remove(id) {
       const res = await fetch(`${this.base}/v1/comments/${encodeURIComponent(id)}`, this.opts({
         method: "DELETE",
@@ -3941,7 +3977,7 @@ var Loupe = (() => {
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.11.1" : "dev";
+  var SDK_VERSION = true ? "0.12.0" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";
@@ -3966,7 +4002,7 @@ var Loupe = (() => {
       sel: ".hscope",
       tab: "home",
       title: "This page, or the whole project",
-      body: "Switch to All to see every page's feedback as a day-grouped timeline, with a repo filter."
+      body: "Switch to All to see every page's feedback as a day-grouped timeline."
     },
     {
       sel: ".tools",
@@ -3978,7 +4014,7 @@ var Loupe = (() => {
       sel: '.tabs [data-tab="activity"]',
       tab: "activity",
       title: "Watch the work happen",
-      body: "Anything an agent bridge or your app reports lands here \u2014 with tool chips to filter it, and Loupe's own operations alongside."
+      body: "Comments, status changes and forwarded tickets land here as they happen, with anything a bridge or your app reports. Tool chips filter it."
     },
     {
       sel: '.dctl [data-role="settings"]',
@@ -4095,8 +4131,6 @@ var Loupe = (() => {
       this.allLoaded = false;
       /** A clicked stat tile, which narrows the list. */
       this.statFilter = "";
-      /** Repo filter, offered once the scope is "all". */
-      this.repoFilter = "";
       /** Accent preset id (see ACCENTS), applied as inline --accent / --accent-soft. */
       this.accent = "indigo";
       /** Collapsed to the one-line minimize bar. */
@@ -4120,8 +4154,16 @@ var Loupe = (() => {
       this.activityFollow = true;
       /** The summary card's key/value rows are behind this toggle. */
       this.summaryOpen = false;
-      /** Per-browser project settings: a repo override and the environment URLs. */
+      /** Per-browser project settings: the environment URLs and the Local AI endpoint. */
       this.project = { environments: [] };
+      /** The organization, read once from the backend. Null offline or before it loads. */
+      this.org = null;
+      /** Whether the server keeps an activity feed, and whether the last read reached it. */
+      this.activityRemote = "unsupported";
+      /** Newest server event seen, so a poll asks only for what is new. */
+      this.activitySince = "";
+      /** The backend answered that it keeps no feed, so the panel stops asking. */
+      this.activityNone = false;
       /** Iteration history per thread — generating a change is a stack, not a one-shot. */
       this.iterations = /* @__PURE__ */ new Map();
       /** The thread whose generate pane is open, if any. */
@@ -4134,13 +4176,9 @@ var Loupe = (() => {
       this.consent = emptyConsent();
       /** The live SpeechRecognition instance while dictating, if any. */
       this.voice = null;
-      this.projSearch = "";
       this.projOpen = false;
-      this.projResults = [];
       this.projError = "";
       this.envDraft = "";
-      /** Guards against a slow repo search overwriting a newer one. */
-      this.repoSeq = 0;
       /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
       this.floatRect = { x: 0, y: 0, w: 380, h: 540 };
       this.floatDrag = null;
@@ -4485,6 +4523,10 @@ var Loupe = (() => {
     get url() {
       return location.pathname + location.search;
     }
+    /** Chat is experimental: the tab stays dimmed and inert unless the host opts in. */
+    get chatOn() {
+      return this.cfg.chat === true;
+    }
     async start() {
       this.loadState();
       this.loadProject();
@@ -4501,8 +4543,11 @@ var Loupe = (() => {
       this.renderHome();
       this.startPresence();
       this.startLiveThreads();
-      this.startCompanionStream();
+      if (this.chatOn) this.startCompanionStream();
       void this.loadNotifications();
+      void this.loadOrg();
+      void this.loadActivity();
+      this.syncActivityPoll();
       void this.loadAllComments();
       this.observe();
       this.watchNavigation();
@@ -4673,8 +4718,13 @@ var Loupe = (() => {
       this.tabList = [...BUILTIN_TABS, ...(this.cfg.tabs ?? []).map((t) => ({ id: t.id, label: t.label }))];
       const tabs = el("div", "tabs");
       for (const t of this.tabList) {
-        const b = el("button", "tab", t.label);
+        const off = t.id === "chat" && !this.chatOn;
+        const b = el("button", off ? "tab off" : "tab", t.label);
         b.dataset.tab = t.id;
+        if (off) {
+          b.setAttribute("aria-disabled", "true");
+          b.title = "Chat \u2014 coming soon";
+        }
         b.onclick = () => this.setTab(t.id);
         tabs.appendChild(b);
       }
@@ -4714,15 +4764,6 @@ var Loupe = (() => {
         this.renderList();
       };
       listHead.appendChild(search);
-      this.repoSel = el("select", "reposel");
-      this.repoSel.title = "Filter by repository";
-      this.repoSel.setAttribute("aria-label", "Filter by repository");
-      this.repoSel.onchange = () => {
-        this.repoFilter = this.repoSel.value;
-        this.renderList();
-      };
-      this.repoSel.style.display = "none";
-      listHead.appendChild(this.repoSel);
       this.listEl = el("div", "list");
       const homeView = el("div", "view home-view");
       this.homeEl = homeView;
@@ -4808,6 +4849,7 @@ var Loupe = (() => {
     }
     /** The Chat tab label carries the unread count, so it is visible from any page. */
     updateChatBadge() {
+      if (!this.chatOn) return;
       const tab = this.tabList.findIndex((t) => t.id === "chat");
       const buttons = this.shadow?.querySelectorAll(".tabs .tab");
       const el2 = buttons?.[tab];
@@ -5131,7 +5173,7 @@ var Loupe = (() => {
       }
     }
     buildActivityPanel() {
-      this.activityEl.innerHTML = `<div class="hint-slot" id="loupe-ahint"></div><div class="mon-status" id="loupe-mon-status"><span class="mon-dot"></span><span class="mon-status-label"></span><span class="mon-spacer"></span><button class="mon-clear" data-role="mon-clear" title="Clear the feed">Clear</button></div><div class="mon-summary" id="loupe-mon-summary"></div><div class="mon-micro" id="loupe-mon-micro"></div><div class="mon-chips" id="loupe-mon-chips"></div><div class="mon-feed" id="loupe-mon-feed"></div>`;
+      this.activityEl.innerHTML = `<div class="hint-slot" id="loupe-ahint"></div><div class="mon-status" id="loupe-mon-status"><span class="mon-dot"></span><span class="mon-status-label"></span><span class="mon-live" id="loupe-mon-live"></span><span class="mon-spacer"></span><button class="mon-clear" data-role="mon-clear" title="Clear the feed">Clear</button></div><div class="mon-summary" id="loupe-mon-summary"></div><div class="mon-micro" id="loupe-mon-micro"></div><div class="mon-chips" id="loupe-mon-chips"></div><div class="mon-feed" id="loupe-mon-feed"></div>`;
       this.feedEl = this.activityEl.querySelector("#loupe-mon-feed");
       this.activityHint = this.activityEl.querySelector("#loupe-ahint");
       this.activityEl.querySelector('[data-role="mon-clear"]').onclick = () => this.clearActivity();
@@ -5169,6 +5211,52 @@ var Loupe = (() => {
       this.activityStatus = "idle";
       this.renderActivity();
     }
+    /**
+     * Read the server's feed and merge it in by id. A backend without a feed answers
+     * null once, and the panel stops asking.
+     */
+    async loadActivity() {
+      if (this.activityNone) return;
+      let events;
+      try {
+        const read = this.store.listActivity?.bind(this.store);
+        events = read ? await read(this.cfg.projectKey, this.activitySince || void 0) : null;
+      } catch {
+        if (this.activityRemote === "live") {
+          this.activityRemote = "offline";
+          this.renderActivity();
+        }
+        return;
+      }
+      if (events === null) {
+        this.activityRemote = "unsupported";
+        this.activityNone = true;
+        this.syncActivityPoll();
+        this.renderActivity();
+        return;
+      }
+      this.activityRemote = "live";
+      const known = new Set(this.activityEvents.map((e) => e.id));
+      const fresh = events.filter((e) => e && typeof e.id === "string" && !known.has(e.id));
+      if (fresh.length) {
+        this.activityEvents = [...this.activityEvents, ...fresh].sort((a, b) => a.at.localeCompare(b.at)).slice(-500);
+        const newest = fresh.reduce((m, e) => e.at > m ? e.at : m, this.activitySince);
+        this.activitySince = newest;
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1e3).toISOString();
+        if (fresh.some((e) => e.level === "error" && e.at >= tenMinutesAgo)) this.activityStatus = "error";
+      }
+      this.renderActivity();
+    }
+    /** Poll the server's feed every 15s, but only while the Activity view is on screen. */
+    syncActivityPoll() {
+      const want = this.tab === "activity" && !this.activityNone && !!this.store.listActivity;
+      if (want && !this.activityPoll) {
+        this.activityPoll = setInterval(() => void this.loadActivity(), 15e3);
+      } else if (!want && this.activityPoll) {
+        clearInterval(this.activityPoll);
+        this.activityPoll = void 0;
+      }
+    }
     /** The summary, status row, micro-stats and chips — derived, never stored. */
     renderActivityChrome() {
       if (!this.activityEl) return;
@@ -5177,6 +5265,11 @@ var Loupe = (() => {
       const s = summarizeActivity(this.activityEvents, this.activityStatus);
       status.querySelector(".mon-status-label").textContent = ACTIVITY_STATUS_LABELS[s.status];
       status.className = `mon-status st-${s.status}`;
+      const live = status.querySelector("#loupe-mon-live");
+      if (live) {
+        live.textContent = this.activityRemote === "live" ? "Live" : this.activityRemote === "offline" ? "Offline" : "";
+        live.className = `mon-live ${this.activityRemote}`;
+      }
       const summary = this.activityEl.querySelector("#loupe-mon-summary");
       if (!s.events) {
         summary.innerHTML = "";
@@ -5230,7 +5323,7 @@ var Loupe = (() => {
       if (!this.feedEl) return;
       const events = this.activityFilter ? this.activityEvents.filter((e) => e.kind === this.activityFilter) : this.activityEvents;
       if (!events.length) {
-        this.feedEl.innerHTML = `<div class="mon-empty">` + (this.activityEvents.length ? `Nothing from <b>${escapeHtml(this.activityFilter)}</b> yet.` : `<b>Monitor unavailable.</b> Nothing is feeding this view yet.<br>A bridge or your app can push events with <code>Loupe.trackActivity({ kind, label })</code>, and Loupe reports its own operations here as you work.`) + `</div>`;
+        this.feedEl.innerHTML = `<div class="mon-empty">` + (this.activityEvents.length ? `Nothing from <b>${escapeHtml(this.activityFilter)}</b> yet.` : this.activityRemote === "live" ? `No activity yet. Comments, status changes and forwarded tickets appear here.` : `<b>Monitor unavailable.</b> Nothing is feeding this view yet.<br>A bridge or your app can push events with <code>Loupe.trackActivity({ kind, label })</code>, and Loupe reports its own operations here as you work.`) + `</div>`;
         return;
       }
       this.feedEl.innerHTML = events.map((e) => {
@@ -5246,7 +5339,7 @@ var Loupe = (() => {
      */
     buildHomePanel() {
       const title = this.cfg.label ?? "Loupe";
-      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-repo"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hnotif" id="loupe-hnotif"></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span>${this.packageVersionNote()}</div>`;
+      this.homeEl.innerHTML = `<div class="hint-slot" id="loupe-hhint"></div><div class="hstat" id="loupe-hstats"></div><div class="hscope"><button class="hscope-b" data-scope="page">This page <b class="hscope-n"></b></button><button class="hscope-b" data-scope="all">All <b class="hscope-n"></b></button><button class="hrefresh" title="Refresh" aria-label="Refresh">\u27F3</button></div><button class="hpin" data-role="home-pin">\u271B Pin feedback on this page</button><div class="projbar"><span class="proj-label">Project</span><button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false"><span class="proj-name"></span><span class="proj-caret">\u25BE</span></button><div class="proj-pop" id="loupe-proj" role="dialog" aria-label="Project settings"></div></div><div class="hnotif" id="loupe-hnotif"></div><div class="hlabel">Recent</div><div class="hfeed" id="loupe-hfeed"></div><div class="hfoot">${escapeHtml(title)} \xB7 <span class="hver">v${escapeHtml(SDK_VERSION)}</span>${this.packageVersionNote()}</div>`;
       this.homeEl.querySelector('[data-role="proj-open"]').onclick = (e) => {
         e.stopPropagation();
         this.setProjectOpen(!this.projOpen);
@@ -5398,65 +5491,36 @@ var Loupe = (() => {
       };
     }
     // ---- project manager (#60) ------------------------------------------------
-    /** The repo new comments are filed against: the panel's choice, else the config. */
-    effectiveRepo() {
-      return this.project.repo || this.cfg.repo || void 0;
-    }
     setProjectOpen(open) {
       this.projOpen = open;
       this.projError = "";
-      if (open) {
-        this.projSearch = "";
-        void this.refreshRepos();
+      this.renderProject();
+    }
+    /** Read the organization once. A backend without the endpoint, or offline mode, leaves it null. */
+    async loadOrg() {
+      try {
+        this.org = await this.store.getOrg?.() ?? null;
+      } catch {
+        this.org = null;
       }
       this.renderProject();
     }
-    /** Repositories to offer — a fixed list, or the host's search function. */
-    async repoChoices() {
-      const source = this.cfg.repos;
-      if (!source) return [];
-      if (Array.isArray(source)) {
-        const q = this.projSearch.trim().toLowerCase();
-        const all = q ? source.filter((r) => r.toLowerCase().includes(q)) : source;
-        return all.slice(0, 50);
-      }
-      try {
-        const out = await source(this.projSearch);
-        return (Array.isArray(out) ? out : []).slice(0, 50);
-      } catch (e) {
-        this.projError = e instanceof Error ? e.message : "Could not load repositories.";
-        return [];
-      }
+    /** "Project · Organization", or the project key when there is no organization to show. */
+    projectLabel() {
+      const org = this.org;
+      const name = org?.project.name || this.cfg.projectKey;
+      return org?.organization ? `${name} \xB7 ${org.organization.name}` : name;
     }
-    /**
-     * Re-run the repo search. The sequence guard matters: typing fires overlapping
-     * requests, and without it a slow early reply would overwrite a newer one.
-     */
-    async refreshRepos() {
-      this.projError = "";
-      const seq = ++this.repoSeq;
-      const out = await this.repoChoices();
-      if (seq !== this.repoSeq) return;
-      this.projResults = out;
-      this.renderRepoList();
-      this.renderProjectError();
-    }
-    /** Only the list is rewritten on search, so the input keeps focus while typing. */
-    renderRepoList() {
-      const list = this.homeEl?.querySelector("#loupe-pp-repos");
-      if (!list) return;
-      const repo = this.effectiveRepo();
-      list.innerHTML = this.projResults.length ? this.projResults.map((r) => `<button class="pp-item${r === repo ? " on" : ""}" data-repo="${escapeAttr(r)}" title="${escapeAttr(r)}">${escapeHtml(r)}</button>`).join("") : `<div class="pp-empty">No repositories match.</div>`;
-      list.querySelectorAll("[data-repo]").forEach((b) => {
-        b.onclick = () => {
-          this.project.repo = b.dataset.repo;
-          this.saveProject();
-          this.renderProject();
-          this.renderPins();
-          this.renderList();
-          this.addActivity({ kind: "repo.link", label: `Linked this page to ${b.dataset.repo}` });
-        };
-      });
+    /** The Organization section of the project popover. Read-only: Hub owns this. */
+    orgSectionHtml() {
+      const org = this.org;
+      const head = `<div class="pp-head"><span>Organization</span><button class="pp-x" data-role="pp-close" aria-label="Close">\u2715</button></div>`;
+      if (!org?.organization) {
+        return head + `<div class="pp-cur">` + (org?.error ? "Could not reach Loupe Hub. Your organization's projects will show here when it is back." : "This project is not connected to an organization. Connect it to Loupe Hub to see the organization's projects and where its tickets go.") + `</div>`;
+      }
+      const dest = org.project.destination;
+      const others = org.projects;
+      return head + `<div class="pp-cur"><b>${escapeHtml(org.project.name || this.cfg.projectKey)}</b> in <b>${escapeHtml(org.organization.name)}</b>.</div><div class="pp-cur pp-dest">${dest ? `Tickets go to <b>${escapeHtml(dest.name)}</b>.` : "Tickets stay in this project."}</div><div class="pp-list pp-org">` + (others.length ? others.map((p) => `<div class="pp-proj${p.isDestination ? " on" : ""}"><span class="pp-proj-n">${escapeHtml(p.name)}</span>` + (p.receives ? `<span class="pp-badge">receives tickets</span>` : "") + `</div>`).join("") : `<div class="pp-empty">No other projects in this organization yet.</div>`) + `</div>`;
     }
     renderProjectError() {
       const box = this.homeEl?.querySelector("#loupe-pp-err");
@@ -5469,9 +5533,8 @@ var Loupe = (() => {
       const chip = this.homeEl.querySelector(".proj-chip");
       const pop = this.homeEl.querySelector("#loupe-proj");
       if (!chip || !pop) return;
-      const repo = this.effectiveRepo();
-      chip.querySelector(".proj-repo").textContent = repo ?? "no repo linked";
-      chip.classList.toggle("unset", !repo);
+      chip.querySelector(".proj-name").textContent = this.projectLabel();
+      chip.classList.toggle("unset", !this.org?.organization);
       chip.setAttribute("aria-expanded", String(this.projOpen));
       if (!this.projOpen) {
         pop.classList.remove("open");
@@ -5480,25 +5543,9 @@ var Loupe = (() => {
       }
       pop.classList.add("open");
       const envs = this.project.environments;
-      pop.innerHTML = `<div class="pp-head"><span>Repository</span><button class="pp-x" data-role="pp-close" aria-label="Close">\u2715</button></div><div class="pp-cur">${repo ? `New comments are filed against <b>${escapeHtml(repo)}</b>.` : "This page is not linked to a repository yet."}</div>` + (this.cfg.repos ? `<input class="pp-search" type="search" placeholder="Search repositories\u2026" value="${escapeAttr(this.projSearch)}" aria-label="Search repositories"><div class="pp-list" id="loupe-pp-repos"></div>` : `<div class="pp-empty">No repository list to search. Pass <code>repos</code> to <code>init()</code> \u2014 a string array, or a function the panel calls with the search text.</div>`) + (repo ? `<button class="pp-clear" data-role="pp-clear">Unlink this page</button>` : "") + `<div class="pp-sep"></div><div class="pp-head"><span>Environments</span></div><div class="pp-list">` + (envs.length ? envs.map((u, i) => `<div class="pp-env"><span class="pp-env-u" title="${escapeAttr(u)}">${escapeHtml(u)}</span><button class="pp-x" data-env-rm="${i}" aria-label="Remove environment">\u2715</button></div>`).join("") : `<div class="pp-empty">No environment URLs yet.</div>`) + `</div><div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" value="${escapeAttr(this.envDraft)}" aria-label="Environment URL"><button class="pp-add-b" data-role="env-add">Add</button></div><div class="pp-sep"></div><div class="pp-head"><span>Local AI</span></div><div class="pp-empty">Any OpenAI-compatible server \u2014 used by the Generate pane.</div><div class="pp-add"><input class="pp-ai-url" type="url" placeholder="http://localhost:11434" value="${escapeAttr(this.project.localAi?.url ?? "")}" aria-label="Local AI endpoint"></div><div class="pp-add"><input class="pp-ai-model" type="text" placeholder="llama3.2" value="${escapeAttr(this.project.localAi?.model ?? "")}" aria-label="Model name"><button class="pp-add-b" data-role="ai-save">Save</button></div><div class="pp-add"><button class="pp-clear" data-role="ai-test">Test connection</button></div><div class="pp-ai-out" id="loupe-pp-ai"></div><div class="pp-err" id="loupe-pp-err"></div>`;
-      this.renderRepoList();
+      pop.innerHTML = this.orgSectionHtml() + `<div class="pp-sep"></div><div class="pp-head"><span>Environments</span></div><div class="pp-list">` + (envs.length ? envs.map((u, i) => `<div class="pp-env"><span class="pp-env-u" title="${escapeAttr(u)}">${escapeHtml(u)}</span><button class="pp-x" data-env-rm="${i}" aria-label="Remove environment">\u2715</button></div>`).join("") : `<div class="pp-empty">No environment URLs yet.</div>`) + `</div><div class="pp-add"><input class="pp-env-url" type="url" placeholder="https://staging.example.com" value="${escapeAttr(this.envDraft)}" aria-label="Environment URL"><button class="pp-add-b" data-role="env-add">Add</button></div><div class="pp-sep"></div><div class="pp-head"><span>Local AI</span></div><div class="pp-empty">Any OpenAI-compatible server \u2014 used by the Generate pane.</div><div class="pp-add"><input class="pp-ai-url" type="url" placeholder="http://localhost:11434" value="${escapeAttr(this.project.localAi?.url ?? "")}" aria-label="Local AI endpoint"></div><div class="pp-add"><input class="pp-ai-model" type="text" placeholder="llama3.2" value="${escapeAttr(this.project.localAi?.model ?? "")}" aria-label="Model name"><button class="pp-add-b" data-role="ai-save">Save</button></div><div class="pp-add"><button class="pp-clear" data-role="ai-test">Test connection</button></div><div class="pp-ai-out" id="loupe-pp-ai"></div><div class="pp-err" id="loupe-pp-err"></div>`;
       this.renderProjectError();
       pop.querySelector('[data-role="pp-close"]').onclick = () => this.setProjectOpen(false);
-      pop.querySelector('[data-role="pp-clear"]')?.addEventListener("click", () => {
-        this.project.repo = void 0;
-        this.saveProject();
-        this.renderProject();
-        this.renderPins();
-        this.renderList();
-      });
-      const search = pop.querySelector(".pp-search");
-      if (search) {
-        search.addEventListener("click", (e) => e.stopPropagation());
-        search.oninput = () => {
-          this.projSearch = search.value;
-          void this.refreshRepos();
-        };
-      }
       pop.querySelectorAll("[data-env-rm]").forEach((b) => {
         b.onclick = () => {
           const i = Number(b.dataset.envRm);
@@ -5562,10 +5609,9 @@ var Loupe = (() => {
       try {
         const raw = localStorage.getItem(`loupe:project:${this.cfg.projectKey}`);
         const p = raw ? JSON.parse(raw) : null;
-        const repo = typeof p?.repo === "string" && p.repo ? p.repo : void 0;
         const stored = Array.isArray(p?.environments) ? p.environments.filter((u) => typeof u === "string") : null;
         const localAi = p?.localAi && typeof p.localAi.url === "string" && typeof p.localAi.model === "string" ? { url: p.localAi.url, model: p.localAi.model } : void 0;
-        this.project = { repo, environments: stored ?? fromConfig, localAi };
+        this.project = { environments: stored ?? fromConfig, localAi };
       } catch {
         this.project = { environments: fromConfig };
       }
@@ -6164,10 +6210,6 @@ var Loupe = (() => {
         status: "queue",
         priority,
         changeType,
-        // Branch-aware threads: the host declares these once in `init()`, and the
-        // panel's project manager can override the repo per browser.
-        repo: this.effectiveRepo(),
-        branch: this.cfg.branch,
         kind: target.kind,
         anchor,
         context,
@@ -6198,8 +6240,7 @@ var Loupe = (() => {
       this.addActivity({
         kind: "comment.create",
         label: `Created \u201C${comment.title || comment.body.split("\n")[0] || "comment"}\u201D`,
-        detail: [normalizePriority(comment.priority), comment.kind ?? "element", comment.repo].filter(Boolean).join(" \xB7 "),
-        files: comment.repo ? [`${comment.repo}/${shortPath(comment.url)}`] : []
+        detail: [normalizePriority(comment.priority), comment.kind ?? "element", shortPath(comment.url)].join(" \xB7 ")
       });
     }
     /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
@@ -6224,6 +6265,7 @@ var Loupe = (() => {
         }
       }
       this.comments.forEach((c, i) => {
+        if (c.source) return;
         let pin = this.pins.get(c.id);
         if (!pin) {
           pin = el("button", "pin");
@@ -6305,6 +6347,7 @@ var Loupe = (() => {
     /** Switch the sidebar page (Home ↔ Comments ↔ Connect Claude). */
     setTab(tab) {
       if (this.tab === tab) return;
+      if (tab === "chat" && !this.chatOn) return;
       if (tab !== "comments") this.setMode("off");
       this.tab = tab;
       this.hintFor = null;
@@ -6314,7 +6357,11 @@ var Loupe = (() => {
         if (this.scope === "all" && !this.allComments.length) void this.loadAllComments();
       }
       if (tab === "comments") this.renderList();
-      if (tab === "activity") this.renderActivity();
+      if (tab === "activity") {
+        this.renderActivity();
+        void this.loadActivity();
+      }
+      this.syncActivityPoll();
       this.applyDockLayout();
     }
     toggleTheme() {
@@ -6501,11 +6548,10 @@ var Loupe = (() => {
         if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
         if (typeof p?.open === "boolean") this.open = p.open;
         if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
-        const known = [...BUILTIN_TABS.map((t) => t.id), ...(this.cfg.tabs ?? []).map((t) => t.id)];
+        const known = [...BUILTIN_TABS.map((t) => t.id).filter((id) => id !== "chat" || this.chatOn), ...(this.cfg.tabs ?? []).map((t) => t.id)];
         if (typeof p?.tab === "string" && known.includes(p.tab)) this.tab = p.tab;
         if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
         if (typeof p?.statFilter === "string") this.statFilter = p.statFilter;
-        if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
         if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
         if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
         if (typeof p?.launcherHidden === "boolean") this.launcherHidden = p.launcherHidden;
@@ -6532,7 +6578,6 @@ var Loupe = (() => {
           fab: this.fabPos,
           scope: this.scope,
           statFilter: this.statFilter,
-          repoFilter: this.repoFilter,
           accent: this.accent,
           minimized: this.minimized,
           hoverHints: this.hoverHints,
@@ -6615,11 +6660,9 @@ var Loupe = (() => {
         if (this.statFilter === "needs_you" && !needsYou({ status: c.status }).needs) return false;
         if (this.statFilter === "resolved" && stage !== "resolved") return false;
         if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
-        if (this.repoFilter && c.repo !== this.repoFilter) return false;
         return !q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q);
       });
       if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      this.renderRepoFilter();
       this.renderReviewBar();
       if (!items.length) {
         this.listEl.appendChild(el(
@@ -6641,15 +6684,6 @@ var Loupe = (() => {
       });
       this.updateCount(items.length);
     }
-    /** Repo filter — only offered in the project scope, where it means something. */
-    renderRepoFilter() {
-      if (!this.repoSel) return;
-      const repos = [...new Set(this.visibleComments.map((c) => c.repo).filter((r) => !!r))].sort();
-      this.repoSel.style.display = this.scope === "all" && repos.length > 1 ? "" : "none";
-      const current2 = this.repoFilter;
-      this.repoSel.innerHTML = `<option value="">All repos</option>` + repos.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
-      this.repoSel.value = current2;
-    }
     itemView(c, i) {
       const detached = this.pins.get(c.id)?.classList.contains("detached") && !isResolved(c);
       const open = this.expanded.has(c.id);
@@ -6663,6 +6697,19 @@ var Loupe = (() => {
         const kind = vw < 768 ? "mobile" : vw < 1024 ? "tablet" : "desktop";
         const icon = vw < 768 ? "\u{1F4F1}" : vw < 1024 ? "\u25A6" : "\u{1F5A5}";
         top.appendChild(el("span", "device", `${icon} ${kind}`));
+      }
+      if (c.source) {
+        const from = el("span", "srcchip", `from ${c.source.projectName || c.source.projectId}`);
+        from.title = c.source.reporter ? `Sent by ${c.source.reporter.name || c.source.reporter.email}` : "Sent from another project";
+        top.appendChild(from);
+      }
+      const fwd = c.forwarded;
+      if (fwd && fwd.status !== "none") {
+        const where = fwd.destinationName || (fwd.status === "ok" ? "webhook" : "Hub");
+        const ok = fwd.status === "ok";
+        const chip = el("span", ok ? "fwdchip" : "fwdchip bad", ok ? `\u2192 ${where}` : `\u2192 ${where} failed`);
+        chip.title = ok ? `Sent to ${where}` : `Could not send to ${where}${fwd.error ? `: ${fwd.error}` : ""}`;
+        top.appendChild(chip);
       }
       if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
       else if (detached) {
@@ -7839,6 +7886,8 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       this.companionSource?.close();
       this.companionSource = void 0;
       if (this.companionPoll) clearInterval(this.companionPoll);
+      if (this.activityPoll) clearInterval(this.activityPoll);
+      this.activityPoll = void 0;
       this.stopVoice();
       this.stopPresence();
       this.stopRecording?.();

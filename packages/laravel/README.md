@@ -228,12 +228,15 @@ It reads your database directly (no HTTP hop, no admin key) and exposes three to
 | `hub.url` | `env('LOUPE_HUB_URL')` | Loupe Hub base URL, e.g. `https://hub.example.com`. |
 | `hub.project_id` | `env('LOUPE_PROJECT_ID')` | Hub Project ID (`prj_…`). |
 | `hub.project_secret` | `env('LOUPE_PROJECT_SECRET')` | Hub Project Secret (`psk_…`). Keep it in `.env`, never in git. |
+| `activity.enabled` | `env('LOUPE_ACTIVITY', true)` | Record comment, status, forward and receive events for the panel's Activity view. |
+| `activity.retention_days` | `30` | Activity rows older than this are pruned. |
 
 ### Send new comments to Loupe Hub (optional)
 
 [Loupe Hub](https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/packages/hub) checks
-that a comment's author belongs to your organization and forwards it to your project's
-webhook. Create a project in the Hub dashboard, then set all three keys:
+that a comment's author belongs to your organization. It then sends the comment to your
+project's destination project or to its webhook. Create a project in the Hub dashboard, then
+set all three keys:
 
 ```env
 LOUPE_HUB_URL=https://hub.example.com
@@ -253,6 +256,20 @@ dispatches the `Loupekit\Loupe\Jobs\SendToHub` job:
 - A Hub failure (rejection such as `403 user not in organization`, network error, failed
   webhook delivery) is **logged as a warning and never breaks comment creation**. Users
   without an email are skipped (and logged).
+- It stores Hub's answer on the comment as `forwarded`, which the widget shows as "→ CRM".
+
+### Receive tickets from other projects
+
+Set this app's **Inbound URL** in Hub to `https://<app>/{LOUPE_PATH}/v1/hub/inbound`, and
+choose this project under **Send tickets to** on the projects that should send here. The
+package verifies each delivery with this app's own `LOUPE_PROJECT_SECRET`, stores the ticket
+once per issue id, and fires `Loupekit\Loupe\Events\TicketReceived` with the stored comment,
+its `source` and the verified `user`. Listen for it to create your own record. Run
+`php artisan migrate` first. See [docs/LARAVEL.md](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md#send-tickets-to-another-project)
+for the full contract.
+
+`GET {path}/v1/org` and `GET {path}/v1/activity` feed the panel's project menu and Activity
+view. Both use the API middleware and the `use` authorization.
 
 ### Multiple auth guards
 

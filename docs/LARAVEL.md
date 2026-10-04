@@ -298,15 +298,19 @@ return [
         'project_id' => env('LOUPE_PROJECT_ID'),
         'project_secret' => env('LOUPE_PROJECT_SECRET'),
     ],
+    'activity' => [
+        'enabled' => env('LOUPE_ACTIVITY', true),
+        'retention_days' => 30,
+    ],
 ];
 ```
 
 ## Loupe Hub (optional)
 
 [Loupe Hub](../packages/hub) is a small hosted service. Organization owners sign in with
-Google, add allowed members (Google emails and/or one email domain) and create projects.
-Hub accepts an issue only when its author belongs to the project's organization, then
-forwards it to the project's webhook, signed.
+Google, add allowed members (Google emails and/or one email domain) and create one project
+per app. Hub accepts an issue only when its author belongs to the project's organization.
+It then sends the issue to the project's destination project, or to its webhook, signed.
 
 Create a project in Hub, then set all three keys. The feature is **off unless all three
 are set**:
@@ -333,6 +337,66 @@ How it behaves:
   `401` bad signature), a network error or a failed webhook delivery is logged as a
   warning (`[loupe] Hub rejected comment`, …). The job is not retried. Users without an
   email are skipped (and logged).
+- Result: the job stores Hub's answer on the comment as `forwarded`
+  (`{ status, deliveryId, destinationProjectId, destinationName, at }`). The widget shows
+  "→ CRM" on the card, in red when `status` is `failed`.
+
+### Send tickets to another project
+
+An organization often has several apps and one place where tickets are worked, for example a
+CRM. Hub can send every ticket filed on one app to another app in the same organization.
+
+1. Install the package on the receiving app with its own Hub project keys, and run
+   `php artisan migrate`.
+2. In Hub, open the receiving project and set its **Inbound URL** to
+   `https://<receiving-app>/{LOUPE_PATH}/v1/hub/inbound`.
+3. Open each sending project and choose the receiving project under **Send tickets to**.
+
+Hub signs each delivery with the receiving project's own secret, so the receiving app
+needs no new key. The receiver at `POST {path}/v1/hub/inbound` takes no session and no CSRF
+token. It fails closed:
+
+| Answer | When |
+| --- | --- |
+| `503` | Hub is not configured on this app |
+| `401` | a header is missing, `X-Loupe-Hub-Project` is not this app's project, the timestamp is more than 5 minutes off, or the signature does not match |
+| `413` | the body is over 6 MB |
+| `202 { duplicate: true }` | this issue id is already stored |
+| `202 { ticket }` | stored |
+
+A received ticket lands on the board in the `queue` column with a `source`
+(`{ projectId, projectName, organizationId, organizationName, deliveryId, receivedAt }`). The
+widget shows it as "from Orders" and does not pin it, because it was filed on another app's
+page. To create your own record as well, listen for the event:
+
+```php
+use Loupekit\Loupe\Events\TicketReceived;
+
+Event::listen(function (TicketReceived $e) {
+    // $e->comment  the stored comment model
+    // $e->source   where it came from (projectId, projectName, …)
+    // $e->user     ['email' => …, 'name' => …], as Hub verified them
+    Ticket::firstOrCreate(['loupe_id' => $e->comment->id], [
+        'title' => str($e->comment->body)->limit(80),
+        'reporter_email' => $e->user['email'],
+    ]);
+});
+```
+
+### The organization and Activity endpoints
+
+- `GET {path}/v1/org` returns this project, its organization, its destination and the
+  organization's other projects, read from Hub's `GET /v1/projects` and cached for 5 minutes.
+  Without Hub keys it returns `organization: null`. When Hub cannot be reached it adds
+  `error: "hub_unreachable"`. It never answers 500. The panel's project chip and menu read
+  it.
+- `GET {path}/v1/activity?projectKey=…&since=…` returns the newest 200 events for the
+  project. The package records new comments, status changes, edits, deletes, forwarded
+  tickets and received tickets. The panel's Activity view polls it every 15 seconds while
+  the view is open. Set `LOUPE_ACTIVITY=false` to stop recording. Rows older than
+  `activity.retention_days` are pruned on about one write in a hundred.
+
+Both routes use the API middleware and the `use` authorization, like the comments API.
 
 ## Sanctum / SPA setups
 

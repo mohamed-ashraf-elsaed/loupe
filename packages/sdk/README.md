@@ -94,14 +94,15 @@ init({
 A dockable control panel appears with a three-page sidebar — **Home** (stat tiles, scope chips with
 counts, the project manager, and the most recent feedback), **Comments** (with the
 **Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
-**Activity** (a live monitor fed by `trackActivity()`). The header carries a position menu
+**Activity** (a live monitor fed by your backend's activity feed and by `trackActivity()`). The header carries a position menu
 (left / bottom / right / float), a theme toggle, a settings dropdown — five accent colours, switches
 for hover hints, markers and page paths, plus the running package version — and a minimize button
 that collapses the panel to a one-line context bar. A five-step guided tour runs once on first open
 (skippable, replayable from Settings), and each view shows a one-time hint card with a **Turn off
 hints** link.
-Pass `repo` and `branch` to `init()` to make
-threads branch-aware — the board can then be filtered by repository and branch.
+When the backend serves `GET v1/org`, the Home project chip reads "Project · Organization" and
+the project menu lists the organization's other projects and where this project's tickets go.
+The Chat page is off by default. Pass `chat: true` to `init()` to turn it on; it is experimental.
 Use the header's dock controls to dock it left / right /
 bottom (which pushes your page over) or float it, toggle light/dark, or close it to the `◎`
 launcher. The launcher carries the comment count; one tap reopens the panel, and the chevron
@@ -123,8 +124,6 @@ import { init, connectTab } from "@loupekit/sdk";
 init({
   projectKey: "pk_live_…",
   user: { id: "u_1", name: "Ada" },
-  repo: "acme/web",
-  repos: ["acme/web", "acme/api"],          // powers the panel's repo picker
   environments: ["https://staging.acme.test"],
   tabs: [
     connectTab(),                            // the Claude/MCP page, now opt-in
@@ -155,8 +154,10 @@ trackActivity({ kind: "Read", label: "Read src/app.ts", files: ["src/app.ts"] })
 trackActivity({ kind: "Bash", label: "pnpm test", detail: "exit 1", level: "error" });
 ```
 
-Loupe's own operations feed the same stream, so the view is never empty. With nothing connected it
-says *Monitor unavailable* and explains how to wire it up.
+Loupe's own operations feed the same stream. When the backend serves `GET v1/activity` (the
+Laravel package does), the panel reads it on start and polls it every 15 seconds while the view is
+open, and shows "Live" or "Offline" beside the status dot. With no feed and nothing connected the
+view says *Monitor unavailable* and explains how to wire it up.
 
 ### Reviewing a change
 
@@ -264,6 +265,7 @@ and reordered, yet the pin follows it:
 | `timeZone` | `string` | IANA time zone every timestamp is rendered in (e.g. `"Africa/Cairo"`). Defaults to the browser's. |
 | `locale` | `string` | BCP 47 locale for dates (e.g. `"en-GB"` for day-first). Defaults to the browser's. |
 | `packageVersion` | `string` | Version of the host package that served this bundle (`Loupe.version` is the bundle's own). Flagged in the widget when the two differ. |
+| `chat` | `boolean` | Turn on the experimental Chat page. Off by default: the tab shows dimmed and does not open. |
 
 ## Redaction
 
@@ -291,6 +293,9 @@ interface StorageAdapter {
   save(comment: Comment): Promise<Comment>;
   update(id: string, patch: Partial<Comment>): Promise<void>;
   remove(id: string): Promise<void>;
+  // Optional. Return null when the backend has no such endpoint.
+  getOrg?(): Promise<OrgInfo | null>;
+  listActivity?(projectKey: string, since?: string): Promise<ActivityEvent[] | null>;
 }
 ```
 

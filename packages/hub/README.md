@@ -3,12 +3,17 @@
 A minimal hosted service that sits between Loupe installs and your team's tools:
 
 1. **Dashboard** (Google sign-in). Create **organizations**, add **allowed members** (Google
-   emails and/or one email domain such as `acme.com`), and create **projects**. Each project
-   gets a **Project ID** (`prj_…`), a **Project Secret** (`psk_…`), a **webhook URL** and a
-   **webhook signing secret** (`whs_…`).
+   emails and/or one email domain such as `acme.com`), and create one **project** per app.
+   Each project gets a **Project ID** (`prj_…`) and a **Project Secret** (`psk_…`). It can
+   also have an **Inbound URL** (where it receives tickets), a **Send tickets to** project
+   in the same organization, and an optional **webhook URL** with its signing secret
+   (`whs_…`). The project page shows the three `.env` names the app needs.
 2. **Ingest API.** `POST /v1/issues` accepts an issue from a Loupe install, checks the
    request signature, checks that the submitting user belongs to the organization, and
-   forwards the issue to the project's webhook, signed.
+   sends the issue on: to the destination project's Inbound URL if one is set, else to the
+   project's webhook, else nowhere.
+3. **Projects API.** `GET /v1/projects` tells an install its organization and the
+   organization's other projects, so the widget can show them.
 
 Node 24 native TypeScript (`node index.ts`), `node:http`, Postgres (PGlite locally and in
 tests, `DATABASE_URL` in production). Server-rendered HTML, no framework.
@@ -62,7 +67,7 @@ X-Loupe-Signature: hex(HMAC-SHA256(timestamp + "." + rawBody, project_secret))
 
 | Status | Body | When |
 | --- | --- | --- |
-| `202` | `{ id, delivery: "ok" \| "failed" }` | Accepted. `id` is the delivery id. |
+| `202` | `{ id, delivery: "ok" \| "failed" \| "none", destination?: { id, name } }` | Accepted. `id` is the delivery id. `none` means the project has no destination and no webhook. `destination` is set when Hub sent the issue to another project. |
 | `400` | `{ error }` | Invalid JSON, missing `user.email` or `issue.id`. |
 | `401` | `{ error }` | Missing headers, bad signature, timestamp more than 5 minutes off. |
 | `403` | `{ error: "user not in organization" }` | Email is not a member and not on the allowed domain. |
@@ -84,18 +89,52 @@ curl -sS "$HUB/v1/issues" -H 'Content-Type: application/json' \
   --data "$BODY"
 ```
 
-## Webhook delivery
+## Projects API
 
-Hub POSTs this JSON to the project's webhook URL:
-
-```json
-{ "project_id": "prj_…", "organization_id": "org_…", "user": { "email": "…", "name": "…" },
-  "issue": { … }, "received_at": "2026-09-23T13:58:37.240Z" }
+```
+GET /v1/projects
+X-Loupe-Project:   prj_…
+X-Loupe-Timestamp: <unix seconds>
+X-Loupe-Signature: hex(HMAC-SHA256(timestamp + ".", project_secret))   # empty body
 ```
 
+```json
+{ "organization": { "id": "org_…", "name": "Acme" },
+  "project": { "id": "prj_…", "name": "Shop", "destination": { "id": "prj_…", "name": "Support" }, "receives": false },
+  "projects": [ { "id": "prj_…", "name": "Support", "receives": true, "isDestination": true } ] }
+```
+
+`projects` lists the organization's other projects. `receives` is true when a project has an
+Inbound URL. The answer never carries secrets or URLs. Auth failures answer `401`, an unknown
+project `404`.
+
+## Delivery
+
+Hub sends the same JSON to a destination project or to a webhook:
+
+```json
+{ "project_id": "prj_…", "organization_id": "org_…",
+  "source": { "project_id": "prj_…", "project_name": "Shop", "organization_id": "org_…", "organization_name": "Acme" },
+  "user": { "email": "…", "name": "…" }, "issue": { … }, "received_at": "2026-09-23T13:58:37.240Z" }
+```
+
+Routing, in order:
+
+1. **Destination project.** When the project has a **Send tickets to** project and that
+   project has an Inbound URL, Hub POSTs to that URL. It signs with the **destination's own
+   Project Secret**, the `psk_…` its app already holds, and adds
+   `X-Loupe-Hub-Project: <destination id>`. The Laravel package's
+   `POST {path}/v1/hub/inbound` verifies this out of the box.
+2. **Webhook.** Otherwise, when the project has a webhook URL, Hub POSTs there signed with
+   the webhook secret.
+3. **Nowhere.** Otherwise ingest answers `delivery: "none"`.
+
+A destination must be in the same organization, must not be the project itself, and must
+have an Inbound URL. The dashboard refuses anything else.
+
 Headers: `X-Loupe-Hub-Timestamp`, `X-Loupe-Hub-Signature =
-hex(HMAC-SHA256(timestamp + "." + rawBody, webhook_secret))` and `X-Loupe-Hub-Delivery`.
-Verify the signature over the **raw** body and reject timestamps more than 5 minutes old.
+hex(HMAC-SHA256(timestamp + "." + rawBody, secret))` and `X-Loupe-Hub-Delivery`. Verify the
+signature over the **raw** body and reject timestamps more than 5 minutes old.
 `tools/webhook-receiver.ts` is a working reference.
 
 Any 2xx is success. A non-2xx reply, a network error or the 10 s timeout is retried after

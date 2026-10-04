@@ -95,8 +95,9 @@ sequenceDiagram
 
 ## Loupe Hub (optional)
 
-`packages/hub` (`@loupekit/hub`, private) is a small hosted service that forwards new issues
-to a per-project webhook, after checking the author belongs to the project's organization.
+`packages/hub` (`@loupekit/hub`, private) is a small hosted service. It checks that an issue's
+author belongs to the project's organization, then sends the issue to another project in the
+same organization or to a per-project webhook.
 
 - **Dashboard:** Google sign-in (ID token verified server side: `aud`, `email_verified`).
   A session cookie (HttpOnly, Secure, SameSite=Lax, HMAC-signed) plus an Origin check guard
@@ -105,27 +106,42 @@ to a per-project webhook, after checking the author belongs to the project's org
 - **Ingest:** `POST /v1/issues` with `X-Loupe-Project`, `X-Loupe-Timestamp` and
   `X-Loupe-Signature = hex(HMAC-SHA256(timestamp + "." + rawBody, project_secret))`
   (±5 min, constant-time compare). The submitter's email must be an org member or on the
-  org's `allowed_domain`, else `403`. The issue is forwarded signed with the webhook secret
-  (`X-Loupe-Hub-Signature`), 10 s timeout, 3 attempts (1 s, 4 s backoff), and logged in
-  `deliveries`.
+  org's `allowed_domain`, else `403`.
+- **Routing:** the destination project first (its Inbound URL, signed with the destination's
+  own project secret, plus `X-Loupe-Hub-Project`), else the webhook (signed with the webhook
+  secret), else `delivery: "none"`. 10 s timeout, 3 attempts (1 s, 4 s backoff), logged in
+  `deliveries` with the destination project id.
+- **Projects API:** `GET /v1/projects`, signed like ingest over an empty body, returns the
+  organization and its projects without secrets or URLs.
 - **Laravel:** with `LOUPE_HUB_URL` + `LOUPE_PROJECT_ID` + `LOUPE_PROJECT_SECRET` set,
   every new comment dispatches `SendToHub` (queued; after-response on the sync queue).
-  Failures are logged and never block comment creation.
+  Failures are logged and never block comment creation. The result is stored on the comment
+  as `forwarded`. The package also receives at `POST {path}/v1/hub/inbound`
+  (`VerifyHubSignature`, fail-closed), stores the ticket with a `source`, and fires
+  `TicketReceived`. It records activity in `loupe_activity` for the panel.
 
 ```mermaid
 sequenceDiagram
   participant App as Laravel app
   participant Hub as Loupe Hub
   participant PG as Hub Postgres
+  participant Dest as Destination app
   participant WH as Project webhook
   App->>Hub: POST /v1/issues {user.email, issue}  [project HMAC]
   Hub->>PG: project + org membership
   alt not in org
     Hub-->>App: 403 user not in organization
-  else member / allowed domain
-    Hub->>WH: POST {project_id, organization_id, user, issue, received_at}  [webhook HMAC]
+  else destination project with an Inbound URL
+    Hub->>Dest: POST /loupe/v1/hub/inbound {source, user, issue}  [destination's project HMAC]
+    Dest->>Dest: store comment, fire TicketReceived
+    Hub->>PG: INSERT deliveries
+    Hub-->>App: 202 {id, delivery, destination}
+  else webhook URL
+    Hub->>WH: POST {project_id, organization_id, source, user, issue, received_at}  [webhook HMAC]
     Hub->>PG: INSERT deliveries
     Hub-->>App: 202 {id, delivery}
+  else neither
+    Hub-->>App: 202 {id, delivery: "none"}
   end
 ```
 
