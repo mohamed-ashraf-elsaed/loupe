@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Loupekit\Loupe\Jobs\SendToHub;
+use Loupekit\Loupe\Jobs\SendUpdateToHub;
 use Throwable;
 
 /**
@@ -114,8 +115,34 @@ class Hub
         if (is_string($user['name'] ?? null) && $user['name'] !== '') {
             $author['name'] = $user['name'];
         }
-        $job = new SendToHub($author, $issue);
+        // Where Hub sends this ticket's updates back to: this app's own receiver.
+        $replyUrl = null;
+        try {
+            $replyUrl = route('loupe.hub.inbound');
+        } catch (Throwable) {
+            // Routes disabled: the ticket still goes, it just hears nothing back.
+        }
 
+        static::dispatch(new SendToHub($author, $issue, $replyUrl));
+    }
+
+    /**
+     * Queue a SendUpdateToHub job: a status change or a reply on a ticket that
+     * another project also holds. Same dispatch rules as forward(). Never throws.
+     *
+     * @param  array<string, mixed>  $update
+     */
+    public static function sendUpdate(string $issueId, array $update): void
+    {
+        if (! static::enabled()) {
+            return;
+        }
+
+        static::dispatch(new SendUpdateToHub($issueId, $update));
+    }
+
+    private static function dispatch(object $job): void
+    {
         try {
             if (config('queue.default', 'sync') === 'sync') {
                 Bus::dispatchAfterResponse($job);

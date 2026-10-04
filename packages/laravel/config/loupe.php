@@ -133,6 +133,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Who can be @mentioned
+    |--------------------------------------------------------------------------
+    | The widget's mention list (GET {path}/v1/people). By default: the users of
+    | each guard in `guards` whose email is in `allowed_emails`, plus everyone who
+    | has already written in this project's threads. A class-string resolved
+    | through the container and called with no arguments replaces that; it returns
+    | a list of ['id' => …, 'name' => …, 'email' => …], ids as describeUser() gives them.
+    */
+    'people_resolver' => null,
+
+    'allowed_emails' => array_values(array_filter(array_map(
+        fn ($email) => strtolower(trim($email)),
+        explode(',', (string) env('LOUPE_ALLOWED_EMAILS', ''))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Time zone & locale for the widget
     |--------------------------------------------------------------------------
     | Every timestamp the widget shows ("who raised this, and when") is rendered

@@ -6,7 +6,10 @@ use Loupekit\Loupe\Http\Controllers\BlobController;
 use Loupekit\Loupe\Http\Controllers\CommentController;
 use Loupekit\Loupe\Http\Controllers\DashboardController;
 use Loupekit\Loupe\Http\Controllers\InboundTicketController;
+use Loupekit\Loupe\Http\Controllers\NotificationController;
 use Loupekit\Loupe\Http\Controllers\OrganizationController;
+use Loupekit\Loupe\Http\Controllers\PeopleController;
+use Loupekit\Loupe\Http\Controllers\ThreadController;
 use Loupekit\Loupe\Http\Middleware\VerifyHubSignature;
 
 // Screenshots are referenced by <img> and identified by an unguessable UUID, so
@@ -30,6 +33,13 @@ Route::middleware(array_merge(config('loupe.middleware.api', ['web', 'auth']), [
         Route::post('v1/blobs', [BlobController::class, 'store'])->name('loupe.blobs.store');
         Route::get('v1/org', OrganizationController::class)->name('loupe.org');
         Route::get('v1/activity', [ActivityController::class, 'index'])->name('loupe.activity.index');
+        Route::get('v1/comments/{id}/messages', [ThreadController::class, 'index'])->name('loupe.messages.index');
+        Route::post('v1/comments/{id}/messages', [ThreadController::class, 'store'])->name('loupe.messages.store');
+        Route::get('v1/comments/{id}/reactions', [ThreadController::class, 'reactions'])->name('loupe.reactions.index');
+        Route::post('v1/comments/{id}/messages/{messageId}/reactions', [ThreadController::class, 'toggleReaction'])->name('loupe.reactions.toggle');
+        Route::get('v1/people', PeopleController::class)->name('loupe.people');
+        Route::get('v1/notifications', [NotificationController::class, 'index'])->name('loupe.notifications.index');
+        Route::post('v1/notifications/read', [NotificationController::class, 'read'])->name('loupe.notifications.read');
     });
 
 // The triage dashboard (human back-office).

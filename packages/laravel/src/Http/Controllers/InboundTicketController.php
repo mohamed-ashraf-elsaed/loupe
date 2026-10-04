@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Event;
 use Loupekit\Loupe\Events\TicketReceived;
 use Loupekit\Loupe\Support\ActivityLog;
 use Loupekit\Loupe\Support\Columns;
+use Loupekit\Loupe\Support\Relay;
 use Loupekit\Loupe\Support\Stages;
 use Loupekit\Loupe\Support\Triage;
 use Throwable;
@@ -31,6 +32,9 @@ class InboundTicketController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
+        if (is_array($data) && ($data['type'] ?? null) === 'update') {
+            return $this->update($data);
+        }
         $issue = is_array($data) ? ($data['issue'] ?? null) : null;
         $user = is_array($data) ? ($data['user'] ?? null) : null;
         $src = is_array($data) ? ($data['source'] ?? null) : null;
@@ -113,6 +117,42 @@ class InboundTicketController extends Controller
         );
 
         return response()->json(['ticket' => $comment->getKey()], 202);
+    }
+
+    /**
+     * An update for a ticket this app already holds: its status in the project that
+     * received it, or a reply written in the other project. See {@see Relay}.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function update(array $data): JsonResponse
+    {
+        $issueId = $data['issue_id'] ?? null;
+        $update = $data['update'] ?? null;
+        $from = $data['from'] ?? null;
+        if (! is_string($issueId) || $issueId === '' || ! is_array($update) || ! is_array($from) || ! is_string($from['project_id'] ?? null) || $from['project_id'] === '') {
+            return response()->json(['error' => 'issue_id, update and from.project_id required'], 422);
+        }
+        $kind = $update['kind'] ?? null;
+        if ($kind === 'status') {
+            if (! is_string($update['status'] ?? null) || ! Stages::known($update['status'])) {
+                return response()->json(['error' => 'update.status must be a board stage'], 422);
+            }
+        } elseif ($kind === 'message') {
+            $m = $update['message'] ?? null;
+            if (! is_array($m) || ! is_string($m['id'] ?? null) || $m['id'] === '' || strlen($m['id']) > 191 || ! is_string($m['body'] ?? null) || trim($m['body']) === '') {
+                return response()->json(['error' => 'update.message needs id and body'], 422);
+            }
+        } else {
+            return response()->json(['error' => 'update.kind must be status or message'], 422);
+        }
+
+        $comment = $this->model()->newQuery()->find($issueId);
+        if ($comment === null) {
+            return response()->json(['error' => 'unknown ticket'], 404);
+        }
+
+        return response()->json(Relay::receive($comment, $update, $from), 202);
     }
 
     private function str(mixed $value): ?string

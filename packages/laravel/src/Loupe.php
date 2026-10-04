@@ -7,6 +7,8 @@ use Composer\InstalledVersions;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Loupekit\Loupe\Models\Message;
+use Loupekit\Loupe\Support\Relay;
 
 /**
  * The authorization brain. Decides who may use the widget and who may see the
@@ -115,6 +117,43 @@ class Loupe
             'name' => $this->attr($user, 'name') ?? $this->attr($user, 'email') ?? 'User',
             'email' => $this->attr($user, 'email'),
         ];
+    }
+
+    /**
+     * Words for the next status update of a ticket another project filed: the host's
+     * own label for the state ("Ready for testing"), its reference ("CT-1405") and a
+     * link. Call it just before saving the new status; the update sent to the other
+     * project carries them, and that project shows them on the ticket's chip.
+     */
+    public function describeTicket(string $commentId, ?string $label = null, ?string $reference = null, ?string $url = null): void
+    {
+        Relay::describe($commentId, $label, $reference, $url);
+    }
+
+    /**
+     * Add a reply to a thread from host code (a comment written in the host's own
+     * tracker, say). Fires MessageAdded, and the reply reaches the other project
+     * when the ticket is shared through Loupe Hub.
+     *
+     * @param  array{id: string, name: string, email?: ?string}  $author
+     * @param  list<array<string, mixed>>|null  $attachments
+     */
+    public function reply(string $commentId, array $author, string $body, ?array $attachments = null): Message
+    {
+        $message = new Message;
+        $message->forceFill([
+            'comment_id' => $commentId,
+            'author' => array_filter([
+                'id' => (string) $author['id'],
+                'name' => (string) $author['name'],
+                'email' => $author['email'] ?? null,
+                'type' => 'user',
+            ], fn ($v) => $v !== null && $v !== ''),
+            'body' => $body,
+            'attachments' => $attachments ?: null,
+        ])->save();
+
+        return $message;
     }
 
     /**

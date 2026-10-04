@@ -3,14 +3,24 @@
 namespace Loupekit\Loupe;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Loupekit\Loupe\Console\InstallCommand;
+use Loupekit\Loupe\Events\CommentCreated;
+use Loupekit\Loupe\Events\CommentDeleted;
+use Loupekit\Loupe\Events\CommentStatusChanged;
+use Loupekit\Loupe\Events\MessageAdded;
 use Loupekit\Loupe\Http\Middleware\Authenticate;
 use Loupekit\Loupe\Http\Middleware\Authorize;
+use Loupekit\Loupe\Models\Comment;
+use Loupekit\Loupe\Models\Message;
+use Loupekit\Loupe\Support\Relay;
+use Loupekit\Loupe\Support\Stages;
 use Loupekit\Loupe\Support\Url;
 
 class LoupeServiceProvider extends ServiceProvider
@@ -27,6 +37,7 @@ class LoupeServiceProvider extends ServiceProvider
         $this->registerMiddleware();
         $this->registerGates();
         $this->registerRoutes();
+        $this->registerModelEvents();
         $this->registerMcp();
 
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'loupe');
@@ -74,6 +85,38 @@ class LoupeServiceProvider extends ServiceProvider
         ], function () {
             $this->loadRoutesFrom(__DIR__.'/../routes/loupe.php');
         });
+    }
+
+    /**
+     * Turn model writes into Loupe events, so they fire however the row was
+     * written: the widget, the dashboard, MCP, a Hub delivery or the host app
+     * saving the model itself. Then relay the ones another project cares about.
+     */
+    private function registerModelEvents(): void
+    {
+        $class = config('loupe.comment_model', Comment::class);
+
+        Event::listen('eloquent.created: '.$class, fn (Model $comment) => event(new CommentCreated($comment)));
+        Event::listen('eloquent.deleted: '.$class, fn (Model $comment) => event(new CommentDeleted($comment)));
+        Event::listen('eloquent.updated: '.$class, function (Model $comment) {
+            if (! $comment->wasChanged('status')) {
+                return;
+            }
+            $from = Stages::normalize($comment->getOriginal('status'));
+            $to = Stages::normalize($comment->status);
+            if ($from !== $to) {
+                event(new CommentStatusChanged($comment, $from, $to));
+            }
+        });
+        Event::listen('eloquent.created: '.Message::class, function (Message $message) use ($class) {
+            $comment = (new $class)->newQuery()->find($message->comment_id);
+            if ($comment !== null) {
+                event(new MessageAdded($comment, $message));
+            }
+        });
+
+        Event::listen(CommentStatusChanged::class, [Relay::class, 'statusChanged']);
+        Event::listen(MessageAdded::class, [Relay::class, 'messageAdded']);
     }
 
     private function registerMcp(): void

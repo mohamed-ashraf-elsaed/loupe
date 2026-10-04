@@ -166,6 +166,11 @@ class CommentController extends Controller
             return response()->json(['error' => 'not found'], 404);
         }
 
+        // A status nobody knows is a mistake to refuse, not a reason to reopen the ticket.
+        if ($request->has('status') && ! Stages::known($request->input('status'))) {
+            return response()->json(['error' => 'unknown status; use one of '.implode(', ', Stages::ORDER)], 422);
+        }
+
         $patch = [];
         foreach (['status', 'title', 'body', 'proposal', 'pr'] as $field) {
             if ($request->has($field)) {
@@ -211,6 +216,13 @@ class CommentController extends Controller
             ->find($id);
 
         if ($comment !== null) {
+            // Only the author deletes their own comment; a dashboard admin deletes any.
+            $user = $loupe->resolveUser();
+            $me = $user === null ? '' : (string) ($loupe->describeUser($user)['id'] ?? '');
+            $mine = $me !== '' && ((string) $comment->author_id === $me || (string) data_get($comment->author, 'id') === $me);
+            if (! $mine && ! $loupe->authorizedForDashboard($user)) {
+                return response()->json(['error' => 'only the author or an admin can delete this'], 403);
+            }
             $title = $this->titleOf($comment->toLoupeArray());
             $comment->delete();
             $actor = $this->actor($loupe);

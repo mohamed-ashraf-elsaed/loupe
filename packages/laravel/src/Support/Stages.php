@@ -52,6 +52,12 @@ final class Stages
         return 'queue';
     }
 
+    /** Whether `$value` is a board stage or a legacy alias of one. Anything else is a mistake to refuse. */
+    public static function known(mixed $value): bool
+    {
+        return is_string($value) && (in_array($value, self::ORDER, true) || array_key_exists($value, self::LEGACY));
+    }
+
     /** Whether a comment is still open work (everything except `resolved`). */
     public static function isOpen(string $stage): bool
     {

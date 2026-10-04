@@ -37,12 +37,17 @@ class SendToHub implements ShouldQueue
      * @param  array{email: string, name?: string}  $user
      * @param  array<string, mixed>  $issue  the canonical Loupe comment shape
      */
-    public function __construct(public array $user, public array $issue) {}
+    public function __construct(public array $user, public array $issue, public ?string $replyUrl = null) {}
 
     public function handle(): void
     {
         try {
-            $body = json_encode(['user' => $this->user, 'issue' => $this->issue], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            $payload = ['user' => $this->user, 'issue' => $this->issue];
+            if ($this->replyUrl !== null) {
+                // Where Hub delivers this ticket's status changes and replies back to.
+                $payload['reply_url'] = $this->replyUrl;
+            }
+            $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
             $timestamp = (string) time();
 
             $response = Http::timeout(self::TIMEOUT_SECONDS)

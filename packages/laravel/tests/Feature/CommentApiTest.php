@@ -340,6 +340,32 @@ class CommentApiTest extends TestCase
         $this->assertDatabaseMissing('loupe_comments', ['id' => 'c1']);
     }
 
+    public function test_an_unknown_status_is_refused_not_coerced_to_the_queue(): void
+    {
+        $this->actingAsAllowed();
+        $this->seedComment('c1', ['status' => 'in_progress']);
+
+        $this->patchJson('/loupe/v1/comments/c1', ['status' => 'shipped'])->assertStatus(422);
+        $this->patchJson('/loupe/v1/comments/c1', ['status' => null])->assertStatus(422);
+        $this->assertSame('in_progress', \Loupekit\Loupe\Models\Comment::query()->find('c1')->status);
+        // Legacy aliases are still accepted.
+        $this->patchJson('/loupe/v1/comments/c1', ['status' => 'done'])->assertOk();
+    }
+
+    public function test_only_the_author_or_an_admin_deletes_a_comment(): void
+    {
+        $this->actingAsAllowed();
+        config()->set('loupe.authorize.dashboard', fn () => false);
+        $this->seedComment('theirs', ['author' => ['id' => 'someone-else', 'name' => 'X'], 'author_id' => 'someone-else']);
+
+        $this->deleteJson('/loupe/v1/comments/theirs')->assertForbidden();
+        $this->assertDatabaseHas('loupe_comments', ['id' => 'theirs']);
+
+        config()->set('loupe.authorize.dashboard', fn () => true);
+        $this->deleteJson('/loupe/v1/comments/theirs')->assertNoContent();
+        $this->assertDatabaseMissing('loupe_comments', ['id' => 'theirs']);
+    }
+
     public function test_delete_is_idempotent_for_missing_comments(): void
     {
         $this->actingAsAllowed();
