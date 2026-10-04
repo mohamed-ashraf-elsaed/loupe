@@ -2708,6 +2708,50 @@ describe("LoupeApp", () => {
     expect(sr().querySelectorAll(".pin").length).toBe(3);
   });
 
+  it("shows where a forwarded ticket stands in the project that received it", async () => {
+    const url = `${location.pathname}${location.search}`;
+    localStorage.setItem(keyFor(url), JSON.stringify([
+      seeded({
+        id: "r1", title: "Linked", url,
+        forwarded: { status: "ok", destinationName: "Converted OS",
+          remote: { status: "in_progress", label: "In progress", reference: "CT-1405", url: "https://crm.test/t/1405", at: "2026-10-04T10:00:00.000Z" } },
+      }),
+      seeded({ id: "r2", title: "Bare", url, forwarded: { status: "ok", destinationName: "Converted OS", remote: { status: "resolved" } } }),
+      seeded({ id: "r3", title: "Unsafe", url, forwarded: { status: "ok", destinationName: "OS", remote: { status: "todo", url: "javascript:alert(1)" } } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+
+    const chips = [...sr().querySelectorAll<HTMLElement>(".item .fwdchip")];
+    expect(chips.map((c) => c.textContent)).toEqual(["→ Converted OS · CT-1405 · In progress", "→ Converted OS · Resolved", "→ OS · To Do"]);
+    expect(chips[0]!.tagName).toBe("A");
+    expect((chips[0] as HTMLAnchorElement).href).toBe("https://crm.test/t/1405");
+    expect(chips[0]!.classList.contains("st-in_progress")).toBe(true);
+    expect(chips[0]!.title).toMatch(/^Converted OS: In progress — updated /);
+    expect(chips[1]!.tagName).toBe("SPAN");
+    expect(chips[1]!.title).toBe("Converted OS: Resolved");
+    // A link from another project is only followed when it is http(s).
+    expect(chips[2]!.tagName).toBe("SPAN");
+  });
+
+  it("marks a reply that arrived from another project", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({ id: "t9", title: "Shared", createdAt: "2026-01-01T10:00:00.000Z" }),
+    ]));
+    localStorage.setItem("loupe:msgs:t9", JSON.stringify([
+      { id: "m1", threadId: "t9", author: { id: "hub:dev@os.test", name: "Dev", type: "user" }, body: "Fixed.", createdAt: "2026-01-01T11:00:00.000Z", origin: { projectId: "prj_os", projectName: "Converted OS" } },
+      { id: "m2", threadId: "t9", author: { id: "hub:x", name: "X", type: "user" }, body: "Ok.", createdAt: "2026-01-01T12:00:00.000Z", origin: { projectId: "prj_os" } },
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>(".item")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const tags = [...sr().querySelectorAll<HTMLElement>(".msg .msg-tag.origin")].map((t) => t.textContent);
+    expect(tags).toEqual(["from Converted OS", "from prj_os"]);
+  });
+
   it("does not initialize without projectKey or user id", () => {
     init({ projectKey: "", user: { id: "u", name: "U" } } as any);
     expect(document.getElementById("loupe-root")).toBeNull();

@@ -260,6 +260,25 @@ export interface TicketForward {
   destinationName?: string | null;
   error?: string;
   at?: string;
+  /**
+   * Where the ticket stands in the project that received it, as that project last
+   * reported through Loupe Hub. Absent until the receiver changes its status.
+   */
+  remote?: TicketRemoteState;
+}
+
+/** The receiving project's view of a forwarded ticket. */
+export interface TicketRemoteState {
+  /** The board stage this app mapped the receiver's state to. */
+  status: CommentStatus;
+  /** The receiver's own words for the state ("Ready for testing"). */
+  label?: string;
+  /** The receiver's reference for the ticket ("CT-1405"). */
+  reference?: string;
+  /** A link to the ticket in the receiver. */
+  url?: string;
+  projectName?: string;
+  at?: string;
 }
 
 /** A project in the organization, as Loupe Hub describes it. Never carries a secret. */

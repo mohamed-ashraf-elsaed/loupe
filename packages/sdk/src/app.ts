@@ -3263,9 +3263,26 @@ export class LoupeApp {
     if (fwd && fwd.status !== "none") {
       const where = fwd.destinationName || (fwd.status === "ok" ? "webhook" : "Hub");
       const ok = fwd.status === "ok";
-      const chip = el("span", ok ? "fwdchip" : "fwdchip bad", ok ? `→ ${where}` : `→ ${where} failed`);
-      chip.title = ok ? `Sent to ${where}` : `Could not send to ${where}${fwd.error ? `: ${fwd.error}` : ""}`;
-      top.appendChild(chip);
+      const remote = ok ? fwd.remote : undefined;
+      if (remote) {
+        // The receiver reported back: show where the ticket is over there.
+        const said = remote.label || STAGE_LABELS[normalizeStatus(remote.status)];
+        const text = [`→ ${where}`, remote.reference, said].filter(Boolean).join(" · ");
+        const link = remote.url && /^https?:\/\//i.test(remote.url) ? remote.url : null;
+        const chip = el(link ? "a" : "span", `fwdchip st-${normalizeStatus(remote.status)}`, text);
+        chip.title = `${where}: ${said}${remote.at ? ` — updated ${fmtAgo(remote.at)}` : ""}`;
+        if (link) {
+          (chip as HTMLAnchorElement).href = link;
+          chip.setAttribute("target", "_blank");
+          chip.setAttribute("rel", "noreferrer");
+          chip.addEventListener("click", (e) => e.stopPropagation());
+        }
+        top.appendChild(chip);
+      } else {
+        const chip = el("span", ok ? "fwdchip" : "fwdchip bad", ok ? `→ ${where}` : `→ ${where} failed`);
+        chip.title = ok ? `Sent to ${where}` : `Could not send to ${where}${fwd.error ? `: ${fwd.error}` : ""}`;
+        top.appendChild(chip);
+      }
     }
     if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
     else if (detached) {
@@ -3993,6 +4010,7 @@ export class LoupeApp {
       );
       (head.lastElementChild as HTMLElement).title = this.fmtWhen(m.createdAt);
       if (fromAgent) head.appendChild(el("span", "msg-tag", "agent"));
+      if (m.origin) head.appendChild(el("span", "msg-tag origin", `from ${m.origin.projectName || m.origin.projectId}`));
       // The body is rendered as segments so a mentioned name is highlightable — and
       // so the highlight lands on the right occurrence rather than the first.
       const body = el("div", "msg-body");

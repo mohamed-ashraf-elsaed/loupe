@@ -44,6 +44,8 @@ export interface ThreadMessage {
    * out for display; a caller that needs the record passes `includeDeleted`.
    */
   deletedAt?: string;
+  /** Set when the reply was written in another project and arrived through Loupe Hub. */
+  origin?: { projectId: string; projectName?: string };
 }
 
 /** A new message, before the store assigns an id. */

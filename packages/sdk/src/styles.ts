@@ -643,6 +643,12 @@ export const STYLES = /* css */ `
 }
 .fwdchip { border-color: var(--accent); color: var(--accent); }
 .fwdchip.bad { border-color: #d9534f; color: #d9534f; }
+a.fwdchip { text-decoration: none; cursor: pointer; }
+.fwdchip[class*="st-"] { max-width: 220px; }
+.fwdchip.st-queue { border-color: var(--line); color: var(--muted); }
+.fwdchip.st-in_progress { border-color: #3f8ae0; color: #3f8ae0; }
+.fwdchip.st-in_review { border-color: #c98a1b; color: #c98a1b; }
+.fwdchip.st-resolved { border-color: #2f9e6a; color: #2f9e6a; }
 
 /* ------------------------------------------------ lifecycle chips + review flow */
 .lifechip {
