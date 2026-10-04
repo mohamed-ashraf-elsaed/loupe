@@ -91,6 +91,16 @@ class McpToolsTest extends TestCase
         $this->assertSame(2, $main['count']);
     }
 
+    public function test_list_comments_reports_where_a_ticket_came_from_and_went(): void
+    {
+        $this->seedComment('in', ['url' => '/p', 'source' => ['projectId' => 'prj_shop', 'projectName' => 'Shop']]);
+        $this->seedComment('out', ['url' => '/q', 'forwarded' => ['status' => 'ok', 'destinationName' => 'CRM']]);
+
+        $rows = collect(json_decode((string) (new ListComments)->handle(new Request)->content(), true)['comments'])->keyBy('id');
+        $this->assertSame(['Shop', null], [$rows['in']['from'], $rows['in']['sentTo']]);
+        $this->assertSame([null, 'CRM'], [$rows['out']['from'], $rows['out']['sentTo']]);
+    }
+
     public function test_list_comments_reports_the_region_target(): void
     {
         $this->seedComment('r', ['kind' => 'region', 'region' => ['x' => 1, 'y' => 2, 'w' => 30, 'h' => 40]]);

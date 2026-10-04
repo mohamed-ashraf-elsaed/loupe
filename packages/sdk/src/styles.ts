@@ -339,6 +339,8 @@ export const STYLES = /* css */ `
 }
 .tabs .tab:hover { color: var(--ink); background: var(--bg-2); }
 .tabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs .tab.off { opacity: .45; cursor: not-allowed; }
+.tabs .tab.off:hover { color: inherit; background: transparent; }
 
 /* Only the active page shows. Driven by an "on" class rather than a .tab-<id>
    selector, so host-registered tab ids need no CSS of their own. */
@@ -396,11 +398,6 @@ export const STYLES = /* css */ `
   padding: 1px 6px; border-radius: 999px; background: var(--bg-3); color: var(--muted);
   font-size: 10.5px; font-family: ui-monospace, Menlo, monospace;
   max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.listhead .reposel {
-  margin-left: 6px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line);
-  border-radius: 7px; background: var(--bg-2); color: var(--ink);
-  text-transform: none; letter-spacing: 0; max-width: 130px;
 }
 
 /* recording marker + video in the list */
@@ -515,6 +512,9 @@ export const STYLES = /* css */ `
 .activity-view { padding: 10px 12px 16px; }
 .mon-status { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .mon-spacer { flex: 1; }
+.mon-live { font-size: 10px; font-weight: 600; color: var(--muted); }
+.mon-live.live { color: #2f9e6a; }
+.mon-live.offline { color: #d9534f; }
 .mon-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .mon-status.st-working .mon-dot { background: var(--accent); animation: loupe-pulse 1.4s ease-in-out infinite; }
 .mon-status.st-error .mon-dot { background: var(--pin); }
@@ -578,8 +578,7 @@ export const STYLES = /* css */ `
   color: var(--ink); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace; cursor: pointer;
 }
 .proj-chip:hover { border-color: var(--accent); }
-.proj-chip .proj-repo { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-.proj-chip.unset .proj-repo { color: var(--muted); font-style: italic; }
+.proj-chip .proj-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .proj-caret { color: var(--muted); font-family: inherit; }
 .proj-pop {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 25;
@@ -592,19 +591,17 @@ export const STYLES = /* css */ `
 .pp-x:hover { background: var(--bg-3); color: var(--ink); }
 .pp-cur { margin-bottom: 8px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .pp-cur b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; }
-.pp-search {
-  width: 100%; margin-bottom: 6px; padding: 6px 8px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 12px;
-}
-.pp-search:focus { outline: none; border-color: var(--accent); }
 .pp-list { display: flex; flex-direction: column; gap: 2px; max-height: 30vh; overflow-y: auto; }
-.pp-item {
-  padding: 6px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent;
-  color: var(--ink); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace;
-  text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.pp-proj {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid transparent;
+  border-radius: 7px; font-size: 11.5px; color: var(--ink);
 }
-.pp-item:hover { background: var(--bg-3); }
-.pp-item.on { border-color: var(--accent); color: var(--accent); }
+.pp-proj.on { border-color: var(--accent); }
+.pp-proj-n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-badge {
+  flex: none; padding: 1px 6px; border-radius: 999px; background: var(--bg-3);
+  color: var(--muted); font-size: 10px; white-space: nowrap;
+}
 .pp-empty { padding: 8px 6px; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .pp-empty code { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
 .pp-clear {
@@ -637,6 +634,15 @@ export const STYLES = /* css */ `
 .menu-mode { text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
 /* The host package's version, shown only when it differs from this bundle's (a stale publish). */
 .ver-stale { color: var(--pin); font-family: ui-monospace, Menlo, monospace; font-weight: 600; cursor: help; }
+
+/* ------------------------------------------------ tickets between projects */
+.srcchip, .fwdchip {
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap; font-size: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+}
+.fwdchip { border-color: var(--accent); color: var(--accent); }
+.fwdchip.bad { border-color: #d9534f; color: #d9534f; }
 
 /* ------------------------------------------------ lifecycle chips + review flow */
 .lifechip {

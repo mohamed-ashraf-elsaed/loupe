@@ -238,6 +238,56 @@ export function deviceType(width: number): DeviceType {
   return "desktop";
 }
 
+/** Where a ticket came from, when another project in the organization sent it. */
+export interface TicketSource {
+  projectId: string;
+  projectName?: string | null;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  deliveryId?: string | null;
+  receivedAt?: string | null;
+  reporter?: { email: string; name?: string };
+}
+
+/** The outcome of sending a ticket to Loupe Hub. */
+export type TicketForwardStatus = "ok" | "none" | "failed" | "unknown" | "rejected" | "unreachable";
+
+export interface TicketForward {
+  status: TicketForwardStatus;
+  deliveryId?: string | null;
+  destinationProjectId?: string | null;
+  /** The project that received it. Null when Hub delivered to an external webhook. */
+  destinationName?: string | null;
+  error?: string;
+  at?: string;
+}
+
+/** A project in the organization, as Loupe Hub describes it. Never carries a secret. */
+export interface OrgProject {
+  id: string;
+  name: string;
+  /** The project has an inbound URL, so other projects can send it tickets. */
+  receives: boolean;
+  /** This is where the current project's tickets go. */
+  isDestination?: boolean;
+}
+
+/** The organization this project belongs to, read from Loupe Hub through the host app. */
+export interface OrgInfo {
+  /** Null when the app is not connected to Hub, or Hub could not be reached. */
+  organization: { id: string; name: string } | null;
+  project: {
+    id?: string;
+    key?: string;
+    name: string | null;
+    destination: { id: string; name: string } | null;
+    receives?: boolean;
+  };
+  /** The other projects in the organization. */
+  projects: OrgProject[];
+  error?: string;
+}
+
 export interface Comment {
   id: string;
   projectKey: string;
@@ -253,12 +303,16 @@ export interface Comment {
   /** Which part of the product it touches. Absent on older rows; defaults to "other". */
   changeType?: ChangeType;
   /**
-   * The repository this was filed against, when the host knows it (e.g.
-   * "org/repo"). Absent for a page that isn't linked to a repo yet.
+   * The repository this was filed against. The SDK stopped writing it in 0.12.0;
+   * older rows still carry it, so readers keep the field.
    */
   repo?: string;
-  /** The branch in play when the comment was made (e.g. "main", "feature/x"). */
+  /** The branch in play when the comment was made. Legacy, like `repo`. */
   branch?: string;
+  /** Set when another project in the organization sent this ticket here through Loupe Hub. */
+  source?: TicketSource;
+  /** What Loupe Hub did with this ticket after it was filed here. */
+  forwarded?: TicketForward;
   /** Defaults to "element" when absent (back-compat with pre-region comments). */
   kind?: CommentKind;
   anchor: Anchor;

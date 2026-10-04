@@ -60,7 +60,7 @@ import {
   withdraw as withdrawConsent,
 } from "./types.js";
 import type {
-  ActivityEvent, ActivityEventInput, ActivityStatus, Anchor, Attachment, ChangeType, Comment,
+  ActivityEvent, ActivityEventInput, ActivityStatus, Anchor, Attachment, ChangeType, Comment, OrgInfo,
   CommentPriority, ConsentRecord, IterationState, LocalAiConfig, LoupeConfig, RegionRect,
   ResolveResult, StorageAdapter, ThreadAuthor, ThreadMessage,
 } from "./types.js";
@@ -96,11 +96,11 @@ const TOUR: { sel: string; tab: Tab; title: string; body: string }[] = [
   { sel: ".hstat", tab: "home", title: "Home shows what needs you",
     body: "Four tiles count open, needs-you, resolved and stale feedback. Click one to narrow the list to that bucket." },
   { sel: ".hscope", tab: "home", title: "This page, or the whole project",
-    body: "Switch to All to see every page's feedback as a day-grouped timeline, with a repo filter." },
+    body: "Switch to All to see every page's feedback as a day-grouped timeline." },
   { sel: ".tools", tab: "comments", title: "Pin feedback anywhere",
     body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one." },
   { sel: '.tabs [data-tab="activity"]', tab: "activity", title: "Watch the work happen",
-    body: "Anything an agent bridge or your app reports lands here — with tool chips to filter it, and Loupe's own operations alongside." },
+    body: "Comments, status changes and forwarded tickets land here as they happen, with anything a bridge or your app reports. Tool chips filter it." },
   { sel: '.dctl [data-role="settings"]', tab: "activity", title: "Make it yours",
     body: "Accents, the visibility switches, and Restart tour all live here." },
 ];
@@ -284,9 +284,6 @@ export class LoupeApp {
   private allLoaded = false;
   /** A clicked stat tile, which narrows the list. */
   private statFilter: StatFilter = "";
-  /** Repo filter, offered once the scope is "all". */
-  private repoFilter = "";
-  private repoSel!: HTMLSelectElement;
   /** The Home overview container (stat tiles + activity), rebuilt on render. */
   private homeEl!: HTMLElement;
   /** Accent preset id (see ACCENTS), applied as inline --accent / --accent-soft. */
@@ -320,8 +317,17 @@ export class LoupeApp {
   private summaryOpen = false;
   private activityEl!: HTMLElement;
   private feedEl!: HTMLElement;
-  /** Per-browser project settings: a repo override and the environment URLs. */
-  private project: { repo?: string; environments: string[]; localAi?: LocalAiConfig } = { environments: [] };
+  /** Per-browser project settings: the environment URLs and the Local AI endpoint. */
+  private project: { environments: string[]; localAi?: LocalAiConfig } = { environments: [] };
+  /** The organization, read once from the backend. Null offline or before it loads. */
+  private org: OrgInfo | null = null;
+  /** Whether the server keeps an activity feed, and whether the last read reached it. */
+  private activityRemote: "unsupported" | "live" | "offline" = "unsupported";
+  /** Newest server event seen, so a poll asks only for what is new. */
+  private activitySince = "";
+  private activityPoll?: ReturnType<typeof setInterval>;
+  /** The backend answered that it keeps no feed, so the panel stops asking. */
+  private activityNone = false;
   /** Iteration history per thread — generating a change is a stack, not a one-shot. */
   private iterations = new Map<string, IterationState>();
   /** The thread whose generate pane is open, if any. */
@@ -338,13 +344,9 @@ export class LoupeApp {
   private voiceEl!: HTMLElement;
   /** The project manager popover, and its search box. */
   private projMenu!: HTMLElement;
-  private projSearch = "";
   private projOpen = false;
-  private projResults: string[] = [];
   private projError = "";
   private envDraft = "";
-  /** Guards against a slow repo search overwriting a newer one. */
-  private repoSeq = 0;
   /** Float-mode window geometry; (x<=0 && y<=0) → placed on first layout. */
   private floatRect = { x: 0, y: 0, w: 380, h: 540 };
   private floatDrag: { px: number; py: number; ox: number; oy: number } | null = null;
@@ -364,6 +366,9 @@ export class LoupeApp {
 
   private get url() { return location.pathname + location.search; }
 
+  /** Chat is experimental: the tab stays dimmed and inert unless the host opts in. */
+  private get chatOn() { return this.cfg.chat === true; }
+
   async start() {
     this.loadState();
     this.loadProject();
@@ -380,8 +385,12 @@ export class LoupeApp {
     this.renderHome();
     this.startPresence();
     this.startLiveThreads();
-    this.startCompanionStream();
+    // Chat is off unless the host opts in, and then nothing listens for replies either.
+    if (this.chatOn) this.startCompanionStream();
     void this.loadNotifications();
+    void this.loadOrg();
+    void this.loadActivity();
+    this.syncActivityPoll();
     // The project-wide list feeds the "All" chip's count as well as the All scope, so it
     // is read on every start rather than only once the scope is switched.
     void this.loadAllComments();
@@ -602,8 +611,13 @@ export class LoupeApp {
     this.tabList = [...BUILTIN_TABS, ...(this.cfg.tabs ?? []).map((t) => ({ id: t.id, label: t.label }))];
     const tabs = el("div", "tabs");
     for (const t of this.tabList) {
-      const b = el("button", "tab", t.label) as HTMLButtonElement;
+      const off = t.id === "chat" && !this.chatOn;
+      const b = el("button", off ? "tab off" : "tab", t.label) as HTMLButtonElement;
       b.dataset.tab = t.id;
+      if (off) {
+        b.setAttribute("aria-disabled", "true");
+        b.title = "Chat — coming soon";
+      }
       b.onclick = () => this.setTab(t.id);
       tabs.appendChild(b);
     }
@@ -654,13 +668,6 @@ export class LoupeApp {
     search.value = this.search;
     search.oninput = () => { this.search = search.value; this.renderList(); };
     listHead.appendChild(search);
-    // Repo filter — shown only in the project scope (see renderRepoFilter).
-    this.repoSel = el("select", "reposel") as HTMLSelectElement;
-    this.repoSel.title = "Filter by repository";
-    this.repoSel.setAttribute("aria-label", "Filter by repository");
-    this.repoSel.onchange = () => { this.repoFilter = this.repoSel.value; this.renderList(); };
-    this.repoSel.style.display = "none";
-    listHead.appendChild(this.repoSel);
     this.listEl = el("div", "list");
 
     // Home view = the overview surface the panel opens on.
@@ -817,6 +824,7 @@ export class LoupeApp {
 
   /** The Chat tab label carries the unread count, so it is visible from any page. */
   private updateChatBadge() {
+    if (!this.chatOn) return;
     const tab = this.tabList.findIndex((t) => t.id === "chat");
     const buttons = this.shadow?.querySelectorAll<HTMLElement>(".tabs .tab");
     const el2 = buttons?.[tab];
@@ -1144,6 +1152,7 @@ export class LoupeApp {
       `<div class="hint-slot" id="loupe-ahint"></div>` +
       `<div class="mon-status" id="loupe-mon-status">` +
       `<span class="mon-dot"></span><span class="mon-status-label"></span>` +
+      `<span class="mon-live" id="loupe-mon-live"></span>` +
       `<span class="mon-spacer"></span>` +
       `<button class="mon-clear" data-role="mon-clear" title="Clear the feed">Clear</button>` +
       `</div>` +
@@ -1201,6 +1210,58 @@ export class LoupeApp {
     this.renderActivity();
   }
 
+  /**
+   * Read the server's feed and merge it in by id. A backend without a feed answers
+   * null once, and the panel stops asking.
+   */
+  private async loadActivity() {
+    if (this.activityNone) return;
+    let events: ActivityEvent[] | null;
+    try {
+      const read = this.store.listActivity?.bind(this.store);
+      events = read ? await read(this.cfg.projectKey, this.activitySince || undefined) : null;
+    } catch {
+      if (this.activityRemote === "live") {
+        this.activityRemote = "offline";
+        this.renderActivity();
+      }
+      return;
+    }
+    if (events === null) {
+      // Remember the answer, so neither the poll nor a tab switch asks again.
+      this.activityRemote = "unsupported";
+      this.activityNone = true;
+      this.syncActivityPoll();
+      this.renderActivity();
+      return;
+    }
+    this.activityRemote = "live";
+    const known = new Set(this.activityEvents.map((e) => e.id));
+    const fresh = events.filter((e) => e && typeof e.id === "string" && !known.has(e.id));
+    if (fresh.length) {
+      this.activityEvents = [...this.activityEvents, ...fresh]
+        .sort((a, b) => a.at.localeCompare(b.at))
+        .slice(-500);
+      const newest = fresh.reduce((m, e) => (e.at > m ? e.at : m), this.activitySince);
+      this.activitySince = newest;
+      // A recent server-side error is worth the red dot; an old one is history.
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      if (fresh.some((e) => e.level === "error" && e.at >= tenMinutesAgo)) this.activityStatus = "error";
+    }
+    this.renderActivity();
+  }
+
+  /** Poll the server's feed every 15s, but only while the Activity view is on screen. */
+  private syncActivityPoll() {
+    const want = this.tab === "activity" && !this.activityNone && !!this.store.listActivity;
+    if (want && !this.activityPoll) {
+      this.activityPoll = setInterval(() => void this.loadActivity(), 15_000);
+    } else if (!want && this.activityPoll) {
+      clearInterval(this.activityPoll);
+      this.activityPoll = undefined;
+    }
+  }
+
   /** The summary, status row, micro-stats and chips — derived, never stored. */
   private renderActivityChrome() {
     if (!this.activityEl) return;
@@ -1212,6 +1273,11 @@ export class LoupeApp {
 
     status.querySelector(".mon-status-label")!.textContent = ACTIVITY_STATUS_LABELS[s.status];
     status.className = `mon-status st-${s.status}`;
+    const live = status.querySelector("#loupe-mon-live") as HTMLElement | null;
+    if (live) {
+      live.textContent = this.activityRemote === "live" ? "Live" : this.activityRemote === "offline" ? "Offline" : "";
+      live.className = `mon-live ${this.activityRemote}`;
+    }
 
     const summary = this.activityEl.querySelector("#loupe-mon-summary") as HTMLElement;
     if (!s.events) {
@@ -1287,6 +1353,8 @@ export class LoupeApp {
         `<div class="mon-empty">` +
         (this.activityEvents.length
           ? `Nothing from <b>${escapeHtml(this.activityFilter)}</b> yet.`
+          : this.activityRemote === "live"
+          ? `No activity yet. Comments, status changes and forwarded tickets appear here.`
           : `<b>Monitor unavailable.</b> Nothing is feeding this view yet.<br>` +
             `A bridge or your app can push events with <code>Loupe.trackActivity({ kind, label })</code>, ` +
             `and Loupe reports its own operations here as you work.`) +
@@ -1326,7 +1394,7 @@ export class LoupeApp {
       `<div class="projbar">` +
       `<span class="proj-label">Project</span>` +
       `<button class="proj-chip" data-role="proj-open" aria-haspopup="dialog" aria-expanded="false">` +
-      `<span class="proj-repo"></span><span class="proj-caret">▾</span></button>` +
+      `<span class="proj-name"></span><span class="proj-caret">▾</span></button>` +
       // The popover lives INSIDE .projbar: absolute positioning resolves against the
       // nearest positioned ancestor, and as a sibling it anchored to the panel
       // instead — landing off the bottom of the view.
@@ -1525,70 +1593,52 @@ export class LoupeApp {
 
   // ---- project manager (#60) ------------------------------------------------
 
-  /** The repo new comments are filed against: the panel's choice, else the config. */
-  private effectiveRepo(): string | undefined {
-    return this.project.repo || this.cfg.repo || undefined;
-  }
-
   private setProjectOpen(open: boolean) {
     this.projOpen = open;
     this.projError = "";
-    if (open) { this.projSearch = ""; void this.refreshRepos(); }
     this.renderProject();
   }
 
-  /** Repositories to offer — a fixed list, or the host's search function. */
-  private async repoChoices(): Promise<string[]> {
-    const source = this.cfg.repos;
-    if (!source) return [];
-    if (Array.isArray(source)) {
-      const q = this.projSearch.trim().toLowerCase();
-      const all = q ? source.filter((r) => r.toLowerCase().includes(q)) : source;
-      return all.slice(0, 50);
-    }
+  /** Read the organization once. A backend without the endpoint, or offline mode, leaves it null. */
+  private async loadOrg() {
     try {
-      const out = await source(this.projSearch);
-      return (Array.isArray(out) ? out : []).slice(0, 50);
-    } catch (e) {
-      this.projError = e instanceof Error ? e.message : "Could not load repositories.";
-      return [];
+      this.org = (await this.store.getOrg?.()) ?? null;
+    } catch {
+      this.org = null;
     }
+    this.renderProject();
   }
 
-  /**
-   * Re-run the repo search. The sequence guard matters: typing fires overlapping
-   * requests, and without it a slow early reply would overwrite a newer one.
-   */
-  private async refreshRepos() {
-    this.projError = "";
-    const seq = ++this.repoSeq;
-    const out = await this.repoChoices();
-    if (seq !== this.repoSeq) return;
-    this.projResults = out;
-    this.renderRepoList();
-    this.renderProjectError();
+  /** "Project · Organization", or the project key when there is no organization to show. */
+  private projectLabel(): string {
+    const org = this.org;
+    const name = org?.project.name || this.cfg.projectKey;
+    return org?.organization ? `${name} · ${org.organization.name}` : name;
   }
 
-  /** Only the list is rewritten on search, so the input keeps focus while typing. */
-  private renderRepoList() {
-    const list = this.homeEl?.querySelector("#loupe-pp-repos") as HTMLElement | null;
-    if (!list) return;
-    const repo = this.effectiveRepo();
-    list.innerHTML = this.projResults.length
-      ? this.projResults.map((r) =>
-          `<button class="pp-item${r === repo ? " on" : ""}" data-repo="${escapeAttr(r)}" ` +
-          `title="${escapeAttr(r)}">${escapeHtml(r)}</button>`).join("")
-      : `<div class="pp-empty">No repositories match.</div>`;
-    list.querySelectorAll<HTMLElement>("[data-repo]").forEach((b) => {
-      b.onclick = () => {
-        this.project.repo = b.dataset.repo;
-        this.saveProject();
-        this.renderProject();
-        this.renderPins();
-        this.renderList();
-        this.addActivity({ kind: "repo.link", label: `Linked this page to ${b.dataset.repo}` });
-      };
-    });
+  /** The Organization section of the project popover. Read-only: Hub owns this. */
+  private orgSectionHtml(): string {
+    const org = this.org;
+    const head = `<div class="pp-head"><span>Organization</span><button class="pp-x" data-role="pp-close" aria-label="Close">✕</button></div>`;
+    if (!org?.organization) {
+      return head + `<div class="pp-cur">` + (org?.error
+        ? "Could not reach Loupe Hub. Your organization's projects will show here when it is back."
+        : "This project is not connected to an organization. Connect it to Loupe Hub to see the " +
+          "organization's projects and where its tickets go.") + `</div>`;
+    }
+    const dest = org.project.destination;
+    const others = org.projects;
+    return head +
+      `<div class="pp-cur"><b>${escapeHtml(org.project.name || this.cfg.projectKey)}</b> in ` +
+      `<b>${escapeHtml(org.organization.name)}</b>.</div>` +
+      `<div class="pp-cur pp-dest">${dest
+        ? `Tickets go to <b>${escapeHtml(dest.name)}</b>.`
+        : "Tickets stay in this project."}</div>` +
+      `<div class="pp-list pp-org">` + (others.length
+        ? others.map((p) =>
+            `<div class="pp-proj${p.isDestination ? " on" : ""}"><span class="pp-proj-n">${escapeHtml(p.name)}</span>` +
+            (p.receives ? `<span class="pp-badge">receives tickets</span>` : "") + `</div>`).join("")
+        : `<div class="pp-empty">No other projects in this organization yet.</div>`) + `</div>`;
   }
 
   private renderProjectError() {
@@ -1603,10 +1653,8 @@ export class LoupeApp {
     const chip = this.homeEl.querySelector(".proj-chip") as HTMLElement | null;
     const pop = this.homeEl.querySelector("#loupe-proj") as HTMLElement | null;
     if (!chip || !pop) return;
-    const repo = this.effectiveRepo();
-
-    (chip.querySelector(".proj-repo") as HTMLElement).textContent = repo ?? "no repo linked";
-    chip.classList.toggle("unset", !repo);
+    (chip.querySelector(".proj-name") as HTMLElement).textContent = this.projectLabel();
+    chip.classList.toggle("unset", !this.org?.organization);
     chip.setAttribute("aria-expanded", String(this.projOpen));
 
     if (!this.projOpen) { pop.classList.remove("open"); pop.innerHTML = ""; return; }
@@ -1614,17 +1662,7 @@ export class LoupeApp {
 
     const envs = this.project.environments;
     pop.innerHTML =
-      `<div class="pp-head"><span>Repository</span><button class="pp-x" data-role="pp-close" aria-label="Close">✕</button></div>` +
-      `<div class="pp-cur">${repo
-        ? `New comments are filed against <b>${escapeHtml(repo)}</b>.`
-        : "This page is not linked to a repository yet."}</div>` +
-      (this.cfg.repos
-        ? `<input class="pp-search" type="search" placeholder="Search repositories…" ` +
-          `value="${escapeAttr(this.projSearch)}" aria-label="Search repositories">` +
-          `<div class="pp-list" id="loupe-pp-repos"></div>`
-        : `<div class="pp-empty">No repository list to search. Pass <code>repos</code> to ` +
-          `<code>init()</code> — a string array, or a function the panel calls with the search text.</div>`) +
-      (repo ? `<button class="pp-clear" data-role="pp-clear">Unlink this page</button>` : "") +
+      this.orgSectionHtml() +
       `<div class="pp-sep"></div>` +
       `<div class="pp-head"><span>Environments</span></div>` +
       `<div class="pp-list">` + (envs.length
@@ -1647,24 +1685,9 @@ export class LoupeApp {
       `<div class="pp-ai-out" id="loupe-pp-ai"></div>` +
       `<div class="pp-err" id="loupe-pp-err"></div>`;
 
-    this.renderRepoList();
     this.renderProjectError();
 
     (pop.querySelector('[data-role="pp-close"]') as HTMLElement).onclick = () => this.setProjectOpen(false);
-    (pop.querySelector('[data-role="pp-clear"]') as HTMLElement | null)?.addEventListener("click", () => {
-      this.project.repo = undefined;
-      this.saveProject();
-      this.renderProject();
-      this.renderPins();
-      this.renderList();
-    });
-
-    const search = pop.querySelector(".pp-search") as HTMLInputElement | null;
-    if (search) {
-      // Keep clicks inside the popover from reaching the panel's dismiss handler.
-      search.addEventListener("click", (e) => e.stopPropagation());
-      search.oninput = () => { this.projSearch = search.value; void this.refreshRepos(); };
-    }
 
     pop.querySelectorAll<HTMLElement>("[data-env-rm]").forEach((b) => {
       b.onclick = () => {
@@ -1730,15 +1753,15 @@ export class LoupeApp {
     const fromConfig = (this.cfg.environments ?? []).filter((u): u is string => typeof u === "string");
     try {
       const raw = localStorage.getItem(`loupe:project:${this.cfg.projectKey}`);
+      // A `repo` stored by an older version is ignored; repo linking is gone.
       const p = raw ? JSON.parse(raw) : null;
-      const repo = typeof p?.repo === "string" && p.repo ? p.repo : undefined;
       const stored = Array.isArray(p?.environments)
         ? (p.environments as unknown[]).filter((u): u is string => typeof u === "string")
         : null;
       const localAi = p?.localAi && typeof p.localAi.url === "string" && typeof p.localAi.model === "string"
         ? { url: p.localAi.url as string, model: p.localAi.model as string }
         : undefined;
-      this.project = { repo, environments: stored ?? fromConfig, localAi };
+      this.project = { environments: stored ?? fromConfig, localAi };
     } catch {
       this.project = { environments: fromConfig };
     }
@@ -2559,10 +2582,6 @@ export class LoupeApp {
       status: "queue",
       priority,
       changeType,
-      // Branch-aware threads: the host declares these once in `init()`, and the
-      // panel's project manager can override the repo per browser.
-      repo: this.effectiveRepo(),
-      branch: this.cfg.branch,
       kind: target.kind,
       anchor,
       context,
@@ -2594,8 +2613,7 @@ export class LoupeApp {
     this.addActivity({
       kind: "comment.create",
       label: `Created “${comment.title || comment.body.split("\n")[0] || "comment"}”`,
-      detail: [normalizePriority(comment.priority), comment.kind ?? "element", comment.repo].filter(Boolean).join(" · "),
-      files: comment.repo ? [`${comment.repo}/${shortPath(comment.url)}`] : [],
+      detail: [normalizePriority(comment.priority), comment.kind ?? "element", shortPath(comment.url)].join(" · "),
     });
   }
 
@@ -2621,6 +2639,8 @@ export class LoupeApp {
       if (!this.comments.find((c) => c.id === id)) { pin.remove(); this.pins.delete(id); }
     }
     this.comments.forEach((c, i) => {
+      // A ticket another project sent here was filed on that project's page, not this one.
+      if (c.source) return;
       let pin = this.pins.get(c.id);
       if (!pin) {
         pin = el("button", "pin") as HTMLButtonElement;
@@ -2779,6 +2799,7 @@ export class LoupeApp {
   /** Switch the sidebar page (Home ↔ Comments ↔ Connect Claude). */
   private setTab(tab: Tab) {
     if (this.tab === tab) return;
+    if (tab === "chat" && !this.chatOn) return;
     // Leaving the Comments page cancels any active picking tool.
     if (tab !== "comments") this.setMode("off");
     this.tab = tab;
@@ -2789,7 +2810,11 @@ export class LoupeApp {
       if (this.scope === "all" && !this.allComments.length) void this.loadAllComments();
     }
     if (tab === "comments") this.renderList();
-    if (tab === "activity") this.renderActivity();
+    if (tab === "activity") {
+      this.renderActivity();
+      void this.loadActivity();
+    }
+    this.syncActivityPoll();
     this.applyDockLayout();
   }
 
@@ -3008,11 +3033,10 @@ export class LoupeApp {
       if (DOCK_MODES.includes(p?.mode)) this.dockMode = p.mode;
       if (typeof p?.open === "boolean") this.open = p.open;
       if (p?.theme === "light" || p?.theme === "dark") this.theme = p.theme;
-      const known = [...BUILTIN_TABS.map((t) => t.id), ...(this.cfg.tabs ?? []).map((t) => t.id)];
+      const known = [...BUILTIN_TABS.map((t) => t.id).filter((id) => id !== "chat" || this.chatOn), ...(this.cfg.tabs ?? []).map((t) => t.id)];
       if (typeof p?.tab === "string" && known.includes(p.tab)) this.tab = p.tab;
       if (p?.scope === "page" || p?.scope === "all") this.scope = p.scope;
       if (typeof p?.statFilter === "string") this.statFilter = p.statFilter as StatFilter;
-      if (typeof p?.repoFilter === "string") this.repoFilter = p.repoFilter;
       if (p?.float && typeof p.float.w === "number") this.floatRect = { ...this.floatRect, ...p.float };
       if (typeof p?.markersHidden === "boolean") this.markersHidden = p.markersHidden;
       if (typeof p?.launcherHidden === "boolean") this.launcherHidden = p.launcherHidden;
@@ -3031,7 +3055,7 @@ export class LoupeApp {
       localStorage.setItem("loupe:dock", JSON.stringify({
         mode: this.dockMode, open: this.open, theme: this.theme, tab: this.tab, float: this.floatRect,
         markersHidden: this.markersHidden, launcherHidden: this.launcherHidden, fab: this.fabPos,
-        scope: this.scope, statFilter: this.statFilter, repoFilter: this.repoFilter,
+        scope: this.scope, statFilter: this.statFilter,
         accent: this.accent, minimized: this.minimized, hoverHints: this.hoverHints,
         showPaths: this.showPaths, tourDone: this.tourDone, hintsSeen: [...this.hintsSeen],
       }));
@@ -3180,7 +3204,6 @@ export class LoupeApp {
       if (this.statFilter === "needs_you" && !needsYou({ status: c.status }).needs) return false;
       if (this.statFilter === "resolved" && stage !== "resolved") return false;
       if (this.statFilter === "stale" && (stage === "resolved" || !(Date.parse(c.createdAt) < weekAgo))) return false;
-      if (this.repoFilter && c.repo !== this.repoFilter) return false;
       return !q || `${c.title ?? ""} ${c.body} ${c.author?.name ?? ""}`.toLowerCase().includes(q);
     });
 
@@ -3188,7 +3211,6 @@ export class LoupeApp {
     // scope keeps file order, which follows the pins down the page.
     if (this.scope === "all") items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-    this.renderRepoFilter();
     this.renderReviewBar();
 
     if (!items.length) {
@@ -3216,17 +3238,6 @@ export class LoupeApp {
     this.updateCount(items.length);
   }
 
-  /** Repo filter — only offered in the project scope, where it means something. */
-  private renderRepoFilter() {
-    if (!this.repoSel) return;
-    const repos = [...new Set(this.visibleComments.map((c) => c.repo).filter((r): r is string => !!r))].sort();
-    this.repoSel.style.display = this.scope === "all" && repos.length > 1 ? "" : "none";
-    const current = this.repoFilter;
-    this.repoSel.innerHTML = `<option value="">All repos</option>` +
-      repos.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
-    this.repoSel.value = current;
-  }
-
   private itemView(c: Comment, i: number): HTMLElement {
     const detached = this.pins.get(c.id)?.classList.contains("detached") && !isResolved(c);
     const open = this.expanded.has(c.id);
@@ -3240,6 +3251,21 @@ export class LoupeApp {
       const kind = vw < 768 ? "mobile" : vw < 1024 ? "tablet" : "desktop";
       const icon = vw < 768 ? "📱" : vw < 1024 ? "▦" : "🖥";
       top.appendChild(el("span", "device", `${icon} ${kind}`));
+    }
+    if (c.source) {
+      const from = el("span", "srcchip", `from ${c.source.projectName || c.source.projectId}`);
+      from.title = c.source.reporter
+        ? `Sent by ${c.source.reporter.name || c.source.reporter.email}`
+        : "Sent from another project";
+      top.appendChild(from);
+    }
+    const fwd = c.forwarded;
+    if (fwd && fwd.status !== "none") {
+      const where = fwd.destinationName || (fwd.status === "ok" ? "webhook" : "Hub");
+      const ok = fwd.status === "ok";
+      const chip = el("span", ok ? "fwdchip" : "fwdchip bad", ok ? `→ ${where}` : `→ ${where} failed`);
+      chip.title = ok ? `Sent to ${where}` : `Could not send to ${where}${fwd.error ? `: ${fwd.error}` : ""}`;
+      top.appendChild(chip);
     }
     if (isResolved(c)) top.appendChild(el("span", "badge done", "resolved"));
     else if (detached) {
@@ -4521,6 +4547,8 @@ export class LoupeApp {
     this.companionSource?.close();
     this.companionSource = undefined;
     if (this.companionPoll) clearInterval(this.companionPoll);
+    if (this.activityPoll) clearInterval(this.activityPoll);
+    this.activityPoll = undefined;
     this.stopVoice();
     this.stopPresence();
     this.stopRecording?.();

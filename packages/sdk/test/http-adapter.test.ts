@@ -64,4 +64,43 @@ describe("HttpAdapter", () => {
     await expect(a.save(comment())).rejects.toThrow();
     await expect(a.update("c1", { status: "done" })).rejects.toThrow();
   });
+
+  it("reads the organization, and treats a 404 as no endpoint", async () => {
+    const org = { organization: { id: "o", name: "Acme" }, project: { name: "Shop", destination: null }, projects: [] };
+    const f = vi.fn().mockResolvedValueOnce(res(200, org)).mockResolvedValueOnce(res(404, {}));
+    vi.stubGlobal("fetch", f);
+    const a = new HttpAdapter("http://api", user, "h");
+    await expect(a.getOrg()).resolves.toEqual(org);
+    expect(f.mock.calls[0]![0]).toBe("http://api/v1/org");
+    expect(f.mock.calls[0]![1].headers["X-Loupe-User"]).toBe("u1");
+    await expect(a.getOrg()).resolves.toBeNull();
+  });
+
+  it("refuses an organization answer of the wrong shape, and a failed read", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(res(200, [])).mockResolvedValueOnce(res(500, {})));
+    const a = new HttpAdapter("http://api", user);
+    await expect(a.getOrg()).rejects.toThrow(/not an organization/);
+    await expect(a.getOrg()).rejects.toThrow(/getOrg failed: 500/);
+  });
+
+  it("reads the activity feed with an optional since, and treats a 404 as no feed", async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(res(200, [{ id: "e1", at: "t", kind: "k", label: "l" }]))
+      .mockResolvedValueOnce(res(200, []))
+      .mockResolvedValueOnce(res(404, {}));
+    vi.stubGlobal("fetch", f);
+    const a = new HttpAdapter("http://api", user);
+    await expect(a.listActivity("pk")).resolves.toHaveLength(1);
+    expect(f.mock.calls[0]![0]).toBe("http://api/v1/activity?projectKey=pk");
+    await a.listActivity("pk", "2026-10-01T10:00:00Z");
+    expect(f.mock.calls[1]![0]).toBe("http://api/v1/activity?projectKey=pk&since=2026-10-01T10%3A00%3A00Z");
+    await expect(a.listActivity("pk")).resolves.toBeNull();
+  });
+
+  it("refuses an activity answer that is not a list, and a failed read", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(res(200, { error: "x" })).mockResolvedValueOnce(res(500, {})));
+    const a = new HttpAdapter("http://api", user);
+    await expect(a.listActivity("pk")).rejects.toThrow(/not a list/);
+    await expect(a.listActivity("pk")).rejects.toThrow(/listActivity failed: 500/);
+  });
 });

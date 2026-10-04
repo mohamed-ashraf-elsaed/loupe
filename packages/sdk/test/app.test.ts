@@ -105,6 +105,30 @@ beforeEach(() => {
 });
 afterEach(() => destroy());
 
+/**
+ * Stub fetch for a panel with `apiBase`: each route returns JSON, `null` means 404,
+ * and anything unrouted answers an empty list. Records every URL it saw.
+ */
+const withApi = (routes: Record<string, (url: string) => unknown>) => {
+  const realFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (input: string) => {
+    const url = String(input);
+    urls.push(url);
+    for (const [path, handler] of Object.entries(routes)) {
+      if (url.includes(path)) {
+        const body = handler(url);
+        return body === null
+          ? new Response("{}", { status: 404 })
+          : new Response(JSON.stringify(body), { status: 200 });
+      }
+    }
+    if (url.includes("/notifications")) return new Response(JSON.stringify({ notifications: [] }), { status: 200 });
+    return new Response("[]", { status: 200 });
+  }) as unknown as typeof fetch;
+  return { urls, restore: () => { globalThis.fetch = realFetch; } };
+};
+
 
 /**
  * A fake EventSource that behaves like the real one.
@@ -1278,33 +1302,95 @@ describe("LoupeApp", () => {
     expect(sr().querySelectorAll<HTMLElement>(".hscope-b")[1]!.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("links a repo from the project manager, searching a host-supplied list", async () => {
-    init({ projectKey: "pk", user: { id: "u", name: "U" }, repos: ["acme/web", "acme/api", "other/thing"] });
-    expect(sr().querySelector(".proj-repo")!.textContent).toBe("no repo linked");
+  it("names the project and its organization, and lists the organization's other projects", async () => {
+    const api = withApi({
+      "/v1/org": () => ({
+        organization: { id: "org_1", name: "Acme" },
+        project: { id: "prj_shop", key: "pk", name: "Shop", destination: { id: "prj_crm", name: "CRM" }, receives: false },
+        projects: [
+          { id: "prj_crm", name: "CRM", receives: true, isDestination: true },
+          { id: "prj_blog", name: "Blog", receives: false, isDestination: false },
+        ],
+      }),
+    });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      expect(sr().querySelector(".proj-name")!.textContent).toBe("Shop · Acme");
 
-    sr().querySelector<HTMLElement>('.proj-chip')!.click();
-    // The first list is fetched asynchronously, like a real repo search would be.
+      sr().querySelector<HTMLElement>(".proj-chip")!.click();
+      const pop = sr().querySelector("#loupe-proj")!;
+      expect(pop.querySelector(".pp-head")!.textContent).toContain("Organization");
+      expect(pop.querySelector(".pp-dest")!.textContent).toBe("Tickets go to CRM.");
+      const rows = [...pop.querySelectorAll<HTMLElement>(".pp-proj")];
+      expect(rows.map((r) => r.querySelector(".pp-proj-n")!.textContent)).toEqual(["CRM", "Blog"]);
+      expect(rows[0]!.classList.contains("on")).toBe(true);
+      expect(rows[0]!.querySelector(".pp-badge")!.textContent).toBe("receives tickets");
+      expect(rows[1]!.querySelector(".pp-badge")).toBeNull();
+      // Repo linking is gone: no search box, no repo list, no unlink button.
+      expect(pop.querySelector(".pp-search")).toBeNull();
+      expect(pop.querySelector('[data-role="pp-clear"]')).toBeNull();
+      // Environments and Local AI stay.
+      expect(pop.textContent).toContain("Environments");
+      expect(pop.textContent).toContain("Local AI");
+    } finally {
+      api.restore();
+    }
+  });
+
+  it("says where tickets go when the project keeps its own, and when it has no siblings", async () => {
+    const api = withApi({
+      "/v1/org": () => ({
+        organization: { id: "org_1", name: "Acme" },
+        project: { name: "Shop", destination: null },
+        projects: [],
+      }),
+    });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>(".proj-chip")!.click();
+      expect(sr().querySelector(".pp-dest")!.textContent).toBe("Tickets stay in this project.");
+      expect(sr().querySelector(".pp-org .pp-empty")!.textContent).toContain("No other projects");
+    } finally {
+      api.restore();
+    }
+  });
+
+  it("falls back to the project key with no organization, and says why", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
     await new Promise((r) => setTimeout(r, 10));
-    const items = () => [...sr().querySelectorAll<HTMLElement>(".pp-item")].map((b) => b.dataset.repo);
-    expect(items()).toEqual(["acme/web", "acme/api", "other/thing"]);
+    expect(sr().querySelector(".proj-name")!.textContent).toBe("pk");
+    expect(sr().querySelector(".proj-chip")!.classList.contains("unset")).toBe(true);
+    sr().querySelector<HTMLElement>(".proj-chip")!.click();
+    expect(sr().querySelector(".pp-cur")!.textContent).toContain("not connected to an organization");
+  });
 
-    // The list narrows as you type, without the input losing focus.
-    const search = sr().querySelector<HTMLInputElement>(".pp-search")!;
-    search.value = "acme";
-    search.dispatchEvent(new Event("input", { bubbles: true }));
-    await new Promise((r) => setTimeout(r, 10));
-    expect(items()).toEqual(["acme/web", "acme/api"]);
-    expect(sr().querySelector(".pp-search")).toBe(search);
+  it("says Hub is unreachable rather than showing an empty organization", async () => {
+    const api = withApi({
+      "/v1/org": () => ({ organization: null, project: { key: "pk", name: null, destination: null }, projects: [], error: "hub_unreachable" }),
+    });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      expect(sr().querySelector(".proj-name")!.textContent).toBe("pk");
+      sr().querySelector<HTMLElement>(".proj-chip")!.click();
+      expect(sr().querySelector(".pp-cur")!.textContent).toContain("Could not reach Loupe Hub");
+    } finally {
+      api.restore();
+    }
+  });
 
-    sr().querySelectorAll<HTMLElement>(".pp-item")[1]!.click();
-    expect(sr().querySelector(".proj-repo")!.textContent).toBe("acme/api");
-    expect(JSON.parse(localStorage.getItem("loupe:project:pk")!).repo).toBe("acme/api");
-
-    // A new comment is filed against it.
-    expect(sr().querySelector(".hscope-b")).toBeTruthy();
-    sr().querySelector<HTMLElement>('.dctl [data-role="min"]')!.click();
-    const stored = JSON.parse(localStorage.getItem("loupe:project:pk")!);
-    expect(stored.repo).toBe("acme/api");
+  it("ignores a repo stored by an older version and files comments without one", async () => {
+    localStorage.setItem("loupe:project:pk", JSON.stringify({ repo: "acme/api", environments: ["https://staging.example.com"] }));
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureScreenshot: async () => undefined });
+    await leaveComment("no repo here");
+    const [stored] = await waitForSaved(`${location.pathname}${location.search}`);
+    expect(stored.repo).toBeUndefined();
+    expect(stored.branch).toBeUndefined();
+    sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
+    sr().querySelector<HTMLElement>(".proj-chip")!.click();
+    expect(sr().querySelector(".pp-env-u")!.textContent).toBe("https://staging.example.com");
   });
 
   it("validates environment URLs before storing them", () => {
@@ -2156,10 +2242,10 @@ describe("LoupeApp", () => {
       localStorage.setItem("loupe:msgs:t1", JSON.stringify([
         { id: "m1", threadId: "t1", author: { id: "a1", name: "A", type: "agent" }, body: "first", createdAt: "2026-01-01T11:00:00.000Z" },
       ]));
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
 
-      // Two streams now: the thread channel and the companion channel.
+      // Two streams with chat on: the thread channel and the companion channel.
       const threadSource = FakeES.all.find((e: any) => e.url.endsWith("/thread-updates"));
       expect(threadSource, "the thread stream must still be opened").toBeTruthy();
       expect(FakeES.all.map((e: any) => e.url)).toContain("http://bridge.test/events");
@@ -2225,7 +2311,7 @@ describe("LoupeApp", () => {
     localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
     const b = withBridge(() => new Response("{}", { status: 200 }));
     try {
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
       await openChat();
 
@@ -2250,7 +2336,7 @@ describe("LoupeApp", () => {
       return new Response("{}", { status: 200 });
     });
     try {
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
       await openChat();
 
@@ -2287,7 +2373,7 @@ describe("LoupeApp", () => {
       return new Response("{}", { status: 200 });
     });
     try {
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
       await openChat();
 
@@ -2330,7 +2416,7 @@ describe("LoupeApp", () => {
       return new Response("{}", { status: 200 });
     });
     try {
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
       await openChat();
       sr().querySelector<HTMLElement>("#loupe-chatadd")!.click();
@@ -2350,7 +2436,7 @@ describe("LoupeApp", () => {
     localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
     const b = withBridge(() => new Response("{}", { status: 200 }));
     try {
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
       await openChat();
       sr().querySelector<HTMLElement>("#loupe-chatsend")!.click();
@@ -2363,7 +2449,7 @@ describe("LoupeApp", () => {
 
   it("says why it cannot send when no bridge is configured", async () => {
     localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
-    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, chat: true });
     await new Promise((r) => setTimeout(r, 20));
     await openChat();
 
@@ -2381,7 +2467,7 @@ describe("LoupeApp", () => {
     const b = withBridge(() => new Response(JSON.stringify({ replies: [] }), { status: 200 }));
     try {
       localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 30));
 
       const stream = FakeES.all.find((e: any) => e.url.endsWith("/events"))!;
@@ -2412,7 +2498,7 @@ describe("LoupeApp", () => {
     const b = withBridge(() => new Response(JSON.stringify({ replies: [reply] }), { status: 200 }));
     try {
       localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 30));
       await openChat();
 
@@ -2433,7 +2519,7 @@ describe("LoupeApp", () => {
     localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([seeded({ id: "t1" })]));
     const b = withBridge(() => new Response("{}", { status: 200 }));
     try {
-      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
       await new Promise((r) => setTimeout(r, 20));
       await openChat();
 
@@ -2448,6 +2534,178 @@ describe("LoupeApp", () => {
     } finally {
       b.restore();
     }
+  });
+
+  it("keeps Chat dimmed and inert unless the host opts in", async () => {
+    const realES = (globalThis as any).EventSource;
+    const FakeES = makeFakeEventSource();
+    (globalThis as any).EventSource = FakeES;
+    const b = withBridge(() => new Response("{}", { status: 200 }));
+    try {
+      // A tab saved by an older version cannot reopen a disabled page.
+      localStorage.setItem("loupe:dock", JSON.stringify({ open: true, tab: "chat" }));
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test" });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(sr().querySelector(".dock")!.classList.contains("tab-home")).toBe(true);
+
+      const tab = sr().querySelector<HTMLElement>('.tabs [data-tab="chat"]')!;
+      expect(tab.classList.contains("off")).toBe(true);
+      expect(tab.getAttribute("aria-disabled")).toBe("true");
+      expect(tab.title).toBe("Chat — coming soon");
+      tab.click();
+      expect(sr().querySelector(".dock")!.classList.contains("tab-chat")).toBe(false);
+      // Nothing listens for agent replies while chat is off.
+      expect(FakeES.all.some((e: any) => e.url.endsWith("/events"))).toBe(false);
+      expect(b.calls.some((c) => c.url.includes("/companion"))).toBe(false);
+      expect(STYLES).toMatch(/\.tabs \.tab\.off \{ opacity: \.45; cursor: not-allowed; \}/);
+      destroy();
+
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, bridge: "http://bridge.test", chat: true });
+      await new Promise((r) => setTimeout(r, 20));
+      const on = sr().querySelector<HTMLElement>('.tabs [data-tab="chat"]')!;
+      expect(on.classList.contains("off")).toBe(false);
+      on.click();
+      expect(sr().querySelector(".dock")!.classList.contains("tab-chat")).toBe(true);
+      expect(FakeES.all.some((e: any) => e.url.endsWith("/events"))).toBe(true);
+    } finally {
+      (globalThis as any).EventSource = realES;
+      b.restore();
+    }
+  });
+
+  it("reads the server's activity feed and polls it only while the view is open", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let round = 0;
+    const api = withApi({
+      "/v1/activity": () => {
+        round++;
+        return round === 1
+          ? [
+              { id: "e2", at: "2026-10-01T10:05:00.000Z", kind: "ticket.forwarded", label: "Sent “Pay” to CRM", level: "info" },
+              { id: "e1", at: "2026-10-01T10:00:00.000Z", kind: "comment.create", label: "Sara added “Pay”", level: "info" },
+            ]
+          : [
+              { id: "e3", at: "2026-10-01T10:10:00.000Z", kind: "comment.status", label: "Sara moved “Pay” to Done", level: "info" },
+              { id: "e2", at: "2026-10-01T10:05:00.000Z", kind: "ticket.forwarded", label: "Sent “Pay” to CRM", level: "info" },
+            ];
+      },
+    });
+    const activityCalls = () => api.urls.filter((u) => u.includes("/v1/activity"));
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      expect(activityCalls().length).toBe(1);
+
+      // Off screen: no poll.
+      vi.advanceTimersByTime(15_000);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(activityCalls().length).toBe(1);
+
+      sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      // Opening the view reads once more, asking only for what is new.
+      expect(activityCalls().length).toBe(2);
+      expect(activityCalls()[1]).toContain("since=2026-10-01T10%3A05%3A00.000Z");
+      vi.advanceTimersByTime(15_000);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(activityCalls().length).toBe(3);
+
+      // Merged by id, oldest first, like a log.
+      const labels = [...sr().querySelectorAll<HTMLElement>(".mon-row .mon-label")].map((l) => l.firstChild!.textContent);
+      expect(labels).toEqual(["Sara added “Pay”", "Sent “Pay” to CRM", "Sara moved “Pay” to Done"]);
+      expect(sr().querySelector("#loupe-mon-live")!.textContent).toBe("Live");
+
+      sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
+      vi.advanceTimersByTime(45_000);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(activityCalls().length).toBe(3);
+    } finally {
+      api.restore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("says a connected feed is empty, and says when it goes offline", async () => {
+    let fail = false;
+    // A throwing route makes fetch reject, which is what a dropped connection looks like.
+    const api = withApi({ "/v1/activity": () => { if (fail) throw new Error("down"); return []; } });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(sr().querySelector(".mon-feed .mon-empty")!.textContent)
+        .toBe("No activity yet. Comments, status changes and forwarded tickets appear here.");
+
+      fail = true;
+      sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
+      sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(sr().querySelector("#loupe-mon-live")!.textContent).toBe("Offline");
+    } finally {
+      api.restore();
+    }
+  });
+
+  it("stops asking a backend that keeps no activity feed", async () => {
+    const api = withApi({ "/v1/activity": () => null });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(api.urls.filter((u) => u.includes("/v1/activity")).length).toBe(1);
+      expect(sr().querySelector(".mon-feed .mon-empty")!.textContent).toContain("Monitor unavailable");
+      expect(sr().querySelector("#loupe-mon-live")!.textContent).toBe("");
+    } finally {
+      api.restore();
+    }
+  });
+
+  it("a recent server error turns the status dot red", async () => {
+    const at = new Date().toISOString();
+    const api = withApi({ "/v1/activity": () => [{ id: "e1", at, kind: "ticket.forward_failed", label: "Could not send", level: "error" }] });
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test" });
+      await new Promise((r) => setTimeout(r, 30));
+      sr().querySelector<HTMLElement>('.tabs [data-tab="activity"]')!.click();
+      expect(sr().querySelector(".mon-status")!.classList.contains("st-error")).toBe(true);
+    } finally {
+      api.restore();
+    }
+  });
+
+  it("shows where a ticket came from and where it went, and pins neither kind elsewhere", async () => {
+    localStorage.setItem(keyFor(`${location.pathname}${location.search}`), JSON.stringify([
+      seeded({
+        id: "in1", title: "From the shop", url: `${location.pathname}${location.search}`,
+        source: { projectId: "prj_shop", projectName: "Shop", reporter: { email: "sara@acme.com", name: "Sara" } },
+      }),
+      seeded({
+        id: "out1", title: "Sent on", url: `${location.pathname}${location.search}`,
+        forwarded: { status: "ok", destinationName: "CRM", destinationProjectId: "prj_crm" },
+      }),
+      seeded({
+        id: "out2", title: "Failed", url: `${location.pathname}${location.search}`,
+        forwarded: { status: "failed", destinationName: "CRM", error: "HTTP 500" },
+      }),
+      seeded({ id: "out3", title: "Kept", url: `${location.pathname}${location.search}`, forwarded: { status: "none" } }),
+    ]));
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    await new Promise((r) => setTimeout(r, 10));
+    sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
+
+    const items = [...sr().querySelectorAll<HTMLElement>(".item")];
+    const src = items[0]!.querySelector<HTMLElement>(".srcchip")!;
+    expect(src.textContent).toBe("from Shop");
+    expect(src.title).toBe("Sent by Sara");
+    expect(items[1]!.querySelector(".fwdchip")!.textContent).toBe("→ CRM");
+    const bad = items[2]!.querySelector<HTMLElement>(".fwdchip.bad")!;
+    expect(bad.textContent).toBe("→ CRM failed");
+    expect(bad.title).toBe("Could not send to CRM: HTTP 500");
+    expect(items[3]!.querySelector(".fwdchip")).toBeNull();
+    // The received ticket was filed on another project's page, so it gets no pin here.
+    expect(sr().querySelectorAll(".pin").length).toBe(3);
   });
 
   it("does not initialize without projectKey or user id", () => {

@@ -63,6 +63,9 @@ class ListComments extends Tool
             'changeType' => Triage::normalizeType($c->change_type),
             'repo' => $c->repo,
             'branch' => $c->branch,
+            // Tickets between projects: where this one came from, and where Hub sent it.
+            'from' => data_get($c->source, 'projectName'),
+            'sentTo' => data_get($c->forwarded, 'destinationName'),
             'author' => data_get($c->author, 'name'),
             'title' => $this->titleOf($c),
             'body' => $c->body,

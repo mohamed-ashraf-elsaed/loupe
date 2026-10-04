@@ -43,4 +43,10 @@ describe("LocalStorageAdapter", () => {
     await a.remove("missing");
     expect((await a.list("pk", "/p")).length).toBe(1);
   });
+
+  it("has no organization and no server activity feed offline", async () => {
+    const a = new LocalStorageAdapter();
+    await expect(a.getOrg()).resolves.toBeNull();
+    await expect(a.listActivity("pk")).resolves.toBeNull();
+  });
 });

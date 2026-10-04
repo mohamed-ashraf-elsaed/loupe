@@ -1,4 +1,4 @@
-import type { Attachment, Comment, MessageAttachment, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import type { ActivityEvent, Attachment, Comment, MessageAttachment, OrgInfo, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { toggleReaction } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
@@ -187,5 +187,15 @@ export class LocalStorageAdapter implements StorageAdapter {
         return;
       }
     }
+  }
+
+  /** Offline: there is no organization to read. */
+  async getOrg(): Promise<OrgInfo | null> {
+    return null;
+  }
+
+  /** Offline: no server feed; the panel shows only what this browser reports. */
+  async listActivity(_projectKey: string, _since?: string): Promise<ActivityEvent[] | null> {
+    return null;
   }
 }

@@ -3,6 +3,8 @@
 export * from "@loupekit/shared";
 
 import type {
+  ActivityEvent,
+  OrgInfo,
   MessageAttachment,
   Reaction,
   ActivityEventInput, Attachment, Comment, Iteration, IterationKind, LoupeUser, RegionRect,
@@ -117,20 +119,11 @@ export interface LoupeConfig {
   /** Brand label shown in the control-panel header. Defaults to "Loupe". */
   label?: string;
   /**
-   * The repository this product's feedback belongs to (e.g. "org/repo"). Set it
-   * and every comment is filed against it, so a board can be filtered by repo.
-   * The panel's project manager can also set this per browser — see `repos`.
+   * Show the Chat tab. Experimental and off by default: without it the tab is shown
+   * dimmed and cannot be opened, and the panel never connects to the bridge's reply
+   * stream.
    */
-  repo?: string;
-  /** The branch in play — makes threads branch-aware (e.g. "main", "feature/x"). */
-  branch?: string;
-  /**
-   * Known repositories, for the panel's repo picker. Either a fixed list, or a
-   * function the panel calls with the user's search text — which lets a host page
-   * back it with its own API (e.g. the GitHub repo list) without the SDK having to
-   * know anything about that provider.
-   */
-  repos?: string[] | ((query: string) => string[] | Promise<string[]>);
+  chat?: boolean;
   /**
    * Environment URLs to offer for this project (e.g. dev/staging/production), for
    * the panel's project manager. Managed per browser once the user edits them, so
@@ -241,6 +234,16 @@ export interface StorageAdapter {
   listReactions(threadId: string): Promise<Reaction[]>;
   /** Toggle one reaction. Returns the whole new set — never guess the new count. */
   toggleReaction(input: { threadId: string; messageId: string; emoji: string; userId: string; userName?: string }): Promise<Reaction[]>;
+  /**
+   * The organization this project belongs to and its other projects. Null when the
+   * backend has no such endpoint. Optional so custom adapters keep compiling.
+   */
+  getOrg?(): Promise<OrgInfo | null>;
+  /**
+   * The server's activity feed for the project, newest first. Null when the backend
+   * does not keep one, which the panel shows as "Monitor unavailable".
+   */
+  listActivity?(projectKey: string, since?: string): Promise<ActivityEvent[] | null>;
 }
 
 /** Result of trying to re-locate an anchored element on the current page. */

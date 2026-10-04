@@ -1,4 +1,4 @@
-import type { Attachment, Comment, LoupeUser, MessageAttachment, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
+import type { ActivityEvent, Attachment, Comment, LoupeUser, MessageAttachment, OrgInfo, Reaction, StorageAdapter, ThreadAuthor, ThreadMessage } from "./types.js";
 import { attachmentKind, fileToDataUrl } from "./capture.js";
 
 /**
@@ -161,6 +161,31 @@ export class HttpAdapter implements StorageAdapter {
       body: JSON.stringify(patch),
     }));
     if (!res.ok) throw new Error(`update failed: ${res.status}`);
+  }
+
+  /** The organization, read through the host app. A 404 means the backend has no such endpoint. */
+  async getOrg(): Promise<OrgInfo | null> {
+    const res = await fetch(`${this.base}/v1/org`, this.opts({ headers: this.headers() }));
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`getOrg failed: ${res.status}`);
+    // Check the shape: a proxy's JSON or some other endpoint's answer is not an organization.
+    const body = (await res.json()) as OrgInfo;
+    if (!body || typeof body !== "object" || !body.project || !Array.isArray(body.projects)) {
+      throw new Error("getOrg: the answer was not an organization");
+    }
+    return body;
+  }
+
+  /** The server's activity feed. A 404 means the backend keeps none. */
+  async listActivity(projectKey: string, since?: string): Promise<ActivityEvent[] | null> {
+    const q = new URLSearchParams({ projectKey });
+    if (since) q.set("since", since);
+    const res = await fetch(`${this.base}/v1/activity?${q}`, this.opts({ headers: this.headers() }));
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`listActivity failed: ${res.status}`);
+    const body = await res.json();
+    if (!Array.isArray(body)) throw new Error("listActivity: the answer was not a list");
+    return body as ActivityEvent[];
   }
 
   async remove(id: string): Promise<void> {

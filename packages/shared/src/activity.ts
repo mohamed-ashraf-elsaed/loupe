@@ -39,6 +39,10 @@ export interface ActivityEvent {
   level?: ActivityLevel;
   /** Files this event touched — rolled up into the "files" micro-stat. */
   files?: string[];
+  /** The comment this event is about, when the server recorded one. */
+  commentId?: string;
+  /** Who did it, when the server knows. */
+  actor?: { id: string; name: string };
 }
 
 /** What a caller supplies; the SDK fills in `id` and `at`. */
