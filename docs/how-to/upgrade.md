@@ -31,9 +31,9 @@ The steps use these placeholders:
 
 | Placeholder | Meaning | Example |
 |---|---|---|
-| `<VERSION>` | The version you upgrade to | `0.14.0` |
-| `<OLD>` | The version you run now | `0.13.1` |
-| `<NEW>` | The version you upgrade to, as Composer and the widget print it | `0.14.0` |
+| `<VERSION>` | The version you upgrade to | `0.14.1` |
+| `<OLD>` | The version you run now | `0.14.0` |
+| `<NEW>` | The version you upgrade to, as Composer and the widget print it | `0.14.1` |
 
 ## Version notes
 
@@ -65,8 +65,8 @@ This table lists every version that needs an action. A version that is not liste
 | 0.12.0 | Hub inbound receiver, the `TicketReceived` event, `GET v1/org`, `GET v1/activity`, and the `loupe_activity` table. The widget options `repo`, `branch` and `repos` were removed; stored values stay. | Publish migrations and run `php artisan migrate` (adds `source`, `forwarded` and `loupe_activity`). Remove `repo`, `branch` and `repos` from your `init()` call. If you forward to a self-hosted Hub, redeploy it. |
 | 0.13.0 | Routes for replies, reactions, people and notifications. Events `CommentCreated`, `CommentStatusChanged`, `CommentDeleted`, `MessageAdded` and `HubUpdateReceived`. `Loupe::reply()` and `Loupe::describeTicket()`. `PATCH v1/comments/{id}` answers 422 for an unknown status. Only the author or an admin can delete a comment. | Publish migrations and run `php artisan migrate` (adds `loupe_messages`, `loupe_reactions`, `loupe_notifications`). Update any client that sent other status values, or that deleted other users' comments. If you forward to a self-hosted Hub, redeploy it. |
 | 0.13.1 | The widget re-reads comments, threads and the inbox every 10 seconds. | Widget only. Update the SDK, or republish Laravel assets. |
-| 0.14.0 | Resolve, Open and Delete on Home rows. Status filter, sort order and collapsible day groups on Comments. | Widget only. Update the SDK, or republish Laravel assets. **`@loupekit/mcp` 0.14.0 does not start through `npx`.** Use the workaround in [npm packages, step 5](#npm-packages). |
-| After 0.14.0 (Unreleased in the changelog) | Hub only. Hub refuses to deliver to loopback, private, link-local, carrier-grade NAT, multicast and reserved addresses (`packages/hub/webhook.ts:52`, `:95`). Hub keeps a ticket's `reply_url` only when its path ends with `/v1/hub/inbound`, it carries no credentials, and it shares the origin of the source project's inbound URL when one is registered (`packages/hub/index.ts:145-150`). | Redeploy Hub ([Loupe Hub](#loupe-hub)). Make every webhook URL, inbound URL and app URL public. If Hub and your apps run on one machine for local development, start Hub with `HUB_ALLOW_PRIVATE_URLS=1`; never set it on a public Hub. If status changes and replies stop reaching a source app, see [Troubleshooting](../troubleshooting.md#hub). |
+| 0.14.0 | Resolve, Open and Delete on Home rows. Status filter, sort order and collapsible day groups on Comments. | Widget only. Update the SDK, or republish Laravel assets. **`@loupekit/mcp` 0.14.0 does not start through `npx`.** Upgrade it to 0.14.1. |
+| 0.14.1 | Hub refuses to deliver to loopback, private, link-local, carrier-grade NAT, multicast and reserved addresses (`packages/hub/webhook.ts:52`, `:95`). Hub keeps a ticket's `reply_url` only when its path ends with `/v1/hub/inbound`, it carries no credentials, and it shares the origin of the source project's inbound URL when one is registered (`packages/hub/index.ts:145-150`). `@loupekit/mcp` lists `@loupekit/shared` as a runtime dependency, so `npx -y @loupekit/mcp` starts again. The MCP tool `get_recent_events` works, and `update_status` refuses `resolved`. | Redeploy Hub ([Loupe Hub](#loupe-hub)). Make every webhook URL, inbound URL and app URL public. If Hub and your apps run on one machine for local development, start Hub with `HUB_ALLOW_PRIVATE_URLS=1`; never set it on a public Hub. If status changes and replies stop reaching a source app, see [Troubleshooting](../troubleshooting.md#hub). Update `@loupekit/mcp` to 0.14.1 ([npm packages, step 5](#npm-packages)). An agent that set `resolved` through `update_status` now gets a refusal; have it set `in_review` or call `mark_thread_addressed`. |
 
 ## npm packages
 
@@ -93,7 +93,7 @@ A `next` build is a *canary*: a prerelease version in the form `<BASE>-next.<N>`
 
    You should see an object with a `latest` key and a `next` key, each followed by a version.
 
-2. Install one exact version of the SDK. Replace `<VERSION>` with the version you chose in step 1, for example `0.14.0`:
+2. Install one exact version of the SDK. Replace `<VERSION>` with the version you chose in step 1, for example `0.14.1`:
 
    ```bash
    npm i @loupekit/sdk@<VERSION> --save-exact
@@ -121,31 +121,7 @@ A `next` build is a *canary*: a prerelease version in the form `<BASE>-next.<N>`
 
    Then restart the client. You should see the `loupe` server listed as connected (in Claude Code, run `/mcp`).
 
-   > **Warning: 0.14.0.** `@loupekit/mcp@0.14.0` exits with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared` when you start it with `npx`. The published build imports `@loupekit/shared` at run time, but the package lists it only as a development dependency, so `npx` does not install it. Install both packages in a project folder instead:
-   >
-   > ```bash
-   > npm i --save-exact @loupekit/mcp@0.14.0 @loupekit/shared@0.14.0
-   > ```
-   >
-   > Then point the client at the installed file with `node`:
-   >
-   > ```json
-   > {
-   >   "mcpServers": {
-   >     "loupe": {
-   >       "command": "node",
-   >       "args": ["<ABSOLUTE_PATH>/node_modules/@loupekit/mcp/dist/index.js"],
-   >       "env": {
-   >         "LOUPE_API": "<API_URL>",
-   >         "LOUPE_PROJECT_KEY": "<PROJECT_KEY>",
-   >         "LOUPE_ADMIN_KEY": "<PROJECT_SECRET>"
-   >       }
-   >     }
-   >   }
-   > }
-   > ```
-   >
-   > `<ABSOLUTE_PATH>` is the absolute path of the folder where you ran `npm i`, for example `/home/sara/loupe-mcp`. Keep the `env` values you already use; [Connect Claude Code and other MCP clients](connect-mcp-clients.md) explains each one.
+   > **Note:** `@loupekit/mcp` 0.14.0 exits with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared` when you start it with `npx`. Fixed in 0.14.1: pin `@loupekit/mcp@0.14.1` or later.
 
 ## Laravel package
 
@@ -390,7 +366,6 @@ The server migrates its database at start. The migration also rewrites legacy st
 | Moving a comment fails with 422 `unknown status; use one of queue, todo, in_progress, in_review, resolved`. | Since 0.13.0, `PATCH` refuses statuses that are not board stages or the legacy `open`/`done`. | Send one of the listed stages. |
 | Deleting a comment fails with 403 `only the author or an admin can delete this`. | Since 0.13.0, only the author or a user who passes dashboard authorization can delete. | Delete as the author, or grant the user the `loupe:admin` gate. |
 | `migrate:rollback` did not restore `open` and `done` statuses. | The 0.10.8 board migration's `down()` is empty on purpose. | Restore from the backup you took before the upgrade. |
-| `@loupekit/mcp@0.14.0` exits with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | The published build imports `@loupekit/shared` at run time, but the package lists it only as a development dependency. | Install the MCP server package in a project folder next to `@loupekit/shared` at the same version (`npm i @loupekit/mcp@0.14.0 @loupekit/shared@0.14.0`). In your MCP client config, set `"command": "node"` and `"args": ["<ABSOLUTE_PATH>/node_modules/@loupekit/mcp/dist/index.js"]`, where `<ABSOLUTE_PATH>` is the absolute path of that folder. See the full example in [npm packages, step 5](#npm-packages). |
 | The extension still behaves like the old version. | The tab kept the old content script, or the extension was built against a stale SDK build. | From the repository root, run `npm run build`, reload the extension on `chrome://extensions`, then reload the tab. |
 | `deploy.sh` ends with service logs and exits 1. | The new Hub did not answer `/v1/health` within 20 seconds. | Read the printed `journalctl` lines. To go back, follow [Roll back](#roll-back). |
 

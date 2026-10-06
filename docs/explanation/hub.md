@@ -1,6 +1,6 @@
 # How Loupe Hub works
 
-This page explains what Loupe Hub does, how it routes a ticket from one app to another, how the two apps stay in step afterwards, and what Hub does and does not do to protect that traffic. It is written for architects and security reviewers deciding whether to adopt Hub. It describes Loupe 0.14.0. Two behaviors are newer than 0.14.0 and are marked **Unreleased**.
+This page explains what Loupe Hub does, how it routes a ticket from one app to another, how the two apps stay in step afterwards, and what Hub does and does not do to protect that traffic. It is written for architects and security reviewers deciding whether to adopt Hub. It describes Loupe 0.14.1. Two behaviors are new in 0.14.1 and are marked **0.14.1**.
 
 For exact request shapes, headers and error codes, see the [Loupe Hub reference](../reference/hub.md). For step-by-step tasks, see the how-to guides listed in [Related pages](#related-pages).
 
@@ -188,7 +188,7 @@ Sources: `packages/hub/index.ts:214`, `:341-360`; `packages/hub/store.ts:151-154
 
 Hub trusts the sending app to say who filed a ticket. It checks that the email it is given is allowed, not that the person proved it. The Laravel package sends the email of the signed-in user who wrote the comment, and does not forward comments from users without an email (`packages/laravel/src/Http/Controllers/CommentController.php:151-152`; `packages/laravel/src/Support/Hub.php:107-112`).
 
-### Refusing private addresses (Unreleased)
+### Refusing private addresses (0.14.1)
 
 The webhook URL and inbound URL come from dashboard users, and the reply URL comes from the sending app. Without a check, any of them could point Hub at its own loopback port, the cloud metadata server or the private network.
 
@@ -204,13 +204,13 @@ An address Hub cannot parse is refused. Other reserved ranges are not refused, f
 
 Setting `HUB_ALLOW_PRIVATE_URLS=1` turns the whole address check off: Hub then posts with a plain `fetch` to any URL, so every private, link-local and metadata address becomes reachable (`packages/hub/webhook.ts:52`, `:119`). Use it only for local development. Do not set it in production.
 
-This behavior is listed under **Unreleased** in the changelog (`CHANGELOG.md:12-21`). Hub 0.14.0 does not include it.
+This behavior shipped in 0.14.1 (`CHANGELOG.md:16-26`). Hub 0.14.0 does not include it.
 
-### Pinning the reply URL (Unreleased)
+### Pinning the reply URL (0.14.1)
 
 A reply URL is only kept when it looks like the Loupe package's receiver: an `http` or `https` URL whose path ends in `/v1/hub/inbound`, with no username or password. If the sending project has an inbound URL registered in the dashboard, the reply URL must also have the same origin (`packages/hub/index.ts:138-150`). Hub checks again before each update, so a stored reply URL that no longer matches is not used (`packages/hub/index.ts:299-302`).
 
-This behavior is listed under **Unreleased** in the changelog (`CHANGELOG.md:22-26`). Hub 0.14.0 does not include it.
+This behavior shipped in 0.14.1 (`CHANGELOG.md:27-31`). Hub 0.14.0 does not include it.
 
 ### What Hub does not provide
 

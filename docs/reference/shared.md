@@ -1,6 +1,6 @@
 # @loupekit/shared reference
 
-This page lists every type, constant and function that `@loupekit/shared` 0.14.0 exports. The
+This page lists every type, constant and function that `@loupekit/shared` 0.14.1 exports. The
 package is the canonical data model for the Loupe JavaScript packages: the SDK, the local server,
 the dashboard and the MCP server all import their comment, thread and status shapes from it.
 
@@ -41,7 +41,7 @@ relative to `packages/shared/src/` unless they start with `packages/`.
 | Name | Value | Description | Source |
 |---|---|---|---|
 | Package name | `@loupekit/shared` | Published to npm with public access. | `packages/shared/package.json:2`, `:26-28` |
-| Version | `0.14.0` | Moves in lockstep with the other Loupe packages. | `packages/shared/package.json:8` |
+| Version | `0.14.1` | Moves in lockstep with the other Loupe packages. | `packages/shared/package.json:8` |
 | Module format | ESM only | `"type": "module"`. There is no CommonJS build. | `packages/shared/package.json:29` |
 | Entry | `./dist/index.js` | Types are in `./dist/index.d.ts`. One export, `.`. | `packages/shared/package.json:30-37` |
 | Published files | `dist` | Built with `tsc -p tsconfig.json`. | `packages/shared/package.json:38-43` |

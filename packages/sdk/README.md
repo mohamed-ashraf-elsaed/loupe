@@ -44,7 +44,7 @@ The bundle has no runtime dependencies. It ships two builds:
 | `dist/index.js` | ES module | Bundlers and `import` |
 | `dist/index.global.js` | IIFE, global `Loupe` | A plain `<script>` tag |
 
-> **TypeScript:** version 0.14.0 ships no type declarations. `package.json` names `dist/index.d.ts`, but the build does not produce it, so TypeScript reports "Could not find a declaration file for module '@loupekit/sdk'". Until declarations ship, add a file such as `src/loupe.d.ts` that contains `declare module "@loupekit/sdk";`.
+> **TypeScript:** version 0.14.1 ships no type declarations. `package.json` names `dist/index.d.ts`, but the build does not produce it, so TypeScript reports "Could not find a declaration file for module '@loupekit/sdk'". Until declarations ship, add a file such as `src/loupe.d.ts` that contains `declare module "@loupekit/sdk";`.
 
 ## Before you begin
 

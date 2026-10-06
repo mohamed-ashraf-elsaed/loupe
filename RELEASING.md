@@ -94,8 +94,8 @@ location below by hand.
 | `CHANGELOG.md` | A new `## [X.Y.Z] — YYYY-MM-DD` heading and the compare links at the end of the file |
 
 Other pages in `docs/` and the package READMEs also mention versions. Most of those mentions are
-history, such as "Known issue in 0.14.0" callouts and version-notes tables, and stay as they
-are. [Step 8](#release-steps) finds the rest.
+history, such as "Fixed in 0.14.1" notes and version-notes tables, and stay as they are.
+[Step 8](#release-steps) finds the rest.
 
 You do not edit these:
 
@@ -110,13 +110,9 @@ You do not edit these:
 > `packages/mcp/src/bridge/presence-registry.ts`. `packages/mcp/tsup.config.ts` keeps
 > `@loupekit/shared` external, so the published `dist/index.js` needs it installed. It must be
 > listed under `dependencies` in `packages/mcp/package.json`. If it is only under
-> `devDependencies`, `npx -y @loupekit/mcp` fails with `ERR_MODULE_NOT_FOUND`.
->
-> **The repository is in that state now.** As of 0.14.0, `packages/mcp/package.json` lists
-> `@loupekit/shared` only under `devDependencies`, and the published `@loupekit/mcp@0.14.0`
-> depends only on `@modelcontextprotocol/sdk` and `zod`. Move the pin to `dependencies` before
-> the next release. The comment in `packages/mcp/tsup.config.ts` that calls the import
-> type-only is wrong. [Step 7](#release-steps) checks this on every release.
+> `devDependencies`, `npx -y @loupekit/mcp` fails with `ERR_MODULE_NOT_FOUND`. That is what
+> happened to `@loupekit/mcp@0.14.0`; 0.14.1 fixed it. [Step 7](#release-steps) checks this on
+> every release.
 
 ## Release steps
 
@@ -409,7 +405,7 @@ Run every command from the repository root. In the commands, replace these place
 | The `release` job fails with `CHANGELOG.md has no entry for X.Y.Z`. | `CHANGELOG.md` has no `## [X.Y.Z]` heading on the tagged commit. | npm and GitHub Packages got nothing, because `publish-npm` needs `release`. **Packagist did publish**: `laravel-split.yml` runs on the same tag and does not depend on `release.yml`. Follow [Re-tag a release](#re-tag-a-release). |
 | `npm view … dist-tags` shows an older version as `latest`. | Two release runs published in parallel and the older one finished last. | Follow [Point `latest` back at the release](#point-latest-back-at-the-release). |
 | The run succeeds but npm still shows the previous version. | The `package.json` versions were not bumped, so `publish-npm` skipped every package as already published. | Bump the versions and release the next patch version. Do not reuse `X.Y.Z`: the run already created the GitHub Release `vX.Y.Z`, and the split forwarded tag `vX.Y.Z`, which Packagist published from the unbumped commit. |
-| `npx -y @loupekit/mcp` fails with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | `@loupekit/shared` is only a dev dependency of `@loupekit/mcp`. This is the state of 0.14.0. | Move it to `dependencies` in `packages/mcp/package.json` and release a patch version. |
+| `npx -y @loupekit/mcp` fails with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | `@loupekit/shared` is only a dev dependency of `@loupekit/mcp`. This was the state of 0.14.0. | Move it to `dependencies` in `packages/mcp/package.json` and release a patch version. |
 | Packagist does not list the new version. | The `Split (tag)` step failed, or Packagist auto-update is off. | Run `gh run list --workflow laravel-split.yml --branch v<X.Y.Z> --limit 1 --json status,conclusion`. If it shows `success`, check that the tag exists on the split repository and that **Auto-update** is on for the Packagist package. |
 | A Laravel user reports a `package v…` flag after the version in the widget. | The user upgraded the package but did not republish its assets, so the served widget bundle is older than the installed package. This is the usual cause. | Point them to [Upgrade Loupe](docs/how-to/upgrade.md). They run `php artisan vendor:publish --tag=loupe-assets --force`. |
 | The flag appears on a fresh install of the new version. | The committed `packages/laravel/resources/dist` bundle was not rebuilt for this release. | Run `bash packages/laravel/bin/sync-assets.sh`, commit, and release a patch version. |

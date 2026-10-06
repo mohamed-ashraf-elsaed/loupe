@@ -1,6 +1,6 @@
 # Troubleshoot Loupe
 
-Use this page when a Loupe 0.14.0 setup does not behave as you expect. Find the part of Loupe that misbehaves, then find the row whose symptom matches what you see. Each row gives the cause, the fix, and the source line that produces the behavior, so you can check it yourself.
+Use this page when a Loupe 0.14.1 setup does not behave as you expect. Find the part of Loupe that misbehaves, then find the row whose symptom matches what you see. Each row gives the cause, the fix, and the source line that produces the behavior, so you can check it yourself.
 
 Most messages below are quoted exactly as the code writes them. Search this page for the text you see in the browser console, the server log, or an HTTP response body.
 
@@ -26,7 +26,7 @@ Most messages below are quoted exactly as the code writes them. Search this page
   - [Sign-in and dashboard](#sign-in-and-dashboard)
   - [Signed API and deliveries](#signed-api-and-deliveries)
   - [Self-hosting](#self-hosting)
-- [Known issues in 0.14.0](#known-issues-in-0140)
+- [Known issues](#known-issues)
 - [Next steps](#next-steps)
 
 ## Before you start
@@ -43,9 +43,9 @@ Collect three things before you look for your symptom:
 
 3. Open the Loupe panel and click the gear button in the panel header. The button's tooltip is **Settings** (`packages/sdk/src/app.ts:621-626`, `:674`).
 
-   You should see a menu with a version line at the bottom. It shows `Loupe v0.14.0`, then `server` when the widget talks to a backend, or `offline` when it stores comments in this browser only (`packages/sdk/src/app.ts:646-647`).
+   You should see a menu with a version line at the bottom. It shows `Loupe v0.14.1`, then `server` when the widget talks to a backend, or `offline` when it stores comments in this browser only (`packages/sdk/src/app.ts:646-647`).
 
-Source paths in the tables are relative to the root of the [Loupe repository](https://github.com/mohamed-ashraf-elsaed/loupe). Line numbers refer to the current source on the main development line, not to the `v0.14.0` tag. Most files match the tag. The Hub files `packages/hub/index.ts` and `packages/hub/webhook.ts` changed after 0.14.0, so their line numbers do not match the tag, and rows marked **after 0.14.0** describe behavior that a 0.14.0 Hub does not have.
+Source paths in the tables are relative to the root of the [Loupe repository](https://github.com/mohamed-ashraf-elsaed/loupe). Line numbers refer to the 0.14.1 source. Rows marked **0.14.1 and later** describe Hub behavior that a 0.14.0 Hub does not have.
 
 ### Prerequisites for the npm commands
 
@@ -124,8 +124,8 @@ For the setup, see [Install Loupe from npm](how-to/install-npm.md).
 |---|---|---|---|
 | `ReferenceError: document is not defined` during server-side rendering or a static build. | `init` reads `document.readyState`, so it runs only in a browser. | Call `init` in client-only code, for example inside `useEffect` or `onMounted`. | `packages/sdk/src/index.ts:30` |
 | The launcher does not appear, and nothing is logged. | `init` was never called, or a widget was already running. A second `init` call does nothing. | Check that the code path with `init` runs. To start again with a new configuration, call `destroy()` first. | `packages/sdk/src/index.ts:24` |
-| TypeScript cannot find a declaration file for `@loupekit/sdk`. | The 0.14.0 package ships JavaScript only. | Add a file such as `src/loupe.d.ts` that contains `declare module "@loupekit/sdk";`. | `packages/sdk/tsup.config.ts:20` |
-| `version` logs an older version than you expected. | `npm i @loupekit/sdk` installs whatever the `latest` dist-tag points to. A dist-tag is a name on the npm registry that points at one published version. | Install an exact version, for example `npm i @loupekit/sdk@0.14.0`. | `.github/workflows/release.yml:89`, `:121` |
+| TypeScript cannot find a declaration file for `@loupekit/sdk`. | The 0.14.1 package ships JavaScript only. | Add a file such as `src/loupe.d.ts` that contains `declare module "@loupekit/sdk";`. | `packages/sdk/tsup.config.ts:20` |
+| `version` logs an older version than you expected. | `npm i @loupekit/sdk` installs whatever the `latest` dist-tag points to. A dist-tag is a name on the npm registry that points at one published version. | Install an exact version, for example `npm i @loupekit/sdk@0.14.1`. | `.github/workflows/release.yml:89`, `:121` |
 
 ### Configuration examples
 
@@ -235,7 +235,7 @@ Terms: the **chip** is the forwarding badge on a comment card, such as `→ Trac
 | Delivery error `HTTP 401`; Tracker answers `invalid signature`. | Tracker's `LOUPE_PROJECT_SECRET` does not match the Tracker project in Hub. | Copy the current secret, or rotate it in Hub and update `.env`. | `packages/laravel/src/Http/Middleware/VerifyHubSignature.php:57` |
 | Delivery error `HTTP 413`; Tracker answers `payload too large`. | The delivery body is over 6,000,000 bytes. | Attach fewer or smaller files to the comment. | `packages/laravel/src/Http/Middleware/VerifyHubSignature.php:29`, `:39` |
 | Delivery error `HTTP 404`. | The inbound URL path is wrong, or Tracker's `LOUPE_PATH` is not `loupe`. | Set Tracker's inbound URL to `https://tracker.example.com/<LOUPE_PATH>/v1/hub/inbound`. | `packages/laravel/routes/loupe.php:22-24` |
-| The ticket reaches Tracker, but status changes and replies never reach Shop. | Hub sends updates to the `reply_url` that Shop sent with the ticket. A 0.14.0 Hub keeps any `http://` or `https://` `reply_url`. **After 0.14.0** (listed as Unreleased in the changelog), Hub keeps it only when its path ends with `/v1/hub/inbound`, it carries no credentials, and it shares the origin of Shop's inbound URL when Shop has one. | Keep Shop's routes enabled (`LOUPE_ENABLED` is not `false`). After 0.14.0, if Shop has an inbound URL in Hub, use the same scheme and host that Shop's users open. | `packages/hub/index.ts:229` in the `v0.14.0` tag; `packages/hub/index.ts:145-150`, `:243` after it; the `[Unreleased]` section of `CHANGELOG.md` |
+| The ticket reaches Tracker, but status changes and replies never reach Shop. | Hub sends updates to the `reply_url` that Shop sent with the ticket. A 0.14.0 Hub keeps any `http://` or `https://` `reply_url`. In **0.14.1 and later**, Hub keeps it only when its path ends with `/v1/hub/inbound`, it carries no credentials, and it shares the origin of Shop's inbound URL when Shop has one. | Keep Shop's routes enabled (`LOUPE_ENABLED` is not `false`). On 0.14.1 and later, if Shop has an inbound URL in Hub, use the same scheme and host that Shop's users open. | `packages/hub/index.ts:229` in the `v0.14.0` tag; `packages/hub/index.ts:145-150`, `:243` in 0.14.1; the `[0.14.1]` section of `CHANGELOG.md` |
 | The Activity feed shows `Could not reach Loupe Hub` for an update. | The app could not connect to Hub to send a status change or reply. | Check `LOUPE_HUB_URL` and the app's network access to Hub. | `packages/laravel/src/Jobs/SendUpdateToHub.php:54-56` |
 | The Activity feed shows `Could not send the <KIND> update to the other project`; log `[loupe] Hub did not deliver the ticket update`. | Hub answered with an error, or could not deliver the update to the other project. `<KIND>` is the kind of update, for example a status change or a reply. The feed entry shows the error. | Read the error. For a delivery failure, open the project page in Hub and use the **Error** column under **Last 20 deliveries**, then the [Signed API and deliveries](#signed-api-and-deliveries) rows. | `packages/laravel/src/Jobs/SendUpdateToHub.php:47-51` |
 
@@ -265,14 +265,13 @@ These rows apply to `@loupekit/mcp`. For the setup, see [Connect MCP clients](ho
 
 | Symptom | Cause | Fix | Source |
 |---|---|---|---|
-| The server exits at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | A known issue in 0.14.0. See [Known issues in 0.14.0](#known-issues-in-0140). | Run the server from source. | `packages/mcp/package.json:49-51` |
+| The server exits at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | You run `@loupekit/mcp` 0.14.0, which lists `@loupekit/shared` only under `devDependencies`, so npm does not install it. Fixed in 0.14.1. | Use 0.14.1 or later, for example `npx -y @loupekit/mcp@0.14.1`. On 0.14.0, run the server from a clone, as in [Connect MCP clients](how-to/connect-mcp-clients.md#procedure-a-connect-the-node-server-to-claude-code). | `packages/mcp/package.json:45-49` |
 | A tool fails with a message ending in `→ 401`, for example `GET /v1/comments?… → 401` or `GET /v1/comments/<ID> → 401`. | `LOUPE_ADMIN_KEY` is missing or is not the project secret. | Set `LOUPE_ADMIN_KEY` to the project secret, then restart the MCP client. | `packages/mcp/index.ts:100`, `:177`, `:202` |
 | A tool fails with a message ending in `→ 404`. | `LOUPE_PROJECT_KEY` names a project the backend does not know. | Use a key that exists, for example `pk_demo_acme` after `npm run seed`. | `packages/mcp/index.ts:100`, `packages/server/auth.ts:32` |
 | The log shows `[loupe] bridge port 9800 is busy after 6 attempts — continuing without it`. | The bridge is the MCP server's local HTTP server on `127.0.0.1`, port `9800` by default; it passes selections between the browser and the agent and serves the activity dashboard. Another process, often a second Loupe MCP server, holds port 9800. | Stop the other process, or set `LOUPE_BRIDGE_PORT` to a free port. The comment tools work either way. | `packages/mcp/src/bridge/http-bridge.ts:1-11`, `:65`, `:93`, `packages/mcp/index.ts:74` |
-| `get_dashboard_url` replies `The activity dashboard is not running — the bridge did not start.` | The bridge did not start, or `LOUPE_BRIDGE_PORT` is `0`. | Free the port, or remove `LOUPE_BRIDGE_PORT`, then restart the client. | `packages/mcp/index.ts:74`, `:528`, `:672` |
-| `get_recent_events` always fails. | A known issue in 0.14.0. See [Known issues in 0.14.0](#known-issues-in-0140). | Use `get_activity_summary` or `get_files_touched`, or open the `/monitor` page. | `packages/mcp/index.ts:485` |
+| `get_dashboard_url` replies `The activity dashboard is not running — the bridge did not start.` | The bridge did not start, or `LOUPE_BRIDGE_PORT` is `0`. | Free the port, or remove `LOUPE_BRIDGE_PORT`, then restart the client. | `packages/mcp/index.ts:74`, `:532`, `:676` |
 | `create_pr_for_thread` replies `No GitHub token is configured, so I cannot open a pull request.` | No usable token was found. Loupe reads `GITHUB_TOKEN`, and reads `GH_TOKEN` only when `GITHUB_TOKEN` is not set; then it tries `gh auth token`. A value that looks like a placeholder is ignored, so a placeholder `GITHUB_TOKEN` hides a valid `GH_TOKEN`. | Unset a placeholder `GITHUB_TOKEN`. Then set `GITHUB_TOKEN` to a fine-grained token with read and write access to Contents and Pull requests, or run `gh auth login`. | `packages/mcp/src/github/github-client.ts:78`, `:92` |
-| `install_agent_hooks` replies `Could not install: settings file is not valid JSON (...); left untouched`. | The settings file has a syntax error, so Loupe refuses to overwrite it. | Fix the JSON in `$HOME/.claude/settings.json` (or the file in `LOUPE_CLAUDE_SETTINGS`), then ask again. | `packages/mcp/src/hooks/hook-installer.ts:166`, `packages/mcp/index.ts:544` |
+| `install_agent_hooks` replies `Could not install: settings file is not valid JSON (...); left untouched`. | The settings file has a syntax error, so Loupe refuses to overwrite it. | Fix the JSON in `$HOME/.claude/settings.json` (or the file in `LOUPE_CLAUDE_SETTINGS`), then ask again. | `packages/mcp/src/hooks/hook-installer.ts:166`, `packages/mcp/index.ts:548` |
 
 ## Extension
 
@@ -326,7 +325,7 @@ To check signatures on your receiver, see [Verify Hub webhooks](how-to/verify-hu
 | An update answers `404 {"error":"unknown ticket"}`. | No successful project-to-project delivery has this issue id. Tickets sent to a plain webhook cannot carry updates. | Route the ticket to another project instead of a webhook. | `packages/hub/store.ts:250-265` |
 | An update answers `403 {"error":"this project does not hold the ticket"}`. | The calling project is neither the sender nor the receiver of the ticket. | Send the update from one of the two projects. | `packages/hub/index.ts:294` |
 | **Error** `timeout after 10000ms`. | The receiver did not answer within 10 seconds, three times. | Make the receiver answer quickly, and do slow work in a queue. | `packages/hub/webhook.ts:205` |
-| **Error** `refused: <HOST> resolves to a private address (<IP>)`. | **After 0.14.0 only** (listed as Unreleased in the changelog): Hub refuses loopback, private, link-local and other non-public addresses. A 0.14.0 Hub never shows this error. | Use a public URL. For local development only, start Hub with `HUB_ALLOW_PRIVATE_URLS=1`. Never set it on a public Hub. | `packages/hub/webhook.ts:52`, `:95` |
+| **Error** `refused: <HOST> resolves to a private address (<IP>)`. | **0.14.1 and later** only: Hub refuses loopback, private, link-local and other non-public addresses. A 0.14.0 Hub never shows this error. | Use a public URL. For local development only, start Hub with `HUB_ALLOW_PRIVATE_URLS=1`. Never set it on a public Hub. | `packages/hub/webhook.ts:52`, `:95` |
 | **Error** `HTTP 3xx`. | Hub never follows redirects, so a redirect counts as a failure. | Set the URL to the final address, for example with `https://` instead of `http://`. | `packages/hub/webhook.ts:192`, `:201` |
 
 ### Self-hosting
@@ -336,68 +335,9 @@ To check signatures on your receiver, see [Verify Hub webhooks](how-to/verify-hu
 | Hub exits at start with `HUB_SESSION_SECRET is required in production`. | `NODE_ENV` is `production`, and `HUB_SESSION_SECRET` is not set. | Set `HUB_SESSION_SECRET` to the output of `openssl rand -hex 32`. If you set up the VM with `packages/hub/deploy/setup-vm.sh`, check `/etc/loupe-hub.env`, which that script writes. | `packages/hub/index.ts:25`, `packages/hub/deploy/setup-vm.sh:55-63` |
 | `deploy.sh` prints service logs and exits with status 1. | Hub did not answer `/v1/health` within 20 seconds after the restart. | Read the printed `journalctl` lines, fix the error, and run `deploy.sh` again. | `packages/hub/deploy/deploy.sh:28-29` |
 
-## Known issues in 0.14.0
+## Known issues
 
-These defects exist in the 0.14.0 code. Each entry gives a workaround where one exists.
-
-### `@loupekit/mcp` 0.14.0 fails with `ERR_MODULE_NOT_FOUND`
-
-The published package imports `@loupekit/shared` at run time, but its `package.json` lists `@loupekit/shared` only under `devDependencies`. The build keeps the import external, so `npx -y @loupekit/mcp` fails at start (`packages/mcp/index.ts:43-53`, `packages/mcp/tsup.config.ts:14`, `packages/mcp/package.json:49-51`).
-
-Workaround: run the server from source.
-
-Prerequisites: Git, and Node.js 24, the version CI uses (`.github/workflows/ci.yml:15`).
-
-1. Clone the repository and install its dependencies:
-
-   ```bash
-   git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
-   cd loupe
-   npm install
-   ```
-
-   You should see `npm install` finish without errors.
-
-2. Build the shared package:
-
-   ```bash
-   npm run build:shared
-   ```
-
-   You should see `packages/shared/dist/index.js` appear (`packages/shared/package.json:30`).
-
-3. Point your MCP client at the source entry:
-
-```json
-{
-  "mcpServers": {
-    "loupe": {
-      "command": "node",
-      "args": ["<CLONE_PATH>/packages/mcp/index.ts"],
-      "env": {
-        "LOUPE_API": "<API_BASE>",
-        "LOUPE_PROJECT_KEY": "<PROJECT_KEY>",
-        "LOUPE_ADMIN_KEY": "<PROJECT_SECRET>"
-      }
-    }
-  }
-}
-```
-
-- `<CLONE_PATH>`: the absolute path of your clone.
-- `<API_BASE>`: your backend's base URL, for example `http://localhost:8787`.
-- `<PROJECT_KEY>`: your project key, for example `pk_demo_acme`.
-- `<PROJECT_SECRET>`: the project's admin secret.
-
-4. Restart your MCP client so it starts the server again.
-
-Verify: in your MCP client, list the MCP servers, for example with `/mcp` in Claude Code. You should see `loupe` listed as connected, with tools such as `list_comments`. See [Connect MCP clients](how-to/connect-mcp-clients.md).
-
-### `get_recent_events` throws
-
-The handler declares `const events = events.latest(...)`, which reads the new variable before it exists, so the tool always fails (`packages/mcp/index.ts:485`).
-
-Workaround: use `get_activity_summary` or `get_files_touched`, or open the `/monitor` page that `get_dashboard_url` returns.
+These defects exist in the 0.14.1 code. Each entry gives a workaround where one exists.
 
 ### The integration delivery log is not scoped to a project
 

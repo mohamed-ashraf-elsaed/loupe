@@ -10,7 +10,8 @@ export default defineConfig({
   platform: "node",
   target: "node24",
   // Runtime deps stay external (resolved from the consumer's node_modules).
-  // @loupekit/shared is a type-only import → erased by esbuild, never emitted.
+  // @loupekit/shared is imported at runtime (normalizeStatus, STAGE_LABELS, joinPresence),
+  // so it stays external and is a runtime dependency in package.json.
   external: ["@modelcontextprotocol/sdk", "zod", "@loupekit/shared"],
   sourcemap: false,
   clean: true,

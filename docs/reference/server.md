@@ -1,7 +1,7 @@
 # Local server reference
 
 This page lists the environment variables, authentication rules, limits, endpoints, tables and
-integration behavior of `@loupekit/server`, version 0.14.0. Use it when you run the local server,
+integration behavior of `@loupekit/server`, version 0.14.1. Use it when you run the local server,
 or when you write a backend that replaces it.
 
 > **Note:** `@loupekit/server` is not published to npm. You run it from a clone of the
@@ -12,8 +12,8 @@ and the dashboard, demo and SDK bundle as static files.
 
 Each table has a **Source** column. It gives the file and line that defines the fact. All paths
 are relative to `packages/server/` unless they start with `packages/`. The line numbers match the
-`v0.14.0` tag, so you can open any cited file at
-[that tag on GitHub](https://github.com/mohamed-ashraf-elsaed/loupe/tree/v0.14.0/packages/server).
+`v0.14.1` tag, so you can open any cited file at
+[that tag on GitHub](https://github.com/mohamed-ashraf-elsaed/loupe/tree/v0.14.1/packages/server).
 
 ## Contents
 
@@ -591,7 +591,7 @@ these fields from the comment: `threadId`, `title`, `body`, `status`, `priority`
 `pageUrl` is the page URL as stored on the comment, which is normalized (`store.ts:117`).
 
 > **Note:** The `LifecyclePayload` type also declares `agent`, `author` and `repo`
-> (`integrations.ts:117-133`). In 0.14.0 none of them is populated. Every call site passes `agent`
+> (`integrations.ts:117-133`). In 0.14.1 none of them is populated. Every call site passes `agent`
 > and `repo` inside the first argument of `lifecyclePayload`, which copies only the fields listed
 > above, and nothing sets `author` (`index.ts:233`, `index.ts:526`, `index.ts:558`). As a result:
 >
@@ -614,7 +614,7 @@ thread (`integrations.ts:393-399`):
 | Has a repo with an exact mapping | The exact mappings only |
 | Has a repo with no exact mapping | The mappings whose repo is `*` |
 
-> **Warning:** In 0.14.0 the payload never carries `repo` (see
+> **Warning:** In 0.14.1 the payload never carries `repo` (see
 > [Lifecycle events](#lifecycle-events)), so `dispatch` always calls `targetsFor` with no repo
 > (`delivery.ts:104`). Every event therefore goes to every mapping for the provider. Only the
 > first row of the table applies. The exact-mapping and `*` rows never apply on this server.
@@ -806,7 +806,7 @@ and [Laravel authorization](../how-to/laravel-authorize.md).
 
 ## Known limitations
 
-These are behaviors of version 0.14.0, stated so you do not depend on them.
+These are behaviors of version 0.14.1, stated so you do not depend on them.
 
 - `GET /v1/integrations/deliveries` is not filtered by project. It returns rows for every
   project, and rows are written with an empty `project_key` (`integrations.ts:403-410`,

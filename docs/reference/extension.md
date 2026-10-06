@@ -1,7 +1,7 @@
 # Browser extension reference
 
 This page lists every manifest field, permission, context menu, popup field, storage key,
-runtime message and build setting of the Loupe browser extension, version 0.14.0. It describes
+runtime message and build setting of the Loupe browser extension, version 0.14.1. It describes
 exact behavior for developers and store reviewers. To install and use the extension, see
 [Use the browser extension](../how-to/browser-extension.md).
 
@@ -40,7 +40,7 @@ paths are relative to `packages/extension/` unless they start with `packages/` o
 | `content.js` | build output | absent until built | The bundled content script. It is gitignored, so you must build it before you load the extension unpacked. | `tsup.config.ts:6-11`, root `.gitignore:5` |
 | `popup.html`, `popup.js` | popup page | — | The settings form opened from the toolbar icon. | `popup.html:1-41`, `popup.js:1-36` |
 | `icons/16.png`, `icons/48.png`, `icons/128.png` | PNG | — | Toolbar and store icons. | `manifest.json:15-19` |
-| `package.json` | npm manifest | — | `@loupekit/extension`, version `0.14.0`, `"private": true`. It is never published to npm. | `package.json:2`, `package.json:8`, `package.json:11` |
+| `package.json` | npm manifest | — | `@loupekit/extension`, version `0.14.1`, `"private": true`. It is never published to npm. | `package.json:2`, `package.json:8`, `package.json:11` |
 | `test/manifest.test.ts` | Vitest suite | — | Asserts the manifest's permissions and the menu-to-tool map. See [Tests](#tests). | `test/manifest.test.ts:1-44` |
 
 ## Manifest
@@ -49,7 +49,7 @@ paths are relative to `packages/extension/` unless they start with `packages/` o
 |---|---|---|---|---|
 | `manifest_version` | number | `3` | Manifest V3. | `manifest.json:2` |
 | `name` | string | `Loupe — visual feedback` | Name in the browser and the store. | `manifest.json:3` |
-| `version` | string | `0.14.0` | Edited by hand. See [Packaging and versioning](#packaging-and-versioning). | `manifest.json:4` |
+| `version` | string | `0.14.1` | Edited by hand. See [Packaging and versioning](#packaging-and-versioning). | `manifest.json:4` |
 | `description` | string | `Inspect any page, pin comments to elements, and hand them to Claude — no SDK install required.` | Store summary. | `manifest.json:5` |
 | `permissions` | string[] | `activeTab`, `scripting`, `storage`, `contextMenus` | The complete list. Nothing else is requested. | `manifest.json:6-11` |
 | `background.service_worker` | string | `background.js` | The MV3 service worker. | `manifest.json:12-14` |
@@ -266,7 +266,7 @@ All requests come from the bundled SDK, inside the page:
 | `sourcemap` | `false` | No source map is shipped. | `tsup.config.ts:12` |
 | `clean` | `false` | The build never deletes `manifest.json`, `background.js` or `popup.*`. | `tsup.config.ts:13` |
 | `dts` | `false` | No type declarations. | `tsup.config.ts:14` |
-| Dependency | `@loupekit/sdk` `0.14.0` | Bundled into `content.js`. | `package.json:16` |
+| Dependency | `@loupekit/sdk` `0.14.1` | Bundled into `content.js`. | `package.json:16` |
 
 Build it from the repository root:
 

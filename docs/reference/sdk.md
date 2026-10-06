@@ -1,7 +1,7 @@
 # @loupekit/sdk reference
 
 This page lists every option, function, attribute, limit, storage key and network call of the
-`@loupekit/sdk` browser widget, version 0.14.0. It is the canonical home of these facts; other
+`@loupekit/sdk` browser widget, version 0.14.1. It is the canonical home of these facts; other
 pages link here.
 
 Each table has a **Source** column. It gives the file and line in the
@@ -10,7 +10,7 @@ paths are relative to `packages/sdk/src/` unless they start with `packages/`.
 
 **Related pages:** to install the package with `npm install @loupekit/sdk`, see
 [Install Loupe with npm](../how-to/install-npm.md). To load it from a `<script>` tag or the CDN
-(`https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.0/dist/index.global.js`), see
+(`https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.1/dist/index.global.js`), see
 [Embed Loupe with a script tag](../how-to/embed-script-tag.md). To run a backend on your machine,
 see [Run the local server](../how-to/run-local-server.md). For why `userHmac` is computed on your
 server, see [Identity, access and privacy](../explanation/auth-and-privacy.md#why-userhmac-is-computed-on-the-server).
@@ -163,7 +163,7 @@ The imports are then typed as `any`.
   `/sdk/index.global.js` and the Loupe API on the same origin (`packages/server/index.ts:34`).
   Other hosts use other script paths: the Laravel package serves `vendor/loupe/sdk/loupe.js`
   (`packages/laravel/src/LoupeServiceProvider.php:165`), and the CDN build is at
-  `https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.0/dist/index.global.js`. The script and
+  `https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.1/dist/index.global.js`. The script and
   `apiBase` can be on different origins.
 - `<PROJECT_KEY>`: the public project key, for example `pk_demo_acme` on the local demo server.
 - `<USER_ID>`: the signed-in user's id in your app.

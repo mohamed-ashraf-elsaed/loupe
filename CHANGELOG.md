@@ -9,6 +9,8 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-10-06
+
 ### Security
 
 - **Hub no longer posts to private addresses.** Loupe Hub (the service that routes tickets
@@ -27,6 +29,27 @@ see [RELEASING.md](RELEASING.md) for the process.
   inbound URL registered in the dashboard, the `reply_url` must also share its origin. Hub
   checks again before each update, so `reply_url` values stored before this release are
   covered too.
+
+### Fixed
+
+- **`npx -y @loupekit/mcp` starts again.** `@loupekit/mcp` now lists `@loupekit/shared` under
+  `dependencies`. The server imports values from it at run time, but 0.14.0 listed it only under
+  `devDependencies`, so npm did not install it and the server exited with
+  `ERR_MODULE_NOT_FOUND`.
+- **The MCP tool `get_recent_events` works.** In 0.14.0 it failed on every call with
+  `Cannot access 'events' before initialization`, because its handler read a variable before it
+  was defined.
+- **The MCP tool `update_status` refuses `resolved`.** Its description always said that only a
+  person resolves a comment, but 0.14.0 stored `resolved` (and the legacy `done`) anyway. The tool
+  now changes nothing and answers that the agent should set `in_review` or call
+  `mark_thread_addressed` instead.
+
+### Documentation
+
+- The documentation was rewritten (#78). `docs/` is now organized as tutorials, how-to guides,
+  reference pages and explanations, with new screenshots. The package READMEs, the
+  [documentation site](https://mohamed-ashraf-elsaed.github.io/loupe/guide/) and the wiki were
+  rewritten to match.
 
 ## [0.14.0] — 2026-10-05
 
@@ -1529,7 +1552,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.1...HEAD
+[0.14.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.12.0...v0.13.0

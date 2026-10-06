@@ -224,7 +224,7 @@ in short form, is in [RELEASING.md](../../RELEASING.md#chrome-web-store-extensio
 ## Steps
 
 1. Open `packages/extension/manifest.json` and set `"version"` to the release version, for
-   example `"0.14.0"`. No script bumps it; edit it by hand, together with the other files in
+   example `"0.14.1"`. No script bumps it; edit it by hand, together with the other files in
    [Version strings to bump together](../../RELEASING.md#version-strings-to-bump-together).
 
    To check, run this from the repository root:

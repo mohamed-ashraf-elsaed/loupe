@@ -297,7 +297,7 @@ You can run Hub without Google Cloud on any host with Node 24. Node 24 runs Hub'
 
    `HOST` and `PORT` default to `127.0.0.1` and `8790`. Leave `HOST` at `127.0.0.1` so only the proxy can reach Hub. For every variable, its type and default, see [Loupe Hub reference: Environment variables](../reference/hub.md#environment-variables).
 
-   Do not set `HUB_ALLOW_PRIVATE_URLS` in production. In the current source (listed under Unreleased in the changelog), the value `1` lets Hub deliver to private and loopback addresses, which is meant for local development only.
+   Do not set `HUB_ALLOW_PRIVATE_URLS` in production. In 0.14.1 and later, the value `1` lets Hub deliver to private and loopback addresses, which is meant for local development only.
 
 6. Run Hub under systemd, so it restarts after a crash or reboot. Start from the bundled unit:
 

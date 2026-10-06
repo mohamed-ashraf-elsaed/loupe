@@ -129,8 +129,16 @@ describe("mcp handlers", () => {
     expect(text(await mod.updateStatus({ id: "c1", status: "in_review" }))).toContain("In Review");
     expect(patched).toEqual({ status: "in_review" });
     // A legacy value is normalized before it reaches the API.
-    await mod.updateStatus({ id: "c1", status: "done" });
-    expect(patched).toEqual({ status: "resolved" });
+    await mod.updateStatus({ id: "c1", status: "open" });
+    expect(patched).toEqual({ status: "queue" });
+  });
+
+  it("update_status refuses to resolve, in either spelling", async () => {
+    patched = undefined;
+    for (const status of ["resolved", "done"]) {
+      expect(text(await mod.updateStatus({ id: "c1", status }))).toContain("only a person resolves");
+    }
+    expect(patched).toBeUndefined();
   });
 
   it("api() throws on a non-OK response", async () => {

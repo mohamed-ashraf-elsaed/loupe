@@ -1,6 +1,6 @@
 # Loupe architecture
 
-This page explains how Loupe 0.14.0 is built: which package does what, how a comment moves
+This page explains how Loupe 0.14.1 is built: which package does what, how a comment moves
 from a click on a live page to a resolved ticket, and why the non-obvious parts work the way
 they do. It is written for contributors and for teams integrating Loupe into their own stack.
 For exact options, endpoints and defaults, follow the links to the reference pages.
@@ -263,9 +263,9 @@ rewrites stored legacy values on startup (packages/server/db.ts:232-233).
 (packages/shared/src/index.ts:21-26). Five stages exist so that "not triaged", "waiting on me"
 and "waiting on a preview" can be told apart. The MCP tool built for the handoff,
 `mark_thread_addressed`, has no status argument and always sets In Review
-(packages/mcp/index.ts:584-591). The `update_status` tool states the same rule in its
-description (packages/mcp/index.ts:348-352), but in 0.14.0 its code does not refuse `resolved`:
-the allow-list in packages/mcp/src/tools/handoff.ts:111 is not applied to it.
+(packages/mcp/index.ts:588-595). The `update_status` tool states the same rule in its
+description and, since 0.14.1, refuses `resolved` and the legacy `done` without changing the
+comment (packages/mcp/index.ts:263-269, :352-356).
 
 ### Lifecycle labels
 
@@ -470,7 +470,7 @@ sequenceDiagram
 ![A comments list with a "→ Tracker" forwarding chip and a "from Shop" item](images/sdk-forwarded-chip.png)
 
 Hub's refusal to deliver to private, loopback and link-local addresses, and the `reply_url`
-origin check, are listed under Unreleased in the [changelog](../CHANGELOG.md), not in 0.14.0.
+origin check, are new in 0.14.1 (see the [changelog](../CHANGELOG.md)). A 0.14.0 Hub has neither.
 
 ## Authentication
 

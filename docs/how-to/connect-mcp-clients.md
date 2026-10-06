@@ -31,7 +31,7 @@ The Node server also starts a local *bridge*: a small HTTP server on `127.0.0.1`
 
 For the Node server (procedures A and B), you need:
 
-- **Node.js.** The `npx` setup does not require a specific version. The clone workaround in procedure A runs a TypeScript file directly, which needs Node.js 24 or later.
+- **Node.js.** The `npx` setup does not require a specific version. Running the server from a clone of the repository, as the note in procedure A describes, runs a TypeScript file directly, which needs Node.js 24 or later.
 - **A running Loupe server.** See [Run the local server](run-local-server.md). Note its base URL, for example `http://localhost:8787`.
 - **The project key and the project secret.** The project secret is the value the server accepts in the `X-Loupe-Admin` header. For the demo project created by `npm run seed`, the key is `pk_demo_acme` and the secret is printed as `admin key`. Its default is `sk_demo_acme_0f3b9c`, unless you set `LOUPE_DEMO_SECRET` before seeding.
 - **An MCP client.** This guide uses Claude Code. To install it and get the `claude` command, see [Set up Claude Code](https://code.claude.com/docs/en/setup).
@@ -71,35 +71,14 @@ Claude Code reads project-scoped MCP servers from a file named `.mcp.json` in th
    - `<PROJECT_KEY>`: your project key, for example `pk_demo_acme`.
    - `<PROJECT_SECRET>`: your project secret, for example `sk_demo_acme_0f3b9c` for the demo project. Keep this file out of version control if it holds a real secret.
 
-   > [!IMPORTANT]
-   > The published `@loupekit/mcp` 0.14.0 package fails at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. Its compiled entry imports `@loupekit/shared`, but the package lists it only as a development dependency, so `npx` does not install it. Until a fixed release is published, run the server from a clone of the repository instead:
-   >
-   > 1. Clone and build the shared package:
-   >
-   >    ```bash
-   >    git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
-   >    cd loupe
-   >    npm install
-   >    npm run build:shared
-   >    ```
-   >
-   > 2. In `.mcp.json`, replace `command` and `args` with:
-   >
-   >    ```json
-   >    "command": "node",
-   >    "args": ["<ABSOLUTE_PATH_TO_CLONE>/packages/mcp/index.ts"]
-   >    ```
-   >
-   >    `<ABSOLUTE_PATH_TO_CLONE>` is the full path of the `loupe` directory you cloned, for example `/home/sara/src/loupe`. Node 24 runs the TypeScript entry directly. Keep the `env` block unchanged.
+   > [!NOTE]
+   > Fixed in 0.14.1. The published `@loupekit/mcp` 0.14.0 fails at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. On 0.14.0, run the server from a clone: run `npm install` and `npm run build:shared` in the clone, then set `"command": "node"` and `"args": ["<ABSOLUTE_PATH_TO_CLONE>/packages/mcp/index.ts"]`, where `<ABSOLUTE_PATH_TO_CLONE>` is the full path of the clone, for example `/home/sara/src/loupe`. Keep the `env` block unchanged.
 
    The local dashboard shows the same configuration, already filled in with your API URL and project key, on its **Connect Claude** page. To copy it, open `<API_URL>/dashboard/` (for example `http://localhost:8787/dashboard/`), click **Connect Claude** in the left navigation, then click **Copy**.
 
    ![The local dashboard's Connect Claude page, showing the mcpServers JSON with the npx command and a Copy button](../images/dashboard-connect-claude.png)
 
-   The copied snippet differs from a working 0.14.0 configuration in two ways. After you paste it, fix both:
-
-   - It always uses `"command": "npx"` and `"args": ["-y", "@loupekit/mcp"]`. Until a fixed release is published, replace `command` and `args` with the clone values from the note above.
-   - Its `LOUPE_ADMIN_KEY` is the literal text `<your project secret>`. Replace it with your project secret, or every tool fails with `401`.
+   The copied snippet's `LOUPE_ADMIN_KEY` is the literal text `<your project secret>`. After you paste it, replace that with your project secret, or every tool fails with `401`.
 
 3. Save `.mcp.json`, then start Claude Code from the same project directory:
 
@@ -334,12 +313,11 @@ Use these steps if you followed procedure C.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| The server exits at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | The published `@loupekit/mcp` 0.14.0 package does not declare `@loupekit/shared` as a runtime dependency. | Run the server from a clone, as the note in [procedure A](#procedure-a-connect-the-node-server-to-claude-code) describes. |
+| The server exits at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | You run `@loupekit/mcp` 0.14.0, which does not declare `@loupekit/shared` as a runtime dependency. | Use 0.14.1 or later, for example `"args": ["-y", "@loupekit/mcp@0.14.1"]`. On 0.14.0, run the server from a clone, as the note in [procedure A](#procedure-a-connect-the-node-server-to-claude-code) describes. |
 | A tool fails with an error such as `GET /v1/comments?projectKey=pk_demo_acme → 401`. | `LOUPE_ADMIN_KEY` is missing or is not the project secret. The server answers 401 to a wrong `X-Loupe-Admin` value. | Set `LOUPE_ADMIN_KEY` to the project secret, then restart the client. |
 | A tool fails with `→ 404`, for example `GET /v1/comments?projectKey=pk_demo_acme → 404` or `GET /v1/comments/<COMMENT_ID> → 404`. | `LOUPE_PROJECT_KEY` names a project the server does not know, or the comment id does not exist. | Use a key that exists, for example `pk_demo_acme` after `npm run seed`. For a comment id, run `list_comments` and copy an id it prints after `#`. |
 | The log shows `[loupe] bridge port 9800 is busy after 6 attempts — continuing without it`. | Another process, often a second Loupe MCP server, holds port 9800. The server retries 5 times, 1.5 seconds apart, then runs without a bridge. | Stop the other process, or set `LOUPE_BRIDGE_PORT` to a free port. The comment tools work either way. |
 | `get_dashboard_url` replies `The activity dashboard is not running`. | The bridge did not start, or `LOUPE_BRIDGE_PORT` is `0`. | Free the port or remove `LOUPE_BRIDGE_PORT`, then restart the client. |
-| The `get_recent_events` tool always fails. | A known defect in 0.14.0: the tool's handler reads a variable before it is defined. | Use `get_activity_summary` or `get_files_touched` instead, or open the `/monitor` page. |
 | `create_pr_for_thread` replies `No GitHub token is configured, so I cannot open a pull request.` | Neither `GITHUB_TOKEN`, `GH_TOKEN` nor `gh auth token` gave a usable token. A value that looks like a placeholder is ignored. | Follow [Let Claude open pull requests](#optional-let-claude-open-pull-requests). |
 | `install_agent_hooks` replies `Could not install: settings file is not valid JSON`. | The settings file has a syntax error, so Loupe refuses to overwrite it. | Fix the JSON in `$HOME/.claude/settings.json`, then ask again. |
 | `php artisan mcp:start loupe` fails with `Command "mcp:start" is not defined.` | `laravel/mcp` is not installed. Without it the `mcp:start` command does not exist, and the package does not load its MCP routes. | Run `composer require laravel/mcp:^0.8 --dev` in the app's root directory, then run `php artisan mcp:start loupe` again. |
