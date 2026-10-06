@@ -1,232 +1,253 @@
-# ◎ Loupe Hub (`@loupekit/hub`, private)
+# Loupe Hub (`@loupekit/hub`)
 
-A minimal hosted service that sits between Loupe installs and your team's tools:
+Loupe Hub is a small Node service that routes feedback tickets between apps that run Loupe.
+It verifies each signed ticket, checks that the reporter belongs to the organization, and
+forwards the ticket to another project or to a webhook. A *signed ticket* is a request whose
+body the sending app signs with its project secret (HMAC-SHA256), so Hub can tell which project
+sent it and that nobody changed it on the way.
 
-1. **Dashboard** (Google sign-in). Create **organizations**, add **allowed members** (Google
-   emails and/or one email domain such as `acme.com`), and create one **project** per app.
-   Each project gets a **Project ID** (`prj_…`) and a **Project Secret** (`psk_…`). It can
-   also have an **Inbound URL** (where it receives tickets), a **Send tickets to** project
-   in the same organization, and an optional **webhook URL** with its signing secret
-   (`whs_…`). The project page shows the three `.env` names the app needs.
-2. **Ingest API.** `POST /v1/issues` accepts an issue from a Loupe install, checks the
-   request signature, checks that the submitting user belongs to the organization, and
-   sends the issue on: to the destination project's Inbound URL if one is set, else to the
-   project's webhook, else nowhere.
-3. **Projects API.** `GET /v1/projects` tells an install its organization and the
-   organization's other projects, so the widget can show them.
+This package is private. It is not published to npm, so you run it from a clone of the
+[Loupe repository](https://github.com/mohamed-ashraf-elsaed/loupe).
 
-Node 24 native TypeScript (`node index.ts`), `node:http`, Postgres (PGlite locally and in
-tests, `DATABASE_URL` in production). Server-rendered HTML, no framework.
+## Contents
+
+- [What Hub does](#what-hub-does)
+- [Run locally](#run-locally)
+  - [Prerequisites](#prerequisites)
+  - [Steps](#steps)
+  - [Verify](#verify)
+  - [Optional: Sign in to the dashboard](#optional-sign-in-to-the-dashboard)
+  - [Troubleshooting](#troubleshooting)
+  - [Next steps](#next-steps)
+- [Documentation](#documentation)
+- [Tests](#tests)
+
+## What Hub does
+
+- **Dashboard.** You sign in with Google and create *organizations* (a team and its allowed
+  members). Each organization holds *projects*, one per app. A project has a Project ID
+  (`prj_…`) and a Project Secret (`psk_…`) that the app uses to sign requests.
+- **Ingest API.** `POST /v1/issues` accepts a ticket from an app. Hub sends it to the
+  destination project's *inbound URL* (the address where a project receives tickets from other
+  projects, ending in `/v1/hub/inbound`) if one is set. Otherwise it sends it to the project's
+  *webhook* (an external URL that Hub posts each ticket to, signed with the project's webhook
+  secret, `whs_…`). Otherwise it sends it nowhere.
+- **Updates API.** `POST /v1/issues/{id}/updates` relays status changes and replies between
+  the two projects that share a ticket.
+- **Projects API.** `GET /v1/projects` tells an app its organization and the other projects
+  in it.
+
+For every route, header, request and response, see the
+[endpoints in the Hub reference](../../docs/reference/hub.md#endpoints). For why routing works
+this way, see [How Hub works](../../docs/explanation/hub.md).
+
+Hub runs `.ts` files directly with Node's built-in TypeScript support (`node index.ts`), using
+`node:http` and Postgres. CI and the deploy script use Node 24; `package.json` declares no
+`engines` field, so nothing enforces that version locally. With no `DATABASE_URL`, Hub uses an
+embedded PGlite database: PGlite is Postgres compiled to WebAssembly, running inside the Node
+process and storing its files on disk.
 
 ## Run locally
 
-```bash
-npm install
-node packages/hub/seed.ts owner@acme.com http://127.0.0.1:8791/webhook acme.com
-# → prints LOUPE_PROJECT_ID, LOUPE_PROJECT_SECRET and WEBHOOK_SECRET
+This quick start runs Hub, a demo organization and project, and a reference webhook receiver
+on your machine, then sends one signed ticket through them.
 
-WEBHOOK_SECRET=whs_… node packages/hub/tools/webhook-receiver.ts   # :8791, verifies + logs
-HUB_ALLOW_PRIVATE_URLS=1 node packages/hub/index.ts                 # :8790
-```
+### Prerequisites
 
-`HUB_ALLOW_PRIVATE_URLS=1` is only for local runs, where the receiver is on 127.0.0.1. Without
-it, Hub refuses to post to any private address.
+- Node.js 24 or later. Check with `node -v`.
+- npm, which ships with Node.js.
+- git.
+- `curl` and `openssl`, for the [Verify](#verify) step.
 
-The dashboard needs `GOOGLE_CLIENT_ID` (a Google OAuth **web** client with
-`http://localhost:8790` as an authorized JavaScript origin). `seed.ts` creates an org and
-project without signing in.
+### Steps
 
-| Env | Default | Purpose |
-| --- | --- | --- |
-| `DATABASE_URL` | — | Postgres connection string. Unset: embedded PGlite at `HUB_PG_DIR`. |
-| `HUB_PG_DIR` | `./data/pg` | PGlite directory (`memory://` in tests). |
-| `HUB_SESSION_SECRET` | random per process (dev) | Signs the session cookie. **Required** when `NODE_ENV=production`. |
-| `GOOGLE_CLIENT_ID` | — | OAuth web client ID. ID tokens must have this `aud`. |
-| `PORT` / `HOST` | `8790` / `127.0.0.1` | Listen address. |
-| `HUB_ALLOW_PRIVATE_URLS` | unset | `1` lets Hub post to private, loopback and link-local addresses. Local development only: without it, every delivery to such an address fails with `refused: … private address`. Never set it in production. |
+Use a separate terminal for each long-running process. Run every command from the root folder
+of your clone.
 
-## Dashboard rules
+1. Clone the repository and move into it:
 
-- Sign in with Google Identity Services. The ID token is verified server side (Google's
-  signature, issuer, expiry, `aud` = `GOOGLE_CLIENT_ID`, `email_verified` = true).
-- Session cookie `hub_session`: HttpOnly, Secure, SameSite=Lax, HMAC-signed, 7 days. Every
-  form POST must also carry an `Origin` that matches the host (CSRF defense).
-- You see only organizations you are a member of. The creator of an org is its **owner**.
-  Only owners add or remove members, set the allowed domain, create projects, change webhook
-  URLs and rotate secrets. An org always keeps at least one owner.
-- The Project Secret and webhook secret are shown **once**, on create or rotate.
-- Each project page lists its last 20 deliveries with status, HTTP code, attempts and error.
-- Domain-allowed users may **submit issues** but do not see the dashboard unless added as members.
+   ```bash
+   git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
+   cd loupe
+   ```
 
-## Ingest API
+2. Install dependencies:
 
-```
-POST /v1/issues
-X-Loupe-Project:   prj_…
-X-Loupe-Timestamp: <unix seconds>
-X-Loupe-Signature: hex(HMAC-SHA256(timestamp + "." + rawBody, project_secret))
+   ```bash
+   npm install
+   ```
 
-{ "user": { "email": "sara@acme.com", "name": "Sara" }, "issue": <Comment from @loupekit/shared> }
-```
+   You should see npm finish with an `added <N> packages` summary and no `ERR!` lines. The root
+   `package.json` lists `packages/hub` as a workspace, so this one install covers Hub too.
 
-| Status | Body | When |
-| --- | --- | --- |
-| `202` | `{ id, delivery: "ok" \| "failed" \| "none", destination?: { id, name } }` | Accepted. `id` is the delivery id. `none` means the project has no destination and no webhook. `destination` is set when Hub sent the issue to another project. |
-| `400` | `{ error }` | Invalid JSON, missing `user.email` or `issue.id`. |
-| `401` | `{ error }` | Missing headers, bad signature, timestamp more than 5 minutes off. |
-| `403` | `{ error: "user not in organization" }` | Email is not a member and not on the allowed domain. |
-| `404` | `{ error: "unknown project" }` | No such Project ID. |
-| `413` | `{ error: "payload too large" }` | Body over 5 MB. |
+3. Create a demo organization and project:
 
-Membership: the email (case-insensitive) is in the org's members, **or** its domain equals
-the org's `allowed_domain` exactly (`x@acme.com.evil.io` does not match `acme.com`).
+   ```bash
+   node packages/hub/seed.ts <OWNER_EMAIL> http://127.0.0.1:8791/webhook <ALLOWED_DOMAIN>
+   ```
 
-Test it with `curl`:
+   The script takes three optional arguments, in this order:
 
-```bash
-PROJECT_ID=prj_… PROJECT_SECRET=psk_… HUB=https://hub.example.com
-BODY='{"user":{"email":"sara@acme.com"},"issue":{"id":"test-1","body":"Hello from curl","url":"/"}}'
-TS=$(date +%s)
-SIG=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac "$PROJECT_SECRET" -hex | sed 's/^.* //')
-curl -sS "$HUB/v1/issues" -H 'Content-Type: application/json' \
-  -H "X-Loupe-Project: $PROJECT_ID" -H "X-Loupe-Timestamp: $TS" -H "X-Loupe-Signature: $SIG" \
-  --data "$BODY"
-```
+   | Argument | Meaning | Default |
+   |---|---|---|
+   | `<OWNER_EMAIL>` | The organization's owner. Use the Google account you will [sign in](#optional-sign-in-to-the-dashboard) with, or the dashboard shows you no organization. | `owner@example.com` |
+   | `<WEBHOOK_URL>` | Where Hub posts this project's tickets. Keep `http://127.0.0.1:8791/webhook`, where the receiver in step 4 listens. | `http://127.0.0.1:8791/webhook` |
+   | `<ALLOWED_DOMAIN>` | An email domain, such as `acme.com`. Anyone whose email ends in `@<ALLOWED_DOMAIN>` may submit tickets without being a listed member. | `example.com` |
 
-## Projects API
+   You should see output like this, with your own IDs and secrets:
 
-```
-GET /v1/projects
-X-Loupe-Project:   prj_…
-X-Loupe-Timestamp: <unix seconds>
-X-Loupe-Signature: hex(HMAC-SHA256(timestamp + ".", project_secret))   # empty body
-```
+   ```text
+   [hub] embedded Postgres (PGlite) at <REPO>/packages/hub/data/pg
+   organization   org_…  (owner owner@acme.com, allowed domain @acme.com)
+   project        prj_…  → http://127.0.0.1:8791/webhook
 
-```json
-{ "organization": { "id": "org_…", "name": "Acme" },
-  "project": { "id": "prj_…", "name": "Shop", "destination": { "id": "prj_…", "name": "Support" }, "receives": false },
-  "projects": [ { "id": "prj_…", "name": "Support", "receives": true, "isDestination": true } ] }
-```
+   LOUPE_PROJECT_ID=prj_…
+   LOUPE_PROJECT_SECRET=psk_…
+   WEBHOOK_SECRET=whs_…
+   ```
 
-`projects` lists the organization's other projects. `receives` is true when a project has an
-Inbound URL. The answer never carries secrets or URLs. Auth failures answer `401`, an unknown
-project `404`.
+   Save the last three lines. Step 4 uses `WEBHOOK_SECRET`, and [Verify](#verify) uses
+   `LOUPE_PROJECT_ID` and `LOUPE_PROJECT_SECRET`. The data is stored in
+   `packages/hub/data/pg`, unless you set `DATABASE_URL` or `HUB_PG_DIR`. Each run of the
+   script creates another organization and project; it does not reuse the first.
 
-## Delivery
+4. Start the reference webhook receiver:
 
-Hub sends the same JSON to a destination project or to a webhook:
+   ```bash
+   WEBHOOK_SECRET=<WEBHOOK_SECRET> node packages/hub/tools/webhook-receiver.ts
+   ```
 
-```json
-{ "project_id": "prj_…", "organization_id": "org_…",
-  "source": { "project_id": "prj_…", "project_name": "Shop", "organization_id": "org_…", "organization_name": "Acme" },
-  "user": { "email": "…", "name": "…" }, "issue": { … }, "received_at": "2026-09-23T13:58:37.240Z" }
-```
+   Replace `<WEBHOOK_SECRET>` with the `whs_…` value from step 3. The receiver verifies the
+   signature of each delivery and logs the payload.
 
-Routing, in order:
+   You should see `[receiver] listening on http://127.0.0.1:8791`. To use another port, set
+   `PORT`, and pass the matching webhook URL to the seed script in step 3.
 
-1. **Destination project.** When the project has a **Send tickets to** project and that
-   project has an Inbound URL, Hub POSTs to that URL. It signs with the **destination's own
-   Project Secret**, the `psk_…` its app already holds, and adds
-   `X-Loupe-Hub-Project: <destination id>`. The Laravel package's
-   `POST {path}/v1/hub/inbound` verifies this out of the box.
-2. **Webhook.** Otherwise, when the project has a webhook URL, Hub POSTs there signed with
-   the webhook secret.
-3. **Nowhere.** Otherwise ingest answers `delivery: "none"`.
+5. In a new terminal, start Hub:
 
-A destination must be in the same organization, must not be the project itself, and must
-have an Inbound URL. The dashboard refuses anything else.
+   ```bash
+   HUB_ALLOW_PRIVATE_URLS=1 node packages/hub/index.ts
+   ```
 
-Headers: `X-Loupe-Hub-Timestamp`, `X-Loupe-Hub-Signature =
-hex(HMAC-SHA256(timestamp + "." + rawBody, secret))` and `X-Loupe-Hub-Delivery`. Verify the
-signature over the **raw** body and reject timestamps more than 5 minutes old.
-`tools/webhook-receiver.ts` is a working reference.
+   You should see `[hub] Loupe Hub on http://127.0.0.1:8790`.
 
-Any 2xx is success. A non-2xx reply, a network error or the 10 s timeout is retried after
-1 s and then 4 s (3 attempts in total). Redirects are not followed. Every issue produces one
-`deliveries` row. The ingest call answers only after delivery finishes (up to ~35 s).
+   Hub normally refuses to deliver to private, loopback and link-local addresses (its
+   *private-address guard*), and the receiver in step 4 is on `127.0.0.1`.
+   `HUB_ALLOW_PRIVATE_URLS=1` turns that guard off. Use it for local development only, and
+   never set it in production.
 
-## Updates
+   Hub also reads `PORT` (default `8790`) and `HOST` (default `127.0.0.1`). With
+   `NODE_ENV=production`, it refuses to start without `HUB_SESSION_SECRET`. For every
+   variable, see [Environment variables](../../docs/reference/hub.md#environment-variables).
 
-After a project-to-project delivery, either project can send an update about the ticket:
+### Verify
 
-```
-POST /v1/issues/{issue id}/updates     signed like ingest (X-Loupe-Project, -Timestamp, -Signature)
-{ "kind": "status", "status": "in_review", "label": "Ready for testing", "reference": "CT-1405", "url": "https://…" }
-{ "kind": "message", "message": { "id": "…", "author": { "name": "…", "email": "…" }, "body": "…", "createdAt": "…" } }
-```
+1. In a new terminal, check that Hub answers:
 
-Hub finds the newest successful delivery of that ticket that the caller took part in, and
-sends the update to the other project:
+   ```bash
+   curl http://127.0.0.1:8790/v1/health
+   ```
 
-| Caller | Sent to | Signed with |
-| --- | --- | --- |
-| the source | the destination's Inbound URL | the destination's secret |
-| the destination | the `reply_url` the source sent with the ticket | the source's secret |
+   You should see `{"ok":true}`.
 
-The receiver gets `{ "type": "update", "issue_id", "from": { "project_id", "project_name" },
-"update" }` with the usual `X-Loupe-Hub-*` headers. Answers: `202 { delivery: "ok" |
-"failed" | "none" }`, `400` for a bad body, `401` for a bad signature, `403` when the caller
-is not part of the delivery, `404` for an unknown ticket. `none` means the other side has no
-URL, for example a ticket sent by a package older than 0.13.0. Delivery retries like ingest.
-Updates do not add rows to `deliveries`.
+2. Sign a test ticket with the project secret and send it to Hub:
 
-## Laravel
+   ```bash
+   PROJECT_ID=<LOUPE_PROJECT_ID>
+   PROJECT_SECRET=<LOUPE_PROJECT_SECRET>
+   TS=$(date +%s)
+   BODY='{"user":{"email":"sara@<ALLOWED_DOMAIN>","name":"Sara"},"issue":{"id":"TCK-42","title":"Checkout button overlaps footer"}}'
+   SIG=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac "$PROJECT_SECRET" -hex | sed 's/^.* //')
+   curl -sS -X POST http://127.0.0.1:8790/v1/issues \
+     -H "X-Loupe-Project: $PROJECT_ID" \
+     -H "X-Loupe-Timestamp: $TS" \
+     -H "X-Loupe-Signature: $SIG" \
+     --data "$BODY"
+   ```
 
-`loupekit/laravel` forwards every new comment when `LOUPE_HUB_URL`, `LOUPE_PROJECT_ID` and
-`LOUPE_PROJECT_SECRET` are set. See the
-[Laravel README](../laravel/README.md#send-new-comments-to-loupe-hub-optional).
+   - `<LOUPE_PROJECT_ID>` and `<LOUPE_PROJECT_SECRET>`: the `prj_…` and `psk_…` values from
+     step 3.
+   - `<ALLOWED_DOMAIN>`: the domain you passed to the seed script, so that Hub accepts the
+     reporter.
 
-## Deploy (Google Cloud)
+   You should see `{"id":"dlv_…","delivery":"ok"}`. The receiver's terminal shows
+   `POST /webhook signature OK (delivery dlv_…)`, followed by the ticket as JSON.
 
-`deploy/` holds idempotent scripts. They use only the `loupe-hub` gcloud configuration.
+### Optional: Sign in to the dashboard
 
-```bash
-# once: gcloud config configurations create loupe-hub --no-activate
-#       CLOUDSDK_ACTIVE_CONFIG_NAME=loupe-hub gcloud config set account you@gmail.com
-GCP_PROJECT=loupe-hub BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX bash packages/hub/deploy/provision.sh
-GCP_PROJECT=loupe-hub bash packages/hub/deploy/deploy.sh      # every later code change
-```
+The dashboard needs a Google OAuth client of type **Web application**. To create one, follow
+[Create the Google OAuth client](../../docs/how-to/hub-self-host.md#create-the-google-oauth-client),
+with the local origins below.
 
-- `provision.sh`: project + billing link, a dedicated VPC `loupe-hub-net`, firewall (80/443
-  open, 22 from Google IAP only), a static IPv4, a least-privilege `loupe-hub-vm` service
-  account, and an **e2-micro** Debian 12 VM (30 GB
-  pd-standard, free-tier shape). Then it runs `setup-vm.sh` and `deploy.sh`.
-- `setup-vm.sh` (on the VM, as root): 1 GB swap, Node 24, Postgres 16 bound to localhost
-  (peer auth for the `loupehub` user), Caddy, the `loupe-hub` systemd unit (runs as
-  `loupehub`, hardened), `/etc/loupe-hub.env` (0600: `DATABASE_URL`, `HUB_SESSION_SECRET`,
-  `GOOGLE_CLIENT_ID`).
-- `deploy.sh`: ships the runtime files, runs `npm install --omit=dev`, swaps the release and
-  restarts, then checks `/v1/health`.
-- Domain: `HUB_DOMAIN=hub.example.com`, or by default `<ip-with-dashes>.sslip.io` (resolves
-  to the VM IP, so HTTPS works with no DNS setup). Caddy gets and renews the certificate.
+1. In the Google client, under **Authorized JavaScript origins**, add both `http://localhost`
+   and `http://localhost:8790`.
 
-Set or change the OAuth client later:
+2. Stop Hub with `Ctrl+C`, and start it again with the client ID:
 
-```bash
-gcloud compute ssh loupe-hub --tunnel-through-iap --command \
-  "sudo sed -i 's|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=<id>|' /etc/loupe-hub.env && sudo systemctl restart loupe-hub"
-```
+   ```bash
+   GOOGLE_CLIENT_ID=<GOOGLE_CLIENT_ID> HUB_ALLOW_PRIVATE_URLS=1 node packages/hub/index.ts
+   ```
 
-### Google OAuth client (Console only)
+   Replace `<GOOGLE_CLIENT_ID>` with the client ID, which ends in
+   `.apps.googleusercontent.com`.
 
-1. Console → **Google Auth Platform → Branding**: app name "Loupe Hub", support email.
-   Audience **External**. Add yourself as a test user (or publish the app).
-2. **Clients → Create client** → *Web application*. **Authorized JavaScript origins:**
-   `https://<your hub domain>`. No redirect URI is needed.
-3. Put the client ID in `/etc/loupe-hub.env` as above.
+3. Open `http://localhost:8790` in a Chromium-based browser. Use `localhost`, not the
+   `127.0.0.1` address that Hub prints: the Google client accepts only the origins you added.
+   Hub's session cookie is marked `Secure`, and Chromium accepts it on `http://localhost`.
+
+   You should see the **Sign in** page with a **Sign in with Google** button.
+
+4. Sign in with the account whose email you passed to the seed script.
+
+   You should see the demo organization.
+
+For a full walkthrough of the dashboard and project-to-project routing, see the tutorial
+[Route tickets between two projects with Loupe Hub](../../docs/tutorials/hub-two-projects-local.md).
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The receiver logs `REJECTED: invalid signature`, Hub logs `failed: HTTP 401`, and `curl` shows `"delivery":"failed"`. | The receiver's `WEBHOOK_SECRET` is not the `whs_…` value printed for this project, for example because you ran the seed script again. | Restart the receiver with the `WEBHOOK_SECRET` from the seed run that created the project you are testing. |
+| The receiver prints `WEBHOOK_SECRET not set: every delivery will fail verification`. | You started the receiver without `WEBHOOK_SECRET`. | Stop it with `Ctrl+C` and run step 4 again with the secret. |
+| Hub answers `{"id":"dlv_…","delivery":"failed"}` and logs `refused: 127.0.0.1 resolves to a private address (127.0.0.1)`. | Hub started without `HUB_ALLOW_PRIVATE_URLS=1`, so its private-address guard refused the receiver on `127.0.0.1`. | Stop Hub and start it with `HUB_ALLOW_PRIVATE_URLS=1`, as in step 5. |
+| `curl` answers `{"error":"timestamp out of range"}`. | More than 300 seconds passed between computing `TS` and sending. | Run the `TS=` and `SIG=` lines again, then send. |
+| `curl` answers `{"error":"user not in organization"}`. | The reporter's email domain is not the allowed domain you passed to the seed script. | Use an email that ends in `@<ALLOWED_DOMAIN>` in `BODY`. |
+| The sign-in page says `GOOGLE_CLIENT_ID is not configured on this server.` | Hub started without `GOOGLE_CLIENT_ID`. | Stop Hub and start it as in [Optional: Sign in to the dashboard](#optional-sign-in-to-the-dashboard), step 2. |
+| The **Sign in with Google** button shows an error such as `origin_mismatch`. | You opened `http://127.0.0.1:8790`, or the Google client does not list the origin you opened. | Add `http://localhost` and `http://localhost:8790` to the client, and open `http://localhost:8790`. |
+| Hub or the receiver exits with `EADDRINUSE`. | Another process already uses port `8790` or `8791`. | Stop that process, or start Hub or the receiver with a different `PORT`. If you move the receiver, pass the matching webhook URL to the seed script. |
+
+### Next steps
+
+- [Connect apps to Hub](../../docs/how-to/hub-connect-apps.md): configure your apps with a
+  `LOUPE_PROJECT_ID` and `LOUPE_PROJECT_SECRET` like the ones printed in step 3.
+- [Self-host Loupe Hub](../../docs/how-to/hub-self-host.md): run Hub on a server with Postgres,
+  HTTPS and a Google client.
+
+## Documentation
+
+- [Self-host Loupe Hub](../../docs/how-to/hub-self-host.md)
+- [Manage organizations and projects](../../docs/how-to/hub-manage-projects.md)
+- [Connect apps to Hub](../../docs/how-to/hub-connect-apps.md)
+- [Verify Hub webhooks](../../docs/how-to/verify-hub-webhooks.md)
+- [Hub reference](../../docs/reference/hub.md): environment variables, routes, request and
+  response shapes, errors and limits
+- [How Hub works](../../docs/explanation/hub.md): routing, signing, two-way sync and the
+  private-address guard
 
 ## Tests
 
-`npm test` covers HMAC valid/invalid/expired, membership by email and by domain, the 403
-path, webhook signing, retries and timeouts, the delivery log, owner/member/non-member
-permissions, CSRF, one-time secrets and rotation.
+The Hub suites live in `test/`: `api`, `crypto`, `google` and `webhook`. They run against
+PGlite in memory, so they need no database server. They cover ingest and routing between
+projects, ticket updates in both directions, the projects API, dashboard permissions and
+CSRF (cross-site request forgery) protection, request and session signing, Google token
+checks, delivery retries, and the private-address guard.
 
-## Known limits
+Run them from the root folder of your clone:
 
-- **No backups** (MVP). The database lives only on the VM disk.
+```bash
+npx vitest run packages/hub
+```
 
-- Ingest delivery is synchronous (no background queue). A slow webhook holds the request
-  for up to ~35 s.
-- No replay cache: a captured request can be replayed within the 5-minute window.
-- Webhook URLs may point anywhere the VM can reach (owners are trusted). Use `https://` in
-  production.
+You should see `Test Files  4 passed (4)`. To run the tests of every package instead, run
+`npm test`.

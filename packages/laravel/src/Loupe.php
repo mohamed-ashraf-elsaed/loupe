@@ -12,12 +12,24 @@ use Loupekit\Loupe\Support\Relay;
 
 /**
  * The authorization brain. Decides who may use the widget and who may see the
- * dashboard, combining (in order):
- *   1. a closure registered via Loupe::useWhen()/adminWhen(),
- *   2. a closure in config('loupe.authorize.*'),
- *   3. the Gate abilities loupe:use / loupe:admin.
+ * dashboard. A null user is always denied. For a signed-in user, the first of
+ * these that applies wins (see decide()):
+ *   1. a closure in config('loupe.authorize.use') / config('loupe.authorize.dashboard'),
+ *   2. a closure registered via Loupe::useWhen() / Loupe::adminWhen(),
+ *   3. in the `local` environment with config('loupe.allow_in_local') true (the
+ *      default): any authenticated user is allowed,
+ *   4. the Gate abilities loupe:use / loupe:admin.
  *
- * Bound as a singleton; reach it through the Loupe facade.
+ * The pairs: widget access is authorize.use -> useWhen() -> loupe:use; dashboard
+ * access is authorize.dashboard -> adminWhen() -> loupe:admin. The package defines
+ * both Gates to deny everyone when the host has not defined them, so outside
+ * `local` you need a closure or a published App\Providers\LoupeServiceProvider
+ * that redefines the Gates.
+ *
+ * Bound as a singleton. Reach it through the facade Loupekit\Loupe\Facades\Loupe,
+ * auto-aliased as `Loupe`:
+ *
+ *     Loupe::useWhen(fn ($user) => $user->is_staff);
  */
 class Loupe
 {
@@ -34,9 +46,11 @@ class Loupe
     }
 
     /**
-     * The guards Loupe resolves identity through, in order. An empty config
-     * means "the app's default guard" (represented by [null]) — so with no
-     * configuration this behaves exactly like auth()->user().
+     * The guards Loupe resolves identity through, in order, from config('loupe.guards'),
+     * which the LOUPE_GUARDS env var fills as a comma-separated list
+     * (LOUPE_GUARDS=web,admin). An empty config means "the app's default guard"
+     * (represented by [null]), so with no configuration this behaves exactly like
+     * auth()->user().
      *
      * @return array<int, string|null>
      */
@@ -55,6 +69,10 @@ class Loupe
 
     /**
      * Resolve the current user and the guard that matched.
+     *
+     * A guard that throws when resolved (for example a misspelled name in
+     * LOUPE_GUARDS) is skipped silently, with nothing logged. If every guard is
+     * skipped or unauthenticated, the result is user null, guard null.
      *
      * @return array{user: ?Authenticatable, guard: string|null}
      */
@@ -85,14 +103,19 @@ class Loupe
     }
 
     /**
-     * Describe a user to the SDK. Honors config('loupe.user_resolver'); falls
-     * back to id/name/email.
+     * Describe a user to the SDK. Honors config('loupe.user_resolver') (see the
+     * user_resolver entry in config/loupe.php); without one, returns
+     * ['id' => (string) auth identifier, 'name' => name, else email, else 'User',
+     * 'email' => email or null]. A resolver should return the same keys.
      *
      * The resolver may be a Closure, a class-string (resolved through the container,
-     * called via __invoke), or a [class, method] callable. Prefer the class-string:
-     * a Closure in config is NOT serializable, so `php artisan config:cache` fails
-     * ("the value at loupe.user_resolver is non-serializable") — and it boots the
-     * providers first, so injecting the Closure at runtime does not avoid it either.
+     * called via __invoke), or a [class, staticMethod] callable. A [class, method]
+     * pair naming a non-static method is not callable, and a string that is not an
+     * existing class (a typo) is ignored: both fall back to the default shape above
+     * with no error. Prefer the class-string: a Closure in config is NOT
+     * serializable, so `php artisan config:cache` fails ('the value at
+     * "loupe.user_resolver" is non-serializable') — and it boots the providers
+     * first, so injecting the Closure at runtime does not avoid it either.
      *
      * @return array<string, mixed>
      */
@@ -121,9 +144,15 @@ class Loupe
 
     /**
      * Words for the next status update of a ticket another project filed: the host's
-     * own label for the state ("Ready for testing"), its reference ("CT-1405") and a
-     * link. Call it just before saving the new status; the update sent to the other
-     * project carries them, and that project shows them on the ticket's chip.
+     * own label for the state ("Ready for testing"), its reference ("TCK-42") and a
+     * link. Call it just before saving the new status.
+     *
+     * The description is held in memory for this request and consumed by the next
+     * save that changes the comment's normalized status. If the status does not
+     * change, it stays queued for the next status change of that comment. It is
+     * sent through Loupe Hub (the service that routes tickets between projects)
+     * only when this ticket was received from another project; the receiving
+     * project shows the words on the ticket's status chip.
      */
     public function describeTicket(string $commentId, ?string $label = null, ?string $reference = null, ?string $url = null): void
     {
@@ -132,8 +161,14 @@ class Loupe
 
     /**
      * Add a reply to a thread from host code (a comment written in the host's own
-     * tracker, say). Fires MessageAdded, and the reply reaches the other project
-     * when the ticket is shared through Loupe Hub.
+     * tracker, say). Saves the reply. MessageAdded fires only when $commentId is an
+     * existing comment; for an unknown id the Message is still saved and returned,
+     * with no event, no relay and no error. The reply is relayed through Loupe Hub
+     * when the ticket was received from, or forwarded to, another project.
+     *
+     * $author needs `id` and `name` (a missing key is an undefined-index error);
+     * `email` is optional and dropped when empty. The author is always stored with
+     * type `user`.
      *
      * @param  array{id: string, name: string, email?: ?string}  $author
      * @param  list<array<string, mixed>>|null  $attachments
@@ -157,7 +192,7 @@ class Loupe
     }
 
     /**
-     * The installed version of this package, as Composer records it ("v0.11.0", or a
+     * The installed version of this package, as Composer records it ("v1.2.3", or a
      * "dev-…" string from a VCS checkout). The widget shows it beside the version baked
      * into the JS bundle and flags a mismatch — which is exactly the state after the
      * package was upgraded but `vendor:publish --tag=loupe-assets --force` was not run.

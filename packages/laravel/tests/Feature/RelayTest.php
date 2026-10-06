@@ -52,7 +52,7 @@ class RelayTest extends TestCase
 
     private function forwarded(string $id = 'c1'): Comment
     {
-        return $this->comment($id, ['forwarded' => ['status' => 'ok', 'destinationProjectId' => 'prj_tracker', 'destinationProjectName' => 'Tracker']]);
+        return $this->comment($id, ['forwarded' => ['status' => 'ok', 'destinationProjectId' => 'prj_other', 'destinationProjectName' => 'Tracker']]);
     }
 
     private function send(array $body)
@@ -70,7 +70,7 @@ class RelayTest extends TestCase
         return $this->call('POST', '/loupe/v1/hub/inbound', [], [], [], $server, $raw);
     }
 
-    private function update(array $update, string $issue = 'c1', array $from = ['project_id' => 'prj_os', 'project_name' => 'Converted OS']): array
+    private function update(array $update, string $issue = 'c1', array $from = ['project_id' => 'prj_other', 'project_name' => 'Tracker']): array
     {
         return ['type' => 'update', 'issue_id' => $issue, 'from' => $from, 'update' => $update];
     }
@@ -95,7 +95,7 @@ class RelayTest extends TestCase
         Http::fake(['hub.test/*' => Http::response(['delivery' => 'ok'], 202)]);
         $c = $this->received();
 
-        Loupe::describeTicket('c1', 'Ready for testing', 'CT-1405', 'https://crm.test/t/1405');
+        Loupe::describeTicket('c1', 'Ready for testing', 'TCK-42', 'https://tracker.example.com/t/42');
         $c->update(['status' => 'in_review']);
         $this->app->terminate();
 
@@ -105,7 +105,7 @@ class RelayTest extends TestCase
             return $r->url() === 'https://hub.test/v1/issues/c1/updates'
                 && $r->header('X-Loupe-Project')[0] === self::PROJECT
                 && hash_equals(hash_hmac('sha256', $ts.'.'.$r->body(), self::SECRET), $r->header('X-Loupe-Signature')[0])
-                && json_decode($r->body(), true) === ['kind' => 'status', 'status' => 'in_review', 'label' => 'Ready for testing', 'reference' => 'CT-1405', 'url' => 'https://crm.test/t/1405'];
+                && json_decode($r->body(), true) === ['kind' => 'status', 'status' => 'in_review', 'label' => 'Ready for testing', 'reference' => 'TCK-42', 'url' => 'https://tracker.example.com/t/42'];
         });
         $this->assertSame(0, Activity::query()->where('kind', 'ticket.update_failed')->count());
     }
@@ -144,7 +144,7 @@ class RelayTest extends TestCase
         $m = Loupe::reply('c1', ['id' => '7', 'name' => 'Sara', 'email' => 'sara@shop.test'], 'Any news?', [['url' => '/a.png']]);
         Loupe::reply('c2', ['id' => '8', 'name' => 'Dev'], 'Fixed');
         Loupe::reply('c3', ['id' => '8', 'name' => 'Dev'], 'Local only');
-        (new Message)->forceFill(['comment_id' => 'c1', 'author' => ['id' => 'hub:x', 'name' => 'X'], 'body' => 'came from hub', 'origin' => ['projectId' => 'prj_os']])->save();
+        (new Message)->forceFill(['comment_id' => 'c1', 'author' => ['id' => 'hub:x', 'name' => 'X'], 'body' => 'came from hub', 'origin' => ['projectId' => 'prj_other']])->save();
         Relay::quietly(fn () => Loupe::reply('c1', ['id' => '7', 'name' => 'Sara'], 'quiet'));
 
         Bus::assertDispatchedAfterResponseTimes(SendUpdateToHub::class, 2);
@@ -215,7 +215,7 @@ class RelayTest extends TestCase
         Event::fake([HubUpdateReceived::class]);
         $this->forwarded();
 
-        $this->send($this->update(['kind' => 'status', 'status' => 'in_review', 'label' => 'Ready for testing', 'reference' => 'CT-1405', 'url' => 'https://crm.test/t/1405']))
+        $this->send($this->update(['kind' => 'status', 'status' => 'in_review', 'label' => 'Ready for testing', 'reference' => 'TCK-42', 'url' => 'https://tracker.example.com/t/42']))
             ->assertStatus(202)->assertExactJson(['applied' => 'status', 'status' => 'in_review']);
 
         $c = Comment::query()->find('c1');
@@ -223,41 +223,41 @@ class RelayTest extends TestCase
         $this->assertSame('ok', $c->forwarded['status']);
         $this->assertSame(['status', 'label', 'reference', 'url', 'projectName', 'at'], array_keys($c->forwarded['remote']));
         $this->assertSame('Ready for testing', $c->forwarded['remote']['label']);
-        $this->assertSame('Converted OS: CT-1405 · Ready for testing — “Pay button”', Notification::query()->sole()->body);
-        $this->assertSame('Converted OS moved “Pay button” to Ready for testing', Activity::query()->where('kind', 'ticket.updated')->sole()->label);
+        $this->assertSame('Tracker: TCK-42 · Ready for testing — “Pay button”', Notification::query()->sole()->body);
+        $this->assertSame('Tracker moved “Pay button” to Ready for testing', Activity::query()->where('kind', 'ticket.updated')->sole()->label);
         // Applied quietly: the receiver's own change is not echoed back.
         Bus::assertNothingDispatched();
-        Event::assertDispatched(HubUpdateReceived::class, fn ($e) => $e->update['status'] === 'in_review' && $e->from['project_id'] === 'prj_os');
+        Event::assertDispatched(HubUpdateReceived::class, fn ($e) => $e->update['status'] === 'in_review' && $e->from['project_id'] === 'prj_other');
     }
 
     public function test_a_bare_status_uses_the_board_label_and_the_project_id(): void
     {
         $this->comment('c1', ['title' => null, 'author' => ['id' => '7']]);
 
-        $this->send($this->update(['kind' => 'status', 'status' => 'done'], 'c1', ['project_id' => 'prj_os']))->assertStatus(202);
+        $this->send($this->update(['kind' => 'status', 'status' => 'done'], 'c1', ['project_id' => 'prj_other']))->assertStatus(202);
 
         $c = Comment::query()->find('c1');
         $this->assertSame('resolved', $c->status);
         $this->assertSame(['status', 'at'], array_keys($c->forwarded['remote']));
-        $this->assertSame('prj_os: Resolved — “It overlaps”', Notification::query()->sole()->body);
+        $this->assertSame('prj_other: Resolved — “It overlaps”', Notification::query()->sole()->body);
     }
 
     public function test_a_reply_from_the_other_project_lands_in_the_thread_once(): void
     {
         Bus::fake();
         $this->forwarded();
-        $msg = ['kind' => 'message', 'message' => ['id' => 'm_remote_1', 'author' => ['name' => 'Dev', 'email' => 'dev@os.test'], 'body' => 'Fixed on staging', 'createdAt' => '2026-10-04T09:00:00.000Z', 'attachments' => [['url' => 'https://os.test/a.png']]]];
+        $msg = ['kind' => 'message', 'message' => ['id' => 'm_remote_1', 'author' => ['name' => 'Dev', 'email' => 'dev@tracker.example.com'], 'body' => 'Fixed on staging', 'createdAt' => '2026-10-04T09:00:00.000Z', 'attachments' => [['url' => 'https://tracker.example.com/a.png']]]];
 
         $this->send($this->update($msg))->assertStatus(202)->assertExactJson(['applied' => 'message', 'message' => 'm_remote_1']);
         $this->send($this->update($msg))->assertStatus(202)->assertExactJson(['applied' => 'message', 'duplicate' => true]);
 
         $m = Message::query()->sole();
-        $this->assertSame(['id' => 'hub:dev@os.test', 'name' => 'Dev', 'email' => 'dev@os.test', 'type' => 'user'], $m->author);
-        $this->assertSame(['projectId' => 'prj_os', 'projectName' => 'Converted OS'], $m->origin);
+        $this->assertSame(['id' => 'hub:dev@tracker.example.com', 'name' => 'Dev', 'email' => 'dev@tracker.example.com', 'type' => 'user'], $m->author);
+        $this->assertSame(['projectId' => 'prj_other', 'projectName' => 'Tracker'], $m->origin);
         $this->assertSame('2026-10-04T09:00:00.000000Z', $m->created_at->toISOString());
-        $this->assertSame([['url' => 'https://os.test/a.png']], $m->attachments);
-        $this->assertSame(['projectId' => 'prj_os', 'projectName' => 'Converted OS'], $m->toLoupeArray()['origin']);
-        $this->assertSame('Dev replied from Converted OS on “Pay button”', Notification::query()->sole()->body);
+        $this->assertSame([['url' => 'https://tracker.example.com/a.png']], $m->attachments);
+        $this->assertSame(['projectId' => 'prj_other', 'projectName' => 'Tracker'], $m->toLoupeArray()['origin']);
+        $this->assertSame('Dev replied from Tracker on “Pay button”', Notification::query()->sole()->body);
         $this->assertSame(1, Activity::query()->where('kind', 'ticket.reply')->count());
         Bus::assertNothingDispatched();
     }
@@ -266,10 +266,10 @@ class RelayTest extends TestCase
     {
         $this->forwarded();
         foreach (['m1' => null, 'm2' => 'not a date'] as $id => $at) {
-            $this->send($this->update(['kind' => 'message', 'message' => array_filter(['id' => $id, 'body' => 'hi', 'createdAt' => $at])], 'c1', ['project_id' => 'prj_os']))->assertStatus(202);
+            $this->send($this->update(['kind' => 'message', 'message' => array_filter(['id' => $id, 'body' => 'hi', 'createdAt' => $at])], 'c1', ['project_id' => 'prj_other']))->assertStatus(202);
         }
 
-        $this->assertSame(['id' => 'hub:prj_os', 'name' => 'prj_os', 'type' => 'user'], Message::query()->find('m1')->author);
+        $this->assertSame(['id' => 'hub:prj_other', 'name' => 'prj_other', 'type' => 'user'], Message::query()->find('m1')->author);
         $this->assertEqualsWithDelta(time(), Message::query()->find('m2')->created_at->getTimestamp(), 5);
     }
 

@@ -11,14 +11,17 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ### Security
 
-- **Hub no longer posts to private addresses.** Every URL Hub delivers to comes from outside
-  Hub: a dashboard user sets the webhook and inbound URLs, and the source app sends a
-  `reply_url` with each ticket. Any of them could point Hub at its own loopback port, the
+- **Hub no longer posts to private addresses.** Loupe Hub (the service that routes tickets
+  between projects in an organization; see [How Loupe Hub works](docs/explanation/hub.md))
+  delivers only to URLs that come from outside Hub: a dashboard user sets the webhook and
+  inbound URLs, and the source app sends a `reply_url` with each ticket. Any of them could point Hub at its own loopback port, the
   VM's metadata server or the private network. Hub now resolves each host and refuses
   loopback, private, link-local, carrier-grade NAT, multicast and reserved addresses. The
   check runs in the connection's own DNS lookup, so a host that answers with a public
-  address first and a private one later is still refused. Set `HUB_ALLOW_PRIVATE_URLS=1`
-  for local development only.
+  address first and a private one later is still refused. For local development only, set
+  `HUB_ALLOW_PRIVATE_URLS=1` in Hub's environment, for example
+  `HUB_ALLOW_PRIVATE_URLS=1 node packages/hub/index.ts`. Any value other than `1` keeps the
+  guard on. See [Loupe Hub reference](docs/reference/hub.md#private-address-refusal).
 - **Hub keeps a `reply_url` only when it is the package's receiver.** The path must end in
   `/v1/hub/inbound` and the URL must carry no credentials. When the source project has an
   inbound URL registered in the dashboard, the `reply_url` must also share its origin. Hub
@@ -49,10 +52,14 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 - **The widget now updates without a page reload.** Before this, a status change made in
   another app, a reply relayed through Hub or a teammate's new comment showed only after the
-  page reloaded, unless an agent bridge was connected. The panel now re-reads the page's
-  comments, the project list, every open thread and the mentions inbox every 10 seconds. It
-  pauses while the tab is hidden and reads again as soon as the tab is shown. It skips a read
-  while someone types in a reply or comment box, so the caret never jumps. A reply that is
+  page reloaded, unless an agent bridge (the local process that pushes thread events to the
+  panel; see `LOUPE_BRIDGE_URL` in the [local server reference](docs/reference/server.md#environment-variables))
+  was connected. The panel now polls every 10 seconds. Each poll re-reads the current page's
+  comments, every thread whose replies are loaded and the mentions inbox. It also re-reads the
+  project-wide list once that list has been loaded or while the All scope is shown. Polling
+  pauses while the tab is hidden and reads again as soon as the tab is shown. A poll is skipped
+  while any text field in the widget has focus, including the search box, so the caret never
+  jumps. A reply that is
   still sending, or that failed and shows Retry, stays on screen through the refresh.
 
 ## [0.13.0] — 2026-10-04
@@ -61,38 +68,48 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 - **Two-way sync between projects.** After Hub delivers a ticket to another project, the
   two apps stay in step. When the receiving app changes the ticket's status, the sending app
-  moves its own card and its chip reads "→ Converted OS · CT-1405 · In progress", linked to
+  moves its own card and its chip reads "→ Tracker · TCK-42 · In progress", linked to
   the ticket over there. A reply written on either side appears in the other side's thread
   with a "from <project>" tag. The receiving project owns the status, so a status change on
-  the sending side stays local.
-- **Hub relays updates.** Ingest stores the sender's `reply_url`. The new
+  the sending side stays local. See [Connect two apps through Hub](docs/how-to/hub-connect-apps.md).
+- **Hub relays updates.** Ingest (`POST /v1/issues`, the endpoint that accepts a ticket from
+  the sending app) stores the sender's `reply_url`. The new
   `POST /v1/issues/{id}/updates` takes a status or a reply from either project and sends it to
   the other one, signed with the receiver's own secret. A project that is not part of the
-  delivery gets 403.
-- **Replies, reactions, mentions and the inbox on Laravel.** The package now serves the four
-  routes the widget already called: `v1/comments/{id}/messages`, `.../reactions`,
-  `v1/people` and `v1/notifications`. Before this, replies failed, the mention picker was
-  empty and the inbox stayed empty on every Laravel app. People are the users whose email is
-  in `loupe.allowed_emails` plus everyone who has taken part in a thread. Set
-  `loupe.people_resolver` to supply your own list. A reply notifies the people it mentions
+  delivery gets 403. See [Loupe Hub reference](docs/reference/hub.md#post-v1issuesidupdates).
+- **Replies, reactions, mentions and the inbox on Laravel.** The package now serves the routes
+  the widget already called: `GET` and `POST v1/comments/{id}/messages`,
+  `GET v1/comments/{id}/reactions`, `POST v1/comments/{id}/messages/{messageId}/reactions`,
+  `GET v1/people`, `GET v1/notifications` and `POST v1/notifications/read`. Before this,
+  replies failed, the mention picker was empty and the inbox stayed empty on every Laravel app.
+  People are the users of the configured guards whose email is in `loupe.allowed_emails`, plus
+  recent comment and reply authors in this project. Set `loupe.people_resolver` to supply your
+  own list; see [Control who appears in @mention lists](docs/how-to/laravel-authorize.md#control-who-appears-in-mention-lists). A reply notifies the people it mentions
   and the reporter.
 - **Events for host apps.** `CommentCreated`, `CommentStatusChanged`, `CommentDeleted`,
-  `MessageAdded` and `HubUpdateReceived`. They fire from Eloquent, so a host that saves the
-  comment model directly triggers them too.
+  `MessageAdded` and `HubUpdateReceived`. The first four fire from Eloquent model events, so a
+  host that saves the comment or message model directly triggers them too. `HubUpdateReceived`
+  fires when Hub delivers a status change or a reply from the other project.
 - **`Loupe::reply()` and `Loupe::describeTicket()`.** A host can add a reply from its own
-  tracker, and can say what its next status change means ("Ready for testing", "CT-1405", a
+  tracker, and can say what its next status change means ("Ready for testing", "TCK-42", a
   link) before it saves the status.
 
 ### Changed
 
 - **An unknown status is refused.** `PATCH v1/comments/{id}` answers 422 for a status that is
-  not a board stage or a legacy alias. It used to move the comment to the queue.
+  not a board stage (`queue`, `todo`, `in_progress`, `in_review`, `resolved`) or a legacy
+  alias (`open`, `done`). It used to move the comment to the queue.
 - **Only the author or an admin deletes a comment.** Anyone else gets 403. An admin is a user
-  who passes the dashboard authorization.
-- **Run `php artisan migrate`.** Three new migrations create `loupe_messages`,
-  `loupe_reactions` and `loupe_notifications`.
-- **Redeploy Hub.** It adds `deliveries.reply_url` on start. Tickets sent before this release
-  have no reply URL, so the receiver's updates for them answer `delivery: "none"`.
+  who may open the triage dashboard; see
+  [Control who can use Loupe in Laravel](docs/how-to/laravel-authorize.md).
+- **Republish the assets and migrations, then migrate.** Three new migrations create
+  `loupe_messages`, `loupe_reactions` and `loupe_notifications`. Run, in order:
+  `php artisan vendor:publish --tag=loupe-assets --force`,
+  `php artisan vendor:publish --tag=loupe-migrations` and `php artisan migrate`. See
+  [Upgrade Loupe](docs/how-to/upgrade.md#laravel-package).
+- **Redeploy Hub.** Follow [Self-host Loupe Hub](docs/how-to/hub-self-host.md#deploy-code-changes).
+  On start, Hub adds the `deliveries.reply_url` column. Tickets sent before this release have
+  no reply URL, so the receiver's updates for them answer `delivery: "none"`.
 
 ## [0.12.0] — 2026-10-04
 
@@ -103,12 +120,14 @@ see [RELEASING.md](RELEASING.md) for the process.
   under "Send tickets to" on each sending project. Hub signs each delivery with the receiving
   project's own secret, so the receiving app needs no new key. A ticket filed on one app appears
   on the other app's board with a "from <project>" chip. The sender's card shows
-  "→ <project>", in red when delivery failed.
+  "→ <project>", in red when delivery failed. See
+  [Connect two apps through Hub](docs/how-to/hub-connect-apps.md).
 - **A receiver in the Laravel package.** `POST {path}/v1/hub/inbound` checks the Hub signature
   over the raw body. It rejects a request for another project, a timestamp more than 5 minutes
   off and a body over 6 MB, and it stores each issue id once. It fires
   `Loupekit\Loupe\Events\TicketReceived`, so the host app can create its own record from the
-  ticket.
+  ticket. To write your own receiver instead, see
+  [Verify Hub webhooks](docs/how-to/verify-hub-webhooks.md).
 - **The organization in the panel.** `GET {path}/v1/org` reads the project, its organization
   and the organization's other projects from Hub's new `GET /v1/projects`, cached for 5
   minutes. The project chip on Home reads "Project · Organization". The project menu lists the
@@ -117,10 +136,13 @@ see [RELEASING.md](RELEASING.md) for the process.
   deletes, forwarded tickets and received tickets in a new `loupe_activity` table and serves
   them at `GET {path}/v1/activity`. The panel reads the feed on start and polls it every 15
   seconds while the Activity view is open. Rows older than `loupe.activity.retention_days`
-  (30) are pruned on about one write in a hundred. `LOUPE_ACTIVITY=false` turns recording off.
+  (30) are pruned on about one write in a hundred. `retention_days` has no env var: to change
+  it, publish the config and edit `activity.retention_days` in `config/loupe.php`.
+  `LOUPE_ACTIVITY=false` turns recording off.
 - **The `chat` option.** `init({ chat: true })` turns the Chat page back on. It is
   experimental.
-- The MCP `list_comments` tool reports `from` and `sentTo` for tickets between projects.
+- The Laravel package's MCP `list_comments` tool reports `from` and `sentTo` for tickets
+  between projects.
 
 ### Changed
 
@@ -128,14 +150,18 @@ see [RELEASING.md](RELEASING.md) for the process.
   opens the bridge's reply stream.
 - **Activity says whether it is connected.** A backend with an activity feed shows "Live"
   beside the status dot, or "Offline" when a poll fails, and an empty feed reads "No activity
-  yet." The "Monitor unavailable" text now shows only when the backend has no feed.
-- **The Hub webhook URL is optional.** Hub sends a ticket to the destination project first,
-  then to the project's webhook, and otherwise nowhere. Ingest answers
+  yet. Comments, status changes and forwarded tickets appear here." The "Monitor unavailable" text now shows only when the backend has no feed.
+- **The Hub webhook URL is optional.** Hub sends a ticket to exactly one target: the
+  destination project if one is set and has an inbound URL, otherwise the project's webhook,
+  otherwise nowhere. Ingest answers
   `202 { id, delivery: "ok" | "failed" | "none", destination? }`, and the webhook payload gains
   `source` with the sending project and organization.
-- **Run `php artisan migrate`.** Two new migrations add `source` and `forwarded` to
-  `loupe_comments` and create `loupe_activity`. The package works before you run them: it
-  skips the new columns and records no activity.
+- **Republish the assets and migrations, then migrate.** Two new migrations add `source` and
+  `forwarded` to `loupe_comments` and create `loupe_activity`. Run, in order:
+  `php artisan vendor:publish --tag=loupe-assets --force`,
+  `php artisan vendor:publish --tag=loupe-migrations` and `php artisan migrate`. See
+  [Upgrade Loupe](docs/how-to/upgrade.md#laravel-package). The package works before you
+  migrate: it skips the new columns and records no activity.
 
 ### Removed
 
@@ -151,7 +177,7 @@ see [RELEASING.md](RELEASING.md) for the process.
 - **The chat view rendered under every tab.** `.chat-view { display: flex }` outranked
   `.view { display: none }` by source order, so the companion chat was laid out behind Home,
   Comments and Activity, and its composer swallowed clicks meant for the Comments tools.
-  Present since 0.10.27; the hosts that reported it had just moved up from 0.10.7.
+  Affects 0.10.27 to 0.11.0.
 - **The Settings and Position menus were squeezed.** The header's `.dctl button` rule
   (26×26px) also matched the rows, switches and accent swatches inside the two popovers. It
   is now scoped to the header's own buttons.
@@ -224,18 +250,18 @@ see [RELEASING.md](RELEASING.md) for the process.
     garbage that then gets sent somewhere as a credential. A wrong-size base64 key is **rejected with the
     fix** rather than silently padded — a padded key is a key nobody can explain, and it would work right
     up until it didn't. A missing key refuses to store anything at all, since a silent downgrade is how a
-    "we encrypt tokens" claim stops being true.
+    "tokens are encrypted" claim stops being true.
   - **A connection-test contract** each provider implements, returning its identity and the targets a
     person can map to. The failure modes are the point: Slack answers HTTP 200 with `{ok:false}` (so a
     status code alone reports success for a rejected token), and its codes are not self-explanatory —
     so `not_in_channel` becomes "invite the bot", `missing_scope` names the scope to add. Errors are
-    separated from `<b>hints</b>` because the provider's words and the fix are different things.
+    separated from **hints** because the provider's words and the fix are different things.
   - **Delivery with bounded retries** (3 attempts, 1s then 4s), a timeout, and **a delivery log** — every
     attempt, success or failure, so "it did not arrive" has an answer that is not guesswork. Dispatch is
     fire-and-forget, because a Slack outage must not make creating a comment slow, and it never throws.
     A *credential* rejection marks the integration broken and stops retrying it; a transient 500 does not.
-  - `scrubSecrets` runs over anything provider-shaped before it is logged, including tokens we were handed
-    directly — an API that echoes back the request it rejected is the most likely place for one to reappear.
+  - `scrubSecrets` runs over anything provider-shaped before it is logged, including tokens the server
+    receives directly — an API that echoes back the request it rejected is the most likely place for one to reappear.
 - **Slack and Telegram** (milestone 0.16; #32). Four lifecycle events each — thread created, agent
   working, PR created, resolved — plus agent replies. Slack lists channels via `conversations.list`;
   Telegram cannot list chats at all, so its targets come from `getUpdates` and the UI says what to do
@@ -346,14 +372,6 @@ see [RELEASING.md](RELEASING.md) for the process.
   - Tools: `get_activity_summary`, `install_agent_hooks`. Endpoints: `POST /events/ingest`,
     `GET /events/recent`, `GET /sessions`, `POST /companion`, `GET /companion`, `POST /companion/reply`.
 
-### Notes
-
-- The 12 existing tools now register through one `registerTool` chokepoint, so the companion wrapper is
-  applied in a single place rather than remembered at each call site.
-- The hook script ships in the package (`files: ["dist", "hooks"]`), and its path is resolved for both
-  layouts — run from source it is `./hooks`, and in the published package the entry is bundled into
-  `dist/` so it is `../hooks`. Resolving it wrongly would install a command pointing at a file that does
-  not exist, which fails silently: the hook simply never runs.
 
 ## [0.10.25] — 2026-10-02
 
@@ -422,8 +440,8 @@ see [RELEASING.md](RELEASING.md) for the process.
     `DELETE /presence/:id`, and a `peers` count in `/health`. A 404 from a heartbeat means the bridge
     forgot you, so the panel re-joins rather than beating forever against an unknown id.
   - In the panel: a small avatar cluster in the header, capped at four plus a count. **Hidden entirely
-    when no bridge is configured**, because "nobody is here" is a different claim from "we cannot know
-    who is here".
+    when no bridge is configured**, because "nobody is here" is a different claim from "presence is
+    unknown".
   - Cursor broadcasting is throttled (`throttleDelay`, 80 ms, first move never delayed) but collaborative
     cursors are not rendered yet.
 
@@ -759,10 +777,6 @@ see [RELEASING.md](RELEASING.md) for the process.
   design preview.
 - The iterate input's placeholder no longer truncates.
 
-### Not in this release
-
-- **Notifications** from #64 ("Claude finished your fix"). Those need something to notify *about* —
-  the bridge daemon (#11) — and a service worker with no events to report would be decoration.
 
 ## [0.10.15] — 2026-10-02
 
@@ -837,7 +851,7 @@ see [RELEASING.md](RELEASING.md) for the process.
   normalized so two spellings of one place cannot both be listed, and duplicates are refused with an
   inline message. (Milestone 0.20; #60.)
 - **Scope chips carry counts** — *This page 3* / *All 14*, with the project total showing `⋯` until it
-  has been read rather than a number we would be inventing. (Milestone 0.20; #60.)
+  has been read rather than an invented number. (Milestone 0.20; #60.)
 
 ### Changed
 
@@ -1187,14 +1201,6 @@ see [RELEASING.md](RELEASING.md) for the process.
   is the supported way to hand a comment to Claude, and it carries more than the
   clipboard prompt ever did.
 
-### Changed
-
-- **Tickets filed from a Hub issue no longer dump element HTML into the description**
-  (the CRM receiver): the description reads like a request, while the raw element
-  markup, computed styles and anchor are stored in the ticket's `loupe_context`
-  column — still available to the tech team and to Claude over MCP. Every attached
-  image **and video** is attached to the ticket, and the ticket drawer renders
-  videos with a real player.
 
 ## [0.8.1] — 2026-10-01
 
@@ -1437,14 +1443,9 @@ the browser extension, and the `loupekit/laravel` widget; released together at 0
 ## [0.3.1] — 2026-07-12
 
 ### Changed
-- **SEO / GEO — author & entity metadata.** Made the project and its author,
-  **Mohamed Ashraf Elsaed**, discoverable by search engines and AI answer engines
-  (ChatGPT, Claude, Perplexity, Gemini, Copilot): a schema.org `@graph`
-  (`Person` + `Organization` + `WebSite` + `SoftwareApplication`) with `sameAs`
-  links to LinkedIn/GitHub and `mailto:`, `rel="me"`/`rel="author"` links, a visible
-  author byline, an explicit AI-crawler allow-list in `robots.txt`, an **Author**
-  section in `llms.txt`, `author` fields across the npm packages, and updated
-  `composer.json` author (email `m.ashraf.saed@gmail.com`, LinkedIn homepage).
+- **Author metadata.** Added schema.org structured data and author links to the site, `author`
+  fields to the npm packages and `composer.json`, an AI-crawler allow-list to `robots.txt` and
+  an Author section to `llms.txt`.
 
 ### Fixed
 - **Release/CI:** synced `package-lock.json` with the bumped versions so `npm ci`
@@ -1475,7 +1476,7 @@ the browser extension, and the `loupekit/laravel` widget; released together at 0
 ## [0.2.1] — 2026-07-12
 
 ### Changed
-- **Docs:** professional npm READMEs for `@loupekit/sdk`, `@loupekit/mcp`, and
+- **Docs:** npm READMEs with install and usage sections for `@loupekit/sdk`, `@loupekit/mcp`, and
   `@loupekit/shared` — hero banner, shields.io badges, product screenshots, feature tables,
   and the re-anchor before/after visuals. No code changes.
 
@@ -1497,7 +1498,7 @@ the browser extension, and the `loupekit/laravel` widget; released together at 0
   `X.Y.Z-next.<n>` prerelease to the `next` dist-tag, and tagging `vX.Y.Z` publishes a
   stable `latest` — both to **public npm** (`@loupekit/*`) and **GitHub Packages**
   (`@mohamed-ashraf-elsaed/*`). See `RELEASING.md`.
-- **npm package pages.** Added full, professional READMEs and keywords to
+- **npm package pages.** Added READMEs with install and usage sections, and keywords, to
   `@loupekit/shared`, `@loupekit/sdk`, and `@loupekit/mcp` (previously blank on npm).
 
 ### Fixed
@@ -1517,16 +1518,58 @@ The first release — the full loop, end to end.
   screenshot capture, and redeploy-surviving re-anchoring (multi-signal fingerprint).
 - **`@loupekit/server`** — `node:http` API with Postgres (PGlite locally, `pg` in prod),
   object storage for screenshots, per-project HMAC authentication, and static hosting.
-- **`@loupekit/dashboard`** — Kanban triage board (status columns, page filter, live refresh).
+- **Dashboard** (`packages/dashboard`, ships inside the repository and is served by the
+  server; not published to npm) — Kanban triage board (status columns, page filter, live refresh).
 - **`@loupekit/mcp`** — MCP server exposing comments to Claude Code (`list_comments`,
   `get_comment`, `update_status`).
-- **`@loupekit/extension`** — MV3 browser extension reusing the SDK core with pixel-perfect
+- **Browser extension** (`packages/extension`, ships inside the repository; not published to
+  npm) — MV3 browser extension reusing the SDK core with pixel-perfect
   `captureVisibleTab` screenshots.
 - **`@loupekit/shared`** — canonical types + `normalizeUrl`.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
-  SEO/GEO-optimized landing page.
+  landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.1...v0.14.0
+[0.13.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.0...v0.13.1
+[0.13.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.28...v0.11.0
+[0.10.28]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.27...v0.10.28
+[0.10.27]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.26...v0.10.27
+[0.10.26]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.25...v0.10.26
+[0.10.25]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.24...v0.10.25
+[0.10.24]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.23...v0.10.24
+[0.10.23]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.22...v0.10.23
+[0.10.22]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.21...v0.10.22
+[0.10.21]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.20...v0.10.21
+[0.10.20]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.19...v0.10.20
+[0.10.19]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.18...v0.10.19
+[0.10.18]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.17...v0.10.18
+[0.10.17]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.16...v0.10.17
+[0.10.16]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.15...v0.10.16
+[0.10.15]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.14...v0.10.15
+[0.10.14]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.13...v0.10.14
+[0.10.13]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.12...v0.10.13
+[0.10.12]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.11...v0.10.12
+[0.10.11]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.10...v0.10.11
+[0.10.10]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.9...v0.10.10
+[0.10.9]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.8...v0.10.9
+[0.10.8]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.7...v0.10.8
+[0.10.7]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.6...v0.10.7
+[0.10.6]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.5...v0.10.6
+[0.10.5]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.4...v0.10.5
+[0.10.4]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.3...v0.10.4
+[0.10.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.2...v0.10.3
+[0.10.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.9.3...v0.10.0
+[0.9.3]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.8.1...v0.9.0
+[0.8.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.5.2...v0.6.0
@@ -1542,4 +1585,6 @@ The first release — the full loop, end to end.
 [0.3.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mohamed-ashraf-elsaed/loupe/releases/tag/v0.1.0

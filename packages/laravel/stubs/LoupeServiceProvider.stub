@@ -21,9 +21,11 @@ class LoupeServiceProvider extends ServiceProvider
      * "loupe:use"   → who sees the in-app feedback widget.
      * "loupe:admin" → who can open the triage dashboard.
      *
-     * Return true for the users you want to grant access to. This runs in every
-     * environment (the package's local-only default no longer applies once this
-     * provider is registered).
+     * Return true for the users you want to grant access to. In the `local`
+     * environment, config('loupe.allow_in_local') (true by default) still lets
+     * every signed-in user in before these gates run; set it to false to apply
+     * them locally too. An authorize closure in config('loupe.authorize.*') or a
+     * Loupe::useWhen()/adminWhen() closure overrides these gates everywhere.
      */
     protected function gate(): void
     {

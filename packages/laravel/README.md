@@ -1,391 +1,266 @@
-<div align="center">
+# loupekit/laravel
 
-<a href="https://mohamed-ashraf-elsaed.github.io/loupe/">
-  <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/promo-marquee-1400x560.jpg" alt="Loupe — Pin feedback to the live UI. Hand it to Claude." width="100%" />
-</a>
+Loupe for Laravel adds a visual feedback widget to your app, stores every comment in your own database, and serves a triage board on your own routes.
 
-<h1>loupekit/laravel</h1>
+[![Packagist version](https://img.shields.io/packagist/v/loupekit/laravel?color=4a55d6&label=packagist)](https://packagist.org/packages/loupekit/laravel)
+[![PHP version](https://img.shields.io/packagist/php-v/loupekit/laravel?color=4a55d6&label=php)](https://packagist.org/packages/loupekit/laravel)
+![Laravel 11, 12, 13](https://img.shields.io/badge/Laravel-11%20|%2012%20|%2013-4a55d6)
+[![MIT license](https://img.shields.io/packagist/l/loupekit/laravel?color=4a55d6)](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE)
 
-<p><strong>Loupe for Laravel — visual feedback, in your own app.</strong><br />
-Your users pin a comment to any element on your live product and capture a screenshot.<br />
-Comments are stored in <strong>your</strong> database, gated to <strong>your</strong> users, triaged on <strong>your</strong> dashboard,<br />
-and handed to <strong>Claude Code</strong> over MCP — no separate backend to run.</p>
+![The Loupe dashboard at /loupe/dashboard, showing feedback cards in five columns: Queue, To Do, In Progress, In Review and Resolved](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/images/laravel-dashboard.png)
 
-<p>
-  <a href="https://packagist.org/packages/loupekit/laravel"><img src="https://img.shields.io/packagist/v/loupekit/laravel?color=4a55d6&label=packagist" alt="Packagist version" /></a>
-  <a href="https://packagist.org/packages/loupekit/laravel"><img src="https://img.shields.io/packagist/dt/loupekit/laravel?color=4a55d6" alt="Packagist downloads" /></a>
-  <img src="https://img.shields.io/packagist/php-v/loupekit/laravel?color=4a55d6&label=php" alt="PHP version" />
-  <img src="https://img.shields.io/badge/Laravel-11%20|%2012%20|%2013-4a55d6" alt="Laravel 11, 12, 13" />
-  <img src="https://img.shields.io/badge/coverage-100%25-4a55d6" alt="100% test coverage" />
-  <img src="https://img.shields.io/packagist/l/loupekit/laravel?color=4a55d6" alt="MIT license" />
-</p>
+**Docs:** [Install guide](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-install.md) · [Full reference](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md) · [All docs](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/README.md) · [Changelog](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md)
 
-<p>
-  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/"><b>Website</b></a> ·
-  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/#laravel"><b>Docs</b></a> ·
-  <a href="https://github.com/mohamed-ashraf-elsaed/loupe"><b>GitHub</b></a> ·
-  <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md"><b>Full guide</b></a> ·
-  <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md"><b>Changelog</b></a> ·
-  <a href="https://www.npmjs.com/package/@loupekit/sdk"><b>SDK</b></a>
-</p>
-
-</div>
-
----
-
-## Overview
-
-Traditional feedback — _"the revenue card looks off on the dashboard"_ — loses the one thing
-an engineer needs: **which element, in what state, on which page.** Loupe captures all of it at
-the moment of the comment. This package brings that loop into any Laravel app: the widget is a
-single Blade directive, comments are Eloquent rows in **your** database, and the triage board is
-a route **you** own behind **your** auth.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-1-inspect.jpg" alt="Pin a comment to any element" width="90%" />
-</div>
-
-## Table of contents
+## Contents
 
 - [Features](#features)
 - [Requirements](#requirements)
 - [Install](#install)
-- [Quick start](#quick-start)
-- [How it works](#how-it-works)
-- [Authorization — who can use it](#authorization--who-can-use-it)
-- [The dashboard](#the-dashboard)
-- [Claude Code over MCP](#claude-code-over-mcp)
+- [Authorization](#authorization)
 - [Configuration](#configuration)
-- [Data model](#data-model)
-- [Try it locally](#try-it-locally)
-- [Publishing](#publishing)
+- [Dashboard](#dashboard)
+- [Claude Code over MCP](#claude-code-over-mcp)
+- [Loupe Hub](#loupe-hub)
+- [Upgrading](#upgrading)
 - [Testing](#testing)
-- [Related packages](#related-packages)
 
 ## Features
 
-| | |
-| --- | --- |
-| 🎯 **Click-to-comment inspector** | Hover-highlight any element, click to pin a comment — dropped in with one `@loupeWidget` directive. |
-| 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
-| ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. Anchors to the element under its center so it tracks reflow and scrolling. |
-| 🧲 **Dockable control** | A DevTools-style panel — dock it left / right / bottom (pushes your page over so nothing is covered) or float it; light/dark theme, collapses to a draggable `◎` launcher that users can hide, and a bottom sheet on mobile. |
-| 🕒 **Who and when** | Every thread shows its author and an absolute timestamp in your app's timezone (or `LOUPE_TIMEZONE`). The widget also shows the installed package version and flags a published bundle that is behind it. |
-| 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint re-locates the element after the UI changes; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
-| 🗄️ **Your database** | Comments are an Eloquent `Comment` model in a `loupe_comments` table. Swap in your own subclass to add relations/scopes. |
-| 🔐 **Per-user gating** | `loupe:use` / `loupe:admin` Gate abilities **and** config closures decide who sees the widget and who opens the dashboard. |
-| 📋 **Dashboard on your routes** | The full Kanban triage board at `/loupe/dashboard`, behind your session auth. |
-| 🤖 **Claude Code over MCP** | `php artisan mcp:start loupe` hands Claude the fully-contextual backlog. |
-| 🔑 **No secrets to manage** | Authenticates with your existing session + CSRF token. No HMAC keys. |
-| ✅ **100% tested** | A Testbench suite with a hard 100% line-coverage gate, across Laravel 11/12/13. |
+- **One Blade directive.** `@loupeWidget` renders the widget for signed-in, authorized users. It authenticates with your session and CSRF token, so you manage no extra keys.
+- **Your database.** Comments are Eloquent rows in `loupe_comments`. Screenshots and recordings go to a filesystem disk you choose.
+- **Five-stage board.** The dashboard at `/loupe/dashboard` (by default) moves feedback through Queue, To Do, In Progress, In Review and Resolved.
+- **Conversations.** Each comment has a reply thread with @mentions and emoji reactions. In-app notifications cover mentions and replies, and status changes made in another project through Loupe Hub.
+- **Activity log.** Creates, edits, status moves, deletes, replies and Hub deliveries made through the widget, the dashboard and Hub are recorded in `loupe_activity` and shown in the widget's Activity tab. Writes made by the MCP tools or by your own code are not recorded.
+- **Loupe Hub.** Loupe Hub is a separate service that connects the Loupe apps in one organization. Through it, you can forward new comments to another project, receive tickets from other projects, and sync status changes and replies both ways.
+- **Claude Code over MCP.** Claude Code is Anthropic's coding agent. MCP (Model Context Protocol) is a protocol that lets an agent call tools. With `laravel/mcp` installed, `php artisan mcp:start loupe` starts an MCP server with four tools that read and update your comments.
+- **Events.** `CommentCreated`, `CommentStatusChanged`, `CommentDeleted` and `MessageAdded` fire whenever the model is saved or deleted through Eloquent, whoever writes it. They do not fire for query-builder bulk writes such as `Comment::where(...)->update()`. `TicketReceived` and `HubUpdateReceived` fire when Hub delivers a ticket or an update.
 
 ## Requirements
 
-| | Supported |
+| Requirement | Supported versions |
 | --- | --- |
-| **PHP** | **8.2** and higher (**8.3+** on Laravel 13) |
-| **Laravel** | **11, 12, 13** |
-| **Database** | anything Eloquent supports (MySQL, PostgreSQL, SQLite, SQL Server) |
-| **MCP** (optional) | `laravel/mcp` **^0.8** — Laravel 11, 12 & 13 |
+| PHP | 8.2 or later (Laravel 13 needs PHP 8.3 or later) |
+| Laravel | 11, 12, 13 |
+| Database | Any database Eloquent supports |
+| Authentication | A way for users to sign in (a `login` route) |
+| MCP (optional) | `laravel/mcp` ^0.8 |
 
 ## Install
 
-```bash
-composer require loupekit/laravel
-php artisan loupe:install
-php artisan migrate
-```
+**Prerequisites:** an app that meets the [requirements](#requirements), and a user account you can sign in with.
 
-`loupe:install` publishes the config, migration and browser assets (to `public/vendor/loupe`),
-then publishes and registers an `App\Providers\LoupeServiceProvider` where you control access.
+1. Require the package:
 
-> **Prerequisite: a user who can sign in.** Loupe shows the widget to an **authenticated**
-> user and serves the dashboard behind your auth. Laravel 11+ ships **no auth scaffolding**,
-> so a brand-new app has nobody to sign in as — and Loupe then looks broken (no widget
-> anywhere, and the dashboard cannot authenticate you). Add auth first if you haven't:
->
-> ```bash
-> composer require laravel/breeze --dev
-> php artisan breeze:install
-> ```
->
-> `loupe:install` prints a warning when it sees no `login` route, so you find out at install
-> time rather than by staring at a page that never shows the widget.
+   ```bash
+   composer require loupekit/laravel
+   ```
 
-## Quick start
+2. Publish the config, migrations, browser assets and the `App\Providers\LoupeServiceProvider` stub. The command also registers the provider in `bootstrap/providers.php`:
 
-**1.** Add the widget to your Blade layout, just before `</body>`:
+   ```bash
+   php artisan loupe:install
+   ```
 
-```blade
-@loupeWidget
-</body>
-```
+   You should see `Published config`, `Published migration`, `Published assets`, `Published dashboard provider` and `Registered LoupeServiceProvider`, followed by a list of next steps.
 
-**2.** Decide who sees it. By default the widget and dashboard are visible **only in `local`**.
-Open `app/Providers/LoupeServiceProvider.php` and grant access:
+   - If your app has no `login` route, the command warns you and suggests installing auth scaffolding such as Laravel Breeze.
+   - If your app has no `bootstrap/providers.php`, the command warns that it could not register the provider. Add `App\Providers\LoupeServiceProvider::class` to your providers list by hand.
+   - To overwrite files you published before, run `php artisan loupe:install --force`.
 
-```php
-Gate::define('loupe:use', fn ($user) => $user->is_staff);   // who sees the widget
-Gate::define('loupe:admin', fn ($user) => $user->is_admin);  // who opens the dashboard
-```
+3. Create the Loupe tables:
 
-**3.** Sign in as one of those users and open the board at **`/loupe/dashboard`**. That's the
-whole setup. (In `local` the gates are bypassed, so any signed-in user works.)
+   ```bash
+   php artisan migrate
+   ```
 
-## How it works
+4. Add the widget to your layout, just before `</body>`:
 
-```mermaid
-flowchart LR
-  subgraph App["Your Laravel app"]
-    W["@loupeWidget<br/>(Loupe SDK)"]
-    API["/loupe/v1/*<br/>Comment + Blob controllers"]
-    DASH["/loupe/dashboard<br/>Kanban board"]
-    DB[("loupe_comments<br/>your database")]
-    FS[["screenshots<br/>your disk"]]
-    MCP["php artisan<br/>mcp:start loupe"]
-  end
-  CLAUDE["Claude Code"]
+   ```blade
+   @loupeWidget
+   </body>
+   ```
 
-  W -->|"session cookie + CSRF"| API --> DB
-  API --> FS
-  DASH --> API
-  MCP --> DB
-  CLAUDE <-->|MCP| MCP
-```
+   The directive renders nothing for a guest or for a user who fails the `loupe:use` check. In the `local` environment, any signed-in user passes.
 
-Identity is always the authenticated session user (`auth()->user()`); the store endpoint rejects
-a comment whose `author.id` is not the current user, so nobody can post as someone else.
+5. Grant access for every environment except `local`. A gate is a Laravel authorization check, and an ability is the name a gate is defined under. Open `app/Providers/LoupeServiceProvider.php` and add the email addresses that may use the widget and the dashboard:
 
-## Authorization — who can use it
+   ```php
+   Gate::define('loupe:use', function ($user) {
+       return in_array($user->email, [
+           'sara@acme.com',
+       ]);
+   });
 
-Two abilities, checked in this order — **config closure**, then **Gate ability**:
+   Gate::define('loupe:admin', function ($user) {
+       return in_array($user->email, [
+           'sara@acme.com',
+       ]);
+   });
+   ```
 
-```php
-// Option A — Gate abilities (in the published App\Providers\LoupeServiceProvider)
-Gate::define('loupe:use',   fn ($user) => $user->hasRole('staff'));
-Gate::define('loupe:admin', fn ($user) => $user->hasRole('admin'));
+   Replace `sara@acme.com` with your users' addresses. Users not in the list get no widget and a `403` from the dashboard.
 
-// Option B — config closures (config/loupe.php); take precedence over the Gates
-'authorize' => [
-    'use'       => fn ($user) => $user->can_give_feedback,
-    'dashboard' => fn ($user) => $user->is_admin,
-],
-```
+6. Sign in and reload any page that uses the layout. You should see the Loupe widget.
 
-Denied users never receive the widget markup, and the API/dashboard return `403`.
+7. Open `/<LOUPE_PATH>/dashboard`, where `<LOUPE_PATH>` is the `LOUPE_PATH` value (default `loupe`). In `local`, or once your email is in `loupe:admin`, you should see the board with five empty columns.
 
-## The dashboard
+### Verify
 
-The full Kanban board — open / in progress / done, page filter, screenshot thumbnails, status
-moves, delete, and **Copy for Claude** — served at `/loupe/dashboard` behind your `web`+`auth`
-middleware and the `loupe:admin` ability. Configuration is injected server-side, so no secret
-ever reaches the browser.
+Leave a comment with the widget, then open the dashboard. You should see the comment in the **Queue** column.
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-2-board.jpg" alt="Triage board" width="90%" />
-</div>
+### Troubleshooting
 
-## Claude Code over MCP
-
-With `laravel/mcp` installed, a local MCP server named **`loupe`** is registered automatically:
-
-```bash
-php artisan mcp:start loupe
-```
-
-It reads your database directly (no HTTP hop, no admin key) and exposes three tools:
-
-| Tool | Arguments | Returns |
+| Symptom | Cause | Fix |
 | --- | --- | --- |
-| `list_comments` | `status?`, `priority?`, `changeType?`, `repo?`, `branch?`, `url?` | the backlog, newest first |
-| `get_comment` | `id` | Claude-ready package: request + element HTML + computed styles + the screenshot as an image + any recording URL |
-| `propose_change` | `id`, `html`, `css?`, `notes?` | stores Claude's modified HTML/CSS on the comment; the dashboard shows code + a live before/after preview |
-| `update_status` | `id`, `status` | moves a comment along the board: queue / todo / in_progress / in_review / resolved |
+| The widget does not appear. | You are not signed in, you fail `loupe:use`, `LOUPE_ENABLED` is `false`, or the assets are not published. | Sign in, add your email to `loupe:use` (step 5), check `.env`, and run `php artisan vendor:publish --tag=loupe-assets --force`. |
+| The dashboard returns `403`. | Outside `local`, your user fails `loupe:admin`. | Add your email to `loupe:admin` (step 5). |
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-3-claude.jpg" alt="Hand the backlog to Claude" width="90%" />
-</div>
+For the full walkthrough, see [Install the Laravel package](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-install.md).
+
+## Authorization
+
+Two abilities control access: `loupe:use` shows the widget and allows the API, and `loupe:admin` opens the dashboard. The package defines both gates to deny by default. For each request, Loupe checks these in order and uses the first that applies:
+
+1. An `authorize.use` or `authorize.dashboard` closure in `config/loupe.php`.
+2. A closure registered with `Loupe::useWhen()` or `Loupe::adminWhen()`.
+3. `allow_in_local`: while it is `true`, any signed-in user is allowed in the `local` environment.
+4. The `loupe:use` and `loupe:admin` gates.
+
+A denied user gets no widget markup, and the API and dashboard answer `403`.
+
+`allow_in_local` has no env var. To require authorization in `local` too, publish the config and set `'allow_in_local' => false` in `config/loupe.php`.
+
+See [Authorize who can use Loupe in Laravel](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-authorize.md).
 
 ## Configuration
 
-`config/loupe.php` (published by `loupe:install`):
+These are the most-used keys in `config/loupe.php`. Set them in `.env`.
 
-| Key | Default | Purpose |
+| Env var | Config key | Type | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `LOUPE_ENABLED` | `enabled` | bool | `true` | Master switch. When `false`, the directive renders nothing and no HTTP routes are registered. The MCP server is still available when `laravel/mcp` is installed. |
+| `LOUPE_PATH` | `path` | string | `loupe` | Route prefix for the API, blobs and dashboard. |
+| `LOUPE_DOMAIN` | `domain` | string | empty (any domain) | Domain the Loupe routes are registered on. Example: `admin.example.com`. |
+| `LOUPE_PROJECT_KEY` | `project_key` | string | `app` | Name of this app's project. It scopes comments, activity and notifications. |
+| `LOUPE_GUARDS` | `guards` | comma-separated list | empty (default guard) | Auth guards to resolve the user through, in order. Example: `web,admin`. |
+| `LOUPE_ALLOWED_EMAILS` | `allowed_emails` | comma-separated list | empty | Users of the configured guards who can be @mentioned. People who already wrote in a thread can be mentioned too. Example: `sara@acme.com,omar@acme.com`. |
+| `LOUPE_ASSET_URL` | `asset_url` | string | empty (`app.url`) | Origin that serves `public/vendor/loupe`. Loupe does not use `ASSET_URL`. |
+| `LOUPE_TIMEZONE` | `timezone` | string | empty (`app.timezone`) | IANA time zone for widget timestamps. Example: `Europe/London`. |
+| `LOUPE_LOCALE` | `locale` | string | empty (browser locale) | BCP 47 locale for dates. Example: `en-GB`. |
+| `LOUPE_DISK` | `disk` | string | `public` | Filesystem disk for screenshots, recordings and attachments. |
+| `LOUPE_HUB_URL` | `hub.url` | string | empty | Loupe Hub base URL. Example: `https://hub.example.com`. |
+| `LOUPE_PROJECT_ID` | `hub.project_id` | string | empty | Hub project ID (`prj_…`). |
+| `LOUPE_PROJECT_SECRET` | `hub.project_secret` | string | empty | Hub project secret (`psk_…`). Keep it out of version control. |
+| `LOUPE_ACTIVITY` | `activity.enabled` | bool | `true` | Records events for the Activity tab and `GET /<LOUPE_PATH>/v1/activity`. |
+
+**Full reference:** every key, route, event, migration and Artisan command is in [docs/LARAVEL.md](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md).
+
+## Dashboard
+
+The dashboard is served at `/<LOUPE_PATH>/dashboard` behind the `web` and `loupe.auth` middleware and the `loupe:admin` ability. It shows five columns: Queue, To Do, In Progress, In Review and Resolved.
+
+You can filter the board by view, page, repo, branch, kind (Element, Region, Note), device (Desktop, Tablet, Mobile), priority (Critical, High, Medium, Low) and change type (Frontend, Backend, API, Other). You can sort by newest, oldest or priority, and switch to compact density. A **Connect Claude** page sits next to **Comments** in the navigation.
+
+## Claude Code over MCP
+
+The package registers a local MCP server named `loupe` only when `laravel/mcp` is installed. The server talks over standard input and output.
+
+1. Install `laravel/mcp`:
+
+   ```bash
+   composer require laravel/mcp:^0.8
+   ```
+
+2. Check that the server starts:
+
+   ```bash
+   php artisan mcp:start loupe
+   ```
+
+   The command waits silently for input. Press `Ctrl+C` to stop it.
+
+3. Add the server to Claude Code. Put this in `.mcp.json` in your project's root:
+
+   ```json
+   {
+     "mcpServers": {
+       "loupe": {
+         "command": "php",
+         "args": ["<ABSOLUTE_PATH_TO_APP>/artisan", "mcp:start", "loupe"]
+       }
+     }
+   }
+   ```
+
+   `<ABSOLUTE_PATH_TO_APP>` is the full path of your Laravel app, for example `/home/sara/src/shop`.
+
+4. Restart Claude Code and run `/mcp`. You should see `loupe` in the list of servers.
+
+The server reads your database directly and exposes four tools:
+
+| Tool | Arguments | What it does |
 | --- | --- | --- |
-| `enabled` | `true` | Master switch. |
-| `path` | `loupe` | Route prefix for the API + dashboard. |
-| `project_key` | `app` | Scopes comments (one app = one project). |
-| `middleware.api` | `['web','loupe.auth']` | Guards the JSON API. |
-| `middleware.dashboard` | `['web','loupe.auth']` | Guards the dashboard. |
-| `guards` | `env('LOUPE_GUARDS')` | Auth guards to resolve the user through, in order (e.g. `web,admin`). Empty = default guard. |
-| `authorize.use` / `authorize.dashboard` | `null` | Closures `fn($user): bool` (take precedence over Gates). |
-| `user_resolver` | `null` | Customize the `{id,name,email}` payload sent to the SDK. |
-| `timezone` | `env('LOUPE_TIMEZONE')` | IANA zone the widget renders timestamps in (e.g. `Africa/Cairo`). Empty = `app.timezone`. |
-| `locale` | `env('LOUPE_LOCALE')` | BCP 47 locale for dates (e.g. `en-GB`). Empty = the browser's. |
-| `comment_model` | `Loupekit\Loupe\Models\Comment` | Swap for your own subclass. |
-| `disk` | `public` | Filesystem disk for screenshots. |
-| `asset_url` | `env('LOUPE_ASSET_URL')` | Origin Loupe's own JS is served from. Defaults to the app URL — see the CDN note below. |
-| `hub.url` | `env('LOUPE_HUB_URL')` | Loupe Hub base URL, e.g. `https://hub.example.com`. |
-| `hub.project_id` | `env('LOUPE_PROJECT_ID')` | Hub Project ID (`prj_…`). |
-| `hub.project_secret` | `env('LOUPE_PROJECT_SECRET')` | Hub Project Secret (`psk_…`). Keep it in `.env`, never in git. |
-| `activity.enabled` | `env('LOUPE_ACTIVITY', true)` | Record comment, status, forward and receive events for the panel's Activity view. |
-| `activity.retention_days` | `30` | Activity rows older than this are pruned. |
+| `list-comments` | `status?`, `priority?`, `changeType?`, `repo?`, `branch?`, `url?` | Lists matching comments as JSON. |
+| `get-comment` | `id` | Returns the request, element HTML, computed styles, any proposal and the screen-recording URL, with the screenshot and image attachments as images. For a free note, it returns only the title, note, status, page and attachments. |
+| `propose-change` | `id`, `html`, `css?`, `notes?` | Stores a proposed HTML and CSS change on the comment. |
+| `update-status` | `id`, `status` | Moves the comment to `queue`, `todo`, `in_progress`, `in_review` or `resolved`. The legacy names `open` and `done` are accepted. Any other value moves the comment to `queue`; the HTTP API refuses it with `422` instead. |
 
-### Send new comments to Loupe Hub (optional)
+For other MCP clients, see [Connect MCP clients](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/connect-mcp-clients.md).
 
-[Loupe Hub](https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/packages/hub) checks
-that a comment's author belongs to your organization. It then sends the comment to your
-project's destination project or to its webhook. Create a project in the Hub dashboard, then
-set all three keys:
+## Loupe Hub
 
-```env
-LOUPE_HUB_URL=https://hub.example.com
-LOUPE_PROJECT_ID=prj_…
-LOUPE_PROJECT_SECRET=psk_…
-```
+Loupe Hub connects the apps in one organization. Each app is a Hub project with its own ID and secret. Set `LOUPE_HUB_URL`, `LOUPE_PROJECT_ID` and `LOUPE_PROJECT_SECRET`. Until all three are set, forwarding stays off and the inbound route answers `503`.
 
-The feature is **off unless all three are set**. Each **new** comment (not later edits)
-dispatches the `Loupekit\Loupe\Jobs\SendToHub` job:
+- **Send.** Each new comment posted from the widget is sent to Hub by the `SendToHub` job, signed with the project secret. Comments created by your own code or by MCP are not sent. A comment whose author has no email is not sent, and a warning is logged. If your queue connection is not `sync`, run a queue worker:
 
-- It POSTs `{ user: { email, name }, issue }` to `{LOUPE_HUB_URL}/v1/issues`, where `user`
-  is the logged-in user (through your `user_resolver`, if set) and `issue` is the comment.
-- It signs the request: `X-Loupe-Project`, `X-Loupe-Timestamp` and
-  `X-Loupe-Signature = hex(HMAC-SHA256(timestamp + "." + body, project_secret))`.
-- It runs on your queue. With `QUEUE_CONNECTION=sync`, or if the queue is unavailable,
-  it runs after the response is sent.
-- A Hub failure (rejection such as `403 user not in organization`, network error, failed
-  webhook delivery) is **logged as a warning and never breaks comment creation**. Users
-  without an email are skipped (and logged).
-- It stores Hub's answer on the comment as `forwarded`, which the widget shows as "→ CRM".
+  ```bash
+  php artisan queue:work
+  ```
 
-### Receive tickets from other projects
+  A Hub failure is logged and never blocks the comment.
+- **Receive.** Set this app's inbound URL in Hub to `https://<YOUR_APP_HOST>/<LOUPE_PATH>/v1/hub/inbound`, where `<YOUR_APP_HOST>` is your app's public host. Each delivery must carry the `X-Loupe-Hub-Project`, `X-Loupe-Hub-Timestamp` and `X-Loupe-Hub-Signature` headers, with a timestamp within 300 seconds of now. The package verifies each delivery and fires `Loupekit\Loupe\Events\TicketReceived`.
+- **Sync.** Status changes on the receiving project and replies on either side travel back through Hub.
 
-Set this app's **Inbound URL** in Hub to `https://<app>/{LOUPE_PATH}/v1/hub/inbound`, and
-choose this project under **Send tickets to** on the projects that should send here. The
-package verifies each delivery with this app's own `LOUPE_PROJECT_SECRET`, stores the ticket
-once per issue id, and fires `Loupekit\Loupe\Events\TicketReceived` with the stored comment,
-its `source` and the verified `user`. Listen for it to create your own record. Run
-`php artisan migrate` first. See [docs/LARAVEL.md](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md#send-tickets-to-another-project)
-for the full contract.
+To verify, post a comment from the widget. You should see it in the target project, and a Hub entry in the widget's Activity tab.
 
-`GET {path}/v1/org` and `GET {path}/v1/activity` feed the panel's project menu and Activity
-view. Both use the API middleware and the `use` authorization.
+See [Connect apps to Hub](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-connect-apps.md).
 
-### Multiple auth guards
+## Upgrading
 
-If your app uses separate guards for users and admins (e.g. `web` and `admin`), tell
-Loupe which guards to resolve the current user through, in order:
-
-```env
-LOUPE_GUARDS=web,admin
-```
-
-Loupe then resolves identity the **same way** when rendering the widget and when handling
-the API request (first authenticated guard wins), so a user logged into a non-default
-guard no longer hits `403 "cannot post as another user"`. Leave it unset for single-guard
-apps (identical to `auth()->user()`).
-
-### Heads-up: CDN / `ASSET_URL`
-
-Loupe's browser files live on your app's own filesystem at `public/vendor/loupe/**`, and
-Loupe loads them from your **app URL** — it deliberately does **not** use Laravel's
-`asset()` helper. That matters if you set `ASSET_URL` to a CDN/S3 bucket and upload only
-your Vite build (`public/build`) there: `asset()` would point Loupe's files at the CDN,
-which doesn't host them, and the widget would silently fail to load. Loupe sidesteps this
-automatically. If you *do* serve `public/vendor/loupe` from another origin, set
-`LOUPE_ASSET_URL` to that origin.
-
-See the [full guide](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md) for
-Sanctum/SPA setups, private screenshot disks, and the complete reference.
-
-## Data model
-
-Migration `create_loupe_comments_table` → `loupe_comments`:
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | string (PK) | client-generated UUID |
-| `project_key` | string, indexed | scopes to this app |
-| `url` | text | normalized (utm / click ids stripped) |
-| `status` | string, indexed | `queue` · `todo` · `in_progress` · `in_review` · `resolved` |
-| `priority` | string | `critical` · `high` · `medium` · `low` (default `medium`) |
-| `change_type` | string | `frontend` · `backend` · `api` · `other` (default `other`) |
-| `repo` | string, nullable | the repository the feedback was filed against (`org/repo`) |
-| `branch` | string, nullable | the branch in play (branch-aware threads) |
-| `body` | text | the comment |
-| `kind` | string | `element` · `region` · `free` (page-level note) |
-| `author` / `author_id` | json / string | `{id,name,email?}` + denormalized id |
-| `anchor` / `context` / `offset` | json | fingerprint, element HTML + styles, pin position |
-| `region` | json, nullable | rectangle for region comments |
-| `screenshot_url` | text, nullable | URL of the stored screenshot |
-| `created_at` / `updated_at` | timestamps | |
-
-## Try it locally
-
-Point a scratch Laravel app at this package with a [path repository](https://getcomposer.org/doc/05-repositories.md#path):
-
-```jsonc
-// composer.json of your test app
-"repositories": [
-  { "type": "path", "url": "../loupe/packages/laravel" }
-]
-```
+After you update the package, refresh the browser assets, copy the new migrations into your app, and run them. The package does not load migrations from `vendor/`.
 
 ```bash
-composer require loupekit/laravel:@dev
-php artisan loupe:install && php artisan migrate
-# add @loupeWidget to resources/views/…​, log in, and open /loupe/dashboard
+php artisan vendor:publish --tag=loupe-assets --force
+php artisan vendor:publish --tag=loupe-migrations
+php artisan migrate
 ```
 
-## Publishing
+Do not pass `--force` to the migrations tag; without it, Laravel copies only the migrations you do not have yet. You should see one line per new migration, or `Nothing to migrate.`
 
-This package lives in the Loupe monorepo under `packages/laravel`. Packagist reads a
-repo's **root** `composer.json`, so it's mirrored to a dedicated repo automatically by
-[`.github/workflows/laravel-split.yml`](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/.github/workflows/laravel-split.yml):
-
-- every push to `main` syncs the split repo's `main`;
-- every **`vX.Y.Z` tag is forwarded** to the split repo → Packagist auto-updates.
-
-The same tag also drives the npm release (`@loupekit/*`), so **one `vX.Y.Z` tag ships the
-npm packages and the Packagist package together**.
-
-**One-time setup:**
-
-1. Create the target repo (default `loupekit/laravel`; override via the
-   `LARAVEL_SPLIT_ORG` / `LARAVEL_SPLIT_REPO` repository variables).
-2. Add a Personal Access Token with `repo` scope as the **`ACCESS_TOKEN`** secret.
-3. Submit the split repo once at
-   [packagist.org/packages/submit](https://packagist.org/packages/submit) and enable
-   **Auto-update** (the Packagist GitHub webhook).
-
-After that, releasing is just: `git tag -a vX.Y.Z && git push --tags`.
+The widget flags a published bundle whose version differs from the installed package. See [Upgrade Loupe](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/upgrade.md).
 
 ## Testing
 
-```bash
-composer install
-composer test               # run the suite
-composer test:coverage-100  # run with the hard 100% coverage gate
-```
+From `packages/laravel`, run `composer install`, then `composer test`. The PHPUnit suite runs on an in-memory SQLite database provided by Testbench, the package-testing harness for Laravel.
 
-Every push runs the suite across Laravel 11/12/13 in CI
-([`.github/workflows/laravel.yml`](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/.github/workflows/laravel.yml)).
-The browser bundles in `resources/dist` are vendored from `@loupekit/sdk` and
-`@loupekit/dashboard`; refresh them with `bin/sync-assets.sh` after changing either.
+`composer test:coverage-100` enforces 100% line coverage and needs a coverage driver such as pcov, a PHP extension that collects code coverage.
+
+`composer stranger-test` installs the package into a fresh Laravel app, as a new user would, and checks the widget, dashboard and API end to end. It needs network access, Composer, PHP, curl and python3.
+
+CI runs the suite on PHP 8.2 to 8.4 with Laravel 11 and 12, and on PHP 8.3 and 8.4 with Laravel 13. See [docs/TESTING.md](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md).
 
 ## Related packages
 
-- [**@loupekit/sdk**](https://www.npmjs.com/package/@loupekit/sdk) — the embeddable widget (bundled here).
-- [**@loupekit/mcp**](https://www.npmjs.com/package/@loupekit/mcp) — the standalone MCP server.
-- [**@loupekit/shared**](https://www.npmjs.com/package/@loupekit/shared) — canonical types + `normalizeUrl`.
+- [@loupekit/sdk](https://www.npmjs.com/package/@loupekit/sdk): the embeddable widget. This package ships a built copy.
+- [@loupekit/mcp](https://www.npmjs.com/package/@loupekit/mcp): the standalone MCP server for the Node backend.
+- [@loupekit/shared](https://www.npmjs.com/package/@loupekit/shared): shared types and helpers.
 
 ## Author
 
 Created and maintained by **[Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)** —
 [LinkedIn](https://www.linkedin.com/in/mohamedashrafelsaed/) ·
-[GitHub](https://github.com/mohamed-ashraf-elsaed) ·
-[m.ashraf.saed@gmail.com](mailto:m.ashraf.saed@gmail.com)
+[GitHub](https://github.com/mohamed-ashraf-elsaed)
 
 ## License
 
-[MIT](LICENSE) © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+[MIT](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE) © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)

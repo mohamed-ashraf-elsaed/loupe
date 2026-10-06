@@ -1,48 +1,67 @@
 # Loupe
 
-> Loupe is an open-source, embeddable visual-feedback SDK. Product managers inspect any element on a live product, pin a comment, and capture a screenshot; comments persist, re-anchor across redeploys, and are handed to Claude Code as an actionable backlog via the Model Context Protocol (MCP). MIT licensed, written in TypeScript.
+> Loupe is an open-source visual feedback tool: reviewers pin comments, screenshots and screen recordings to elements of a live web page, a team triages them on a five-stage board, and AI agents read and act on them through the Model Context Protocol (MCP).
 
-## What it does
-- Embeds a Shadow-DOM widget in any web product (npm package or script tag).
-- Lets authorized users inspect a DOM element and attach a comment + screenshot, drag a free-size region to screenshot, screen-record a region to video (webm, via getDisplayMedia), or drop a "free" page-level note anywhere (no element, no screenshot).
-- The control is a dockable DevTools-style panel with a sidebar of built-in pages (Home + Comments + Activity) plus any the host registers via `init({ tabs })` (a worked example ships as `connectTab()`). Home leads with stat tiles (Open / Needs you / Resolved / Stale), scope chips carrying this-page and whole-project counts, a project manager (the project and its organization read from the backend's GET v1/org: the organization's other projects and where this project's tickets go; add/validate environment URLs) and the most recent feedback; Comments holds the capture tools and the list (grouped by day in the project scope); Activity is a live monitor — status dot, collapsible session summary, tool chips and an event feed fed by the backend's GET v1/activity (polled every 15 s while open, with a Live/Offline label) and by `trackActivity()` (Loupe's own operations included); it says "monitor unavailable" only when the backend has no feed and nothing is connected. The header carries a position menu (left/bottom/right/float), a theme toggle, a settings dropdown (five accent colours, hover-hints/markers/page-paths switches, Restart tour, and the running bundle version + server/offline mode, flagged when it differs from the host package version passed as `packageVersion`), and a minimize button. Dock it to an edge (which pushes the host page over) or float it as a movable, resizable window; it collapses to a draggable `◎` launcher (one tap reopens the panel; a chevron expands the quick actions; it can be hidden and restored with Alt+Shift+L, with a slim tab at the right screen edge on touch devices, or with `hideLauncher()`/`showLauncher()`, and its position persists) and becomes a bottom sheet on mobile. Every thread shows its author and an absolute timestamp rendered in `init({ timeZone, locale })`. A five-step guided tour runs once on first open (skippable, replayable), and each view shows a one-time contextual hint card. Position, theme, accent, scope, tab, minimize state, marker visibility, hint and tour state all persist.
-- Threads carry a lifecycle: a comment can record the pull request carrying its fix (`pr: { number, url, state, checksPassed, checksTotal }`), which renders as a chip (Sent to agent → In PR → Review preview → Reviewed) plus a monospace PR link and a checks meter. Threads in In Review lead with a review banner (Approve / Add comment) and an origin toggle that shows the original request beside Claude's proposed change. Only a human resolves a thread; an agent moves work to In Review.
-- Generates and iterates on a change in-panel: `init({ generate })` adds a Generate pane with a sandboxed preview, an opacity comparison against the original, undo, prev/next iteration history and a refine/revise input; local-AI endpoint + model are configurable with a real connection check against an OpenAI-compatible `/v1/models`. Without a generator the pane offers an access request via `init({ onRequestAccess })`.
-- Agent navigation is consent-gated: `requestNavigation(url, { reason, requester })` shows the user who wants to go where and why, and nothing navigates without an explicit grant (only http(s) is even offerable); decisions are kept as an audit trail. Dictation (`SpeechRecognition`) is available in the composer where supported.
-- The MCP server hosts a local bridge on 127.0.0.1:9800 (LOUPE_BRIDGE_PORT, 0 disables): element selections POST to /selection and read back from /selection/latest and /selection/history; agents register at /agents with a heartbeat and are evicted after 30s of silence; /events and /thread-updates are Server-Sent Events channels carrying selections, agent changes and thread updates (update_status and propose_change publish to them). CORS is limited to chrome-extension and loopback origins, and a busy port is logged and skipped rather than fatal.
-- Commits and opens pull requests on GitHub: a multi-file fix lands as one atomic commit (Git Data API), the token resolves from GITHUB_TOKEN/GH_TOKEN or `gh auth token`, placeholders are detected rather than sent, and errors are redacted. Working branches track which branch accumulates a repo's fixes (with a running fix count) plus its PR and preview URL; per-repo URL patterns (`*` within a segment, `**` across) let a deployment be recognised, and a preview lookup probes candidates - reported URL, then patterns, then the GitHub Pages `pr-preview/pr-N` convention - answering "not ready" rather than guessing.
-- Fixes land on ONE working branch per repo rather than one PR per comment: create_pr_for_thread accumulates commits and keeps a table of every fix and its commit in the PR body, starting a fresh branch when the tracked PR is merged or closed (a revision always gets its own revision-* branch). Threads are conversations: mark_thread_addressed moves a thread to In Review and has NO status parameter, so an agent cannot resolve one; add_thread_message replies without changing status; the comment body is message #1 and replies carry authors typed user/agent/guest.
-- Threads are conversations in the panel: expanding one shows the replies (an agent's reply carries a left accent bar and an agent tag), an optimistic reply composer that keeps a failed reply on screen with a Retry, an activity timeline derived from the thread's own state (captured -> replied -> change ready -> PR opened -> preview live -> waiting on a human -> resolved, with skipped steps absent), and Copy thread text (a readable summary leading with the element selector). Replies load lazily per expanded card; participants are recorded on write and the thread's author is folded in on read.
-- Integrations: Slack and Telegram post thread lifecycle events (created, agent working, PR created, resolved) to mapped channels. Credentials are AES-256-GCM encrypted at rest, never returned by the API, and require LOUPE_CREDENTIAL_KEY. Delivery retries 3x with backoff and logs every attempt. Admin-only endpoints under /v1/integrations.
-- The panel has a Chat page, off by default since 0.12.0 (`init({ chat: true })` turns it on): a gather tray collects several elements/screenshots into one message (order matters, items can be excluded), plus Web Speech dictation and an unread badge. The bridge serves a read-only activity dashboard at /monitor with a live timeline, sessions, tool usage and files touched, plus get_recent_events, get_files_touched and get_dashboard_url tools. Bridge SSE events are NAMED — listen with addEventListener, not onmessage.
-- Companion chat: send a message to the agent mid-task and every pending message is prepended to the next tool result (take/ack, so delivery is exactly once and a failed tool never consumes one). Tools: get_companion_messages, reply_to_companion. Agent instrumentation: an opt-in, idempotent Claude Code hooks installer, a bounded event store, and sessions folded from events (get_activity_summary).
-- A reply can carry its own attachments (images/video), and retracting one is a soft delete: the row survives with deleted_at set, is excluded from the default message list, and is available via ?includeDeleted=1. New replies and retractions relay thread-update events over the agent bridge, env-gated on LOUPE_BRIDGE_URL.
-- Reactions: emoji on a reply, with counts and per-user state. The database primary key is the toggle invariant (reacting twice cannot create two rows) and the toggle is idempotent in both directions. Presence: who else has the page open, heartbeats with a 20s TTL, rendered as an avatar cluster; hidden when no bridge is configured.
-- Mentions: @name in a reply is parsed (emails, code spans and trailing punctuation excluded), resolved against everyone who has taken part, and notified in-app; unresolved handles are reported rather than dropped. A "Needs you" predicate in shared flags a thread in review, an agent's unanswered question or a failed run, and deliberately excludes threads an agent is still working on.
-- Stores comments in Postgres and screenshots/recordings in object storage.
-- Re-anchors each pin to its element after redeploys using a multi-signal fingerprint.
-- Exposes an MCP server (tools: list_comments, get_comment, propose_change, update_status) so Claude Code reads feedback with full element context — the screenshot is delivered as an image — and writes its modified HTML/CSS back via propose_change, which the dashboard renders as code plus a live before/after preview for the dev team.
-- Ships a Kanban triage dashboard and an MV3 browser extension (pixel-perfect capture on any site).
-- Optional Loupe Hub: a hosted service where organization owners (Google sign-in) manage allowed members and projects; it verifies HMAC-signed issues (POST /v1/issues), checks the author's email belongs to the organization, and forwards them to a per-project signed webhook. The Laravel package forwards new comments to Hub when LOUPE_HUB_URL, LOUPE_PROJECT_ID and LOUPE_PROJECT_SECRET are set. Since 0.12.0 a project can send its tickets to another project in the same organization: Hub POSTs to that project's Inbound URL signed with its own project secret, and the Laravel package receives at POST {path}/v1/hub/inbound and fires a TicketReceived event. GET /v1/projects (Hub) and GET {path}/v1/org (Laravel) list the organization's projects.
+Key facts for Loupe 0.14.0:
+
+- New here: start with the first-comment tutorial below, then pick the install guide for your stack: script tag, npm, Laravel or the browser extension.
+- License: MIT.
+- Languages: TypeScript (npm workspaces monorepo) and PHP (Laravel package).
+- Published packages: `@loupekit/sdk` (embeddable widget), `@loupekit/shared` (types and helpers) and `@loupekit/mcp` (MCP server, binary `loupe-mcp`) on npm, and `loupekit/laravel` on Packagist (PHP ^8.2, Laravel 11, 12 and 13).
+- The browser extension, the local server, the dashboard and Loupe Hub are not published to npm. Run them from a checkout of the repository.
+- Running from source requires Node.js 24. The server, Hub and MCP packages run `.ts` files directly with Node's built-in type stripping.
+- The extension is a Manifest V3 extension, loaded unpacked from `packages/extension`.
+- Every comment moves through five stages: queue, todo, in_progress, in_review, resolved.
+- Agents are told to stop at in_review and leave resolving to a person. This is guidance, not enforcement: `mark_thread_addressed` cannot resolve, but `update_status` accepts resolved in both MCP servers.
+- The Node MCP server (`@loupekit/mcp`) exposes 19 tools.
+- The Laravel MCP server exposes 4 tools: list_comments, get_comment, propose_change, update_status. Start it with `php artisan mcp:start loupe`. It needs the `laravel/mcp` package.
+- The endpoints `GET /v1/org` and `GET /v1/activity` exist only in the Laravel package, under its route prefix (config key `loupe.path`, env `LOUPE_PATH`, default `loupe`). The local server does not serve them.
+- Loupe Hub is a self-hosted service that groups projects into organizations and forwards tickets between them.
+- Each Hub project has a project secret (`psk_`, signs traffic between the app and Hub), a webhook signing secret (`whs_`, signs deliveries to an external webhook), an optional inbound URL (where a Loupe app receives tickets) and an optional webhook URL (for a system that is not a Loupe app). A project's destination is the project its tickets go to.
+- Hub delivers each ticket to the destination project's inbound URL, signed with the destination's project secret. If no destination with an inbound URL is set, it posts to the source project's webhook URL, signed with the webhook signing secret. With neither, it answers `202` with `delivery: "none"`.
+- Repository: https://github.com/mohamed-ashraf-elsaed/loupe
+- Site: https://mohamed-ashraf-elsaed.github.io/loupe/
 
 ## Docs
-- [README](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/README.md): quick start and run instructions.
-- [Architecture](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/ARCHITECTURE.md): system design with diagrams, the re-anchor algorithm, auth model, data model.
-- [Testing](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md): test strategy and coverage.
+
+- [Documentation index](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/README.md): every guide, reference page and explanation, grouped by task and by integration.
+- [Leave your first comment locally](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/tutorials/first-comment-local.md): tutorial; run the local server and demo, then pin a comment on a page.
+- [Route tickets between two projects with Loupe Hub](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/tutorials/hub-two-projects-local.md): tutorial; run Hub locally and send a ticket from one project to another.
+- [Embed the widget with a script tag](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/embed-script-tag.md): load the IIFE (self-contained script-tag) build and call `Loupe.init()` without a build step.
+- [Install the SDK from npm](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/install-npm.md): add `@loupekit/sdk` to a bundled app and call `init()`.
+- [Install the Laravel package](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/laravel-install.md): `composer require loupekit/laravel`, `php artisan loupe:install`, migrate, and render `@loupeWidget`.
+- [Authorize who can use Loupe in Laravel](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/laravel-authorize.md): control widget and dashboard access outside the `local` environment.
+- [Use the browser extension](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/browser-extension.md): build and load the unpacked extension, then start Loupe on any tab.
+- [Connect MCP clients](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/connect-mcp-clients.md): give an AI agent access to comments through `@loupekit/mcp`.
+- [Run the local server](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/run-local-server.md): start the API, dashboard and demo on port 8787.
+- [Use the widget](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/use-the-widget.md): pin, record, reply to and resolve feedback in the panel.
+- [Self-host Loupe Hub](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/hub-self-host.md): deploy Hub on a server you control.
+- [Manage Hub organizations and projects](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/hub-manage-projects.md): add members, create projects and rotate secrets.
+- [Connect apps to Hub](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/hub-connect-apps.md): send tickets from one app to another through Hub.
+- [Verify Hub webhook signatures](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/verify-hub-webhooks.md): check that a delivery came from your Hub.
+- [Upgrade Loupe](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/how-to/upgrade.md): move to a new version and refresh assets and migrations.
+- [SDK reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/reference/sdk.md): `init()` options, public functions and HTTP calls.
+- [Laravel package reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/LARAVEL.md): config keys, routes, events, migrations and Artisan commands.
+- [MCP server reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/reference/mcp.md): the 19 tools, environment variables and the local bridge.
+- [Local server reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/reference/server.md): endpoints, environment variables and Slack/Telegram integrations.
+- [Loupe Hub reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/reference/hub.md): signed API, environment variables and dashboard routes.
+- [Browser extension reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/reference/extension.md): permissions, context menus and stored settings.
+- [Shared types reference](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/reference/shared.md): types, constants and helpers in `@loupekit/shared`.
+- [How Loupe Hub works](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/explanation/hub.md): organizations, routing and two-way sync.
+- [Authentication and privacy](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/explanation/auth-and-privacy.md): identity checks, signatures and what leaves the page.
+- [Troubleshooting](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/troubleshooting.md): symptoms, causes and fixes for every integration.
+
+## Optional
+
+- [Changelog](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/CHANGELOG.md): what changed in each version, in Keep a Changelog format.
+- [Architecture](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/ARCHITECTURE.md): how the packages fit together, the re-anchoring algorithm and where data flows.
+- [Single-page guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/): the whole guide as one HTML page.
+- [Testing](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/TESTING.md): run the test suites and read what each one covers.
+- [Contributing](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/CONTRIBUTING.md): set up the repository and open a pull request.
+- [Releasing](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/RELEASING.md): version, tag and publish a release.
 
 ## Author
-- Creator & maintainer: **Mohamed Ashraf Elsaed** — software engineer.
-- LinkedIn: https://www.linkedin.com/in/mohamedashrafelsaed/
-- Email: m.ashraf.saed@gmail.com
-- GitHub: https://github.com/mohamed-ashraf-elsaed
-- Mohamed Ashraf Elsaed is the author of Loupe and the `loupekit/laravel` package, and works on developer tools, AI agent tooling, Laravel, and the Model Context Protocol.
 
-## Facts
-- License: MIT
-- Languages: TypeScript (npm workspaces monorepo) + PHP (Laravel package)
-- npm packages: @loupekit/sdk, @loupekit/server, @loupekit/dashboard, @loupekit/mcp, @loupekit/extension, @loupekit/shared
-- Composer package: loupekit/laravel (Loupe for Laravel — widget + your DB + gating + dashboard + MCP; PHP 8.2+ (8.3+ on Laravel 13), Laravel 11/12/13)
-- Repository: https://github.com/mohamed-ashraf-elsaed/loupe
-- Author: Mohamed Ashraf Elsaed (https://www.linkedin.com/in/mohamedashrafelsaed/)
-- Category: developer tools, visual feedback, bug reporting, product management, AI agent tooling
-- Related: Model Context Protocol (MCP), Claude Code, Laravel, Postgres
+- Creator and maintainer: Mohamed Ashraf Elsaed.
+- GitHub: https://github.com/mohamed-ashraf-elsaed
+- LinkedIn: https://www.linkedin.com/in/mohamedashrafelsaed/

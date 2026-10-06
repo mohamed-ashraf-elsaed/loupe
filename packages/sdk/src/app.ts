@@ -94,13 +94,13 @@ const TOUR: { sel: string; tab: Tab; title: string; body: string }[] = [
   // Home first: the panel already opens there, so the first step never moves the
   // user — the tour starts where they are.
   { sel: ".hstat", tab: "home", title: "Home shows what needs you",
-    body: "Four tiles count open, needs-you, resolved and stale feedback. Click one to narrow the list to that bucket." },
+    body: "Four tiles count Open, Needs you, Resolved and Stale feedback. Click one to narrow the list to that bucket." },
   { sel: ".hscope", tab: "home", title: "This page, or the whole project",
     body: "Switch to All to see every page's feedback as a day-grouped timeline." },
   { sel: ".tools", tab: "comments", title: "Pin feedback anywhere",
-    body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one." },
+    body: "Inspect picks an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
   { sel: '.tabs [data-tab="activity"]', tab: "activity", title: "Watch the work happen",
-    body: "Comments, status changes and forwarded tickets land here as they happen, with anything a bridge or your app reports. Tool chips filter it." },
+    body: "Comments, status changes and forwarded tickets land here as they happen, with anything the local MCP bridge or your app reports. Tool chips filter it." },
   { sel: '.dctl [data-role="settings"]', tab: "activity", title: "Make it yours",
     body: "Accents, the visibility switches, and Restart tour all live here." },
 ];
@@ -109,11 +109,11 @@ const TOUR: { sel: string; tab: Tab; title: string; body: string }[] = [
 const HINTS: Record<BuiltinTab, { title: string; body: string }> = {
   chat: {
     title: "Talk to the agent",
-    body: "Gather what you are looking at and send it in one go. The agent gets it on its very next step — not after it finishes.",
+    body: "Gather what you are looking at and send it in one go. The agent gets it on its next step, not after it finishes.",
   },
   home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
-  comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
-  activity: { title: "Watch the work happen", body: "Every event the bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." },
+  comments: { title: "Pin, note or record", body: "Inspect picks an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
+  activity: { title: "Watch the work happen", body: "Every event the local MCP bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." },
 };
 
 /** Where the control panel is anchored — the four layouts the position menu offers. */
@@ -145,7 +145,7 @@ const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
 const RECORD_MAX_MS = 20000;
 /** Attachment limits for the composer — small enough to survive a base64 POST. */
 const MAX_FILES = 10;
-/** How often the panel re-reads comments, open threads and mentions when no bridge pushes them. */
+/** How often the panel re-reads comments, open threads and mentions on every host, alongside any bridge stream. */
 const SYNC_POLL_MS = 10_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
@@ -339,7 +339,7 @@ export class LoupeApp {
   private activityPoll?: ReturnType<typeof setInterval>;
   /** The backend answered that it keeps no feed, so the panel stops asking. */
   private activityNone = false;
-  /** The no-bridge refresh: re-reads comments, open threads and mentions every SYNC_POLL_MS. */
+  /** The fallback refresh, run for every host: re-reads comments, open threads and mentions every SYNC_POLL_MS. */
   private syncPoll?: ReturnType<typeof setInterval>;
   private syncBusy = false;
   /** Iteration history per thread — generating a change is a stack, not a one-shot. */
@@ -458,7 +458,7 @@ export class LoupeApp {
   /**
    * Keep the panel current without a reload.
    *
-   * A status moved in another app (CRM approving a ticket), a reply relayed through Hub,
+   * A status moved in another app (a tracker approving a ticket), a reply relayed through Hub,
    * or a teammate's new pin otherwise appears only after the page reloads. The bridge's
    * SSE covers threads when one is configured; this covers everything else, for every
    * host. It pauses while the tab is hidden and catches up the moment it is shown again.
@@ -4445,8 +4445,8 @@ export class LoupeApp {
    * Follow the bridge's thread channel while the panel is open.
    *
    * The SSE channel lives in the MCP process, so a reply posted by anyone — an agent, a
-   * teammate's browser — arrives here rather than being discovered by the 4 s list
-   * poll. Only the threads whose messages are already loaded are refetched: pulling a
+   * teammate's browser — arrives here rather than being discovered by the 10 s sync
+   * poll (SYNC_POLL_MS). Only the threads whose messages are already loaded are refetched: pulling a
    * conversation nobody has open would be work for nothing.
    */
   private startLiveThreads() {

@@ -14,15 +14,21 @@ use Loupekit\Loupe\Models\Message;
 /**
  * Keeps a ticket in step across two projects after Loupe Hub has delivered it.
  *
- * The project that RECEIVED the ticket (it has `source`) owns its status: every
- * status change there is sent back to the project that filed it, which shows it
- * on the ticket's `forwarded.remote` and moves its own card. Replies travel both
- * ways. Updates go through Hub as `POST {hub}/v1/issues/{id}/updates`; Hub
- * delivers them to the other side's `POST {path}/v1/hub/inbound` as
+ * The project that RECEIVED the ticket (it has `source`) owns its status: when
+ * Hub is configured (Hub::enabled()), every status change there that is not made
+ * inside quietly() is sent back to the project that filed it, which shows it on
+ * the ticket's `forwarded.remote` and moves its own card. Replies travel both
+ * ways. Updates go through Hub as `POST {loupe.hub.url}/v1/issues/{id}/updates`;
+ * Hub delivers them to the other side's registered inbound URL (for this
+ * package, `POST {loupe.path}/v1/hub/inbound`, default `/loupe/v1/hub/inbound`) as
  *
  *   {"type": "update", "issue_id": "…", "from": {"project_id", "project_name"},
- *    "update": {"kind": "status", "status", "label", "reference", "url"}
- *            | {"kind": "message", "message": {"id", "author": {"name", "email"}, "body", "createdAt", "attachments"}}}
+ *    "update": {"kind": "status", "status", "label"?, "reference"?, "url"?}
+ *            | {"kind": "message", "message": {"id", "author": {"name", "email"?}, "body", "createdAt", "attachments"?}}}
+ *
+ * `?` marks a field sent only when non-empty. On receipt, `status` must be a known
+ * board stage and a message needs `id` and `body`, or
+ * InboundTicketController::update() answers 422; an applied update answers 202.
  *
  * Anything applied from Hub is applied quietly, so it is never sent back.
  */
@@ -46,8 +52,10 @@ class Relay
 
     /**
      * What the next status update for this comment should say beside the stage:
-     * the host's own words for it ("Ready for testing"), its reference ("CT-1405")
-     * and a link. Consumed by the next status change of that comment.
+     * the host's own words for it ("Ready for testing"), its reference ("TCK-42")
+     * and a link. Consumed by the next status change of that comment, and discarded
+     * if that change is not relayed (made quietly, or on a ticket this app did not
+     * receive).
      */
     public static function describe(string $commentId, ?string $label = null, ?string $reference = null, ?string $url = null): void
     {
@@ -96,8 +104,9 @@ class Relay
 
     /**
      * Apply an update Hub delivered for `$comment`. Returns what was done, for the
-     * HTTP answer. Throws nothing the caller has to handle; a bad update is a 422
-     * decided by the controller before this runs.
+     * HTTP answer. A malformed update never reaches this method, because
+     * InboundTicketController::update() answers 422 first. Database errors from
+     * the writes here are not caught and propagate to the caller.
      *
      * @param  array<string, mixed>  $update
      * @param  array{project_id: string, project_name?: ?string}  $from

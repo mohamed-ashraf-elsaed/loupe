@@ -1,139 +1,161 @@
 # Loupe
 
-> Pin feedback to the live UI. Hand it to Claude.
+Loupe is an open-source visual feedback tool. You pin comments to elements of a live web page, and an AI agent such as Claude Code picks them up over MCP (Model Context Protocol, the standard that lets an agent call external tools).
 
-Loupe lets product managers inspect any element on a running product, pin a comment to
-it, and capture a screenshot — then hand that feedback straight to Claude Code as an
-actionable, fully-contextualized backlog. Comments persist and re-anchor across
-redeploys.
+![Screenshot of a Loupe comment thread with a screenshot, a reply with an @mention, and a thumbs-up reaction](docs/images/sdk-thread-detail.png)
 
-📖 **[Read the full documentation →](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)**
+## Contents
 
-This is a monorepo (npm workspaces). Every piece runs locally with **no external
-services** — the database is embedded Postgres (PGlite), so `npm install && npm run
-build && npm run seed && npm start` is the whole setup.
+- [What you can do](#what-you-can-do)
+- [Choose how to install](#choose-how-to-install)
+- [Try it in five minutes](#try-it-in-five-minutes)
+- [Packages](#packages)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Author](#author)
+- [License](#license)
+
+## What you can do
+
+- **Pin feedback where it belongs.** Comment on a single element, drag a region, or leave a free note on the page. Pins re-anchor after a redeploy: Loupe finds the same element again, even when its markup changes.
+- **Capture what you see.** Attach a screenshot or a short screen recording of a region. Elements marked with `data-loupe-redact` are left out of every screenshot. Screen recordings capture the real pixels, redacted elements included.
+- **Discuss in threads.** Reply under each comment, `@mention` teammates, and react with 👍 🎉 👀 🙏 ❤️ 🚀.
+- **Triage on a five-stage board.** Move comments through Queue, To Do, In Progress, In Review and Resolved.
+- **Hand the backlog to an agent.** The `@loupekit/mcp` server gives Claude Code 19 tools, including `list_comments`, `get_comment`, `propose_change` and `update_status`. The Laravel package ships its own MCP server with those 4 core tools when the optional `laravel/mcp` package is installed (`php artisan mcp:start loupe`).
+- **Run it inside Laravel.** The `loupekit/laravel` package stores comments in your database, uses your authentication and gates, and serves the board on your routes.
+- **Route tickets between apps.** Loupe Hub, a separate server you host, sends a comment from one project to another in the same organization (a group of projects in Hub), and syncs status changes and replies both ways.
+
+## Choose how to install
+
+| Integration | Use it when | Guide |
+|---|---|---|
+| Script tag | You want the widget on any page without a build step. | [Embed Loupe with a script tag](docs/how-to/embed-script-tag.md) |
+| npm package | Your app uses a bundler: React, Vue, or any single-page app. | [Install Loupe from npm](docs/how-to/install-npm.md) |
+| Laravel | Your app is built on Laravel 11, 12 or 13. | [Install Loupe in a Laravel app](docs/how-to/laravel-install.md) |
+| Browser extension | You want to comment on a site you cannot change. | [Use the browser extension](docs/how-to/browser-extension.md) |
+| MCP clients | You want Claude Code, or another MCP client, to work through the comments. | [Connect MCP clients](docs/how-to/connect-mcp-clients.md) |
+| Local server and dashboard | You want the Node API and the Kanban board (columns that comment cards move across) on your machine. | [Run the local server](docs/how-to/run-local-server.md) |
+| Loupe Hub | You want to route tickets between several apps. | [Self-host Loupe Hub](docs/how-to/hub-self-host.md) |
+
+## Try it in five minutes
+
+This quick start runs the local server, leaves one comment on the demo page, and shows it on the board.
+
+### Prerequisites
+
+- **Node 24.** The local server runs its TypeScript files directly with `node index.ts`, which needs Node 24. Run `node --version`. You should see `v24` followed by a minor version.
+- **npm**, which comes with Node.
+- **git**, to clone the repository.
+
+### Steps
+
+1. Clone the repository and move into it:
+
+   ```bash
+   git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
+   cd loupe
+   ```
+
+   Run every later command from this folder.
+
+2. Install the workspace dependencies:
+
+   ```bash
+   npm install
+   ```
+
+   You should see npm finish with an `added ... packages` summary.
+
+3. Build the packages:
+
+   ```bash
+   npm run build
+   ```
+
+   You should see the command finish with no line that starts with `npm error`.
+
+4. Create the demo project:
+
+   ```bash
+   npm run seed
+   ```
+
+   You should see `Seeded project: pk_demo_acme`, followed by an `admin key` line. The admin key is the project secret. The dashboard asks for it in its address. Its default value is `sk_demo_acme_0f3b9c`.
+
+5. Start the server:
+
+   ```bash
+   npm start
+   ```
+
+   You should see:
+
+   ```text
+   [loupe] API + static on http://localhost:8787  (dashboard: /dashboard/ · demo: /demo/)
+   ```
+
+   Leave this terminal running.
+
+6. In your browser, open http://localhost:8787/demo/.
+
+   You should see the **Q3 Performance Overview** page with the Loupe panel open on the right and a short tour. Click **Next** through the tour, then click **Done**.
+
+7. Leave a comment:
+   1. In the panel, on the **Home** tab, click **✛ Pin feedback on this page**.
+   2. Click the **Send invite** button in the invite form.
+   3. Type a title and a description, then click **Comment**.
+
+   You should see a numbered pin, **1**, on the **Send invite** button.
+
+8. In a new browser tab, open the board:
+
+   ```text
+   http://localhost:8787/dashboard/?key=<ADMIN_KEY>
+   ```
+
+   Replace `<ADMIN_KEY>` with the admin key that `npm run seed` printed in step 4.
+
+   You should see the board with five columns: Queue, To Do, In Progress, In Review and Resolved. Your comment is a card in the **Queue** column.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `npm start` fails, or the server does not start on port 8787. | Another program is using port 8787. | Stop the other program, or start on another port with `PORT=9000 npm start`. |
+| `npm start` fails on `node index.ts`. | Your Node version is older than 24. | Install Node 24, check it with `node --version`, then run `npm start` again. |
+| Clicking **Comment** on the demo page fails. | You ran `npm run seed` with `LOUPE_DEMO_SECRET` set. The demo page signs requests with the default secret. | Unset `LOUPE_DEMO_SECRET`, run `npm run seed` again, then reload the demo page. |
+| The board is empty. | You have not left a comment yet. | Do step 7, then reload the board. |
+
+### Next steps
+
+- Follow the full walkthrough, which also connects Claude Code: [Leave your first comment locally](docs/tutorials/first-comment-local.md).
+- Add Loupe to your own app with one of the guides in [Choose how to install](#choose-how-to-install).
 
 ## Packages
 
-```
-packages/
-  shared/      canonical types + normalizeUrl() (built to dist, consumed by all)
-  sdk/         embeddable browser SDK — inspect, comment (element / region / free note), capture, re-anchor; dockable control panel
-    demo/      a fake product ("Acme Analytics") to try it on
-  server/      comment API — node:http, Postgres, object storage, HMAC auth, static hosting
-  dashboard/   Kanban triage board (reads the API)
-  mcp/         MCP server — exposes comments to Claude Code
-  extension/   MV3 browser extension — inspect/comment on ANY site, pixel-perfect capture
-  laravel/     Loupe for Laravel — composer package: widget + your DB + gating + dashboard + MCP
-  hub/         Loupe Hub (optional, private) — orgs/members/projects; verifies issues, forwards to webhooks
-```
+| Package | Registry | What it is |
+|---|---|---|
+| [`@loupekit/sdk`](packages/sdk/README.md) | npm | The embeddable widget: inspect, comment, capture, re-anchor. |
+| [`@loupekit/shared`](packages/shared/README.md) | npm | Shared types, board stages and helpers used by every package. |
+| [`@loupekit/mcp`](packages/mcp/README.md) | npm (bin `loupe-mcp`) | The MCP server over stdio (standard input and output, which Claude Code uses to start and talk to a local server), plus a local bridge on 127.0.0.1: a small HTTP server that lets the widget reach the agent, for example in its Chat tab. |
+| [`loupekit/laravel`](packages/laravel/README.md) | Packagist | The Laravel package. Mirrored from `packages/laravel` to [loupe-laravel](https://github.com/mohamed-ashraf-elsaed/loupe-laravel). |
+| [Extension](packages/extension) | Not published; load unpacked (see the [guide](docs/how-to/browser-extension.md)) | The Manifest V3 browser extension. A private workspace. |
+| [Server](packages/server) | Not published; run from this repo | The Node API that also serves the dashboard and the demo. |
+| [Dashboard](packages/dashboard) | Not published; run from this repo | The Kanban triage board. |
+| [Hub](packages/hub/README.md) | Not published; run from this repo | Loupe Hub: organizations, projects and ticket routing. See [How Loupe Hub works](docs/explanation/hub.md). |
 
-### Loupe for Laravel
+## Documentation
 
-Prefer to run the whole loop inside your own app? [`loupekit/laravel`](packages/laravel)
-is a Composer package that embeds the widget, stores comments in **your** database, gates
-access with **your** authorization rules, serves the dashboard on **your** routes, and
-exposes the backlog to Claude over MCP — no separate Node backend. See the
-[full guide](docs/LARAVEL.md).
+- [Documentation index](docs/README.md)
+- [The Loupe guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)
+- [The Loupe wiki](https://github.com/mohamed-ashraf-elsaed/loupe/wiki)
+- [Changelog](CHANGELOG.md)
 
-```bash
-composer require loupekit/laravel
-php artisan loupe:install && php artisan migrate
-# add @loupeWidget to your layout, then open /loupe/dashboard
-```
+## Contributing
 
-Optional: set `LOUPE_HUB_URL`, `LOUPE_PROJECT_ID` and `LOUPE_PROJECT_SECRET` to also send
-every new comment to [Loupe Hub](packages/hub), which checks the author belongs to your
-organization and forwards it to your project's webhook.
-
-## Run it
-
-```bash
-npm install
-npm run build          # shared → sdk → dashboard → extension
-npm run seed           # creates the demo project; prints its admin key + demo HMAC
-npm start              # one process on http://localhost:8787 serves API + dashboard + demo + SDK
-```
-
-Then open:
-
-- **Demo product** — http://localhost:8787/demo/ (leave feedback; persists to the API)
-- **Triage board** — http://localhost:8787/dashboard/?key=<admin key from `npm run seed`>
-
-Point **Claude Code** at the comments:
-
-```json
-{
-  "mcpServers": {
-    "loupe": {
-      "command": "node",
-      "args": ["/absolute/path/to/loupe/packages/mcp/index.ts"],
-      "env": {
-        "LOUPE_API": "http://localhost:8787",
-        "LOUPE_PROJECT_KEY": "pk_demo_acme",
-        "LOUPE_ADMIN_KEY": "<admin key from npm run seed>"
-      }
-    }
-  }
-}
-```
-
-Then: *"list the open Loupe comments and work through them."* Claude calls
-`list_comments` → `get_comment` (request + element HTML + computed styles + the
-**screenshot as an image** + any screen-recording URL) → rewrites the UI →
-`propose_change` (its **modified HTML/CSS**, which the dashboard renders as code + a live
-before/after preview for the dev team) → `update_status`.
-
-## Architecture notes
-
-**Database** — `server/db.ts` is a one-function `query()` seam. With `DATABASE_URL` set
-it uses node-postgres against real/hosted Postgres; otherwise embedded PGlite on disk.
-Same SQL, same `$1` params.
-
-**Auth** — every project has a `secret`. Writes require `X-Loupe-User` +
-`X-Loupe-Hmac` = HMAC-SHA256(userId, secret) (the host app's server computes this and
-injects it — the demo's value is precomputed by `npm run seed`). The dashboard and MCP
-server authenticate as admin with `X-Loupe-Admin` = secret. Screenshot blobs are served
-by unguessable id (prod: signed URLs).
-
-**Object storage** — `server/blobs.ts` is the seam (local disk now, S3 later). The SDK
-uploads a screenshot to `POST /v1/blobs` and stores only the returned **URL** on the
-comment, so lists/reads stay small.
-
-**URL normalization** — `normalizeUrl()` in `@loupekit/shared` strips `utm_*`, click ids,
-and Loupe's dev params, so a comment on `/checkout?utm_source=x` and one on `/checkout`
-don't fragment. Applied server-side on write and query.
-
-## Browser extension
-
-The extension reuses the exact SDK core; its only difference is the screenshot source —
-`chrome.tabs.captureVisibleTab` (real pixels), cropped to the element with redaction,
-wired via the SDK's `captureScreenshot` override. Load it manually:
-
-```bash
-npm run build:extension      # builds packages/extension/content.js
-```
-
-1. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select
-   `packages/extension`.
-2. Click the Loupe icon → set project key (`pk_demo_acme`), user, API base
-   (`http://localhost:8787`), and (optionally) the demo HMAC → **Start Loupe on this tab**.
-
-> Note: the extension is validated by build + manifest/bundle checks; full in-browser E2E
-> wasn't automated in this repo's headless setup.
-
-## Roadmap
-
-1. **Client SDK** ✓ — inspect, comment, capture, re-anchor across redeploys.
-2. **Backend API** ✓ — Postgres, HMAC auth + per-project secrets, object storage, static hosting.
-3. **MCP server** ✓ — comments as a Claude Code backlog.
-4. **Dashboard** ✓ — Kanban triage.
-5. **Hardening** ✓ — monorepo, Postgres, enforced auth, blob storage, URL normalization.
-6. **Browser extension** ✓ — pixel-perfect capture on any site.
-
-**Next:** real cloud object storage (S3/R2) + signed URLs, project/team management UI,
-Postgres migrations tooling, and packaging the SDK/MCP to npm + the extension to the
-Chrome Web Store.
+- [Contributing to Loupe](CONTRIBUTING.md)
+- [Testing](docs/TESTING.md)
+- [Releasing](RELEASING.md)
 
 ## Author
 
@@ -143,9 +165,6 @@ Chrome Web Store.
 - 🐙 GitHub: [@mohamed-ashraf-elsaed](https://github.com/mohamed-ashraf-elsaed)
 - ✉️ Email: [m.ashraf.saed@gmail.com](mailto:m.ashraf.saed@gmail.com)
 
-If Loupe is useful to you, a ⭐ on the repo and a connection on LinkedIn are always
-appreciated. For consulting or collaboration, reach out via any of the links above.
-
 ## License
 
-MIT © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+MIT © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/). See [LICENSE](LICENSE).

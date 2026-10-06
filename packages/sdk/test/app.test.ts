@@ -1242,7 +1242,7 @@ describe("LoupeApp", () => {
   });
 
   it("each thread shows who raised it and when, in the configured time zone", async () => {
-    // A fixed instant: 2026-10-04T12:05:00Z is 15:05 in Cairo (UTC+3, no DST that week).
+    // A fixed instant: 2026-10-04T12:05:00Z is 15:05 in Cairo (UTC+3: Egyptian summer time, EEST, is still in effect that week).
     const key = `loupe:pk:${location.pathname}${location.search}`;
     localStorage.setItem(key, JSON.stringify([{
       id: "c1", projectKey: "pk", url: location.href, title: "Egypt time", body: "when?",
@@ -1408,9 +1408,9 @@ describe("LoupeApp", () => {
     const api = withApi({
       "/v1/org": () => ({
         organization: { id: "org_1", name: "Acme" },
-        project: { id: "prj_shop", key: "pk", name: "Shop", destination: { id: "prj_crm", name: "CRM" }, receives: false },
+        project: { id: "prj_shop", key: "pk", name: "Shop", destination: { id: "prj_tracker", name: "Tracker" }, receives: false },
         projects: [
-          { id: "prj_crm", name: "CRM", receives: true, isDestination: true },
+          { id: "prj_tracker", name: "Tracker", receives: true, isDestination: true },
           { id: "prj_blog", name: "Blog", receives: false, isDestination: false },
         ],
       }),
@@ -1423,9 +1423,9 @@ describe("LoupeApp", () => {
       sr().querySelector<HTMLElement>(".proj-chip")!.click();
       const pop = sr().querySelector("#loupe-proj")!;
       expect(pop.querySelector(".pp-head")!.textContent).toContain("Organization");
-      expect(pop.querySelector(".pp-dest")!.textContent).toBe("Tickets go to CRM.");
+      expect(pop.querySelector(".pp-dest")!.textContent).toBe("Tickets go to Tracker.");
       const rows = [...pop.querySelectorAll<HTMLElement>(".pp-proj")];
-      expect(rows.map((r) => r.querySelector(".pp-proj-n")!.textContent)).toEqual(["CRM", "Blog"]);
+      expect(rows.map((r) => r.querySelector(".pp-proj-n")!.textContent)).toEqual(["Tracker", "Blog"]);
       expect(rows[0]!.classList.contains("on")).toBe(true);
       expect(rows[0]!.querySelector(".pp-badge")!.textContent).toBe("receives tickets");
       expect(rows[1]!.querySelector(".pp-badge")).toBeNull();
@@ -2691,9 +2691,9 @@ describe("LoupeApp", () => {
       await new Promise((r) => setTimeout(r, 30));
       const before = listCalls().length;
 
-      // CRM moved the ticket and replied; nothing on this page was touched.
+      // The tracker moved the ticket and replied; nothing on this page was touched.
       title = "Pay button overlaps (approved)";
-      replies = [{ id: "m1", threadId: "t1", author: { id: "crm", name: "Tech team", type: "user" }, body: "Approved, starting now.", createdAt: "2026-10-04T10:00:00.000Z" }];
+      replies = [{ id: "m1", threadId: "t1", author: { id: "tracker", name: "Tech team", type: "user" }, body: "Approved, starting now.", createdAt: "2026-10-04T10:00:00.000Z" }];
       vi.advanceTimersByTime(10_000);
       await new Promise((r) => setTimeout(r, 30));
 
@@ -2771,12 +2771,12 @@ describe("LoupeApp", () => {
         round++;
         return round === 1
           ? [
-              { id: "e2", at: "2026-10-01T10:05:00.000Z", kind: "ticket.forwarded", label: "Sent “Pay” to CRM", level: "info" },
+              { id: "e2", at: "2026-10-01T10:05:00.000Z", kind: "ticket.forwarded", label: "Sent “Pay” to Tracker", level: "info" },
               { id: "e1", at: "2026-10-01T10:00:00.000Z", kind: "comment.create", label: "Sara added “Pay”", level: "info" },
             ]
           : [
               { id: "e3", at: "2026-10-01T10:10:00.000Z", kind: "comment.status", label: "Sara moved “Pay” to Done", level: "info" },
-              { id: "e2", at: "2026-10-01T10:05:00.000Z", kind: "ticket.forwarded", label: "Sent “Pay” to CRM", level: "info" },
+              { id: "e2", at: "2026-10-01T10:05:00.000Z", kind: "ticket.forwarded", label: "Sent “Pay” to Tracker", level: "info" },
             ];
       },
     });
@@ -2802,7 +2802,7 @@ describe("LoupeApp", () => {
 
       // Merged by id, oldest first, like a log.
       const labels = [...sr().querySelectorAll<HTMLElement>(".mon-row .mon-label")].map((l) => l.firstChild!.textContent);
-      expect(labels).toEqual(["Sara added “Pay”", "Sent “Pay” to CRM", "Sara moved “Pay” to Done"]);
+      expect(labels).toEqual(["Sara added “Pay”", "Sent “Pay” to Tracker", "Sara moved “Pay” to Done"]);
       expect(sr().querySelector("#loupe-mon-live")!.textContent).toBe("Live");
 
       sr().querySelector<HTMLElement>('.tabs [data-tab="home"]')!.click();
@@ -2873,11 +2873,11 @@ describe("LoupeApp", () => {
       }),
       seeded({
         id: "out1", title: "Sent on", url: `${location.pathname}${location.search}`,
-        forwarded: { status: "ok", destinationName: "CRM", destinationProjectId: "prj_crm" },
+        forwarded: { status: "ok", destinationName: "Tracker", destinationProjectId: "prj_tracker" },
       }),
       seeded({
         id: "out2", title: "Failed", url: `${location.pathname}${location.search}`,
-        forwarded: { status: "failed", destinationName: "CRM", error: "HTTP 500" },
+        forwarded: { status: "failed", destinationName: "Tracker", error: "HTTP 500" },
       }),
       seeded({ id: "out3", title: "Kept", url: `${location.pathname}${location.search}`, forwarded: { status: "none" } }),
     ]));
@@ -2889,10 +2889,10 @@ describe("LoupeApp", () => {
     const src = items[0]!.querySelector<HTMLElement>(".srcchip")!;
     expect(src.textContent).toBe("from Shop");
     expect(src.title).toBe("Sent by Sara");
-    expect(items[1]!.querySelector(".fwdchip")!.textContent).toBe("→ CRM");
+    expect(items[1]!.querySelector(".fwdchip")!.textContent).toBe("→ Tracker");
     const bad = items[2]!.querySelector<HTMLElement>(".fwdchip.bad")!;
-    expect(bad.textContent).toBe("→ CRM failed");
-    expect(bad.title).toBe("Could not send to CRM: HTTP 500");
+    expect(bad.textContent).toBe("→ Tracker failed");
+    expect(bad.title).toBe("Could not send to Tracker: HTTP 500");
     expect(items[3]!.querySelector(".fwdchip")).toBeNull();
     // The received ticket was filed on another project's page, so it gets no pin here.
     expect(sr().querySelectorAll(".pin").length).toBe(3);
@@ -2903,24 +2903,24 @@ describe("LoupeApp", () => {
     localStorage.setItem(keyFor(url), JSON.stringify([
       seeded({
         id: "r1", title: "Linked", url,
-        forwarded: { status: "ok", destinationName: "Converted OS",
-          remote: { status: "in_progress", label: "In progress", reference: "CT-1405", url: "https://crm.test/t/1405", at: "2026-10-04T10:00:00.000Z" } },
+        forwarded: { status: "ok", destinationName: "Tracker",
+          remote: { status: "in_progress", label: "In progress", reference: "TCK-42", url: "https://tracker.example.com/t/42", at: "2026-10-04T10:00:00.000Z" } },
       }),
-      seeded({ id: "r2", title: "Bare", url, forwarded: { status: "ok", destinationName: "Converted OS", remote: { status: "resolved" } } }),
-      seeded({ id: "r3", title: "Unsafe", url, forwarded: { status: "ok", destinationName: "OS", remote: { status: "todo", url: "javascript:alert(1)" } } }),
+      seeded({ id: "r2", title: "Bare", url, forwarded: { status: "ok", destinationName: "Tracker", remote: { status: "resolved" } } }),
+      seeded({ id: "r3", title: "Unsafe", url, forwarded: { status: "ok", destinationName: "Shop", remote: { status: "todo", url: "javascript:alert(1)" } } }),
     ]));
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     await new Promise((r) => setTimeout(r, 10));
     sr().querySelector<HTMLElement>('.tabs [data-tab="comments"]')!.click();
 
     const chips = [...sr().querySelectorAll<HTMLElement>(".item .fwdchip")];
-    expect(chips.map((c) => c.textContent)).toEqual(["→ Converted OS · CT-1405 · In progress", "→ Converted OS · Resolved", "→ OS · To Do"]);
+    expect(chips.map((c) => c.textContent)).toEqual(["→ Tracker · TCK-42 · In progress", "→ Tracker · Resolved", "→ Shop · To Do"]);
     expect(chips[0]!.tagName).toBe("A");
-    expect((chips[0] as HTMLAnchorElement).href).toBe("https://crm.test/t/1405");
+    expect((chips[0] as HTMLAnchorElement).href).toBe("https://tracker.example.com/t/42");
     expect(chips[0]!.classList.contains("st-in_progress")).toBe(true);
-    expect(chips[0]!.title).toMatch(/^Converted OS: In progress — updated /);
+    expect(chips[0]!.title).toMatch(/^Tracker: In progress — updated /);
     expect(chips[1]!.tagName).toBe("SPAN");
-    expect(chips[1]!.title).toBe("Converted OS: Resolved");
+    expect(chips[1]!.title).toBe("Tracker: Resolved");
     // A link from another project is only followed when it is http(s).
     expect(chips[2]!.tagName).toBe("SPAN");
   });
@@ -2930,8 +2930,8 @@ describe("LoupeApp", () => {
       seeded({ id: "t9", title: "Shared", createdAt: "2026-01-01T10:00:00.000Z" }),
     ]));
     localStorage.setItem("loupe:msgs:t9", JSON.stringify([
-      { id: "m1", threadId: "t9", author: { id: "hub:dev@os.test", name: "Dev", type: "user" }, body: "Fixed.", createdAt: "2026-01-01T11:00:00.000Z", origin: { projectId: "prj_os", projectName: "Converted OS" } },
-      { id: "m2", threadId: "t9", author: { id: "hub:x", name: "X", type: "user" }, body: "Ok.", createdAt: "2026-01-01T12:00:00.000Z", origin: { projectId: "prj_os" } },
+      { id: "m1", threadId: "t9", author: { id: "hub:sara@acme.com", name: "Dev", type: "user" }, body: "Fixed.", createdAt: "2026-01-01T11:00:00.000Z", origin: { projectId: "prj_tracker", projectName: "Tracker" } },
+      { id: "m2", threadId: "t9", author: { id: "hub:x", name: "X", type: "user" }, body: "Ok.", createdAt: "2026-01-01T12:00:00.000Z", origin: { projectId: "prj_tracker" } },
     ]));
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
     await new Promise((r) => setTimeout(r, 10));
@@ -2939,7 +2939,7 @@ describe("LoupeApp", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     const tags = [...sr().querySelectorAll<HTMLElement>(".msg .msg-tag.origin")].map((t) => t.textContent);
-    expect(tags).toEqual(["from Converted OS", "from prj_os"]);
+    expect(tags).toEqual(["from Tracker", "from prj_tracker"]);
   });
 
   it("does not initialize without projectKey or user id", () => {
