@@ -2,7 +2,7 @@
 
 > Loupe is an open-source visual feedback tool: reviewers pin comments, screenshots and screen recordings to elements of a live web page, a team triages them on a five-stage board, and AI agents read and act on them through the Model Context Protocol (MCP).
 
-Key facts for Loupe 0.14.0:
+Key facts for Loupe 0.14.1:
 
 - New here: start with the first-comment tutorial below, then pick the install guide for your stack: script tag, npm, Laravel or the browser extension.
 - License: MIT.
@@ -12,7 +12,7 @@ Key facts for Loupe 0.14.0:
 - Running from source requires Node.js 24. The server, Hub and MCP packages run `.ts` files directly with Node's built-in type stripping.
 - The extension is a Manifest V3 extension, loaded unpacked from `packages/extension`.
 - Every comment moves through five stages: queue, todo, in_progress, in_review, resolved.
-- Agents are told to stop at in_review and leave resolving to a person. This is guidance, not enforcement: `mark_thread_addressed` cannot resolve, but `update_status` accepts resolved in both MCP servers.
+- Agents are told to stop at in_review and leave resolving to a person. In the Node MCP server this is enforced: `mark_thread_addressed` cannot resolve, and `update_status` refuses resolved (since 0.14.1). The Laravel MCP server's `update_status` still accepts resolved, so there it is guidance only.
 - The Node MCP server (`@loupekit/mcp`) exposes 19 tools.
 - The Laravel MCP server exposes 4 tools: list_comments, get_comment, propose_change, update_status. Start it with `php artisan mcp:start loupe`. It needs the `laravel/mcp` package.
 - The endpoints `GET /v1/org` and `GET /v1/activity` exist only in the Laravel package, under its route prefix (config key `loupe.path`, env `LOUPE_PATH`, default `loupe`). The local server does not serve them.

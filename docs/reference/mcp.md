@@ -3,7 +3,7 @@
 This page lists every binary, environment variable, tool, bridge route, event, hook, limit and
 GitHub call of the Loupe MCP servers. It covers two servers:
 
-- `@loupekit/mcp`, version 0.14.0: a Node stdio server with a local HTTP *bridge* (defined
+- `@loupekit/mcp`, version 0.14.1: a Node stdio server with a local HTTP *bridge* (defined
   under [Terms](#terms)).
 - The Laravel server that ships with the Loupe Laravel package: four tools that read the
   database directly.
@@ -35,7 +35,7 @@ paths are relative to `packages/mcp/` unless they start with `packages/`.
 |---|---|---|
 | Project key | The public id of a Loupe project, for example `pk_demo_acme`. Every API call is scoped to it. See [Run the local server](../how-to/run-local-server.md#step-2-create-the-demo-project) for where the demo key comes from. | `index.ts:72` |
 | Admin key (project secret) | The secret of a project. The Node server sends it as the `X-Loupe-Admin` header. The seed output calls it `admin key`. See [Authentication](server.md#authentication). | `index.ts:92-98` |
-| Comment and thread | A *comment* is one piece of feedback stored by the Loupe API. Its *thread* is the same record seen as a conversation with messages. The `id` and `thread_id` arguments take the same value: both address `/v1/comments/<ID>`. | `index.ts:202`, `index.ts:572-580` |
+| Comment and thread | A *comment* is one piece of feedback stored by the Loupe API. Its *thread* is the same record seen as a conversation with messages. The `id` and `thread_id` arguments take the same value: both address `/v1/comments/<ID>`. | `index.ts:202`, `index.ts:576-584` |
 | Bridge | A local HTTP server that the Node MCP server starts on `127.0.0.1`. The browser widget and extension use it to reach the agent. See [Local bridge](#local-bridge). | `src/bridge/http-bridge.ts:110` |
 | Selection | An element a person picks in the browser with the widget or extension. The bridge keeps recent selections in memory. | `src/bridge/selection-store.ts:21-40` |
 | Panel and companion message | The *panel* is the widget's Chat tab. A *companion message* is a message a person types there; it reaches the agent through `POST /companion` on the bridge. | `index.ts:83-87`, `src/bridge/http-bridge.ts:409` |
@@ -47,31 +47,36 @@ paths are relative to `packages/mcp/` unless they start with `packages/`.
 
 | Fact | Value | Source |
 |---|---|---|
-| Package | `@loupekit/mcp`, version `0.14.0`, `"type": "module"` | `package.json:8`, `:30` |
+| Package | `@loupekit/mcp`, version `0.14.1`, `"type": "module"` | `package.json:8`, `:30` |
 | Binary | `loupe-mcp`, which runs `./dist/index.js` | `package.json:36-38` |
 | Published files | `dist` and `hooks` | `package.json:32-35` |
-| Runtime dependencies | `@modelcontextprotocol/sdk` `^1.12.0`, `zod` `^3.24.1` | `package.json:45-48` |
-| Development dependencies | `@loupekit/shared` `0.14.0` only | `package.json:49-51` |
+| Runtime dependencies | `@loupekit/shared` `0.14.1`, `@modelcontextprotocol/sdk` `^1.12.0`, `zod` `^3.24.1` | `package.json:45-49` |
+| Development dependencies | none | `package.json:50` |
 | Build | `tsup`: entry `index.ts`, ESM, platform `node`, target `node24`; `@loupekit/shared` is external | `tsup.config.ts:8-14` |
 | Node version | Node 24 or later: the build target, the Docker base image, and the `start` script, which runs `node index.ts` with Node's built-in TypeScript type stripping | `tsup.config.ts:11`, `Dockerfile:9`, `package.json:41` |
-| Server name and version | `loupe`, `0.14.0` | `index.ts:303` |
-| Transport | stdio | `index.ts:669-707` |
-| Startup line (stderr) | `[loupe-mcp] connected · project=<KEY> · api=<URL> · bridge=<URL>` or `bridge=disabled` | `index.ts:669-707` |
-| Shutdown | `SIGINT` and `SIGTERM` stop the bridge and exit | `index.ts:669-707` |
+| Server name and version | `loupe`, `0.14.1` | `index.ts:307` |
+| Transport | stdio | `index.ts:673-711` |
+| Startup line (stderr) | `[loupe-mcp] connected · project=<KEY> · api=<URL> · bridge=<URL>` or `bridge=disabled` | `index.ts:673-711` |
+| Shutdown | `SIGINT` and `SIGTERM` stop the bridge and exit | `index.ts:673-711` |
 
 ### Running the server
 
-> [!WARNING]
-> **The published package does not start.** `npx -y @loupekit/mcp` is broken in 0.14.0: it
-> exits at startup with `Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@loupekit/shared'`.
-> The built `dist/index.js` imports from `@loupekit/shared` at lines 176 and 2451.
-> `tsup.config.ts:13-14` marks that package as external, and its comment calls the import
-> type-only. But `package.json:49-51` lists `@loupekit/shared` only under `devDependencies`, so
-> an install from npm does not include it. Version 0.13.1, the npm `latest` tag on 2026-10-05,
-> has the same import and the same dependency list. Run the server from a repository checkout
-> until a fixed release ships.
+Requires Node 24 or later. Run the published package:
 
-Requires Node 24 or later. To run the server from a checkout:
+```bash
+npx -y @loupekit/mcp
+```
+
+`npx` downloads `@loupekit/mcp` and its runtime dependencies, including `@loupekit/shared`, and
+starts the `loupe-mcp` binary.
+
+> [!NOTE]
+> Fixed in 0.14.1. The published 0.14.0 package exits at startup with
+> `Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@loupekit/shared'`, because it listed
+> `@loupekit/shared` only under `devDependencies`. On 0.14.0, run the server from a checkout, as
+> below.
+
+To run the server from a repository checkout instead:
 
 ```bash
 git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
@@ -88,7 +93,7 @@ node <ABSOLUTE_PATH_TO_CLONE>/packages/mcp/index.ts
 - `<ABSOLUTE_PATH_TO_CLONE>` is the full path of the `loupe` directory you cloned, for example
   `/home/sara/src/loupe`.
 
-You should see this line on stderr, with the default environment (`index.ts:703-706`):
+Either way, you should see this line on stderr, with the default environment (`index.ts:707-710`):
 
 ```text
 [loupe-mcp] connected · project=pk_demo_acme · api=http://localhost:8787 · bridge=http://127.0.0.1:9800
@@ -100,8 +105,7 @@ The server then waits for an MCP client on stdin. To make a client launch it, se
 ### Dockerfile
 
 `Dockerfile` builds from `node:24-slim`, runs `npm install -g @loupekit/mcp@latest`, and sets
-`ENTRYPOINT ["loupe-mcp"]` (`Dockerfile:9`, `:12`, `:15`). Because it installs the published
-package, the image has the startup crash described above.
+`ENTRYPOINT ["loupe-mcp"]` (`Dockerfile:9`, `:12`, `:15`).
 
 The comments in `Dockerfile` are stale. Do not rely on them:
 
@@ -109,7 +113,6 @@ The comments in `Dockerfile` are stale. Do not rely on them:
 |---|---|
 | The server has three tools: `list_comments`, `get_comment`, `update_status` | It registers 19 tools (`test/mcp.test.ts:93-112`) |
 | Node 24 runs the package's TypeScript entry | The binary runs the built `dist/index.js` (`package.json:36-38`) |
-| Introspection works with no configuration | Fails: the image crashes at startup with `ERR_MODULE_NOT_FOUND`, because `dist/index.js:176` imports `@loupekit/shared`, which the install does not include |
 
 ## Environment variables
 
@@ -121,13 +124,13 @@ The comments in `Dockerfile` are stale. Do not rely on them:
 | `LOUPE_SELECTION_CAP` | positive integer | `50` | How many element selections the bridge keeps. | `LOUPE_SELECTION_CAP=100` | `index.ts:79`, `src/bridge/selection-store.ts:114-125` |
 | `LOUPE_EVENT_FILE` | file path | none (memory only) | JSON file that persists hook events. | `LOUPE_EVENT_FILE=/home/sara/.loupe/events.json` | `index.ts:86`, `src/bridge/event-store.ts:118`, `:188` |
 | `LOUPE_ADMIN_KEY` | string | `""` | [Admin key (project secret)](#terms). Sent as the `X-Loupe-Admin` header on every API call. | `LOUPE_ADMIN_KEY=sk_demo_acme_0f3b9c` | `index.ts:92-98` |
-| `LOUPE_WORKSPACE` | directory path | current directory | Root that the source mapper scans. Also the workspace reported to the agent registry. | `LOUPE_WORKSPACE=/home/sara/src/shop` | `index.ts:367`, `index.ts:681` |
-| `LOUPE_MAP_MAX_FILES` | integer | `4000` | Maximum files the source mapper scans. | `LOUPE_MAP_MAX_FILES=8000` | `index.ts:381` |
-| `LOUPE_HOOK_SCRIPT` | file path | `hooks/loupe-hook.mjs` in the package | Hook script path that `install_agent_hooks` writes. | `LOUPE_HOOK_SCRIPT=/home/sara/src/loupe/packages/mcp/hooks/loupe-hook.mjs` | `index.ts:541`, `index.ts:295-301` |
-| `LOUPE_CLAUDE_SETTINGS` | file path | `$HOME/.claude/settings.json` | Settings file that `install_agent_hooks` edits. | `LOUPE_CLAUDE_SETTINGS=/home/sara/src/shop/.claude/settings.json` | `index.ts:542` |
-| `LOUPE_AGENT_ID` | string | `loupe-agent` | Author id on thread messages the agent posts. | `LOUPE_AGENT_ID=loupe-agent` | `index.ts:565` |
-| `LOUPE_AGENT_NAME` | string | `Claude Code` (thread author), `loupe-mcp` (agent registry) | Display name. The two uses have different defaults. | `LOUPE_AGENT_NAME="Claude Code"` | `index.ts:566`, `index.ts:679` |
-| `LOUPE_AGENT_TYPE` | string | `claude-code` | Agent type in the agent registry. | `LOUPE_AGENT_TYPE=claude-code` | `index.ts:680` |
+| `LOUPE_WORKSPACE` | directory path | current directory | Root that the source mapper scans. Also the workspace reported to the agent registry. | `LOUPE_WORKSPACE=/home/sara/src/shop` | `index.ts:371`, `index.ts:685` |
+| `LOUPE_MAP_MAX_FILES` | integer | `4000` | Maximum files the source mapper scans. | `LOUPE_MAP_MAX_FILES=8000` | `index.ts:385` |
+| `LOUPE_HOOK_SCRIPT` | file path | `hooks/loupe-hook.mjs` in the package | Hook script path that `install_agent_hooks` writes. | `LOUPE_HOOK_SCRIPT=/home/sara/src/loupe/packages/mcp/hooks/loupe-hook.mjs` | `index.ts:545`, `index.ts:299-305` |
+| `LOUPE_CLAUDE_SETTINGS` | file path | `$HOME/.claude/settings.json` | Settings file that `install_agent_hooks` edits. | `LOUPE_CLAUDE_SETTINGS=/home/sara/src/shop/.claude/settings.json` | `index.ts:546` |
+| `LOUPE_AGENT_ID` | string | `loupe-agent` | Author id on thread messages the agent posts. | `LOUPE_AGENT_ID=loupe-agent` | `index.ts:569` |
+| `LOUPE_AGENT_NAME` | string | `Claude Code` (thread author), `loupe-mcp` (agent registry) | Display name. The two uses have different defaults. | `LOUPE_AGENT_NAME="Claude Code"` | `index.ts:570`, `index.ts:683` |
+| `LOUPE_AGENT_TYPE` | string | `claude-code` | Agent type in the agent registry. | `LOUPE_AGENT_TYPE=claude-code` | `index.ts:684` |
 | `LOUPE_NOTIFY` | `0` or unset | on | `0` turns off desktop notifications for [companion messages](#terms). Any other value leaves them on. | `LOUPE_NOTIFY=0` | `src/bridge/http-bridge.ts:433` |
 | `LOUPE_STATE_DIR` | directory path | `~/.loupe` | Directory of the bridge state file `bridge.json`. | `LOUPE_STATE_DIR=/home/sara/.loupe` | `src/bridge/state-file.ts:24-30` |
 | `GITHUB_TOKEN` | string | none | GitHub token for `create_pr_for_thread`. See [Token rules](#token-rules). | `GITHUB_TOKEN=<GITHUB_TOKEN>` | `src/github/github-client.ts:92` |
@@ -141,7 +144,7 @@ The comments in `Dockerfile` are stale. Do not rely on them:
 
 The server registers 19 tools. `test/mcp.test.ts:93-112` asserts the exact list.
 
-Every tool is wrapped by `withCompanion` (`index.ts:313-327`). If companion messages are
+Every tool is wrapped by `withCompanion` (`index.ts:317-331`). If companion messages are
 waiting, the server puts them before the tool result, with this preamble
 (`src/bridge/companion-queue.ts:149-170`):
 
@@ -157,10 +160,10 @@ API errors surface as `<METHOD> <path> → <status>` (`index.ts:95-102`).
 
 | Tool | Arguments | What it does | Output | Known defects | Source |
 |---|---|---|---|---|---|
-| `list_comments` | `status?`, `priority?`, `changeType?`, `repo?`, `branch?`, `url?`: all strings. `status` also accepts the legacy `open` and `done`. | Sends the filters as query parameters to `GET /v1/comments`, then filters again on the client. | `N comment(s):`, then one entry per comment: `- [Stage] Priority · ChangeType · #id — title: body` and `↳ target on url (by author) [repo @ branch]`. Ends with `Use get_comment(id) for the full element context.` No match: `No comments match.` | None found | `index.ts:328-340`, `index.ts:164-199` |
-| `get_comment` | `id`: string | Reads `GET /v1/comments/<ID>`. | Text with title, request, page, target element, screenshot, screen recording (webm), attachments, `## Target element HTML`, `## Computed styles`, and `## Existing proposal` when one exists. Then image blocks for the screenshot and image attachments. A free note returns a shorter block. | None found | `index.ts:341-346`, `index.ts:201-261` |
-| `update_status` | `id`: string, `status`: string | Normalizes the status, sends `PATCH {status}`, and publishes a `thread` event: `thread_resolved` for resolved, else `status_changed`. | `#id → Label` | The description says never to set Resolved, but the code accepts `resolved`. The allow-list in `src/tools/handoff.ts:111` and the refusal at `:118` are never applied. Do not pass `resolved`: use `mark_thread_addressed`, and let a person resolve the comment in the dashboard (`src/tools/handoff.ts:60-61`). | `index.ts:347-352`, `index.ts:263-271` |
-| `propose_change` | `id`: string, `html`: string, `css?`: string, `notes?`: string | Sends `PATCH {proposal: {html, css, notes, author: "Claude Code via MCP", createdAt}}` and publishes `preview_live`. | `Proposal saved for #id…` | None found | `index.ts:353-363`, `index.ts:273-284` |
+| `list_comments` | `status?`, `priority?`, `changeType?`, `repo?`, `branch?`, `url?`: all strings. `status` also accepts the legacy `open` and `done`. | Sends the filters as query parameters to `GET /v1/comments`, then filters again on the client. | `N comment(s):`, then one entry per comment: `- [Stage] Priority · ChangeType · #id — title: body` and `↳ target on url (by author) [repo @ branch]`. Ends with `Use get_comment(id) for the full element context.` No match: `No comments match.` | None found | `index.ts:332-344`, `index.ts:164-199` |
+| `get_comment` | `id`: string | Reads `GET /v1/comments/<ID>`. | Text with title, request, page, target element, screenshot, screen recording (webm), attachments, `## Target element HTML`, `## Computed styles`, and `## Existing proposal` when one exists. Then image blocks for the screenshot and image attachments. A free note returns a shorter block. | None found | `index.ts:345-350`, `index.ts:201-261` |
+| `update_status` | `id`: string, `status`: string | Normalizes the status. If it normalizes to `resolved` (including the legacy `done`), changes nothing and answers with a refusal. Otherwise sends `PATCH {status}` and publishes a `thread` event, `status_changed`. | `#id → Label`. For `resolved`: `#id was not changed: only a person resolves a comment. Set in_review, or call mark_thread_addressed, when the change is ready.` | None found. Before 0.14.1 the tool stored `resolved` despite its description. | `index.ts:351-356`, `index.ts:263-275` |
+| `propose_change` | `id`: string, `html`: string, `css?`: string, `notes?`: string | Sends `PATCH {proposal: {html, css, notes, author: "Claude Code via MCP", createdAt}}` and publishes `preview_live`. | `Proposal saved for #id…` | None found | `index.ts:357-367`, `index.ts:277-288` |
 
 Images are inlined only for `image/*` content types. Data URLs work. A failed fetch drops the
 image without an error (`index.ts:117-133`). The target of a page-level note is
@@ -170,10 +173,10 @@ image without an error (`index.ts:117-133`). The target of a page-level note is
 
 | Tool | Arguments | What it does | Output | Known defects | Source |
 |---|---|---|---|---|---|
-| `get_latest_selection` | none | Returns the newest element picked in the browser. | Markdown `# Selected element` block | None found | `index.ts:392-397` |
-| `get_selection_history` | `limit?`: positive integer, max 50, default 10 | Lists recent selections. | List of selections | None found | `index.ts:398-403` |
-| `get_element_context` | `thread_id?`, `selection_id?`: strings; `include_prompt?`: boolean, default `true` | Builds the full context for a thread or selection, with source candidates and an optional task prompt. | `# Selected element`, `## Computed styles`, `## Source candidates`, then the prompt sections `# Task`, `## Where it probably lives` or `## Where it lives`, `## How to make the change`, `## What happens next` | None found | `index.ts:404-413`, `src/tools/element-context.ts:91-125`, `src/prompt-template.ts:46-98` |
-| `find_source_for_selection` | `thread_id?`, `selection_id?`: strings | Runs the [source mapper](#source-mapper) only. | Candidate list: `` `file:start-end` — N% · reason `` | None found | `index.ts:414-420` |
+| `get_latest_selection` | none | Returns the newest element picked in the browser. | Markdown `# Selected element` block | None found | `index.ts:396-401` |
+| `get_selection_history` | `limit?`: positive integer, max 50, default 10 | Lists recent selections. | List of selections | None found | `index.ts:402-407` |
+| `get_element_context` | `thread_id?`, `selection_id?`: strings; `include_prompt?`: boolean, default `true` | Builds the full context for a thread or selection, with source candidates and an optional task prompt. | `# Selected element`, `## Computed styles`, `## Source candidates`, then the prompt sections `# Task`, `## Where it probably lives` or `## Where it lives`, `## How to make the change`, `## What happens next` | None found | `index.ts:408-417`, `src/tools/element-context.ts:91-125`, `src/prompt-template.ts:46-98` |
+| `find_source_for_selection` | `thread_id?`, `selection_id?`: strings | Runs the [source mapper](#source-mapper) only. | Candidate list: `` `file:start-end` — N% · reason `` | None found | `index.ts:418-424` |
 
 With nothing selected, these tools return the `NOTHING_SELECTED` message
 (`src/tools/element-context.ts:173`). An unknown `selection_id` returns a message that says
@@ -185,27 +188,27 @@ available ids.`` (`src/tools/element-context.ts:179-183`).
 
 | Tool | Arguments | What it does | Output | Known defects | Source |
 |---|---|---|---|---|---|
-| `get_companion_messages` | `drain?`: boolean, default `true` | Reads messages sent from the panel. `drain: false` reads without removing. | One line each: `[at] name: body (re: …) [urls]`. Empty: `No companion messages waiting.` | None found | `index.ts:424-440` |
-| `reply_to_companion` | `body`: string, `inReplyTo?`: string | Sends a reply to the panel and publishes a `companion` `reply` event. | `Sent to the panel at …` | None found | `index.ts:442-454` |
+| `get_companion_messages` | `drain?`: boolean, default `true` | Reads messages sent from the panel. `drain: false` reads without removing. | One line each: `[at] name: body (re: …) [urls]`. Empty: `No companion messages waiting.` | None found | `index.ts:428-444` |
+| `reply_to_companion` | `body`: string, `inReplyTo?`: string | Sends a reply to the panel and publishes a `companion` `reply` event. | `Sent to the panel at …` | None found | `index.ts:446-458` |
 
 ### Activity tools
 
 | Tool | Arguments | What it does | Output | Known defects | Source |
 |---|---|---|---|---|---|
-| `get_activity_summary` | `session_id?`: string, `limit?`: integer, max 50, default 5 | Summarizes agent sessions from hook events. | One line per session: `● live` or `○ ended`, id, prompts, tool calls, files touched, and the 3 most used tools | None found | `index.ts:456-475`, `src/bridge/session-manager.ts:126-136` |
-| `get_recent_events` | `limit?`: integer, max 200, default 30; `type?`: string | Lists recent hook events. | Event list | **Always throws a `ReferenceError`.** `index.ts:485` declares `const events` inside the handler, which shadows the event store, so `events.latest(...)` reads the variable before it is set. The built `dist/index.js:2773` has the same line. Workaround: call `get_activity_summary`, or read `GET /events/recent` on the bridge. | `index.ts:477-503` |
-| `get_files_touched` | none | Lists files that hook events touched. | File list | None found | `index.ts:505-520` |
-| `get_dashboard_url` | none | Returns the address of the `/monitor` page. | `Open <BRIDGE_URL>/monitor…`, or a "not running" message when the bridge is off | None found | `index.ts:522-532` |
-| `install_agent_hooks` | `path?`: string, default `~/.claude/settings.json` | Adds the Loupe hooks to a Claude Code settings file. See [Claude Code hooks](#claude-code-hooks). | Install result | None found | `index.ts:534-560` |
+| `get_activity_summary` | `session_id?`: string, `limit?`: integer, max 50, default 5 | Summarizes agent sessions from hook events. | One line per session: `● live` or `○ ended`, id, prompts, tool calls, files touched, and the 3 most used tools | None found | `index.ts:460-479`, `src/bridge/session-manager.ts:126-136` |
+| `get_recent_events` | `limit?`: integer, max 200, default 30; `type?`: string | Lists recent hook events, newest first. | One line per event: `<at>  <type> (<tool>)[ [FAILED]]: <summary> — <files>`. No events: `No agent events recorded yet. The hooks may not be installed — install_agent_hooks adds them.`, or `No events of type <TYPE> recorded.` | None found. Before 0.14.1 the tool threw a `ReferenceError` on every call. | `index.ts:481-507` |
+| `get_files_touched` | none | Lists files that hook events touched. | File list | None found | `index.ts:509-524` |
+| `get_dashboard_url` | none | Returns the address of the `/monitor` page. | `Open <BRIDGE_URL>/monitor…`, or a "not running" message when the bridge is off | None found | `index.ts:526-536` |
+| `install_agent_hooks` | `path?`: string, default `~/.claude/settings.json` | Adds the Loupe hooks to a Claude Code settings file. See [Claude Code hooks](#claude-code-hooks). | Install result | None found | `index.ts:538-564` |
 
 ### Thread tools
 
 | Tool | Arguments | What it does | Output | Known defects | Source |
 |---|---|---|---|---|---|
-| `mark_thread_addressed` | `thread_id`: string, `message?`: string | Sends `PATCH {status: "in_review"}`. Posts the message when it is not empty, with the agent as author (`type: "agent"`). | Confirmation | None found | `index.ts:583-591`, `src/tools/handoff.ts:41-61` |
-| `add_thread_message` | `thread_id`: string, `message`: string | Posts a message. Does not change the status. | Confirmation. A blank message returns `A message body is required…` | None found | `index.ts:592-600`, `src/tools/handoff.ts:67-77` |
-| `get_thread_conversation` | `thread_id`: string | Reads the thread and its messages. | Conversation text | None found | `index.ts:601-606`, `src/tools/handoff.ts:80-98` |
-| `create_pr_for_thread` | `repo`: `owner/name`; `thread_id`: string; `description`: string; `files`: array of `{path, content}`, minimum 1, full file contents; `base_branch?`: default `main`; `branch_name?`; `revision_of?` | Commits the files and opens or updates a pull request. See [Pull requests](#pull-requests). On success it saves `pr {number, url, state: "open"}` on the thread and publishes `pr_created`. | `#id → <PR_URL>`, a note, and ``Branch `…` · commit `abc1234` · outcome: …``. Failure: `Could not open the pull request: …` | None found | `index.ts:608-657` |
+| `mark_thread_addressed` | `thread_id`: string, `message?`: string | Sends `PATCH {status: "in_review"}`. Posts the message when it is not empty, with the agent as author (`type: "agent"`). | Confirmation | None found | `index.ts:587-595`, `src/tools/handoff.ts:41-61` |
+| `add_thread_message` | `thread_id`: string, `message`: string | Posts a message. Does not change the status. | Confirmation. A blank message returns `A message body is required…` | None found | `index.ts:596-604`, `src/tools/handoff.ts:67-77` |
+| `get_thread_conversation` | `thread_id`: string | Reads the thread and its messages. | Conversation text | None found | `index.ts:605-610`, `src/tools/handoff.ts:80-98` |
+| `create_pr_for_thread` | `repo`: `owner/name`; `thread_id`: string; `description`: string; `files`: array of `{path, content}`, minimum 1, full file contents; `base_branch?`: default `main`; `branch_name?`; `revision_of?` | Commits the files and opens or updates a pull request. See [Pull requests](#pull-requests). On success it saves `pr {number, url, state: "open"}` on the thread and publishes `pr_created`. | `#id → <PR_URL>`, a note, and ``Branch `…` · commit `abc1234` · outcome: …``. Failure: `Could not open the pull request: …` | None found | `index.ts:612-661` |
 
 ## Laravel server tools
 
@@ -248,7 +251,7 @@ and they do not publish events. Every query is scoped to the project key in the
 
 ## Local bridge
 
-The Node server starts an HTTP bridge when `LOUPE_BRIDGE_PORT` is not `0` (`index.ts:669-707`).
+The Node server starts an HTTP bridge when `LOUPE_BRIDGE_PORT` is not `0` (`index.ts:673-711`).
 The browser widget and extension use it to send selections, presence and companion messages.
 
 | Setting | Value | Source |
@@ -329,8 +332,8 @@ cannot open an `EventSource`, it polls every 3 seconds (`src/bridge/dashboard.ts
 | Type | Fields | Sent when | Source |
 |---|---|---|---|
 | `selection` | `data` | A selection arrives | `src/bridge/events.ts:12-20`, `src/bridge/http-bridge.ts:217` |
-| `agents` | `data`: list of agents | An agent registers, or a sweep removes a stale agent | `src/bridge/http-bridge.ts:260`, `index.ts:685` |
-| `presence` | `data` | A peer joins, a peer leaves (`DELETE /presence/<ID>` for a known peer), or a sweep removes an expired peer | `src/bridge/http-bridge.ts:293`, `:313-314`, `index.ts:688` |
+| `agents` | `data`: list of agents | An agent registers, or a sweep removes a stale agent | `src/bridge/http-bridge.ts:260`, `index.ts:689` |
+| `presence` | `data` | A peer joins, a peer leaves (`DELETE /presence/<ID>` for a known peer), or a sweep removes an expired peer | `src/bridge/http-bridge.ts:293`, `:313-314`, `index.ts:692` |
 | `companion` | `eventType`: `message` or `reply`; `data` | A panel message or an agent reply | `src/bridge/events.ts:12-20`, `:54` |
 | `activity` | `data` | A hook event is ingested | `src/bridge/events.ts:19`, `src/bridge/http-bridge.ts:363` |
 | `thread` | `threadId`, `eventType`, `data` | `pr_created`, `preview_live`, `thread_resolved`, `status_changed`, or any posted type | `src/bridge/events.ts:12-20`, `:59` |
@@ -411,7 +414,7 @@ matches element signals against file text.
 
 | Limit | Default | Source |
 |---|---|---|
-| Files scanned | 4000 (`LOUPE_MAP_MAX_FILES`) | `index.ts:381` |
+| Files scanned | 4000 (`LOUPE_MAP_MAX_FILES`) | `index.ts:385` |
 | File size | 512 KB | `src/mapper.ts:186-191` |
 | Total bytes scanned | 64 MB | `src/mapper.ts:186-191` |
 | Cache lifetime | 15000 ms | `src/mapper.ts:186-191` |
@@ -446,7 +449,7 @@ commit and a table row, instead of opening a new pull request.
 |---|---|---|
 | Default branch name | `loupe/fixes` | `src/tools/create-pr.ts:120-124` |
 | Revision branch name | `revision-<REVISION_OF>`, unless `branch_name` is given | `src/tools/create-pr.ts:120-124` |
-| Base branch | `main` unless `base_branch` is given | `index.ts:608-657` |
+| Base branch | `main` unless `base_branch` is given | `index.ts:612-661` |
 | Title | `Feedback Fixes` | `src/tools/create-pr.ts:18` |
 | Body table | `\| Thread \| Fix \| Commit \|`, after the sentinel `<!-- loupe:fixes -->` | `src/tools/create-pr.ts:16`, `:38` |
 | Outcomes | `created`, `appended`, `restarted` | `src/tools/create-pr.ts:127`, `:169-189` |

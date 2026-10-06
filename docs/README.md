@@ -1,6 +1,6 @@
 # Loupe documentation
 
-This page lists every Loupe 0.14.0 guide, reference page, and explanation, grouped by what you want to do.
+This page lists every Loupe 0.14.1 guide, reference page, and explanation, grouped by what you want to do.
 
 Loupe is an open-source visual feedback tool. A reviewer pins comments to elements of a live web page, and an AI agent can read those comments and propose fixes. Loupe has these parts:
 

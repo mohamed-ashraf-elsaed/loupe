@@ -8,8 +8,6 @@
 
 The server talks to your MCP client over stdio: the client starts the server as a child process and exchanges messages with it over standard input and output.
 
-> **Warning — known issue in 0.14.0:** the published package fails to start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. This affects `npx -y @loupekit/mcp` and the global `loupe-mcp` command. The compiled server imports `@loupekit/shared` at runtime, but the package lists it only as a development dependency, so npm does not install it. Until a fixed release is out, follow [Install from a source checkout](#install-from-a-source-checkout).
-
 ## Contents
 
 - [Prerequisites](#prerequisites)
@@ -29,13 +27,29 @@ The server talks to your MCP client over stdio: the client starts the server as 
 - **A running Loupe server.** This is the backend that stores comments and serves the API the MCP server calls, for example the Node server `@loupekit/server`. To run one on your machine, see [Run the local server and dashboard](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/run-local-server.md).
 - **A project key and its project secret.** A *project* is the unit Loupe groups comments under. It has a public *project key*, such as `pk_demo_acme`, and a private *project secret*. The project secret is the admin key: the server accepts it in the `X-Loupe-Admin` header. For the demo project that `npm run seed` creates, the key is `pk_demo_acme` and the seed prints the secret as `admin key`.
 - **An MCP client**, such as Claude Code.
-- **git and npm**, to install from a source checkout while the 0.14.0 issue is open.
+- **npm**, which includes `npx`. To run the server from a source checkout instead, you also need **git**.
 
 ## Install
 
+### Install from npm
+
+Run it without installing:
+
+```bash
+npx -y @loupekit/mcp
+```
+
+Or install it globally. This adds the `loupe-mcp` command:
+
+```bash
+npm install -g @loupekit/mcp
+```
+
+> **Note:** Fixed in 0.14.1. The published 0.14.0 package fails at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. On 0.14.0, run the server from a source checkout.
+
 ### Install from a source checkout
 
-Use this method for 0.14.0.
+Use this method to run the server from the repository, for example while you work on Loupe itself.
 
 1. Clone the repository:
 
@@ -75,34 +89,16 @@ Use this method for 0.14.0.
 
    You should see an absolute path that ends in `/loupe`. You use it as `<ABSOLUTE_PATH_TO_LOUPE>` when you configure your client. Node.js 24 runs the TypeScript entry `packages/mcp/index.ts` directly, so you do not need to build the MCP package.
 
-### Install from npm
-
-Use this method once a release that fixes the 0.14.0 issue is out.
-
-Run it without installing:
-
-```bash
-npx -y @loupekit/mcp
-```
-
-Or install it globally. This adds the `loupe-mcp` command:
-
-```bash
-npm install -g @loupekit/mcp
-```
-
 ## Configure your MCP client
 
 Add a `loupe` server to your client's MCP configuration. For Claude Code, this is `.mcp.json` in your project root.
-
-For a source checkout:
 
 ```json
 {
   "mcpServers": {
     "loupe": {
-      "command": "node",
-      "args": ["<ABSOLUTE_PATH_TO_LOUPE>/packages/mcp/index.ts"],
+      "command": "npx",
+      "args": ["-y", "@loupekit/mcp"],
       "env": {
         "LOUPE_API": "<API_URL>",
         "LOUPE_PROJECT_KEY": "<PROJECT_KEY>",
@@ -113,11 +109,10 @@ For a source checkout:
 }
 ```
 
-For an npm install, set `"command": "npx"` and `"args": ["-y", "@loupekit/mcp"]` instead.
+For a source checkout, set `"command": "node"` and `"args": ["<ABSOLUTE_PATH_TO_LOUPE>/packages/mcp/index.ts"]` instead, where `<ABSOLUTE_PATH_TO_LOUPE>` is the path that `pwd` printed in step 5 of the install.
 
 Replace the placeholders:
 
-- `<ABSOLUTE_PATH_TO_LOUPE>`: the path that `pwd` printed in step 5 of the install.
 - `<API_URL>`: the base URL of your Loupe server, for example `http://localhost:8787`.
 - `<PROJECT_KEY>`: the project whose comments the agent works on, for example `pk_demo_acme`.
 - `<PROJECT_SECRET>`: that project's secret. `LOUPE_ADMIN_KEY` holds the project secret, and the server sends it as the `X-Loupe-Admin` header. Keep the file out of version control if it holds a real secret.
@@ -129,8 +124,10 @@ For other MCP clients, see [Connect Claude Code and other MCP clients](https://g
 1. Start the server by hand, with the same values as your client configuration:
 
    ```bash
-   LOUPE_API=<API_URL> LOUPE_PROJECT_KEY=<PROJECT_KEY> LOUPE_ADMIN_KEY=<PROJECT_SECRET> node <ABSOLUTE_PATH_TO_LOUPE>/packages/mcp/index.ts
+   LOUPE_API=<API_URL> LOUPE_PROJECT_KEY=<PROJECT_KEY> LOUPE_ADMIN_KEY=<PROJECT_SECRET> npx -y @loupekit/mcp
    ```
+
+   For a source checkout, replace `npx -y @loupekit/mcp` with `node <ABSOLUTE_PATH_TO_LOUPE>/packages/mcp/index.ts`.
 
    You should see this line on standard error:
 
@@ -177,8 +174,6 @@ Terms used in the table:
 cp "$HOME/.claude/settings.json.loupe-backup" "$HOME/.claude/settings.json"
 ```
 
-> **Known issue in 0.14.0:** `get_recent_events` fails on every call with `Cannot access 'events' before initialization`. Use `get_activity_summary` or `get_files_touched` instead, or open the [/monitor page](#the-bridge-and-the-monitor-page).
-
 For each tool's arguments and output, see the [MCP reference](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/mcp.md).
 
 ## Environment
@@ -210,10 +205,9 @@ If you run `install_agent_hooks`, Claude Code also reports its tool calls, promp
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| The server exits at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | The published 0.14.0 package does not declare `@loupekit/shared` as a runtime dependency. | [Install from a source checkout](#install-from-a-source-checkout). |
+| The server exits at start with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | You run `@loupekit/mcp` 0.14.0, which does not declare `@loupekit/shared` as a runtime dependency. | Use 0.14.1 or later (`npx -y @loupekit/mcp@latest`), or [install from a source checkout](#install-from-a-source-checkout). |
 | A tool fails with an error such as `GET /v1/comments?projectKey=pk_demo_acme → 401`. | `LOUPE_ADMIN_KEY` is empty or is not the project secret. | Set `LOUPE_ADMIN_KEY` to the project secret, then restart the client. |
 | The log shows `[loupe] bridge port 9800 is busy after 6 attempts — continuing without it`. | Another process, often a second Loupe MCP server, holds port 9800. | Stop the other process, or set `LOUPE_BRIDGE_PORT` to a free port. The comment tools work either way. |
-| `get_recent_events` fails with `Cannot access 'events' before initialization`. | A defect in 0.14.0. | Use `get_activity_summary` or `get_files_touched`, or open `/monitor`. |
 | Claude Code does not list `loupe` in `/mcp`. | `.mcp.json` is not in the folder where you started Claude Code, or you declined the trust prompt. | Start Claude Code from the project root and approve the server. |
 
 For more cases, see [Troubleshooting in Connect Claude Code and other MCP clients](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/connect-mcp-clients.md#troubleshooting).

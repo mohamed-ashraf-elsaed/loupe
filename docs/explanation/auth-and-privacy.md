@@ -1,6 +1,6 @@
 # Identity, access and privacy in Loupe
 
-This page explains how each Loupe backend decides who a user is, what that user may do, what a comment captures from the page, and where that data ends up. It is written for developers who install Loupe and for reviewers who assess it. It describes Loupe 0.14.0.
+This page explains how each Loupe backend decides who a user is, what that user may do, what a comment captures from the page, and where that data ends up. It is written for developers who install Loupe and for reviewers who assess it. It describes Loupe 0.14.1.
 
 It contains no procedures. To set things up, follow the how-to guides linked in each section.
 

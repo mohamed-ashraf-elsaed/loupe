@@ -4,7 +4,7 @@ Every control in the Loupe widget, where it appears, and what it does. For the s
 these controls, see [Use the Loupe widget](../how-to/use-the-widget.md). For `init()` options,
 the keyboard shortcut details and browser storage keys, see the [SDK reference](sdk.md).
 
-Source lines refer to version 0.14.0 and are in `packages/sdk/src/app.ts` unless another file
+Source lines refer to version 0.14.1 and are in `packages/sdk/src/app.ts` unless another file
 is named. Line numbers move between releases.
 
 | Control | Where | What it does | Source line |

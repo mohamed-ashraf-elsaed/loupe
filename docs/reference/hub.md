@@ -1,6 +1,6 @@
 # Loupe Hub reference
 
-This page lists the wire contract, settings, limits and storage of Loupe Hub, version 0.14.0.
+This page lists the wire contract, settings, limits and storage of Loupe Hub, version 0.14.1.
 Loupe Hub is the server that holds organizations and projects, verifies signed tickets from
 Loupe installs, and forwards them to another project or to an external webhook. This page is
 the canonical home of these facts; other pages link here.
@@ -18,10 +18,10 @@ the repository with Node 24, which runs the TypeScript files directly.
 needs its dependencies `@electric-sql/pglite`, `google-auth-library` and `pg`
 (`package.json:12-16`). Run every command on this page from the repository root.
 
-> **Unreleased.** Two behaviours on this page are in the `[Unreleased]` section of
-> `CHANGELOG.md:10-26`, not in 0.14.0: the [private-address refusal](#private-address-refusal)
+> **New in 0.14.1.** Two behaviours on this page are in the `[0.14.1]` section of
+> `CHANGELOG.md:12-31`, not in 0.14.0: the [private-address refusal](#private-address-refusal)
 > and the same-origin pinning and update-time re-check of [`reply_url`](#reply_url-rules). Each
-> is marked **Unreleased** where it appears.
+> is marked **0.14.1** where it appears.
 
 ## Contents
 
@@ -99,7 +99,7 @@ The Hub server (`node packages/hub/index.ts`) reads these variables.
 | `GOOGLE_CLIENT_ID` | string | unset | Google OAuth web client ID used to verify sign-ins. Without it, `POST /auth/google` answers `503` and the sign-in page shows `GOOGLE_CLIENT_ID is not configured on this server.` | `index.ts:320-321`, `index.ts:383`, `views.ts:37-39` |
 | `DATABASE_URL` | string | unset | Postgres connection string. When set, Hub uses node-postgres and logs `[hub] Postgres via DATABASE_URL`. | `db.ts:18-24` |
 | `HUB_PG_DIR` | path | `packages/hub/data/pg` | Directory of the embedded PGlite database, used when `DATABASE_URL` is unset. The default is resolved relative to `db.ts`, not to the working directory. A value that starts with `memory` gives an in-memory database. Hub creates the directory if it is missing and logs `[hub] embedded Postgres (PGlite) at <DIR>`, where `<DIR>` is the resolved directory. | `db.ts:26-34` |
-| `HUB_ALLOW_PRIVATE_URLS` | string | unset | Exactly `1` turns off the [private-address refusal](#private-address-refusal) and delivers with the global `fetch()`. Use it for local development only. **Unreleased.** | `webhook.ts:52`, `webhook.ts:119` |
+| `HUB_ALLOW_PRIVATE_URLS` | string | unset | Exactly `1` turns off the [private-address refusal](#private-address-refusal) and delivers with the global `fetch()`. Use it for local development only. **0.14.1.** | `webhook.ts:52`, `webhook.ts:119` |
 
 Example for a local run:
 
@@ -584,17 +584,17 @@ A `reply_url` is the source app's receiver for updates on a ticket. Hub checks i
 |---|---|---|
 | A string, `http` or `https`, at most 2,000 characters | 0.14.0 | `index.ts:128-136`, `index.ts:146` |
 | Stored only for a project-to-project delivery; otherwise `null` is stored | 0.14.0 | `index.ts:243` |
-| No user name or password in the URL | **Unreleased** | `index.ts:148`, `CHANGELOG.md:22-26` |
-| The path ends with `/v1/hub/inbound` | **Unreleased** | `index.ts:148`, `CHANGELOG.md:22-26` |
-| When the source project has an inbound URL, the `reply_url` has the same origin. When it has none, any origin passes this rule. | **Unreleased** | `index.ts:149`, `CHANGELOG.md:22-26` |
-| Re-checked against the source's current inbound URL before each update | **Unreleased** | `index.ts:299-301`, `CHANGELOG.md:22-26` |
+| No user name or password in the URL | **0.14.1** | `index.ts:148`, `CHANGELOG.md:27-31` |
+| The path ends with `/v1/hub/inbound` | **0.14.1** | `index.ts:148`, `CHANGELOG.md:27-31` |
+| When the source project has an inbound URL, the `reply_url` has the same origin. When it has none, any origin passes this rule. | **0.14.1** | `index.ts:149`, `CHANGELOG.md:27-31` |
+| Re-checked against the source's current inbound URL before each update | **0.14.1** | `index.ts:299-301`, `CHANGELOG.md:27-31` |
 
 An invalid `reply_url` does not fail the ticket. Hub stores `null`, and updates from the
 destination then answer `202 {"delivery":"none"}`.
 
 ## Private-address refusal
 
-**Unreleased** (`CHANGELOG.md:12-21`). Every delivery resolves the target host and refuses a
+**0.14.1** (`CHANGELOG.md:16-26`). Every delivery resolves the target host and refuses a
 non-public address, unless `HUB_ALLOW_PRIVATE_URLS=1` (`webhook.ts:38-157`). The check applies to
 webhook URLs, inbound URLs and reply URLs. It runs inside the connection's own DNS lookup, so the
 address checked is the address dialled (`webhook.ts:100-112`). If any resolved address is

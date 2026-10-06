@@ -263,6 +263,10 @@ export async function getComment({ id }: { id: string }) {
 export async function updateStatus({ id, status }: { id: string; status: string }) {
   // Accept the legacy names too, and store the canonical stage.
   const stage = normalizeStatus(status);
+  if (stage === "resolved") {
+    // Only a person resolves a comment. The agent hands it over for review instead.
+    return wrap(`#${id} was not changed: only a person resolves a comment. Set in_review, or call mark_thread_addressed, when the change is ready.`);
+  }
   await api(`/v1/comments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status: stage }) });
   // Tell any open panel. Best-effort: a browser that is not listening must never
   // make this tool call fail.
@@ -300,7 +304,7 @@ function hookScriptPath(): string {
   return candidates.find((c) => existsSync(c)) ?? candidates[0]!;
 }
 
-const server = new McpServer({ name: "loupe", version: "0.14.0" });
+const server = new McpServer({ name: "loupe", version: "0.14.1" });
 
 /**
  * Carry any pending companion message on every tool result.
@@ -482,8 +486,8 @@ registerTool(
     type: z.string().optional().describe('Filter to one type, e.g. "tool_use" or "prompt_submit".'),
   },
   async ({ limit, type }) => {
-    const events = events.latest(limit ?? 30).filter((e) => !type || e.type === type);
-    if (!events.length) {
+    const recent = events.latest(limit ?? 30).filter((e) => !type || e.type === type);
+    if (!recent.length) {
       return wrap(
         events.size === 0 && !type
           ? "No agent events recorded yet. The hooks may not be installed — install_agent_hooks adds them."
@@ -491,7 +495,7 @@ registerTool(
       );
     }
     return wrap(
-      events
+      recent
         .map((e) => {
           const ok = (e.payload as any)?.ok === false ? " [FAILED]" : "";
           const files = e.files?.length ? ` — ${e.files.join(", ")}` : "";

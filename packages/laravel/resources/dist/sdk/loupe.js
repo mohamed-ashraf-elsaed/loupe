@@ -4007,7 +4007,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.14.0" : "dev";
+  var SDK_VERSION = true ? "0.14.1" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";
@@ -4026,7 +4026,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       sel: ".hstat",
       tab: "home",
       title: "Home shows what needs you",
-      body: "Four tiles count open, needs-you, resolved and stale feedback. Click one to narrow the list to that bucket."
+      body: "Four tiles count Open, Needs you, Resolved and Stale feedback. Click one to narrow the list to that bucket."
     },
     {
       sel: ".hscope",
@@ -4038,13 +4038,13 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       sel: ".tools",
       tab: "comments",
       title: "Pin feedback anywhere",
-      body: "Inspect picks an element, Note drops a page-level comment, Region captures a rectangle, and Record films one."
+      body: "Inspect picks an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one."
     },
     {
       sel: '.tabs [data-tab="activity"]',
       tab: "activity",
       title: "Watch the work happen",
-      body: "Comments, status changes and forwarded tickets land here as they happen, with anything a bridge or your app reports. Tool chips filter it."
+      body: "Comments, status changes and forwarded tickets land here as they happen, with anything the local MCP bridge or your app reports. Tool chips filter it."
     },
     {
       sel: '.dctl [data-role="settings"]',
@@ -4056,11 +4056,11 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   var HINTS = {
     chat: {
       title: "Talk to the agent",
-      body: "Gather what you are looking at and send it in one go. The agent gets it on its very next step \u2014 not after it finishes."
+      body: "Gather what you are looking at and send it in one go. The agent gets it on its next step, not after it finishes."
     },
     home: { title: "Your triage at a glance", body: "The tiles count this page by default. Switch to All for the whole project, or click a tile to jump straight to that bucket." },
-    comments: { title: "Pin, note or record", body: "Inspect selects an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
-    activity: { title: "Watch the work happen", body: "Every event the bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." }
+    comments: { title: "Pin, note or record", body: "Inspect picks an element, Note comments anywhere on the page, Region screenshots a rectangle, and Record captures video of one." },
+    activity: { title: "Watch the work happen", body: "Every event the local MCP bridge or your app reports lands here, alongside Loupe's own operations. Click a tool chip to filter the feed." }
   };
   var BUILTIN_TABS = [
     { id: "home", label: "Home" },
@@ -4633,7 +4633,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     /**
      * Keep the panel current without a reload.
      *
-     * A status moved in another app (CRM approving a ticket), a reply relayed through Hub,
+     * A status moved in another app (a tracker approving a ticket), a reply relayed through Hub,
      * or a teammate's new pin otherwise appears only after the page reloads. The bridge's
      * SSE covers threads when one is configured; this covers everything else, for every
      * host. It pauses while the tab is hidden and catches up the moment it is shown again.
@@ -7827,8 +7827,8 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
      * Follow the bridge's thread channel while the panel is open.
      *
      * The SSE channel lives in the MCP process, so a reply posted by anyone — an agent, a
-     * teammate's browser — arrives here rather than being discovered by the 4 s list
-     * poll. Only the threads whose messages are already loaded are refetched: pulling a
+     * teammate's browser — arrives here rather than being discovered by the 10 s sync
+     * poll (SYNC_POLL_MS). Only the threads whose messages are already loaded are refetched: pulling a
      * conversation nobody has open would be work for nothing.
      */
     startLiveThreads() {

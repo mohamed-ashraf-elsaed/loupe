@@ -23,7 +23,7 @@ This tutorial follows one path from start to finish. Do every step in order. Eac
 
 You need:
 
-- **Node 24.** The project is built and tested on Node 24 in CI, and the local server and the MCP server run their `.ts` files directly with `node`. Check your version with `node --version`. You should see `v24` followed by a minor version.
+- **Node 24.** The project is built and tested on Node 24 in CI, and the local server runs its `.ts` files directly with `node`. Check your version with `node --version`. You should see `v24` followed by a minor version.
 - **git**, to clone the repository.
 - **Chrome or another Chromium browser**, such as Edge or Brave.
 - **Claude Code** (optional). You need it only for steps 6 and 7. You can do steps 1 to 5 and step 8 without it.
@@ -77,7 +77,7 @@ The local server is a small Node API that stores comments and serves the demo pa
      demo HMAC    (host-app-injected for u_92): decb2c23961bbcea494b1034aad995b8f30c9a2e517598667b791b73e8752846
    ```
 
-   `<CLONE>` is the absolute path of your clone. npm also prints its own `> @loupekit/server@0.14.0 seed` header lines above this output.
+   `<CLONE>` is the absolute path of your clone. npm also prints its own `> @loupekit/server@0.14.1 seed` header lines above this output.
 
    The seed creates a project named **Acme Analytics (demo)** with the project key `pk_demo_acme`. The admin key `sk_demo_acme_0f3b9c` is the project secret. You use it later to open the dashboard and to connect Claude Code. The demo HMAC is a signature that proves the demo user `u_92` is who the page says it is.
 
@@ -210,20 +210,9 @@ Leave this tab open. You come back to it in step 7.
 
 Skip to [step 8](#step-8-review-and-resolve) if you do not use Claude Code.
 
-Loupe's MCP server gives Claude Code tools to read your comments and write back proposed changes. In this tutorial you run the MCP server from your clone, because the published `@loupekit/mcp` 0.14.0 package fails to start with `ERR_MODULE_NOT_FOUND`.
+Loupe's MCP server gives Claude Code tools to read your comments and write back proposed changes. Claude Code starts it with `npx`, which downloads the published `@loupekit/mcp` package.
 
-1. Find the absolute path of your clone. The server still runs in your first terminal, so open a second terminal and run:
-
-   ```bash
-   cd <PATH_TO>/loupe
-   pwd
-   ```
-
-   Replace `<PATH_TO>` with the directory where you ran `git clone` in step 1.
-
-   You should see a path that ends in `/loupe`, for example `/home/you/code/loupe`.
-
-2. Create an empty directory to use with Claude Code, and move into it:
+1. The server still runs in your first terminal, so open a second terminal. Create an empty directory to use with Claude Code, and move into it:
 
    ```bash
    mkdir -p ~/loupe-try && cd ~/loupe-try
@@ -231,14 +220,14 @@ Loupe's MCP server gives Claude Code tools to read your comments and write back 
 
    You should see no output. Any other project directory works too.
 
-3. In that directory, create a file named `.mcp.json` with this content:
+2. In that directory, create a file named `.mcp.json` with this content:
 
    ```json
    {
      "mcpServers": {
        "loupe": {
-         "command": "node",
-         "args": ["<ABSOLUTE_PATH_TO_CLONE>/packages/mcp/index.ts"],
+         "command": "npx",
+         "args": ["-y", "@loupekit/mcp"],
          "env": {
            "LOUPE_API": "http://localhost:8787",
            "LOUPE_PROJECT_KEY": "pk_demo_acme",
@@ -249,19 +238,15 @@ Loupe's MCP server gives Claude Code tools to read your comments and write back 
    }
    ```
 
-   Replace the following:
-
-   - `<ABSOLUTE_PATH_TO_CLONE>`: the path that `pwd` printed in step 1 of this section, for example `/home/you/code/loupe`.
-
    The three environment variables tell the MCP server where your local server runs (`LOUPE_API`), which project to read (`LOUPE_PROJECT_KEY`), and the project secret to sign in with (`LOUPE_ADMIN_KEY`).
 
-4. Start Claude Code in that project directory. If Claude Code is already running there, exit and start it again so it reads the new file.
+3. Start Claude Code in that project directory. If Claude Code is already running there, exit and start it again so it reads the new file.
 
    If Claude Code asks whether to use the `loupe` server from `.mcp.json`, approve it.
 
    To check the connection, type `/mcp` in Claude Code. You should see `loupe` listed as connected.
 
-5. Ask Claude Code:
+4. Ask Claude Code:
 
    ```text
    List the Loupe comments.
@@ -339,7 +324,8 @@ The MCP tools tell an agent to move a comment to **In Review** and to leave reso
 | The tour does not appear. | You already finished or skipped it in this browser, or the window is 640 pixels wide or narrower. | Widen the browser window, or open **Settings** in the panel header and click **Restart tour**. |
 | The dashboard shows "Not authorized. Open this page with ?key=…" | The `?key=` value is missing or wrong. | Open the dashboard address from step 5 again, with `?key=sk_demo_acme_0f3b9c`. |
 | The dashboard shows "Can't reach the API at …" | The server is not running. | Run `npm start` in the clone and reload the page. |
-| Claude Code does not list a `loupe` server, or its tools fail with `ERR_MODULE_NOT_FOUND`. | `.mcp.json` points at the published package, or the path to `index.ts` is wrong. | Use the `node` and `<ABSOLUTE_PATH_TO_CLONE>/packages/mcp/index.ts` form from step 6, check the path, then restart Claude Code. |
+| Claude Code does not list a `loupe` server. | `.mcp.json` is not in the directory where you started Claude Code, or you did not approve the server. | Start Claude Code from the directory that holds `.mcp.json`, approve `loupe`, then run `/mcp`. |
+| The `loupe` server exits with `ERR_MODULE_NOT_FOUND` for `@loupekit/shared`. | `npx` ran `@loupekit/mcp` 0.14.0, which has this defect. Fixed in 0.14.1. | Change the argument to `@loupekit/mcp@0.14.1` in `.mcp.json`, then restart Claude Code. |
 | `list_comments` fails with `GET /v1/comments?... → 401`. | `LOUPE_ADMIN_KEY` does not match the project secret. | Set `LOUPE_ADMIN_KEY` to `sk_demo_acme_0f3b9c` in `.mcp.json` and restart Claude Code. |
 | `list_comments` fails with `GET /v1/comments?... → 404`. | `LOUPE_PROJECT_KEY` names a project the server does not know, or the data directory is new and the demo project was never seeded. | Set `LOUPE_PROJECT_KEY` to `pk_demo_acme` in `.mcp.json`, run `npm run seed`, then restart Claude Code. |
 | `list_comments` answers `No comments match.` | The project exists but has no comments, for example after the server started with a fresh data directory. | Pin a new comment on the demo page, then ask again. |

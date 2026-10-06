@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loupe Documentation — SDK, Server, MCP, Extension & Laravel</title>
-<meta name="description" content="Documentation for Loupe 0.14.0, the embeddable visual-feedback platform. Quick start, install guides, the widget, dashboard, MCP server, browser extension, Laravel package, Loupe Hub, architecture and recent changes.">
+<meta name="description" content="Documentation for Loupe 0.14.1, the embeddable visual-feedback platform. Quick start, install guides, the widget, dashboard, MCP server, browser extension, Laravel package, Loupe Hub, architecture and recent changes.">
 <meta name="keywords" content="Loupe documentation, visual feedback SDK docs, MCP server, Claude Code, Laravel feedback package, in-app feedback API, re-anchoring, developer tools">
 <meta name="author" content="Mohamed Ashraf Elsaed">
 <link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
@@ -18,12 +18,12 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Loupe">
 <meta property="og:title" content="Loupe Documentation">
-<meta property="og:description" content="Documentation for Loupe 0.14.0: quick start, install guides, the widget, the dashboard, the MCP server, the browser extension, the Laravel package, Loupe Hub and the architecture.">
+<meta property="og:description" content="Documentation for Loupe 0.14.1: quick start, install guides, the widget, the dashboard, the MCP server, the browser extension, the Laravel package, Loupe Hub and the architecture.">
 <meta property="og:url" content="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
 <meta property="og:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Loupe Documentation">
-<meta name="twitter:description" content="Documentation for Loupe 0.14.0: install guides, the widget, the MCP server, the Laravel package and Loupe Hub.">
+<meta name="twitter:description" content="Documentation for Loupe 0.14.1: install guides, the widget, the MCP server, the Laravel package and Loupe Hub.">
 <meta name="twitter:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
 <style>
   :root {
@@ -247,6 +247,7 @@
   .cl-tag.add{color:#16a34a;background:color-mix(in srgb,#16a34a 14%,transparent);}
   .cl-tag.chg{color:#d97706;background:color-mix(in srgb,#d97706 16%,transparent);}
   .cl-tag.fix{color:#2563eb;background:color-mix(in srgb,#2563eb 14%,transparent);}
+  .cl-tag.sec{color:#dc2626;background:color-mix(in srgb,#dc2626 14%,transparent);}
   .cl-entry ul{margin:.4rem 0 .3rem;}
   .cl-entry ul.bul li{font-size:.9rem;}
 
@@ -305,7 +306,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.14.0</span>
+    <span class="ver">v0.14.1</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -314,7 +315,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.14.0</a>
+    <a class="icon-btn" href="#changelog">v0.14.1</a>
   </div>
 </header>
 
@@ -359,7 +360,7 @@
 
       <!-- 1. OVERVIEW -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Explanation · v0.14.0</p>
+        <p class="eyebrow">Explanation · v0.14.1</p>
         <h1>Loupe</h1>
         <p class="lead">Loupe lets a reviewer pin a comment and a screenshot to an element of a running
           web page. Claude Code reads the comments through an MCP (Model Context Protocol) server, the
@@ -373,7 +374,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.14.0</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.14.1</div></div>
           <div class="c"><div class="k">Packages</div><div class="v">7 workspaces + the Laravel package</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.2+</div></div>
@@ -555,7 +556,7 @@ npm install</code></pre>
           <li>Add the browser build before <code>&lt;/body&gt;</code>. Pin the exact version:
             <div class="code">
               <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">html</span></div>
-<pre><code class="language-html">&lt;script src="https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.0/dist/index.global.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.1/dist/index.global.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   Loupe.init({
     projectKey: "&lt;PROJECT_KEY&gt;",
@@ -713,7 +714,7 @@ npm install</code></pre>
           </li>
           <li>Open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, click
             <strong>Load unpacked</strong> and select <code>packages/extension</code>. You should see
-            <strong>Loupe — visual feedback</strong> at version 0.14.0.</li>
+            <strong>Loupe — visual feedback</strong> at version 0.14.1.</li>
           <li>Open an <code>http://</code> or <code>https://</code> page, click the Loupe icon, and fill in
             <strong>Project key</strong> and <strong>User id</strong>. Fill in <strong>API base</strong> and
             <strong>User HMAC</strong> only if you use a backend.</li>
@@ -731,32 +732,17 @@ npm install</code></pre>
         <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/browser-extension.md">Full guide: Use the browser extension →</a></p>
 
         <h3 id="install-mcp">MCP server</h3>
-        <div class="callout warn"><span class="cl">0.14.0: run the server from a clone</span>
-          <p>The published <code>@loupekit/mcp</code> 0.14.0 fails at start with <code>ERR_MODULE_NOT_FOUND</code>,
-            because it lists <code>@loupekit/shared</code> only as a development dependency. So
-            <code>npx -y @loupekit/mcp</code> does not work in 0.14.0. The steps below run the server from a
-            clone instead.</p>
-        </div>
         <p><strong>Prerequisites:</strong> Claude Code, Node 24, a running Loupe backend, and the project key
           and project secret.</p>
         <ol class="steps">
-          <li>Clone the repository, install the dependencies and build the shared package:
-            <div class="code">
-              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
-<pre><code class="language-bash">git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
-cd loupe
-npm install
-npm run build:shared</code></pre>
-            </div>
-          </li>
           <li>Create <code>.mcp.json</code> in the root of the project you open in Claude Code:
             <div class="code">
               <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">json</span></div>
 <pre><code class="language-json">{
   "mcpServers": {
     "loupe": {
-      "command": "node",
-      "args": ["&lt;ABSOLUTE_PATH_TO_CLONE&gt;/packages/mcp/index.ts"],
+      "command": "npx",
+      "args": ["-y", "@loupekit/mcp"],
       "env": {
         "LOUPE_API": "&lt;API_URL&gt;",
         "LOUPE_PROJECT_KEY": "&lt;PROJECT_KEY&gt;",
@@ -766,19 +752,24 @@ npm run build:shared</code></pre>
   }
 }</code></pre>
             </div>
-            <p><code>&lt;ABSOLUTE_PATH_TO_CLONE&gt;</code> is the full path of your clone, for example
-              <code>/home/sara/src/loupe</code>. <code>&lt;API_URL&gt;</code> is your backend, for example
+            <p><code>&lt;API_URL&gt;</code> is your backend, for example
               <code>http://localhost:8787</code>. <code>&lt;PROJECT_SECRET&gt;</code> is the project secret, for
               example <code>sk_demo_acme_0f3b9c</code>. Keep the file out of version control if it holds a real
               secret.</p>
           </li>
           <li>Restart Claude Code and run <code>/mcp</code>. You should see <code>loupe</code> listed.</li>
         </ol>
+        <div class="callout note"><span class="cl">Fixed in 0.14.1</span>
+          <p>The published <code>@loupekit/mcp</code> 0.14.0 fails at start with <code>ERR_MODULE_NOT_FOUND</code>.
+            On 0.14.0, run the server from a clone: set <code>"command": "node"</code> and
+            <code>"args": ["&lt;ABSOLUTE_PATH_TO_CLONE&gt;/packages/mcp/index.ts"]</code>, after
+            <code>npm install</code> and <code>npm run build:shared</code> in the clone.</p>
+        </div>
         <p><strong>Troubleshooting:</strong></p>
         <div class="tablewrap"><table>
           <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
           <tbody>
-            <tr><td>The server fails with <code>ERR_MODULE_NOT_FOUND</code>.</td><td>You used <code>npx -y @loupekit/mcp</code> 0.14.0, or <code>@loupekit/shared</code> is not built in the clone.</td><td>Use the clone path from step 2, and run <code>npm run build:shared</code>.</td></tr>
+            <tr><td>The server fails with <code>ERR_MODULE_NOT_FOUND</code>.</td><td>You run <code>@loupekit/mcp</code> 0.14.0.</td><td>Use 0.14.1 or later: set <code>"args": ["-y", "@loupekit/mcp@0.14.1"]</code>.</td></tr>
             <tr><td><code>loupe</code> is missing from <code>/mcp</code>.</td><td><code>.mcp.json</code> is not in the root of the project you opened.</td><td>Move the file there and restart Claude Code.</td></tr>
           </tbody>
         </table></div>
@@ -986,7 +977,8 @@ npm run build:shared</code></pre>
             <tr><td>Threads and handoff</td><td><code>mark_thread_addressed</code>, <code>add_thread_message</code>, <code>get_thread_conversation</code>, <code>create_pr_for_thread</code></td></tr>
           </tbody>
         </table></div>
-        <p><code>mark_thread_addressed</code> always sets In Review, so a person still resolves the comment.</p>
+        <p><code>mark_thread_addressed</code> always sets In Review, and <code>update_status</code> refuses
+          <code>resolved</code>, so a person still resolves the comment.</p>
         <p>Ask Claude for <code>get_dashboard_url</code> to open the activity monitor:</p>
         <p><img src="../images/mcp-monitor.png" alt="The MCP activity monitor page" loading="lazy"></p>
 
@@ -1003,19 +995,6 @@ npm run build:shared</code></pre>
           </tbody>
         </table></div>
 
-        <h3 id="mcp-known-issue">Known issues in 0.14.0</h3>
-        <div class="callout warn"><span class="cl">Install fails with ERR_MODULE_NOT_FOUND</span>
-          <p>The compiled entry of <code>@loupekit/mcp</code> 0.14.0 imports <code>@loupekit/shared</code>, but the
-            package lists it only as a development dependency, so <code>npx</code> does not install it.
-            Run the server from a clone, as in <a href="#install-mcp">Install: MCP server</a>.</p>
-        </div>
-        <p>Two more defects in 0.14.0:</p>
-        <ul class="bul">
-          <li><code>get_recent_events</code> always fails, because its handler reads a variable before it is
-            defined. Use <code>get_activity_summary</code> or <code>get_files_touched</code> instead.</li>
-          <li><code>update_status</code> says an agent cannot resolve, but its code does not refuse
-            <code>resolved</code>. Use <code>mark_thread_addressed</code> for the handoff.</li>
-        </ul>
         <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/mcp.md">MCP reference →</a></p>
       </section>
 
@@ -1230,13 +1209,13 @@ npm run build:shared</code></pre>
           <li>Hub stores secrets in plain text, because it must sign with them. Protect its database.</li>
           <li>Dashboard sign-in uses Google with a verified email; the <code>hub_session</code> cookie is
             <code>HttpOnly; Secure; SameSite=Lax</code>.</li>
-          <li><span class="pill">Unreleased</span> Hub refuses to deliver to private, loopback and link-local
+          <li><span class="pill">0.14.1</span> Hub refuses to deliver to private, loopback and link-local
             addresses. <code>HUB_ALLOW_PRIVATE_URLS=1</code> turns this off, for local development only.</li>
-          <li><span class="pill">Unreleased</span> A reply URL is kept only when its path ends in
+          <li><span class="pill">0.14.1</span> A reply URL is kept only when its path ends in
             <code>/v1/hub/inbound</code> and it has no credentials. When the sending project has an inbound URL
             registered, the reply URL must also have the same origin as that inbound URL.</li>
         </ul>
-        <p>The two <strong>Unreleased</strong> items are not in Hub 0.14.0.</p>
+        <p>The two items marked <strong>0.14.1</strong> are not in Hub 0.14.0 or earlier.</p>
         <p>Read more: <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/hub.md">How Hub works</a> ·
           <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-self-host.md">Self-host Hub</a> ·
           <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-connect-apps.md">Connect apps</a> ·
@@ -1352,6 +1331,16 @@ npm run build:shared</code></pre>
           <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
 
         <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.14.1</span><span class="cl-date">2026-10-06</span><span class="cl-tag sec">Security</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>Hub refuses private addresses.</strong> Loopback, private, link-local and other non-public hosts are refused. <code>HUB_ALLOW_PRIVATE_URLS=1</code> turns this off, for local development only.</li>
+            <li><strong>Hub keeps a reply URL only when it is the package's receiver:</strong> a path ending in <code>/v1/hub/inbound</code>, no credentials, and the origin of the inbound URL when one is registered.</li>
+            <li><strong>Fixed:</strong> <code>npx -y @loupekit/mcp</code> starts again, <code>get_recent_events</code> works, and <code>update_status</code> refuses <code>resolved</code>.</li>
+            <li><strong>Docs:</strong> the documentation was rewritten as tutorials, how-to guides, reference and explanation.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.14.0</span><span class="cl-date">2026-10-05</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>Act from Home.</strong> Resolve (or Reopen), Open and Delete on each Recent row. Delete asks "Confirm delete" first.</li>
@@ -1367,20 +1356,10 @@ npm run build:shared</code></pre>
             <li><strong>Updates without a reload.</strong> The panel re-reads every 10 seconds, pauses while the tab is hidden, and skips a read while someone types.</li>
           </ul>
         </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.13.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Two-way sync between projects.</strong> Hub relays updates at <code>POST /v1/issues/{id}/updates</code>.</li>
-            <li><strong>Replies, reactions, mentions and the inbox on Laravel.</strong></li>
-            <li><strong>Events:</strong> <code>CommentCreated</code>, <code>CommentStatusChanged</code>, <code>CommentDeleted</code>, <code>MessageAdded</code>, <code>HubUpdateReceived</code>.</li>
-            <li><strong>Changed:</strong> in the Laravel package, an unknown status is refused with 422, and only the author or an admin can delete. Run <code>php artisan migrate</code> and redeploy Hub.</li>
-          </ul>
-        </div>
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.14.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.14.1 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Summarized from the repository source and the canonical
           docs in <code>docs/</code>, <code>CHANGELOG.md</code>, <code>RELEASING.md</code> and

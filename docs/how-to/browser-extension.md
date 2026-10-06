@@ -76,7 +76,7 @@ This guide does not use the Chrome Web Store. You build the extension from the r
 
 7. Select the `packages/extension` folder of your clone, the folder that contains `manifest.json`.
 
-   You should see a card named **Loupe — visual feedback** in the list of extensions. The card shows the version, 0.14.0.
+   You should see a card named **Loupe — visual feedback** in the list of extensions. The card shows the version, 0.14.1.
 
 8. Optional: pin the extension to the toolbar from the puzzle-piece menu, so the Loupe icon is always visible.
 

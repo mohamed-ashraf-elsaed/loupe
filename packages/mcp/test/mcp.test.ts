@@ -169,6 +169,12 @@ describe("mcp server", () => {
     expect(patched).toEqual({ status: "in_review" });
   });
 
+  it("get_recent_events answers instead of throwing", async () => {
+    const res: any = await client.callTool({ name: "get_recent_events", arguments: { type: "no_such_type" } });
+    expect(res.isError).toBeFalsy();
+    expect(text(res)).toContain("No events of type no_such_type recorded.");
+  });
+
   it("propose_change writes the modified UI back to the comment", async () => {
     const out = text(await client.callTool({
       name: "propose_change",

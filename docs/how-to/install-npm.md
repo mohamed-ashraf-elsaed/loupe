@@ -45,7 +45,7 @@ If you do not use a bundler, see [Add Loupe to a page with a script tag](embed-s
 Run this command in your project's root folder:
 
 ```bash
-npm i @loupekit/sdk@0.14.0
+npm i @loupekit/sdk@0.14.1
 ```
 
 You should see npm report `added 1 package`. The SDK bundles its own dependencies, so it adds nothing else to `node_modules`.
@@ -56,7 +56,7 @@ This command pins the version. A plain `npm i @loupekit/sdk` installs whatever t
 
 Skip this step if your project is plain JavaScript.
 
-The 0.14.0 package ships JavaScript only. Its `package.json` names a `types` file that the build does not produce. With `strict` or `noImplicitAny` on, TypeScript stops at the first import with error TS7016, `Could not find a declaration file for module '@loupekit/sdk'`.
+The 0.14.1 package ships JavaScript only. Its `package.json` names a `types` file that the build does not produce. With `strict` or `noImplicitAny` on, TypeScript stops at the first import with error TS7016, `Could not find a declaration file for module '@loupekit/sdk'`.
 
 1. Create the file `src/loupe.d.ts` with this content:
 
@@ -312,7 +312,7 @@ For every option, see the [SDK reference](../reference/sdk.md).
 
 3. In the panel header, open **Settings** (the gear).
 
-   You should see the version line `Loupe v0.14.0` at the bottom of the menu, followed by `server` if you set `apiBase`, or `offline` if you did not. A build from the Loupe source without a version shows `Loupe vdev`.
+   You should see the version line `Loupe v0.14.1` at the bottom of the menu, followed by `server` if you set `apiBase`, or `offline` if you did not. A build from the Loupe source without a version shows `Loupe vdev`.
 
    ![The Settings menu with accent dots, the Hover hints, Markers, Page paths and Launcher switches, Restart tour, and the version line](../images/sdk-settings.png)
 
@@ -336,7 +336,7 @@ For every option, see the [SDK reference](../reference/sdk.md).
 | The launcher does not appear, and nothing is logged. | The code path that calls `init` never runs. | Check that the effect, hook, or entry file with `init` runs, for example with a breakpoint. |
 | The widget keeps its old configuration after you call `init` again. | `init` ignores a call while a widget is running. | Call `destroy()` first, then `init` with the new configuration. |
 | TypeScript reports error TS7016, `Could not find a declaration file for module '@loupekit/sdk'`. | The package's `types` field points at a file the build does not emit (`dts: false`). TypeScript reports this only under `strict` or `noImplicitAny`; otherwise the import is typed `any`. | Add `src/loupe.d.ts` as in [step 2](#2-add-a-type-declaration-if-you-use-typescript). |
-| The Settings version line shows an older version than you expected. | `npm i @loupekit/sdk` installs whatever the `latest` tag points to, and that tag can lag behind the newest release. | Install the exact version, for example `npm i @loupekit/sdk@0.14.0`. |
+| The Settings version line shows an older version than you expected. | `npm i @loupekit/sdk` installs whatever the `latest` tag points to, and that tag can lag behind the newest release. | Install the exact version, for example `npm i @loupekit/sdk@0.14.1`. |
 | Requests to `/v1/comments` return `401`. | `userHmac` is missing, or it was signed with a different secret or a different user id. | Pass `userHmac` as in step 5. See also the troubleshooting section of [Add Loupe to a page with a script tag](embed-script-tag.md#troubleshooting). |
 | The console shows a CORS error such as `Request header field <HEADER> is not allowed by Access-Control-Allow-Headers in preflight response.` | You added a custom header with `headers`, and the backend on another origin does not allow it. | Add the header to the backend's `Access-Control-Allow-Headers` response, or remove it from `headers`. The local server allows only `Content-Type`, `X-Loupe-User`, `X-Loupe-Hmac`, `X-Loupe-Admin`, and `X-Loupe-Project`. |
 
