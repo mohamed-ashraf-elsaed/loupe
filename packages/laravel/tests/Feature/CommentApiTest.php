@@ -289,8 +289,8 @@ class CommentApiTest extends TestCase
     public function test_it_filters_the_list_by_query_params(): void
     {
         $this->actingAsAllowed();
-        $this->seedComment('a', ['repo' => 'acme/web', 'branch' => 'main', 'priority' => 'critical', 'change_type' => 'api', 'title' => 'Checkout', 'url' => '/p']);
-        $this->seedComment('b', ['repo' => 'acme/api', 'branch' => 'main', 'kind' => 'free', 'title' => 'Docs', 'body' => 'cramped', 'url' => '/q']);
+        $this->seedComment('a', ['repo' => 'acme/web', 'branch' => 'main', 'priority' => 'critical', 'change_type' => 'api', 'title' => 'Checkout', 'url' => '/p', 'created_at' => now()->subMinute()]);
+        $this->seedComment('b', ['repo' => 'acme/api', 'branch' => 'main', 'kind' => 'free', 'title' => 'Docs', 'body' => 'cramped', 'url' => '/q', 'created_at' => now()]);
 
         $ids = function (string $qs): array {
             $res = $this->getJson('/loupe/v1/comments'.($qs !== '' ? '?'.$qs : ''))->assertOk()->json();
@@ -298,10 +298,10 @@ class CommentApiTest extends TestCase
             return array_column($res, 'id');
         };
 
-        $this->assertSame(['a', 'b'], $ids(''));
+        $this->assertSame(['b', 'a'], $ids(''));   // newest first
         $this->assertSame(['a'], $ids('repo=acme/web'));
         $this->assertSame(['b'], $ids('repo=acme/api'));
-        $this->assertSame(['a', 'b'], $ids('branch=main'));
+        $this->assertSame(['b', 'a'], $ids('branch=main'));
         $this->assertSame(['a'], $ids('priority=critical'));
         $this->assertSame(['a'], $ids('changeType=api'));
         $this->assertSame(['b'], $ids('kind=free'));
@@ -309,7 +309,7 @@ class CommentApiTest extends TestCase
         $this->assertSame(['b'], $ids('q=CRAMPED'));    // body
         $this->assertSame([], $ids('repo=acme/web&priority=low')); // filters compose
         // A legacy stage name still matches board rows.
-        $this->assertSame(['a', 'b'], $ids('status=open'));
+        $this->assertSame(['b', 'a'], $ids('status=open'));
     }
 
     public function test_update_with_no_patchable_fields_is_a_noop(): void
@@ -381,7 +381,7 @@ class CommentApiTest extends TestCase
         config()->set('loupe.user_resolver', fn () => [
             'id' => 'admin-7',
             'name' => 'Admin Impersonator',
-            'email' => 'admin@converted.in',
+            'email' => 'admin@acme.com',
         ]);
 
         $this->postJson('/loupe/v1/comments', $this->payload('imp1', 'admin-7'))
@@ -394,7 +394,7 @@ class CommentApiTest extends TestCase
     public function test_the_identity_check_still_rejects_an_unrelated_author(): void
     {
         $this->actingAsAllowed();
-        config()->set('loupe.user_resolver', fn () => ['id' => 'admin-7', 'name' => 'Admin', 'email' => 'admin@converted.in']);
+        config()->set('loupe.user_resolver', fn () => ['id' => 'admin-7', 'name' => 'Admin', 'email' => 'admin@acme.com']);
 
         $this->postJson('/loupe/v1/comments', $this->payload('imp2', 'someone-else'))
             ->assertForbidden()

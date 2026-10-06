@@ -1,72 +1,33 @@
-<div align="center">
+# @loupekit/sdk
 
-<a href="https://mohamed-ashraf-elsaed.github.io/loupe/">
-  <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/promo-marquee-1400x560.jpg" alt="Loupe — Pin feedback to the live UI. Hand it to Claude." width="100%" />
-</a>
+Add a visual feedback widget to any web page: reviewers pin comments to elements, and each comment carries the screenshot, element HTML and computed styles a developer or coding agent needs to make the fix.
 
-<h1>@loupekit/sdk</h1>
+[![npm version](https://img.shields.io/npm/v/@loupekit/sdk?color=4a55d6&label=npm)](https://www.npmjs.com/package/@loupekit/sdk)
+![MIT license](https://img.shields.io/npm/l/@loupekit/sdk?color=4a55d6)
 
-<p><strong>The embeddable visual-feedback widget for the web.</strong><br />
-Inspect any element on your live product, pin a comment to it, capture a screenshot —<br />
-comments re-anchor across redeploys and flow to Claude Code as an actionable backlog.</p>
+![The Loupe panel's Home tab with the Open, Needs you, Resolved and Stale tiles, scope chips, the Pin feedback on this page button, and a feed of recent comments](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/images/sdk-home-tab.png)
 
-<p>
-  <a href="https://www.npmjs.com/package/@loupekit/sdk"><img src="https://img.shields.io/npm/v/@loupekit/sdk?color=4a55d6&label=npm" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/@loupekit/sdk"><img src="https://img.shields.io/npm/dm/@loupekit/sdk?color=4a55d6" alt="npm downloads" /></a>
-  <img src="https://img.shields.io/npm/types/@loupekit/sdk?color=4a55d6" alt="TypeScript types" />
-  <img src="https://img.shields.io/npm/l/@loupekit/sdk?color=4a55d6" alt="MIT license" />
-</p>
+**Contents**
 
-<p>
-  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/"><b>Website</b></a> ·
-  <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/"><b>Docs</b></a> ·
-  <a href="https://github.com/mohamed-ashraf-elsaed/loupe"><b>GitHub</b></a> ·
-  <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md"><b>Changelog</b></a> ·
-  <a href="https://www.npmjs.com/package/@loupekit/mcp"><b>MCP server</b></a>
-</p>
-
-</div>
-
----
-
-## Overview
-
-Traditional feedback — _"the revenue card looks off on the dashboard"_ — loses the one thing
-an engineer needs: **which element, in what state, on which page.** Loupe captures all of it at
-the moment of the comment, so the feedback stays actionable even after the UI changes underneath it.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-1-inspect.jpg" alt="Pin a comment to any element" width="90%" />
-</div>
-
-## Table of contents
-
-- [Features](#features)
+- [Terms](#terms)
 - [Install](#install)
+- [Before you begin](#before-you-begin)
 - [Quick start](#quick-start)
-- [Re-anchoring across redeploys](#re-anchoring-across-redeploys)
-- [Configuration](#configuration)
-- [Redaction](#redaction)
-- [Auth model](#auth-model)
-- [Storage seam](#storage-seam)
-- [The loop](#the-loop)
-- [Related packages](#related-packages)
+- [Verify](#verify)
+- [Troubleshooting](#troubleshooting)
+- [Common options](#common-options)
+- [Offline mode](#offline-mode)
+- [Storage](#storage)
+- [What reviewers get](#what-reviewers-get)
+- [Links](#links)
 
-## Features
+## Terms
 
-| | |
-| --- | --- |
-| 🎯 **Click-to-comment inspector** | Hover-highlight any element, click to pin a comment. |
-| 💬 **Free comments** | Drop a page-level note anywhere with the **Note** mode — no element, no screenshot. |
-| ▭ **Free-region screenshots** | Drag a free-size box, screenshot exactly that area, comment on it. The region anchors to the element under its center, so it tracks responsive reflow and scrolling. |
-| ⏺ **Screen recording** | The **Record** tool drags the same box, then captures a screen video of it (via `getDisplayMedia` + canvas crop) as `.webm` — duration-capped with a Stop button. Recordings play back inline in the widget and the dashboard. |
-| 🧲 **Dockable control** | A DevTools-style panel: dock it to the left / right / bottom edge (which pushes your page over so it's never covered) or float it as a movable, resizable window. Light/dark theme, collapses to a draggable `◎` launcher (one tap reopens the panel; a chevron expands the quick actions to pin a comment, drop a note, hide the markers or hide the launcher itself), and becomes a bottom sheet on mobile. Position, launcher position, theme and marker visibility persist. |
-| 🕒 **Who and when** | Every thread shows its author and an absolute timestamp rendered in `init({ timeZone, locale })`, so one team reads one clock. The Home footer shows the bundle version and flags it when the host's `packageVersion` differs. |
-| 🔁 **Redeploy-surviving re-anchoring** | A multi-signal fingerprint (stable id/testid, CSS path, XPath, text, attributes, position) re-locates the element on the current page; if it can't, the pin **detaches** instead of pointing at the wrong thing. |
-| 📸 **Screenshot capture** | `[data-loupe-redact]` regions are painted over **before any pixels leave the browser**. |
-| 🧩 **Shadow-DOM isolation** | The widget's CSS never leaks into your page and vice-versa. |
-| 🔌 **Pluggable storage** | Talks to the Loupe backend, or persists to `localStorage` for offline/demo use. |
-| 🤖 **Claude-ready** | Every comment carries the element HTML + computed styles + screenshot Claude Code needs to make the fix. |
+- **Panel:** the sidebar the widget docks to the edge of the page. It holds the Home, Comments, Activity and Chat tabs.
+- **Launcher:** the floating button that opens the panel and the comment tools.
+- **Pin:** a comment anchored to an element on the page.
+- **Thread:** the replies under one comment.
+- **Agent bridge:** a local HTTP service that `@loupekit/mcp` runs, by default on port 9800. It carries presence and chat between the panel and a coding agent.
 
 ## Install
 
@@ -74,254 +35,186 @@ the moment of the comment, so the feedback stays actionable even after the UI ch
 npm i @loupekit/sdk
 ```
 
-> Also mirrored to **GitHub Packages** as `@mohamed-ashraf-elsaed/sdk` — add
-> `@mohamed-ashraf-elsaed:registry=https://npm.pkg.github.com` to your `.npmrc` to install from there.
+The package is also mirrored to GitHub Packages as `@mohamed-ashraf-elsaed/sdk` (registry `https://npm.pkg.github.com`).
+
+The bundle has no runtime dependencies. It ships two builds:
+
+| File | Format | Use it for |
+| --- | --- | --- |
+| `dist/index.js` | ES module | Bundlers and `import` |
+| `dist/index.global.js` | IIFE, global `Loupe` | A plain `<script>` tag |
+
+> **TypeScript:** version 0.14.0 ships no type declarations. `package.json` names `dist/index.d.ts`, but the build does not produce it, so TypeScript reports "Could not find a declaration file for module '@loupekit/sdk'". Until declarations ship, add a file such as `src/loupe.d.ts` that contains `declare module "@loupekit/sdk";`.
+
+## Before you begin
+
+The widget needs a backend to share comments between people. Pick one:
+
+| Backend | What you need | Guide |
+| --- | --- | --- |
+| None (offline mode) | Nothing. Comments stay in the browser. | [Offline mode](#offline-mode) |
+| Local server (`@loupekit/server`) | A clone of the repository and Node.js 24. Gives you `<API_BASE>`, `<PROJECT_KEY>` and `<PROJECT_SECRET>`. | [Run the local server](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/run-local-server.md) |
+| Laravel package (`loupekit/laravel`) | A Laravel app. Its `@loupeWidget` directive loads this SDK and calls `init()` for you, so you do not call it yourself. | [Install Loupe in a Laravel app](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-install.md) |
+| Loupe Hub | Hub routes tickets between Laravel apps. It is not a backend you pass to `init()`. | [Route tickets between apps](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-connect-apps.md) |
+
+The **project secret** is the private key the backend issues with each project. The local server uses it to verify user identity and as the dashboard's admin key. Keep it on your server.
+
+To start the local server with its demo project, run these commands from a clone of the repository:
+
+```bash
+npm install
+npm run build
+npm run seed
+npm start
+```
+
+You should see the seed print the demo project and its secret:
+
+```text
+Seeded project: pk_demo_acme
+  admin key   (dashboard ?key= / X-Loupe-Admin): sk_demo_acme_0f3b9c
+  demo HMAC    (host-app-injected for u_92): <HMAC>
+```
+
+and the server report `[loupe] API + static on http://localhost:8787`. The demo values are:
+
+- `<API_BASE>`: `http://localhost:8787`
+- `<PROJECT_KEY>`: `pk_demo_acme`
+- `<PROJECT_SECRET>`: `sk_demo_acme_0f3b9c`, or the value of `LOUPE_DEMO_SECRET` if you set it before `npm run seed`
+- `<USER_HMAC>` for user `u_92`: the `demo HMAC` line
 
 ## Quick start
+
+Call `init()` once, after your app knows who the signed-in user is.
+
+### ES module
 
 ```ts
 import { init } from "@loupekit/sdk";
 
 init({
-  projectKey: "pk_live_yourkey",
-  user: { id: "u_92", name: "Sara (PM)", email: "sara@acme.com" },
-  apiBase: "https://loupe.yourbackend.com",
-  // HMAC-SHA256(user.id, PROJECT_SECRET), computed on your server (see Auth model).
-  userHmac: "decb2c…",
+  projectKey: "<PROJECT_KEY>",
+  user: { id: "u_92", name: "Sara", email: "sara@acme.com" },
+  apiBase: "<API_BASE>",
+  userHmac: "<USER_HMAC>",
 });
 ```
 
-A dockable control panel appears with a three-page sidebar — **Home** (stat tiles, scope chips with
-counts, the project manager, and the most recent feedback), **Comments** (with the
-**Inspect**, **Note**, **Region**, and **Record** tools + the comment list) and
-**Activity** (a live monitor fed by your backend's activity feed and by `trackActivity()`). The header carries a position menu
-(left / bottom / right / float), a theme toggle, a settings dropdown — five accent colours, switches
-for hover hints, markers and page paths, plus the running package version — and a minimize button
-that collapses the panel to a one-line context bar. A five-step guided tour runs once on first open
-(skippable, replayable from Settings), and each view shows a one-time hint card with a **Turn off
-hints** link.
-When the backend serves `GET v1/org`, the Home project chip reads "Project · Organization" and
-the project menu lists the organization's other projects and where this project's tickets go.
-The Chat page is off by default. Pass `chat: true` to `init()` to turn it on; it is experimental.
-Use the header's dock controls to dock it left / right /
-bottom (which pushes your page over) or float it, toggle light/dark, or close it to the `◎`
-launcher. The launcher carries the comment count; one tap reopens the panel, and the chevron
-beside it expands the quick actions (pin a comment, drop a note, hide the markers, hide the
-launcher). Drag the launcher to move it anywhere — the spot is remembered, and **Reset launcher
-position** in the Settings menu puts it back. Hide it from a quick action, the Settings menu,
-`Alt+Shift+L`, or `hideLauncher()` / `showLauncher()` when it covers something on your page. On a
-touch screen a slim tab at the right edge of the screen brings a hidden launcher back.
-Call `destroy()` to tear it down. `init()` is idempotent — safe to call more
-than once. Pass `label` to change the brand name shown in the header.
+### Script tag
 
-### Adding your own tab
+1. Copy the IIFE build into your public assets folder:
 
-The panel is extensible without forking it. Register as many sidebar pages as you like:
+   ```bash
+   cp node_modules/@loupekit/sdk/dist/index.global.js <PUBLIC_DIR>/loupe.js
+   ```
 
-```ts
-import { init, connectTab } from "@loupekit/sdk";
+   You should see `loupe.js` in `<PUBLIC_DIR>`. The package `exports` map exposes only the ES module, so copy the file rather than importing it by path.
 
-init({
-  projectKey: "pk_live_…",
-  user: { id: "u_1", name: "Ada" },
-  environments: ["https://staging.acme.test"],
-  tabs: [
-    connectTab(),                            // the Claude/MCP page, now opt-in
-    {
-      id: "build",
-      label: "Build",
-      hint: { title: "Build health", body: "Straight from our CI." },
-      render: (ctx) => `<p>Project <b>${ctx.projectKey}</b> — SDK v${ctx.version}</p>`,
-    },
-  ],
-});
+2. Load it and call `Loupe.init()`:
+
+   ```html
+   <script src="/<PATH_TO>/loupe.js"></script>
+   <script>
+     Loupe.init({
+       projectKey: "<PROJECT_KEY>",
+       user: { id: "u_92", name: "Sara", email: "sara@acme.com" },
+       apiBase: "<API_BASE>",
+       userHmac: "<USER_HMAC>",
+     });
+   </script>
+   ```
+
+### Placeholders
+
+- `<PROJECT_KEY>`: the public project key your backend issued, for example `pk_demo_acme` from the local demo server.
+- `<API_BASE>`: the base URL of your Loupe backend, for example `https://tracker.example.com`. Omit it to run in [offline mode](#offline-mode).
+- `<USER_HMAC>`: `HMAC-SHA256(user.id, <PROJECT_SECRET>)` as hex, computed on your server. Never compute it in the browser, because that exposes the project secret.
+- `<PUBLIC_DIR>`: the folder your web server serves static files from.
+- `<PATH_TO>`: the URL path where that folder is served.
+
+### Compute the user HMAC on your server
+
+The local server verifies `X-Loupe-Hmac` against `HMAC-SHA256(user.id, project secret)` and rejects a mismatch. In Node.js:
+
+```js
+import { createHmac } from "node:crypto";
+
+const userHmac = createHmac("sha256", process.env.LOUPE_PROJECT_SECRET)
+  .update(user.id)
+  .digest("hex");
 ```
 
-`render` runs once, when the panel is built, and may return markup or an element. It receives a
-context with `projectKey`, `apiBase`, `user`, `comments`, `url`, `version` and the helpers
-`track` (push an event into the Activity feed), `open` (switch tab) and `close`. A tab that throws
-is caught and rendered as an error card rather than taking the panel down.
+Pass `userHmac` to the page that calls `init()`.
 
-### Reporting agent activity
+## Verify
 
-Anything an agent bridge or your app does can show up in the panel's Activity view:
+Reload the page. You should see the Loupe panel docked on the right edge of the page, open on the Home tab. On the first open on a desktop browser, a five-step tour runs once.
 
-```ts
-import { trackActivity, setActivityStatus } from "@loupekit/sdk";
+`init()` does nothing on a second call. Call `destroy()` to remove the widget and stop all its timers.
 
-setActivityStatus("working");
-trackActivity({ kind: "Read", label: "Read src/app.ts", files: ["src/app.ts"] });
-trackActivity({ kind: "Bash", label: "pnpm test", detail: "exit 1", level: "error" });
-```
+## Troubleshooting
 
-Loupe's own operations feed the same stream. When the backend serves `GET v1/activity` (the
-Laravel package does), the panel reads it on start and polls it every 15 seconds while the view is
-open, and shows "Live" or "Offline" beside the status dot. With no feed and nothing connected the
-view says *Monitor unavailable* and explains how to wire it up.
-
-### Reviewing a change
-
-A thread can carry the pull request its fix is riding on, which the panel turns into a lifecycle chip,
-a PR link and a checks meter:
-
-```ts
-// Via the API (or your own tooling) — the panel picks it up on the next load.
-await fetch(`${apiBase}/v1/comments/${id}`, {
-  method: "PATCH",
-  headers: { "Content-Type": "application/json", "X-Loupe-Admin": secret },
-  body: JSON.stringify({
-    pr: { number: 412, url: "https://github.com/acme/web/pull/412", checksPassed: 3, checksTotal: 4 },
-  }),
-});
-```
-
-Threads in **In Review** lead their detail with a review banner — **Approve** and **Add comment** —
-and, when a change has been proposed, a *Show original* toggle that puts your original request beside
-the proposal. Approving resolves the thread and is logged in the Activity feed.
-
-The rule that shape enforces: **only a human resolves a thread.** An agent moves work to In Review;
-a person closes it from there.
-
-### Generating and iterating on a change
-
-Pass a `generate` function and a thread's detail gains a Generate pane — preview,
-opacity comparison, undo, iteration history and a refine input. The panel owns all of
-that; producing the markup is yours, so any model works:
-
-```ts
-init({
-  projectKey: "pk_live_…",
-  user: { id: "u_1", name: "Ada" },
-  generate: async ({ comment, prompt, kind, previous, localAi }) => {
-    // previous carries the iteration being refined; localAi is whatever the user
-    // configured in the panel (see below).
-    const { html, css, notes } = await myModel({ comment, prompt, kind, previous, localAi });
-    return { html, css, notes };
-  },
-});
-```
-
-The preview renders in a **sandboxed** iframe, so generated markup can never reach your
-page. A local-AI endpoint and model (any OpenAI-compatible server — Ollama, llama.cpp…)
-are configurable in the project manager, with a real connection check. Without a
-`generate` function the pane offers *Request access to generate* and hands it to
-`init({ onRequestAccess })`.
-
-### Agent navigation needs consent
-
-An agent that can move the browser is useful and dangerous in equal measure, so
-navigation is a request a human answers:
-
-```ts
-import { requestNavigation } from "@loupekit/sdk";
-
-requestNavigation("https://preview.acme.test/pr/412", {
-  reason: "The fix is live on the preview URL.",
-  requester: "Claude Code",
-});
-```
-
-The panel shows who wants to go where and why. **Nothing navigates without an explicit
-grant** — only `http(s)` is even offerable, and every decision is kept as an audit trail.
-
-### Offline mode (no backend)
-
-Omit `apiBase` and comments persist to `localStorage` — great for demos and local dev:
-
-```ts
-init({ projectKey: "pk_demo", user: { id: "u_1", name: "You" } });
-```
-
-## Re-anchoring across redeploys
-
-The crown jewel. A comment records a multi-signal fingerprint of its target. On the next
-page load — even after the UI is rebuilt, relabeled, or reordered — Loupe re-locates the
-element and moves the pin to it. Below, the "Revenue" card was relabeled to "Total Revenue"
-and reordered, yet the pin follows it:
-
-<table>
-<tr>
-<td width="50%" align="center"><b>Before redeploy</b><br /><img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/before-redeploy.png" alt="Comment pinned to the revenue card" /></td>
-<td width="50%" align="center"><b>After redeploy</b><br /><img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/after-redeploy.png" alt="Pin re-anchored after the layout changed" /></td>
-</tr>
-</table>
-
-## Configuration
-
-`init(config: LoupeConfig)`:
-
-| Option | Type | Description |
+| Symptom | Cause | Fix |
 | --- | --- | --- |
-| `projectKey` | `string` **(required)** | Public project key issued by the backend. |
-| `user` | `{ id, name, email? }` **(required)** | The already-authenticated host-app user. |
-| `apiBase` | `string` | Backend base URL. Omit → `localStorage` (offline mode). |
-| `userHmac` | `string` | `HMAC-SHA256(user.id, PROJECT_SECRET)` computed server-side. Required in production for writes. |
-| `autoOpen` | `boolean` | Start with the inspector already active. |
-| `captureScreenshot` | `(el: Element) => Promise<string \| undefined>` | Override element screenshot capture (the extension backs this with `captureVisibleTab`). |
-| `captureRegion` | `(rect: RegionRect) => Promise<string \| undefined>` | Override free-region capture. `rect` is in viewport coordinates. |
-| `captureRecording` | `(rect, opts?) => Promise<string \| undefined>` | Override screen-recording capture (returns a webm data URL). Defaults to `getDisplayMedia` + canvas crop; `opts` carries a duration cap and a `register(stop)` hook. |
-| `headers` | `Record<string, string>` | Extra headers merged into every backend request (e.g. a CSRF token). |
-| `credentials` | `RequestCredentials` | `credentials` mode for backend requests — set `"include"` for cross-origin cookie auth. |
-| `timeZone` | `string` | IANA time zone every timestamp is rendered in (e.g. `"Africa/Cairo"`). Defaults to the browser's. |
-| `locale` | `string` | BCP 47 locale for dates (e.g. `"en-GB"` for day-first). Defaults to the browser's. |
-| `packageVersion` | `string` | Version of the host package that served this bundle (`Loupe.version` is the bundle's own). Flagged in the widget when the two differ. |
-| `chat` | `boolean` | Turn on the experimental Chat page. Off by default: the tab shows dimmed and does not open. |
+| Console shows `[loupe] init requires a projectKey` | `projectKey` is missing. | Pass `projectKey`. |
+| Console shows `[loupe] init requires user.id` | `user.id` is missing. | Pass `user` with an `id`. |
+| Requests to `/v1/comments` return `401` with `invalid or missing credentials` | `userHmac` is missing, or was signed with another secret or another user id. | Recompute it on the server from the exact `user.id` you pass to `init()` and the project's secret. |
+| Requests return `404` with `unknown project` | No project has that key on the backend. | Check `projectKey`, or run `npm run seed` for the demo project. |
+| Comments never leave the browser | `apiBase` is not set, so the widget is in offline mode. | Set `apiBase` to your backend URL. |
+| A preflight (`OPTIONS`) request fails with a CORS error against the local server | You added a header with the `headers` option. The local server allows only `Content-Type`, `X-Loupe-User`, `X-Loupe-Hmac`, `X-Loupe-Admin` and `X-Loupe-Project`. | Remove the extra header, or use a backend that allows it. |
 
-## Redaction
+## Common options
 
-Any element marked `data-loupe-redact` is painted over in screenshots **before the pixels
-ever leave the browser** — use it on PII, secrets, or anything sensitive:
+SDK options are passed to `init()`. None of them is read from an environment variable.
 
-```html
-<input data-loupe-redact value="secret.person@acme.com" />
-```
+| Option | Type | Default | Env var | Description |
+| --- | --- | --- | --- | --- |
+| `projectKey` | `string` | required | none | Public project key issued by the backend. |
+| `user` | `{ id: string; name: string; email?: string }` | required | none | The signed-in user of the host app. |
+| `userHmac` | `string` | unset | none | `HMAC-SHA256(user.id, <PROJECT_SECRET>)`, computed server-side. Sent as the `X-Loupe-Hmac` header when set. |
+| `apiBase` | `string` | unset | none | Backend base URL. Without it, comments are stored in `localStorage`. |
+| `bridge` | `string` | unset | none | Base URL of the agent bridge, for example `http://127.0.0.1:9800`. Without it, the peer list is hidden and live presence is off. |
+| `credentials` | `RequestCredentials` | unset (`fetch` then uses `"same-origin"`) | none | Passed to every `fetch`. Set `"include"` for cross-origin cookie auth. |
+| `headers` | `Record<string, string>` | unset | none | Extra headers merged into every backend request, for example `{ "X-CSRF-TOKEN": "…" }`. |
+| `timeZone` | `string` | unset (the browser's zone) | none | IANA zone for timestamps, for example `"Europe/London"`. An unknown zone falls back to the browser's, with one console warning. |
+| `locale` | `string` | unset (the browser's locale) | none | BCP 47 locale for dates, for example `"en-GB"`. An unknown locale falls back to the browser's, with one console warning. |
+| `chat` | `boolean` | `false` | none | Shows the experimental Chat tab. When `false`, the tab is dimmed and cannot be opened. |
+| `tabs` | `LoupeTab[]` | unset | none | Extra panel tabs, shown after the built-in ones. `connectTab()` returns one. |
 
-## Auth model
+For every option, including `autoOpen`, `tool`, `label` and `environments`, see the [SDK reference](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/sdk.md).
 
-Each project has a secret. **Writes** require `X-Loupe-User` + `X-Loupe-Hmac`
-(`= HMAC-SHA256(userId, PROJECT_SECRET)`), which your server computes and injects into the
-page — users can't spoof identity. The dashboard and MCP server authenticate as admin with
-the raw secret.
+## Offline mode
 
-## Storage seam
-
-Anything implementing `StorageAdapter` can back the widget — swap in your own transport:
+When you omit `apiBase`, the widget stores comments, replies and reactions in the browser's `localStorage`, under keys that start with `loupe:`. Nothing leaves the browser, so offline mode suits demos and local development. Comments are visible only in that browser, there are no notifications, and each attachment is limited to 3,000,000 bytes.
 
 ```ts
-interface StorageAdapter {
-  list(projectKey: string, url: string): Promise<Comment[]>;
-  save(comment: Comment): Promise<Comment>;
-  update(id: string, patch: Partial<Comment>): Promise<void>;
-  remove(id: string): Promise<void>;
-  // Optional. Return null when the backend has no such endpoint.
-  getOrg?(): Promise<OrgInfo | null>;
-  listActivity?(projectKey: string, since?: string): Promise<ActivityEvent[] | null>;
-}
+init({ projectKey: "pk_demo", user: { id: "u_1", name: "Sara" } });
 ```
 
-## The loop
+## Storage
 
-SDK (in your product) → backend API → Postgres + object storage → **dashboard** (human triage)
-**and** **MCP server** (Claude reads it) → status flows back.
+`apiBase` chooses the storage: with it, the widget talks to your backend over HTTP; without it, the widget uses `localStorage`. You cannot pass your own storage adapter to `init()`.
 
-<table>
-<tr>
-<td width="50%" align="center"><b>Triage board (dashboard)</b><br /><img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-2-board.jpg" alt="Kanban triage board" /></td>
-<td width="50%" align="center"><b>Claude Code reads it via MCP</b><br /><img src="https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/store/screenshot-3-claude.jpg" alt="Claude Code reading comments through MCP" /></td>
-</tr>
-</table>
+## What reviewers get
 
-## Related packages
+- **Four built-in tabs:** Home, Comments, Activity and Chat. Chat is experimental and stays dimmed until you pass `chat: true`. The `tabs` option and `connectTab()` add more.
+- **Tools:** Inspect (pin a comment to an element), Note (a page-level note), Region (drag a box) and Record (a short screen recording of a region, capped at 20 seconds). A region anchors to the smallest element that covers at least 60% of it.
+- **Threads:** replies with file attachments, `@mentions` with autocomplete, and reactions (👍 🎉 👀 🙏 ❤️ 🚀).
+- **Sync:** the panel refreshes comments and open threads every 10 seconds while the tab is visible and nobody is typing in the panel.
+- **Home tiles:** Open, Needs you, Resolved and Stale (open for more than 7 days). Click a tile to filter the Comments tab.
+- **Launcher:** drag it anywhere. Its chevron opens quick actions: Pin comment, Note, Markers and Hide launcher. Press `Alt+Shift+L` to hide or show it.
+- **Re-anchoring:** pins follow their element across redeploys. A pin that cannot be matched detaches and shows a "moved" badge instead of pointing at the wrong element.
+- **Redaction:** with the built-in capture, elements marked `data-loupe-redact` are left out of element screenshots and painted over in region screenshots, before upload. A `captureScreenshot` or `captureRegion` override, and screen recordings, are not redacted.
 
-| Package | Description |
-| --- | --- |
-| [`@loupekit/mcp`](https://www.npmjs.com/package/@loupekit/mcp) | MCP server that hands the comments to Claude Code. |
-| [`@loupekit/shared`](https://www.npmjs.com/package/@loupekit/shared) | The canonical TypeScript types shared across the platform. |
+For a walkthrough of each feature, see [Use the widget](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/use-the-widget.md).
 
-## Browser support
+## Links
 
-Modern evergreen browsers (Chromium, Firefox, Safari). Uses Shadow DOM, `MutationObserver`,
-and the `crypto` / `clipboard` APIs.
+- [Documentation](https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/docs)
+- [Guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)
+- [Changelog](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md)
+- [Issues](https://github.com/mohamed-ashraf-elsaed/loupe/issues)
+- [`@loupekit/mcp`](https://www.npmjs.com/package/@loupekit/mcp): the MCP server that hands comments to a coding agent
 
 ## License
 

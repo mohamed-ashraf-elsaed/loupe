@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loupe Documentation — SDK, Server, MCP, Extension & Laravel</title>
-<meta name="description" content="Complete documentation for Loupe, the embeddable visual-feedback platform. Covers all seven packages — shared, sdk, server, dashboard, mcp, extension — plus the Laravel package, core concepts, API reference, data model, testing, releasing, and the full changelog.">
+<meta name="description" content="Documentation for Loupe 0.14.0, the embeddable visual-feedback platform. Quick start, install guides, the widget, dashboard, MCP server, browser extension, Laravel package, Loupe Hub, architecture and recent changes.">
 <meta name="keywords" content="Loupe documentation, visual feedback SDK docs, MCP server, Claude Code, Laravel feedback package, in-app feedback API, re-anchoring, developer tools">
 <meta name="author" content="Mohamed Ashraf Elsaed">
 <link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
@@ -18,15 +18,13 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Loupe">
 <meta property="og:title" content="Loupe Documentation">
-<meta property="og:description" content="Complete docs for Loupe — the embeddable visual-feedback platform wired to Claude Code via MCP. All packages, core concepts, API reference, and the full changelog.">
+<meta property="og:description" content="Documentation for Loupe 0.14.0: quick start, install guides, the widget, the dashboard, the MCP server, the browser extension, the Laravel package, Loupe Hub and the architecture.">
 <meta property="og:url" content="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
 <meta property="og:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Loupe Documentation">
-<meta name="twitter:description" content="Complete docs for Loupe — all packages, core concepts, API reference, and the full changelog.">
+<meta name="twitter:description" content="Documentation for Loupe 0.14.0: install guides, the widget, the MCP server, the Laravel package and Loupe Hub.">
 <meta name="twitter:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
-</head>
-<body>
 <style>
   :root {
     --bg:        #ffffff;
@@ -291,7 +289,10 @@
     .top .search{display:none;}
   }
   @media (prefers-reduced-motion:reduce){aside.nav{transition:none;}}
+  .doc img{max-width:100%;height:auto;border:1px solid var(--border);border-radius:8px;display:block;}
 </style>
+</head>
+<body>
 
 <header class="top">
   <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle navigation">
@@ -304,7 +305,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.10.12</span>
+    <span class="ver">v0.14.0</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -313,7 +314,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.10.12</a>
+    <a class="icon-btn" href="#changelog">v0.14.0</a>
   </div>
 </header>
 
@@ -322,44 +323,32 @@
   <aside class="nav" id="sidebar">
     <div class="nav-group">
       <div class="g-label">Getting started</div>
-      <a href="#introduction">Introduction</a>
+      <a href="#introduction">Overview</a>
       <a href="#quickstart">Quick start</a>
-      <a href="#the-loop">The feedback loop</a>
-      <a href="#workspace">Working in the repo</a>
+      <a href="#install">Install</a>
     </div>
     <div class="nav-group">
-      <div class="g-label">Core concepts</div>
+      <div class="g-label">Use Loupe</div>
+      <a href="#widget">Using the widget</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#mcp">MCP server</a>
+      <a href="#extension">Browser extension</a>
+      <a href="#laravel">Loupe for Laravel</a>
+      <a href="#hub">Loupe Hub</a>
+    </div>
+    <div class="nav-group">
+      <div class="g-label">Understand</div>
+      <a href="#architecture">Architecture</a>
       <a href="#reanchoring">Re-anchoring</a>
       <a href="#auth">Authentication</a>
-      <a href="#url-normalization">URL normalization</a>
-      <a href="#screenshots">Screenshots &amp; storage</a>
-      <a href="#seams">Seams (extension points)</a>
-    </div>
-    <div class="nav-group">
-      <div class="g-label">Packages</div>
-      <a href="#pkg-shared">@loupekit/shared</a>
-      <a href="#pkg-sdk">@loupekit/sdk</a>
-      <a href="#pkg-server">@loupekit/server</a>
-      <a href="#pkg-dashboard">@loupekit/dashboard</a>
-      <a href="#pkg-mcp">@loupekit/mcp</a>
-      <a href="#pkg-extension">@loupekit/extension</a>
-    </div>
-    <div class="nav-group">
-      <div class="g-label">Loupe for Laravel</div>
-      <a href="#laravel">Overview &amp; install</a>
-      <a href="#laravel-authz">Authorization</a>
-      <a href="#laravel-config">Configuration</a>
-      <a href="#laravel-guards">Multi-guard &amp; CDN</a>
-      <a href="#laravel-hub">Loupe Hub</a>
-      <a href="#laravel-mcp">MCP server</a>
-      <a href="#laravel-troubleshoot">Troubleshooting</a>
-    </div>
-    <div class="nav-group">
-      <div class="g-label">Reference</div>
-      <a href="#features">Feature guide</a>
+      <a href="#seams">Seams</a>
       <a href="#data-model">Data model</a>
+    </div>
+    <div class="nav-group">
+      <div class="g-label">Project</div>
       <a href="#testing">Testing</a>
-      <a href="#releasing">Releasing &amp; publishing</a>
+      <a href="#releasing">Releasing</a>
+      <a href="#contributing">Contributing</a>
       <a href="#changelog">Changelog</a>
     </div>
   </aside>
@@ -368,1593 +357,1034 @@
   <main>
     <div class="content">
 
-      <!-- INTRODUCTION -->
+      <!-- 1. OVERVIEW -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Documentation · v0.10.12</p>
+        <p class="eyebrow">Explanation · v0.14.0</p>
         <h1>Loupe</h1>
-        <p class="lead">Pin feedback to the live UI — inspect any element, drop a comment, capture a
-          screenshot — then hand it to Claude Code as an actionable backlog. Comments persist and
-          <strong>re-anchor across redeploys</strong>.</p>
+        <p class="lead">Loupe lets a reviewer pin a comment and a screenshot to an element of a running
+          web page. Claude Code reads the comments through an MCP (Model Context Protocol) server, the
+          standard way for an AI agent to call outside tools. A comment stays on its element after you
+          redeploy.</p>
 
         <div class="btnrow">
           <a class="btn primary" href="#quickstart">Quick start</a>
-          <a class="btn ghost" href="#the-loop">How it works</a>
+          <a class="btn ghost" href="#install">Install</a>
           <a class="btn ghost" href="#laravel">Loupe for Laravel</a>
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.10.12</div></div>
-          <div class="c"><div class="k">Packages</div><div class="v tabular">7</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.14.0</div></div>
+          <div class="c"><div class="k">Packages</div><div class="v">7 workspaces + the Laravel package</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.2+</div></div>
           <div class="c"><div class="k">License</div><div class="v">MIT</div></div>
         </div>
 
-        <h2><a class="anchor" href="#introduction">What Loupe is</a></h2>
-        <p>An embeddable visual-feedback platform. A product manager inspects any element on a running
-          product, pins a comment to it, and captures a screenshot. Comments persist and re-anchor across
-          redeploys, and are handed to <strong>Claude Code via MCP</strong> as an actionable,
-          fully-contextualized backlog. A browser extension does the same on any site without an SDK
-          install, and a Laravel package embeds the whole loop into a PHP app.</p>
-        <p>It's built like a product, not a prototype: an SDK, a backend, a triage board, an MCP server, and
-          a browser extension — all open source, all TypeScript — plus a first-party Laravel package.
-          Everything runs locally with <strong>no external services</strong> (embedded Postgres via PGlite).</p>
+        <h2 id="what-loupe-is">What Loupe is</h2>
+        <p>Loupe is an embeddable visual-feedback platform. A reviewer opens a running product,
+          inspects an element, pins a comment to it and captures a screenshot. The comment stays
+          attached to that element after the markup changes. Claude Code reads the comments through
+          the MCP server and can propose a change, which you review and resolve.</p>
+        <p>You can run Loupe in three ways:</p>
+        <ul class="bul">
+          <li><strong>The Node server.</strong> One process serves the API, the dashboard, a demo page
+            and the SDK bundle on port 8787. It stores data in PGlite, a Postgres database that runs
+            inside the Node process, so you need no external services.</li>
+          <li><strong>The Laravel package.</strong> <code>loupekit/laravel</code> stores comments in your
+            app's database and gates access with your app's users.</li>
+          <li><strong>Offline mode.</strong> Without a backend, the widget stores comments in the
+            browser's <code>localStorage</code> only.</li>
+        </ul>
 
-        <h3>The packages</h3>
+        <h3 id="the-packages">The packages</h3>
         <div class="grid">
-          <div class="card"><div class="ktag">shared</div><h4>Contract layer</h4><p>Canonical types + <code>normalizeUrl()</code>. Zero runtime deps; everyone imports from here.</p></div>
-          <div class="card"><div class="ktag">sdk</div><h4>The widget</h4><p>Embeddable Shadow-DOM widget: inspect, comment, capture, re-anchor.</p></div>
-          <div class="card"><div class="ktag">server</div><h4>The API</h4><p><code>node:http</code> + Postgres + object storage + HMAC auth + static hosting.</p></div>
-          <div class="card"><div class="ktag">dashboard</div><h4>Triage board</h4><p>Kanban board for humans — status columns, filters, Copy for Claude.</p></div>
-          <div class="card"><div class="ktag">mcp</div><h4>For Claude</h4><p>MCP server exposing the backlog to Claude Code as three tools.</p></div>
-          <div class="card"><div class="ktag">extension</div><h4>Any site</h4><p>MV3 extension reusing the SDK core with pixel-perfect capture.</p></div>
-          <div class="card"><div class="ktag">laravel</div><h4>Loupe for Laravel</h4><p>Composer package: widget + your DB + gating + dashboard + MCP.</p></div>
-          <div class="card"><div class="ktag">hub</div><h4>Loupe Hub</h4><p>Optional hosted service: orgs, members and projects; checks the author belongs to the org and forwards issues to a signed webhook.</p></div>
+          <div class="card"><div class="ktag">shared</div><h4>Contract layer</h4><p>Canonical types, stages and <code>normalizeUrl()</code>. Every package imports from here.</p></div>
+          <div class="card"><div class="ktag">sdk</div><h4>The widget</h4><p>Runs in a Shadow DOM, an isolated DOM tree, so your page CSS does not change it. Inspect, comment, capture, record, re-anchor.</p></div>
+          <div class="card"><div class="ktag">server</div><h4>The API</h4><p><code>node:http</code>, Postgres, blob storage, signed-user auth and static hosting.</p></div>
+          <div class="card"><div class="ktag">dashboard</div><h4>Triage board</h4><p>A five-stage board for people, with filters and saved views.</p></div>
+          <div class="card"><div class="ktag">mcp</div><h4>For Claude</h4><p>MCP server that gives Claude Code 19 tools over your comments.</p></div>
+          <div class="card"><div class="ktag">extension</div><h4>Any site</h4><p>Chrome extension in Manifest V3 (MV3), the current Chrome extension format. It runs the SDK core on any page you open.</p></div>
+          <div class="card"><div class="ktag">hub</div><h4>Loupe Hub</h4><p>Optional server that routes tickets between the apps of one organization.</p></div>
+          <div class="card"><div class="ktag">laravel</div><h4>Loupe for Laravel</h4><p>Composer package: widget, your database, gates, dashboard and MCP.</p></div>
         </div>
+
+        <h3 id="the-loop">The feedback loop</h3>
+        <ol class="steps">
+          <li>A reviewer pins a comment on the live page. It lands in the <strong>Queue</strong> stage.</li>
+          <li>Someone triages it on the dashboard and moves it to <strong>To Do</strong>.</li>
+          <li>Claude Code reads it over MCP, works on it, and moves it to <strong>In Review</strong>.</li>
+          <li>A person checks the result and moves it to <strong>Resolved</strong>.</li>
+        </ol>
+        <div class="callout tip"><span class="cl">Rule</span>
+          <p>An agent may move a comment to In Review. Only a person resolves it.</p>
+        </div>
+
         <p><strong>Author:</strong> Mohamed Ashraf Elsaed. Published to npm (<code>@loupekit/*</code>),
-          GitHub Packages, and Packagist (<code>loupekit/laravel</code>).</p>
+          GitHub Packages (<code>@mohamed-ashraf-elsaed/*</code>), and Packagist (<code>loupekit/laravel</code>).</p>
       </section>
 
       <hr class="hr">
 
-      <!-- QUICK START -->
+      <!-- 2. QUICK START -->
       <section class="doc" id="quickstart">
-        <h2><a class="anchor" href="#quickstart">Quick start</a></h2>
-        <p>Everything is orchestrated from the repo root. Build once, seed the demo project, and start the
-          server — a single process hosts the API, dashboard, demo product, and SDK bundle on one port.</p>
-        <div class="code">
-          <div class="bar"><span class="dot" style="background:#3a3f48"></span><span class="dot" style="background:#3a3f48"></span><span class="dot" style="background:#3a3f48"></span><span class="fn">bash</span></div>
-<pre><code><span class="tc"># install workspace deps</span>
-npm install
+        <p class="eyebrow">Tutorial</p>
+        <h2 id="quickstart-title">Quick start</h2>
+        <p>In this five-minute run you start the local server, pin a comment on the demo page and see it
+          on the dashboard. For the full walk-through, including Claude Code, follow the tutorial
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/tutorials/first-comment-local.md">Pin your first comment locally</a>.</p>
 
-<span class="tc"># build shared → sdk → dashboard → extension</span>
-npm run build
+        <h3 id="quickstart-prereqs">Prerequisites</h3>
+        <ul class="bul">
+          <li>Node 24. Run <code>node --version</code>. You should see <code>v24</code>.</li>
+          <li>Git and a terminal.</li>
+        </ul>
 
-<span class="tc"># create the demo project; prints its admin key + demo HMAC</span>
-npm run seed
+        <h3 id="quickstart-steps">Steps</h3>
+        <ol class="steps">
+          <li>Clone the repository and install the dependencies:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
+cd loupe
+npm install</code></pre>
+            </div>
+          </li>
+          <li>Build the packages:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">npm run build</code></pre>
+            </div>
+            <p>You should see the packages build in the order shared, sdk, mcp, dashboard, extension.</p>
+          </li>
+          <li>Create the demo project:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">npm run seed</code></pre>
+            </div>
+            <p>You should see these first two lines:</p>
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">output</span></div>
+<pre><code class="language-text">Seeded project: pk_demo_acme
+  admin key   (dashboard ?key= / X-Loupe-Admin): sk_demo_acme_0f3b9c</code></pre>
+            </div>
+            <p>A third line prints the demo user's HMAC. Two values identify a project:</p>
+            <ul class="bul">
+              <li>The <strong>project key</strong> (<code>pk_demo_acme</code>) names the project. It is public, so
+                you can put it in a page.</li>
+              <li>The <strong>project secret</strong> (<code>sk_demo_acme_0f3b9c</code>) is private. The seed
+                output calls it the admin key, because the dashboard <code>?key=</code> parameter and the
+                <code>X-Loupe-Admin</code> header take it. This page calls it the project secret.</li>
+            </ul>
+          </li>
+          <li>Start the server:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">npm start</code></pre>
+            </div>
+            <p>You should see <code>[loupe] API + static on http://localhost:8787  (dashboard: /dashboard/ · demo: /demo/)</code>.
+              Leave this terminal running.</p>
+          </li>
+          <li>Open <code>http://localhost:8787/demo/</code>. You should see the demo page with the Loupe
+            panel open and a short tour.
+            <p><img src="../images/sdk-tour.png" alt="The Loupe panel on the demo page with the first tour card highlighted" loading="lazy"></p>
+          </li>
+          <li>In the panel, click <strong>Inspect</strong>. You should see the pointer outline elements as you
+            move it.</li>
+          <li>Click the <strong>Send invite</strong> button on the demo page. You should see the composer open
+            next to the button.</li>
+          <li>Type a title and a description. You should see the <strong>Comment</strong> button turn active.</li>
+          <li>Click <strong>Comment</strong>. You should see a numbered pin on the button.
+            <p><img src="../images/sdk-pins.png" alt="Numbered pins on the demo page" loading="lazy"></p>
+          </li>
+          <li>Open the dashboard at <code>http://localhost:8787/dashboard/?key=sk_demo_acme_0f3b9c</code>.
+            You should see your comment as a card in the <strong>Queue</strong> column.</li>
+        </ol>
 
-<span class="tc"># one process on http://localhost:8787 → API + dashboard + demo + SDK</span>
-npm start</code></pre>
-        </div>
+        <h3 id="quickstart-troubleshooting">Troubleshooting</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>The build or start fails with a syntax error.</td><td>Node is older than 24.</td><td>Install Node 24 and run <code>npm install</code> again.</td></tr>
+            <tr><td>The dashboard answers 401.</td><td>The <code>key</code> is not the project secret.</td><td>Use <code>sk_demo_acme_0f3b9c</code> after <code>npm run seed</code>.</td></tr>
+            <tr><td>The demo page cannot load or save comments, and requests answer 401.</td><td><code>LOUPE_DEMO_SECRET</code> was set when you ran <code>npm run seed</code>. The demo page has a fixed HMAC for the default secret.</td><td>Stop <code>npm start</code>. Run <code>unset LOUPE_DEMO_SECRET</code>, then <code>npm run seed</code>, then <code>npm start</code>, and reload the page.</td></tr>
+            <tr><td><code>npm start</code> fails because the port is in use.</td><td>Another process holds port 8787.</td><td>Stop it, or set <code>PORT</code> to a free port.</td></tr>
+          </tbody>
+        </table></div>
 
-        <div class="grid">
-          <div class="card"><h4>Open these</h4>
-            <ul class="bul" style="margin:.4rem 0 0;font-size:.86rem">
-              <li>Demo product — <code>/demo/</code></li>
-              <li>Triage board — <code>/dashboard/?key=&lt;admin key&gt;</code></li>
-              <li>Health — <code>GET /v1/health</code></li>
-            </ul></div>
-          <div class="card"><h4>Seeded demo credentials</h4>
-            <ul class="bul" style="margin:.4rem 0 0;font-size:.86rem">
-              <li>Project — <code>pk_demo_acme</code></li>
-              <li>Admin key — <code>sk_demo_acme_0f3b9c</code></li>
-              <li>Demo user — <code>u_92</code></li>
-            </ul></div>
-        </div>
+        <h3 id="quickstart-next">Next steps</h3>
+        <ul class="bul">
+          <li><a href="#install">Install Loupe in your own app</a>.</li>
+          <li><a href="#mcp">Connect Claude Code</a>.</li>
+        </ul>
+      </section>
 
-        <h3>Embed the SDK in your product</h3>
-        <div class="code">
-          <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">app.ts</span></div>
-<pre><code><span class="tk">import</span> { init } <span class="tk">from</span> <span class="ts">"@loupekit/sdk"</span>;
+      <hr class="hr">
+
+      <!-- 3. INSTALL -->
+      <section class="doc" id="install">
+        <p class="eyebrow">How-to</p>
+        <h2 id="install-title">Install</h2>
+        <p>Pick the procedure that fits your app. Each procedure here covers the common path. For every
+          option and more troubleshooting, follow the <strong>Full guide</strong> link at the end of the
+          procedure.</p>
+
+        <h3 id="install-script">Script tag</h3>
+        <p><strong>Prerequisites:</strong></p>
+        <ul class="bul">
+          <li>A page you can edit.</li>
+          <li>A running Loupe backend, such as the local server from the <a href="#quickstart">Quick start</a>,
+            or no backend for offline mode.</li>
+          <li>A project key and a project secret. The Node server has no route that creates a project:
+            <code>npm run seed</code> creates or updates the project <code>pk_demo_acme</code>, and
+            <code>LOUPE_DEMO_SECRET</code>, if you set it before you seed, chooses its secret.</li>
+        </ul>
+        <ol class="steps">
+          <li>On your server, compute the user's HMAC. An HMAC here is a SHA-256 keyed hash of the user id,
+            made with the project secret. It proves that your server vouches for the user, and the browser
+            never sees the secret. To try it from a terminal, run:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">node -e 'console.log(require("node:crypto").createHmac("sha256", "&lt;PROJECT_SECRET&gt;").update("&lt;USER_ID&gt;").digest("hex"))'</code></pre>
+            </div>
+            <p>Replace <code>&lt;PROJECT_SECRET&gt;</code> with the project secret and <code>&lt;USER_ID&gt;</code>
+              with the signed-in user's id. With <code>sk_demo_acme_0f3b9c</code> and <code>u_92</code>, you
+              should see
+              <code>decb2c23961bbcea494b1034aad995b8f30c9a2e517598667b791b73e8752846</code>. In your app, run
+              the same <code>createHmac</code> call on each request and put the result in the page.</p>
+          </li>
+          <li>Add the browser build before <code>&lt;/body&gt;</code>. Pin the exact version:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">html</span></div>
+<pre><code class="language-html">&lt;script src="https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.0/dist/index.global.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  Loupe.init({
+    projectKey: "&lt;PROJECT_KEY&gt;",
+    user: { id: "&lt;USER_ID&gt;", name: "&lt;USER_NAME&gt;", email: "&lt;USER_EMAIL&gt;" },
+    userHmac: "&lt;USER_HMAC&gt;",
+    apiBase: "&lt;API_URL&gt;",
+  });
+&lt;/script&gt;</code></pre>
+            </div>
+            <p>Replace <code>&lt;PROJECT_KEY&gt;</code> with your project key, for example <code>pk_demo_acme</code>.
+              Replace the user fields with the signed-in user, for example <code>sara@acme.com</code>.
+              <code>&lt;USER_HMAC&gt;</code> is the value from step 1. <code>&lt;API_URL&gt;</code> is your
+              backend, for example <code>http://localhost:8787</code>. Leave <code>apiBase</code> out to run in
+              offline mode.</p>
+          </li>
+          <li>Load the page. You should see the Loupe panel open, docked on the right. On a screen wider than
+            640 px, the first-run tour starts.</li>
+        </ol>
+        <p><strong>Troubleshooting:</strong></p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Nothing appears, and the console shows <code>[loupe] init requires a projectKey</code> or <code>[loupe] init requires user.id</code>.</td><td>The option is missing or empty.</td><td>Pass <code>projectKey</code> and <code>user.id</code>.</td></tr>
+            <tr><td>The panel opens, but comments do not load, and requests answer 401.</td><td><code>userHmac</code> was not made with this project's secret and this user id.</td><td>Compute it again as in step 1.</td></tr>
+          </tbody>
+        </table></div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/embed-script-tag.md">Full guide: Add Loupe with a script tag →</a></p>
+
+        <h3 id="install-npm">npm</h3>
+        <p><strong>Prerequisites:</strong> a browser app built with npm, and the project key, HMAC and backend
+          URL described in <a href="#install-script">Script tag</a>.</p>
+        <ol class="steps">
+          <li>Install the package:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">npm i @loupekit/sdk</code></pre>
+            </div>
+            <p>You should see <code>@loupekit/sdk</code> added to <code>dependencies</code> in your
+              <code>package.json</code>.</p>
+          </li>
+          <li>Call <code>init</code> once, in the browser only:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">ts</span></div>
+<pre><code class="language-ts"><span class="tk">import</span> { init } <span class="tk">from</span> <span class="ts">"@loupekit/sdk"</span>;
 
 <span class="tf">init</span>({
-  projectKey: <span class="ts">"pk_demo_acme"</span>,
-  user: { id: <span class="ts">"u_92"</span>, name: <span class="ts">"Ada Lovelace"</span> },
-  userHmac: <span class="ts">"&lt;HMAC-SHA256(user.id, PROJECT_SECRET)&gt;"</span>, <span class="tc">// from your server</span>
-  apiBase: <span class="ts">"http://localhost:8787"</span>, <span class="tc">// omit → offline localStorage mode</span>
+  projectKey: <span class="ts">"&lt;PROJECT_KEY&gt;"</span>,
+  user: { id: <span class="ts">"&lt;USER_ID&gt;"</span>, name: <span class="ts">"&lt;USER_NAME&gt;"</span> },
+  userHmac: <span class="ts">"&lt;USER_HMAC&gt;"</span>, <span class="tc">// computed on your server</span>
+  apiBase: <span class="ts">"&lt;API_URL&gt;"</span>,   <span class="tc">// omit for offline mode</span>
 });</code></pre>
-        </div>
+            </div>
+          </li>
+          <li>Start your app and open it in a browser. You should see the Loupe panel open, docked on the right.</li>
+        </ol>
+        <p><strong>Framework notes:</strong> the widget needs <code>document</code>, so call <code>init</code>
+          once where your app starts. The SDK has no React, Vue or Svelte adapter. In React, call it in an
+          effect in your root component and return <code>destroy</code> as the cleanup. In Vue 3, call it in
+          <code>onMounted</code> and call <code>destroy</code> in <code>onBeforeUnmount</code>. You need no router
+          hook: the SDK follows <code>history</code> changes.</p>
+        <p><strong>Troubleshooting:</strong></p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>ReferenceError: document is not defined</code> during server-side rendering.</td><td><code>init</code> ran on the server.</td><td>Call it in a browser-only hook, such as a React effect or Vue <code>onMounted</code>.</td></tr>
+            <tr><td>Nothing appears, and the console shows <code>[loupe] init requires a projectKey</code>.</td><td><code>projectKey</code> is missing.</td><td>Pass it.</td></tr>
+          </tbody>
+        </table></div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/install-npm.md">Full guide: Install with npm →</a></p>
 
-        <h3>Connect Claude Code over MCP</h3>
-        <div class="code">
-          <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">.mcp.json</span></div>
-<pre><code>{
-  <span class="tp">"mcpServers"</span>: {
-    <span class="tp">"loupe"</span>: {
-      <span class="tp">"command"</span>: <span class="ts">"node"</span>,
-      <span class="tp">"args"</span>: [<span class="ts">"/abs/path/to/loupe/packages/mcp/index.ts"</span>],
-      <span class="tp">"env"</span>: {
-        <span class="tp">"LOUPE_API"</span>: <span class="ts">"http://localhost:8787"</span>,
-        <span class="tp">"LOUPE_PROJECT_KEY"</span>: <span class="ts">"pk_demo_acme"</span>,
-        <span class="tp">"LOUPE_ADMIN_KEY"</span>: <span class="ts">"&lt;admin key&gt;"</span>
+        <h3 id="install-laravel">Laravel</h3>
+        <p><strong>Prerequisites:</strong> a Laravel 11, 12 or 13 app on PHP 8.2 or later (Laravel 13 needs
+          PHP 8.3), with a way for users to sign in. The installer warns you when the app has no
+          <code>login</code> route.</p>
+        <ol class="steps">
+          <li>Require the package:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">composer require loupekit/laravel</code></pre>
+            </div>
+          </li>
+          <li>Run the installer:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">php artisan loupe:install</code></pre>
+            </div>
+            <p>You should see <code>Loupe installed. Next steps:</code>. The installer publishes the config,
+              the migrations, the assets and <code>app/Providers/LoupeServiceProvider.php</code>.</p>
+          </li>
+          <li>Create the tables:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">php artisan migrate</code></pre>
+            </div>
+          </li>
+          <li>Add <code>@loupeWidget</code> just before <code>&lt;/body&gt;</code> in your layout.</li>
+          <li>With <code>APP_ENV=local</code>, sign in and load a page. You should see the Loupe panel. This works
+            only in the <code>local</code> environment, where <code>allow_in_local</code> lets every signed-in
+            user in. In every other environment the default gates deny everyone.</li>
+          <li>Grant access outside <code>local</code>. In <code>app/Providers/LoupeServiceProvider.php</code>, list the
+            people in the two gates:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">php</span></div>
+<pre><code class="language-php">Gate::define('loupe:use', function ($user) {
+    return in_array($user-&gt;email, ['sara@acme.com']);
+});
+
+Gate::define('loupe:admin', function ($user) {
+    return in_array($user-&gt;email, ['sara@acme.com']);
+});</code></pre>
+            </div>
+            <p><code>loupe:use</code> shows the widget. <code>loupe:admin</code> opens the dashboard at
+              <code>/loupe/dashboard</code>.</p>
+          </li>
+          <li>Deploy, then sign in as a listed user. You should see the Loupe panel.</li>
+        </ol>
+        <p><strong>Troubleshooting:</strong></p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>The widget does not appear.</td><td>You are not signed in, you fail <code>loupe:use</code>, <code>LOUPE_ENABLED</code> is <code>false</code>, or the assets are not published.</td><td>Sign in, add your email to <code>loupe:use</code> (step 6), check <code>.env</code>, and run <code>php artisan vendor:publish --tag=loupe-assets --force</code>.</td></tr>
+            <tr><td>The dashboard answers 403.</td><td>Outside <code>local</code>, your user fails <code>loupe:admin</code>.</td><td>Add your email to <code>loupe:admin</code> (step 6).</td></tr>
+          </tbody>
+        </table></div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-install.md">Full guide: Install Loupe in Laravel →</a></p>
+
+        <h3 id="install-extension">Browser extension</h3>
+        <p><strong>Prerequisites:</strong> Chrome, Node 24, and a clone of the repository. The extension is
+          loaded from the clone, so you build it first.</p>
+        <ol class="steps">
+          <li>Clone the repository and install the dependencies:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
+cd loupe
+npm install</code></pre>
+            </div>
+          </li>
+          <li>Build all packages, including the extension:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">npm run build</code></pre>
+            </div>
+            <p>You should see the packages build in the order shared, sdk, mcp, dashboard, extension. Run the
+              full build on a fresh clone: <code>npm run build:extension</code> alone fails, because the
+              content script bundles <code>@loupekit/sdk</code> from its <code>dist/</code> folder, which is not
+              in git.</p>
+          </li>
+          <li>Check that the content script exists:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">ls packages/extension/content.js</code></pre>
+            </div>
+            <p>You should see <code>packages/extension/content.js</code>.</p>
+          </li>
+          <li>Open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, click
+            <strong>Load unpacked</strong> and select <code>packages/extension</code>. You should see
+            <strong>Loupe — visual feedback</strong> at version 0.14.0.</li>
+          <li>Open an <code>http://</code> or <code>https://</code> page, click the Loupe icon, and fill in
+            <strong>Project key</strong> and <strong>User id</strong>. Fill in <strong>API base</strong> and
+            <strong>User HMAC</strong> only if you use a backend.</li>
+          <li>Click <strong>Save settings</strong>. You should see <strong>Saved ✓</strong>.</li>
+          <li>Click <strong>Start Loupe on this tab</strong>. You should see the Loupe panel on the page.</li>
+        </ol>
+        <p><strong>Troubleshooting:</strong></p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>npm run build:extension</code> fails to resolve <code>@loupekit/sdk</code>.</td><td>The SDK and shared <code>dist/</code> folders do not exist yet.</td><td>Run <code>npm run build</code>.</td></tr>
+            <tr><td>Nothing appears after you save.</td><td>Saving does not start Loupe.</td><td>Click <strong>Start Loupe on this tab</strong>.</td></tr>
+          </tbody>
+        </table></div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/browser-extension.md">Full guide: Use the browser extension →</a></p>
+
+        <h3 id="install-mcp">MCP server</h3>
+        <div class="callout warn"><span class="cl">0.14.0: run the server from a clone</span>
+          <p>The published <code>@loupekit/mcp</code> 0.14.0 fails at start with <code>ERR_MODULE_NOT_FOUND</code>,
+            because it lists <code>@loupekit/shared</code> only as a development dependency. So
+            <code>npx -y @loupekit/mcp</code> does not work in 0.14.0. The steps below run the server from a
+            clone instead.</p>
+        </div>
+        <p><strong>Prerequisites:</strong> Claude Code, Node 24, a running Loupe backend, and the project key
+          and project secret.</p>
+        <ol class="steps">
+          <li>Clone the repository, install the dependencies and build the shared package:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">git clone https://github.com/mohamed-ashraf-elsaed/loupe.git
+cd loupe
+npm install
+npm run build:shared</code></pre>
+            </div>
+          </li>
+          <li>Create <code>.mcp.json</code> in the root of the project you open in Claude Code:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">json</span></div>
+<pre><code class="language-json">{
+  "mcpServers": {
+    "loupe": {
+      "command": "node",
+      "args": ["&lt;ABSOLUTE_PATH_TO_CLONE&gt;/packages/mcp/index.ts"],
+      "env": {
+        "LOUPE_API": "&lt;API_URL&gt;",
+        "LOUPE_PROJECT_KEY": "&lt;PROJECT_KEY&gt;",
+        "LOUPE_ADMIN_KEY": "&lt;PROJECT_SECRET&gt;"
       }
     }
   }
 }</code></pre>
-        </div>
-        <div class="callout tip"><span class="cl">The loop</span>
-          Claude calls <code>list_comments</code> → <code>get_comment</code> (request + element HTML +
-          computed styles + the screenshot as an image) → rewrites the UI → <code>propose_change</code>
-          (modified HTML/CSS back to the dashboard) → <code>update_status(done)</code>.</div>
-        <p>Verify everything with <code>npm test</code> (Vitest) and <code>npm run test:coverage</code>
-          for a v8 coverage report.</p>
-      </section>
-
-      <hr class="hr">
-
-      <!-- THE LOOP -->
-      <section class="doc" id="the-loop">
-        <h2><a class="anchor" href="#the-loop">The feedback loop</a></h2>
-        <p>SDK (in the product) → backend API → Postgres + object storage → dashboard (human triage)
-          <em>and</em> MCP server (Claude reads it) → status flows back.</p>
-        <ol class="steps">
-          <li><strong>Inspect &amp; comment.</strong> A PM clicks an element or drags a region. The SDK
-            records a multi-signal anchor, the element's HTML and computed styles, and a screenshot.</li>
-          <li><strong>Store.</strong> The screenshot uploads to <code>POST /v1/blobs</code>; the comment
-            (with the returned URL) is written to Postgres against the normalized page URL.</li>
-          <li><strong>Triage.</strong> A human works the Kanban board — <span class="dot open"></span>open →
-            <span class="dot prog"></span>in&nbsp;progress → <span class="dot done"></span>done — with
-            screenshots and the exact selector.</li>
-          <li><strong>Ship with Claude.</strong> Claude Code reads the same backlog over MCP, makes the
-            change, and marks it done. Status flows back either way.</li>
+            </div>
+            <p><code>&lt;ABSOLUTE_PATH_TO_CLONE&gt;</code> is the full path of your clone, for example
+              <code>/home/sara/src/loupe</code>. <code>&lt;API_URL&gt;</code> is your backend, for example
+              <code>http://localhost:8787</code>. <code>&lt;PROJECT_SECRET&gt;</code> is the project secret, for
+              example <code>sk_demo_acme_0f3b9c</code>. Keep the file out of version control if it holds a real
+              secret.</p>
+          </li>
+          <li>Restart Claude Code and run <code>/mcp</code>. You should see <code>loupe</code> listed.</li>
         </ol>
-        <p>Both capture surfaces (SDK and extension) and both triage surfaces (dashboard and MCP) share the
-          same data and contracts — see <a href="#seams">Seams</a> for the extension points.</p>
+        <p><strong>Troubleshooting:</strong></p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>The server fails with <code>ERR_MODULE_NOT_FOUND</code>.</td><td>You used <code>npx -y @loupekit/mcp</code> 0.14.0, or <code>@loupekit/shared</code> is not built in the clone.</td><td>Use the clone path from step 2, and run <code>npm run build:shared</code>.</td></tr>
+            <tr><td><code>loupe</code> is missing from <code>/mcp</code>.</td><td><code>.mcp.json</code> is not in the root of the project you opened.</td><td>Move the file there and restart Claude Code.</td></tr>
+          </tbody>
+        </table></div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/connect-mcp-clients.md">Full guide: Connect MCP clients →</a></p>
       </section>
 
       <hr class="hr">
 
-      <!-- WORKSPACE -->
-      <section class="doc" id="workspace">
-        <h2><a class="anchor" href="#workspace">Working in the repo</a></h2>
-        <p>Loupe is an <strong>npm workspaces monorepo</strong>. Root scripts orchestrate the packages.</p>
-        <div class="grid">
-          <div class="card"><h4>Node-native packages</h4><p><code>server/</code> and <code>mcp/</code> run
-            TypeScript directly on Node 24 (type-stripping) in dev — <code>node index.ts</code>, <code>.ts</code>
-            imports. <code>mcp</code> is additionally bundled (tsup → <code>dist</code>) for <em>publishing</em>,
-            since Node won't strip types under <code>node_modules</code>.</p></div>
-          <div class="card"><h4>Bundled browser packages</h4><p><code>sdk/</code>, <code>dashboard/</code>,
-            and <code>extension/</code> are bundled by <strong>tsup</strong> to <code>dist/</code>; imports
-            use <code>.js</code> (ESM) extensions.</p></div>
+      <!-- 4. USING THE WIDGET -->
+      <section class="doc" id="widget">
+        <p class="eyebrow">How-to</p>
+        <h2 id="features">Using the widget</h2>
+        <p>These are the key tasks. The
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/use-the-widget.md">widget guide</a>
+          covers every control.</p>
+
+        <h3 id="widget-open">Open and close the panel</h3>
+        <ol class="steps">
+          <li>The panel starts open the first time a page loads Loupe. To close it, click the
+            <strong>Close</strong> button in the panel header. You should see the round launcher in the
+            corner of the page.</li>
+          <li>Click the launcher. You should see the panel open again.</li>
+        </ol>
+        <p><img src="../images/sdk-launcher.png" alt="The Loupe launcher button in the corner of a page" loading="lazy"></p>
+        <p>The launcher has a menu with the main tools:</p>
+        <p><img src="../images/sdk-launcher-menu.png" alt="The launcher menu" loading="lazy"></p>
+        <p>Press <kbd>Alt+Shift+L</kbd> to hide or show the launcher. The shortcut does not open the panel.</p>
+        <p>On the first load on a screen wider than 640 px, a five-step tour starts. You can restart it later
+          with <strong>Restart tour</strong> in the panel settings menu.</p>
+
+        <h3 id="widget-element">Comment on an element</h3>
+        <ol class="steps">
+          <li>Click <strong>Inspect</strong> and hover the page. You should see the element under the
+            pointer outlined, with a tip that names it.
+            <p><img src="../images/sdk-inspect-hover.png" alt="An element outlined while the Inspect tool is active" loading="lazy"></p>
+          </li>
+          <li>Click the element. The composer opens next to it. Type a one-line title and a description.
+            Optional: choose a priority (default Medium) and a change type (default Other). You can attach up
+            to 10 files: each image up to 10 MB and each video up to 25 MB.
+            <p><img src="../images/sdk-composer.png" alt="The comment composer open next to an element" loading="lazy"></p>
+          </li>
+          <li>Click <strong>Comment</strong>. You should see a numbered pin on the element. New comments start in the Queue stage.</li>
+        </ol>
+
+        <h3 id="widget-region">Comment on a region</h3>
+        <ol class="steps">
+          <li>Click <strong>Region</strong>. You should see the pointer change to a crosshair for a drag.</li>
+          <li>Drag a rectangle over the area. You should see the composer open next to it.</li>
+          <li>Type a title and a description, then click <strong>Comment</strong>. You should see a numbered
+            pin on the region. Loupe anchors the region to the smallest element that covers at least 60% of
+            it, so the region follows a responsive reflow.</li>
+        </ol>
+        <p><img src="../images/sdk-region.png" alt="A region drawn over part of a page" loading="lazy"></p>
+
+        <h3 id="widget-record">Record a short video</h3>
+        <ol class="steps">
+          <li>Click <strong>Record</strong>.</li>
+          <li>Drag a rectangle over the area to record. You should see the browser's screen-share prompt.</li>
+          <li>Pick what to share. You should see the recording bar with a <strong>Stop</strong> button.</li>
+          <li>Click <strong>Stop</strong> when you finish. A recording stops by itself after 20 seconds. You
+            should see the composer open with the video attached.</li>
+        </ol>
+        <p><img src="../images/sdk-recording.png" alt="The recording bar with a Stop button" loading="lazy"></p>
+        <p>Screen recording works only in desktop browsers. On a phone, the panel shows a
+          <strong>Video</strong> button instead, which attaches a clip you recorded with the phone's own
+          screen recorder.</p>
+        <p>To keep sensitive content out of captures, add <code>data-loupe-redact</code> to the element. Loupe
+          paints it over before the image leaves the browser.</p>
+
+        <h3 id="widget-thread">Reply, resolve or delete</h3>
+        <ol class="steps">
+          <li>Open a comment in the Comments list. You should see the screenshot, the conversation and a
+            reply box. Type <code>@</code> to mention someone.</li>
+          <li>Click <strong>Resolve</strong> to close it, or <strong>Reopen</strong> to bring it back.</li>
+          <li>Click <strong>Delete</strong>. The comment is deleted at once, with no confirmation. In the
+            Laravel package, only the author or an admin can delete.</li>
+        </ol>
+        <p><img src="../images/sdk-thread-detail.png" alt="An open comment thread with replies" loading="lazy"></p>
+
+        <h3 id="widget-find">Find comments</h3>
+        <p>The Comments tab lists the comments on the page. Use the search box, the status filter and the
+          sort order (newest first, oldest first, or page order). On <strong>This page</strong> the default
+          order is page order; on <strong>All</strong> it is newest first. When the list is sorted by date, it
+          is grouped by day: click a day header to fold that day.</p>
+        <p><img src="../images/sdk-comments-list.png" alt="The Comments list with search, status filter and day groups" loading="lazy"></p>
+
+        <h3 id="widget-home">Use the Home tab</h3>
+        <p>Home shows what needs you: tiles such as <strong>Needs you</strong> and <strong>Stale</strong>, and a
+          Recent list where each row has Resolve (or Reopen), Open and Delete buttons. On a Home row,
+          Delete asks once: click it, then click <strong>Confirm delete</strong> within 3 seconds.</p>
+        <p><img src="../images/sdk-home-tab.png" alt="The Home tab with the Needs you tile and the Recent list" loading="lazy"></p>
+
+        <h3 id="widget-layout">Move and style the panel</h3>
+        <p>Dock the panel to the side or let it float, and pick an accent color in Settings.</p>
+        <p><img src="../images/sdk-dock-float.png" alt="The panel floating over a page" loading="lazy"></p>
+        <p><img src="../images/sdk-settings.png" alt="The Settings view of the panel" loading="lazy"></p>
+        <p>To hide the launcher from code, call <code>hideLauncher()</code>; call <code>showLauncher()</code> to bring it back.</p>
+
+        <h3 id="widget-projects">Switch environments</h3>
+        <p>When you pass the <code>environments</code> option, the project popover lets reviewers jump
+          between environments of the same project.</p>
+        <p><img src="../images/sdk-project-popover.png" alt="The project popover listing environments" loading="lazy"></p>
+
+        <h3 id="widget-activity">Watch agent activity</h3>
+        <p>The Activity tab shows events from two sources: the backend's activity feed
+          (<code>GET /v1/activity</code>), and events that your page sends with
+          <code>Loupe.trackActivity({ kind, label })</code>, together with Loupe's own operations in this
+          browser. The Laravel package serves the feed, so the tab shows <strong>No activity yet</strong> until
+          something happens. The Node server has no activity feed, so with no local events the tab shows
+          <strong>Monitor unavailable</strong>, whether or not the MCP server runs.</p>
+        <p><img src="../images/sdk-activity.png" alt="The Activity tab showing agent events" loading="lazy"></p>
+
+        <h3 id="widget-navigation">Answer a navigation request</h3>
+        <p>An agent can ask to open another page. The widget asks you first: click <strong>Go there</strong>
+          or <strong>Stay here</strong>.</p>
+        <p><img src="../images/sdk-navigation-consent.png" alt="The navigation request with Stay here and Go there buttons" loading="lazy"></p>
+
+        <h3 id="widget-mobile">Use Loupe on a phone</h3>
+        <p>The panel adapts to small screens.</p>
+        <p><img src="../images/sdk-mobile.png" alt="The Loupe panel on a phone-sized screen" loading="lazy"></p>
+
+        <h3 id="widget-sync">How the panel stays current</h3>
+        <p>The panel re-reads comments, open threads and mentions every 10 seconds. It pauses while the tab
+          is hidden and skips a read while you type.</p>
+
+        <h3 id="widget-troubleshooting">Troubleshooting</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>A pin shows a "moved" badge.</td><td>The markup changed and no element scored 0.5 or more.</td><td>Add a <code>data-testid</code> to the element, then pin the comment again.</td></tr>
+            <tr><td>An attachment is refused.</td><td>The file is above 10 MB (image) or 25 MB (video), or you added more than 10 files.</td><td>Use a smaller file or fewer files.</td></tr>
+            <tr><td>The Activity tab shows Monitor unavailable.</td><td>The backend has no activity feed (the Node server), and nothing has called <code>Loupe.trackActivity</code> yet.</td><td>Use the Laravel package for a server feed, or send events from your page with <code>Loupe.trackActivity({ kind, label })</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <p><strong>Next steps:</strong> <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/sdk.md">SDK reference</a> for every <code>init</code> option.</p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- 5. DASHBOARD -->
+      <section class="doc" id="dashboard">
+        <p class="eyebrow">How-to</p>
+        <h2 id="dashboard-title">Dashboard</h2>
+        <p>The dashboard is the triage board for people. On the local server, open
+          <code>/dashboard/?key=&lt;PROJECT_SECRET&gt;</code>, where <code>&lt;PROJECT_SECRET&gt;</code> is the
+          project secret.</p>
+        <p><img src="../images/dashboard-board.png" alt="The dashboard board with five columns" loading="lazy"></p>
+
+        <h3 id="dashboard-stages">Five stages</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Stage</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>Queue</td><td>New, not triaged yet. Every new comment starts here.</td></tr>
+            <tr><td>To Do</td><td>Triaged and accepted.</td></tr>
+            <tr><td>In Progress</td><td>Someone or something is working on it.</td></tr>
+            <tr><td>In Review</td><td>A change is ready and waits for a person.</td></tr>
+            <tr><td>Resolved</td><td>A person accepted the change.</td></tr>
+          </tbody>
+        </table></div>
+        <h3 id="dashboard-move">Move a card to another stage</h3>
+        <p><strong>Prerequisites:</strong> the dashboard is open with the project secret.</p>
+        <ol class="steps">
+          <li>Click a card. You should see its details, with <strong>‹</strong> and <strong>›</strong> buttons.
+            <p><img src="../images/dashboard-card.png" alt="An open dashboard card" loading="lazy"></p>
+          </li>
+          <li>Click <strong>›</strong> (Move forward) to move the card to the next stage, or <strong>‹</strong>
+            (Move back) to move it to the previous one. You should see the card in the new column.</li>
+        </ol>
+        <p>To delete a card, click <strong>Delete</strong>, then <strong>Confirm?</strong> within 3 seconds.</p>
+
+        <h3 id="dashboard-filters">Filters and saved views</h3>
+        <p>Narrow the board with the search box (title, text, author) and the filters for page, repo,
+          branch, kind, device, priority and change type. Change the order with the sort menu.</p>
+        <p>The view menu has four saved views: <strong>All feedback</strong>, <strong>Needs you (In Review)</strong>,
+          <strong>Critical only</strong> and <strong>Not linked to a repo</strong>.</p>
+
+        <h3 id="dashboard-refresh">Live refresh</h3>
+        <p>The board reloads every 4 seconds, so cards move as people and agents work.</p>
+
+        <h3 id="dashboard-integrations">Integrations and Connect Claude</h3>
+        <p>The Integrations page sends lifecycle events to Slack or Telegram. The <strong>Connect Claude</strong>
+          page shows a ready-to-copy MCP configuration with your API URL and project key.</p>
+        <p><img src="../images/dashboard-integrations.png" alt="The Integrations page" loading="lazy"></p>
+        <p><img src="../images/dashboard-connect-claude.png" alt="The Connect Claude page with an MCP configuration" loading="lazy"></p>
+      </section>
+
+      <hr class="hr">
+
+      <!-- 6. MCP -->
+      <section class="doc" id="mcp">
+        <p class="eyebrow">Reference</p>
+        <h2 id="mcp-title">MCP server</h2>
+        <p><code>@loupekit/mcp</code> gives Claude Code 19 tools over your comments. It also runs a bridge: a
+          small local HTTP server, on port 9800 by default, that carries element selections and companion chat
+          between the widget and the agent, and collects agent events for the activity monitor page. To install it, see <a href="#install-mcp">Install: MCP server</a>.</p>
+
+        <h3 id="mcp-tools">Tool groups</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Group</th><th>Tools</th></tr></thead>
+          <tbody>
+            <tr><td>Comments</td><td><code>list_comments</code>, <code>get_comment</code>, <code>update_status</code>, <code>propose_change</code></td></tr>
+            <tr><td>Selection</td><td><code>get_latest_selection</code>, <code>get_selection_history</code>, <code>get_element_context</code>, <code>find_source_for_selection</code></td></tr>
+            <tr><td>Companion chat</td><td><code>get_companion_messages</code>, <code>reply_to_companion</code></td></tr>
+            <tr><td>Activity</td><td><code>get_activity_summary</code>, <code>get_recent_events</code>, <code>get_files_touched</code>, <code>get_dashboard_url</code>, <code>install_agent_hooks</code></td></tr>
+            <tr><td>Threads and handoff</td><td><code>mark_thread_addressed</code>, <code>add_thread_message</code>, <code>get_thread_conversation</code>, <code>create_pr_for_thread</code></td></tr>
+          </tbody>
+        </table></div>
+        <p><code>mark_thread_addressed</code> always sets In Review, so a person still resolves the comment.</p>
+        <p>Ask Claude for <code>get_dashboard_url</code> to open the activity monitor:</p>
+        <p><img src="../images/mcp-monitor.png" alt="The MCP activity monitor page" loading="lazy"></p>
+
+        <h3 id="mcp-env">Environment variables</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Variable</th><th>Type</th><th>Default</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><code>LOUPE_API</code></td><td>URL</td><td><code>http://localhost:8787</code></td><td><code>https://feedback.example.com</code></td></tr>
+            <tr><td><code>LOUPE_PROJECT_KEY</code></td><td>string</td><td><code>pk_demo_acme</code></td><td><code>pk_demo_acme</code></td></tr>
+            <tr><td><code>LOUPE_ADMIN_KEY</code></td><td>string</td><td>empty</td><td><code>sk_demo_acme_0f3b9c</code></td></tr>
+            <tr><td><code>LOUPE_BRIDGE_PORT</code></td><td>number</td><td><code>9800</code>; <code>0</code> turns the bridge off</td><td><code>9801</code></td></tr>
+            <tr><td><code>LOUPE_SELECTION_CAP</code></td><td>number</td><td><code>50</code></td><td><code>100</code></td></tr>
+            <tr><td><code>LOUPE_EVENT_FILE</code></td><td>path</td><td>none (in memory)</td><td><code>/tmp/loupe-events.jsonl</code></td></tr>
+          </tbody>
+        </table></div>
+
+        <h3 id="mcp-known-issue">Known issues in 0.14.0</h3>
+        <div class="callout warn"><span class="cl">Install fails with ERR_MODULE_NOT_FOUND</span>
+          <p>The compiled entry of <code>@loupekit/mcp</code> 0.14.0 imports <code>@loupekit/shared</code>, but the
+            package lists it only as a development dependency, so <code>npx</code> does not install it.
+            Run the server from a clone, as in <a href="#install-mcp">Install: MCP server</a>.</p>
         </div>
-        <p><code>@loupekit/shared</code> is a <strong>built</strong> package (<code>tsc</code> →
-          <code>dist</code>) and must be built before the others. Keep changes behind the seams
-          (<code>StorageAdapter</code>, <code>db.ts</code>, <code>blobs.ts</code>, the
-          <code>captureScreenshot</code> hook) — change implementations, not contracts.</p>
-        <div class="callout note"><span class="cl">Versioning</span>
-          As of <strong>0.6.0</strong> every package is aligned on one version — the previously stale
-          <code>@loupekit/server</code>, the extension <code>manifest.json</code>, and the Node
-          <code>McpServer</code> (all <code>0.2.0</code>) are now <code>0.5.0</code>. The Laravel
-          <code>LoupeServer</code> reports its own <code>1.0.0</code> — an independent MCP-server identity,
-          not the package version.</div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- ============ CORE CONCEPTS ============ -->
-
-      <!-- RE-ANCHORING -->
-      <section class="doc" id="reanchoring">
-        <h2><a class="anchor" href="#reanchoring">Re-anchoring — the crown jewel</a></h2>
-        <p>The hardest problem Loupe solves: a comment pinned to an element must find that same element
-          again after the product is redeployed and the markup has changed. <code>fingerprint.ts</code>
-          records a multi-signal fingerprint with <code>captureAnchor(el): Anchor</code>, then re-locates it
-          with <code>resolveAnchor(anchor, root?): ResolveResult | null</code> in tiers.</p>
-
-        <h3>What the anchor records</h3>
-        <p>Stable id / testid, a CSS path rooted at the nearest stable ancestor, XPath, normalized text,
-          identifying attributes, <code>nth-of-type</code>, and the bounding rect + viewport.</p>
-
-        <h3>Resolution tiers</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Tier</th><th>Match</th><th>Score</th></tr></thead>
-            <tbody>
-              <tr><td>1</td><td>Unique testid / id</td><td class="tabular"><strong>0.98</strong></td></tr>
-              <tr><td>1.5</td><td>cssPath rooted at a stable id, single match, right tag</td><td class="tabular"><strong>0.90</strong> — survives changed content</td></tr>
-              <tr><td>2</td><td>Weighted similarity scan</td><td class="tabular">accepted at <strong>≥ 0.50</strong></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>The similarity scan weights are: <strong>text .34 · attrs .22 · testid .22 · cssPath .20 ·
-          tag .12 · position .10</strong>. If the best candidate scores below <code>0.5</code>, the pin
-          <strong>detaches</strong> rather than anchoring to the wrong element.</p>
-        <div class="callout note"><span class="cl">Why detach</span>
-          A wrong pin is worse than a missing one — it sends Claude or a developer to the wrong place.
-          Loupe would rather show a detached pin than lie about where the feedback belongs.</div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- AUTH -->
-      <section class="doc" id="auth">
-        <h2><a class="anchor" href="#auth">Authentication</a></h2>
-        <p>Every project has a <code>secret</code>. There are two identities, and the browser never sees the
-          secret.</p>
-        <div class="grid">
-          <div class="card"><h4>Writes — user identity (HMAC)</h4><p>Your server computes
-            <code>signUser(userId, secret) = HMAC-SHA256(userId, secret)</code> and injects it into the page.
-            The SDK sends <code>X-Loupe-User</code> + <code>X-Loupe-Hmac</code>; the server verifies with a
-            timing-safe compare. A user may only post as themselves.</p></div>
-          <div class="card"><h4>Read / triage — admin identity</h4><p>The dashboard and MCP authenticate as
-            admin with <code>X-Loupe-Admin</code> = the project secret.
-            <code>authenticate(projectKey, req)</code> resolves to <code>admin</code>, <code>user</code>, or
-            a failure (400 missing key · 401 bad creds · 404 unknown project).</p></div>
-        </div>
-        <p>The Laravel package swaps this whole scheme for Laravel's own <strong>session + CSRF + guard +
-          Gate</strong> authorization — no shared secret. See <a href="#laravel-authz">Authorization</a>.</p>
-      </section>
-
-      <hr class="hr">
-
-      <!-- URL NORMALIZATION -->
-      <section class="doc" id="url-normalization">
-        <h2><a class="anchor" href="#url-normalization">URL normalization</a></h2>
-        <p>Comments are keyed by <strong>normalized</strong> URL, so tracking params never fragment a page's
-          feedback. <code>normalizeUrl(input)</code> strips <code>utm_*</code>, click ids
-          (<code>gclid</code>, <code>fbclid</code>, <code>msclkid</code>, …), and Loupe dev params
-          (<code>api</code>, <code>key</code>), sorts the remaining query pairs, and drops trailing slashes.
-          It's applied server-side on both write and the list filter.</p>
-        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">example</span></div>
-<pre><code><span class="tf">normalizeUrl</span>(<span class="ts">"/checkout?utm_source=x&amp;gclid=123&amp;step=2"</span>)
-<span class="tc">// → "/checkout?step=2"</span></code></pre></div>
-        <div class="callout tip"><span class="cl">Debugging tip</span>
-          If comments look "missing" across query-string variants, run <code>normalizeUrl</code> on both
-          URLs first — they almost certainly collapse to the same key.</div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- SCREENSHOTS -->
-      <section class="doc" id="screenshots">
-        <h2><a class="anchor" href="#screenshots">Screenshots &amp; storage</a></h2>
-        <p>The SDK uploads a PNG to <code>POST /v1/blobs</code> and stores only the returned URL on the
-          comment. Two things are excluded before pixels ever leave the browser: any
-          <code>[data-loupe-redact]</code> region and Loupe's own UI.</p>
+        <p>Two more defects in 0.14.0:</p>
         <ul class="bul">
-          <li><strong>Capture engine.</strong> The SDK uses <code>modern-screenshot</code> (DOM-based). The
-            extension overrides this with <code>chrome.tabs.captureVisibleTab</code> for real pixels, then
-            crops to the element/region and paints over redacted areas (accounting for
-            <code>devicePixelRatio</code>).</li>
-          <li><strong>Font embedding.</strong> Capture awaits <code>document.fonts.ready</code> (capped at
-            ~0.8s) with a 6s capture timeout and a hard outer timeout, so it renders with the right fonts but
-            can never hang the widget. CORS-less fonts fall back to the pixel-perfect extension.</li>
-          <li><strong>Blobs seam.</strong> <code>blobs.ts</code> stores to local disk today (public by
-            unguessable id); production swaps in S3/R2 with signed URLs.</li>
+          <li><code>get_recent_events</code> always fails, because its handler reads a variable before it is
+            defined. Use <code>get_activity_summary</code> or <code>get_files_touched</code> instead.</li>
+          <li><code>update_status</code> says an agent cannot resolve, but its code does not refuse
+            <code>resolved</code>. Use <code>mark_thread_addressed</code> for the handoff.</li>
         </ul>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/mcp.md">MCP reference →</a></p>
       </section>
 
       <hr class="hr">
 
-      <!-- SEAMS -->
-      <section class="doc" id="seams">
-        <h2><a class="anchor" href="#seams">Seams (extension points)</a></h2>
-        <p>Four seams isolate the swappable parts. Change what's behind them, not their contracts.</p>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Seam</th><th>Where</th><th>Local</th><th>Production</th></tr></thead>
-            <tbody>
-              <tr><td>Storage adapter</td><td>SDK <code>store.ts</code> / <code>http-adapter.ts</code></td><td>localStorage / HTTP</td><td>HTTP</td></tr>
-              <tr><td>Database</td><td>server <code>db.ts</code></td><td>PGlite</td><td>hosted Postgres via <code>DATABASE_URL</code></td></tr>
-              <tr><td>Object storage</td><td>server <code>blobs.ts</code></td><td>local disk</td><td>S3/R2 + signed URLs</td></tr>
-              <tr><td>Screenshot capture</td><td>SDK <code>captureScreenshot</code> config</td><td>modern-screenshot</td><td>extension <code>captureVisibleTab</code></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <!-- 7. EXTENSION -->
+      <section class="doc" id="extension">
+        <p class="eyebrow">Reference</p>
+        <h2 id="extension-title">Browser extension</h2>
+        <p>The extension runs the same SDK core on any <code>http://</code> or <code>https://</code> page, with
+          screenshots taken by the browser itself.</p>
+        <p><img src="../images/extension-popup.png" alt="The extension popup with project key, user id, name and API base fields" loading="lazy"></p>
 
-      <hr class="hr">
+        <h3 id="extension-permissions">Permissions</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Permission</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>activeTab</code></td><td>Access the tab you start Loupe on.</td></tr>
+            <tr><td><code>scripting</code></td><td>Inject Loupe into that tab.</td></tr>
+            <tr><td><code>storage</code></td><td>Remember your settings and per-site show/hide choice.</td></tr>
+            <tr><td><code>contextMenus</code></td><td>Add the right-click menu items.</td></tr>
+          </tbody>
+        </table></div>
 
-      <!-- ============ PACKAGES ============ -->
-
-      <!-- shared -->
-      <section class="doc" id="pkg-shared">
-        <p class="eyebrow">Package</p>
-        <div class="pkg-id"><span class="nm">@loupekit/shared</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.12</span><span class="badge">no runtime deps</span><span class="badge">tsc → dist</span><span class="badge">ESM-only</span></div>
-        <p>The contract layer — canonical data types and pure helpers. Everyone imports types from here;
-          Node packages import the compiled JS.</p>
-
-        <h3>Exported types</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Type</th><th>Shape</th></tr></thead>
-            <tbody>
-              <tr><td><code>CommentStage</code></td><td><code>"queue" | "todo" | "in_progress" | "in_review" | "resolved"</code> — legacy <code>open</code> / <code>done</code> still accepted and normalized</td></tr>
-              <tr><td><code>CommentPriority</code></td><td><code>"critical" | "high" | "medium" | "low"</code> — defaults to <code>medium</code></td></tr>
-              <tr><td><code>ChangeType</code></td><td><code>"frontend" | "backend" | "api" | "other"</code> — defaults to <code>other</code></td></tr>
-              <tr><td><code>CommentKind</code></td><td><code>"element" | "region" | "free"</code></td></tr>
-              <tr><td><code>DeviceType</code></td><td><code>"mobile" | "tablet" | "desktop"</code></td></tr>
-              <tr><td><code>LoupeUser</code></td><td><code>{ id, name, email? }</code></td></tr>
-              <tr><td><code>Anchor</code></td><td>fingerprint: <code>tag, cssPath, xpath, testid, text, attrs, nthOfType, rect, viewport</code></td></tr>
-              <tr><td><code>ElementContext</code></td><td><code>{ html, styles }</code> — outerHTML + curated computed styles</td></tr>
-              <tr><td><code>RegionRect</code></td><td><code>{ x, y, w, h, rel? }</code> — document coords; <code>rel</code> = element-relative fractions</td></tr>
-              <tr><td><code>Comment</code></td><td>the canonical record — see the <a href="#data-model">data model</a></td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Helpers</h3>
+        <h3 id="extension-menus">Context menus</h3>
+        <p>Right-click a page to start Loupe on what you clicked:</p>
         <ul class="bul">
-          <li><code>deviceType(width): DeviceType</code> — mobile <code>&lt;768</code>, tablet
-            <code>768–1023</code>, desktop <code>≥1024</code>.</li>
-          <li><code>normalizeUrl(input): string</code> — see <a href="#url-normalization">URL normalization</a>.</li>
+          <li>Comment on this page</li>
+          <li>Comment on “<em>selected text</em>”</li>
+          <li>Comment on this image</li>
+          <li>Comment on this video</li>
+          <li>Comment on this audio</li>
+          <li>Comment on this link</li>
+          <li>Comment on this field</li>
+          <li>Show / hide Loupe on this page</li>
         </ul>
+
+        <h3 id="extension-privacy">Privacy</h3>
+        <p>The extension injects nothing on its own. Loupe runs on a page only after you click
+          <strong>Start Loupe on this tab</strong> in the popup or pick one of the right-click menu items.
+          Without an API base, comments stay in the page's <code>localStorage</code>, in your browser only.</p>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/extension.md">Extension reference →</a></p>
       </section>
 
       <hr class="hr">
 
-      <!-- sdk -->
-      <section class="doc" id="pkg-sdk">
-        <p class="eyebrow">Package</p>
-        <div class="pkg-id"><span class="nm">@loupekit/sdk</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.12</span><span class="badge">tsup bundle</span><span class="badge">dep: modern-screenshot</span></div>
-        <p>The embeddable browser widget — the thing a developer installs. Builds a Shadow-DOM host
-          (<code>#loupe-root</code>) so its CSS never leaks into the host page or vice-versa.</p>
-
-        <h3>Public API</h3>
-        <ul class="bul">
-          <li><code>init(config: LoupeConfig): void</code> — idempotent; requires <code>projectKey</code> and
-            <code>user.id</code>. Starts on <code>DOMContentLoaded</code>. <code>apiBase</code> set →
-            <code>HttpAdapter</code>; omitted → <code>LocalStorageAdapter</code> (offline mode).</li>
-          <li><code>destroy(): void</code> — tears down the control panel and all listeners.</li>
-          <li><code>hideLauncher(): void</code> / <code>showLauncher(): void</code> — hide or restore the
-            <code>◎</code> launcher; the same switch as <kbd>Alt+Shift+L</kbd>, persisted.</li>
-          <li><code>version: string</code> — the version baked into this bundle.</li>
-        </ul>
-        <p>The control is a single DevTools-style dockable panel: a header
-          (<code>◎ Loupe</code> + dock controls) → tools (<strong>Inspect</strong>, <strong>Note</strong>,
-          a free page-level comment, <strong>Region</strong>) → the comment list. Dock it to the
-          <strong>left</strong>, <strong>right</strong>, or <strong>bottom</strong> edge — docked edges push
-          the host page over so the panel never covers content — or <strong>float</strong> it as a movable,
-          resizable window. A <strong>theme toggle</strong> switches light/dark, and <strong>close</strong>
-          collapses it to a small <code>◎</code> launcher. One tap on the launcher reopens the panel; the
-          chevron beside it expands the quick actions (pin a comment, drop a note, hide the markers, hide
-          the launcher). Drag the launcher to put it anywhere on the screen, and hide it from the quick
-          actions, the Settings menu or <kbd>Alt+Shift+L</kbd> when it covers something. On a touch screen,
-          where there is no shortcut, a slim tab at the right edge brings a hidden launcher back. Position,
-          launcher position, theme, and open state persist. On viewports ≤ 640px it becomes a bottom sheet.</p>
-
-        <h3>LoupeConfig</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
-            <tbody>
-              <tr><td><code>projectKey</code></td><td>string</td><td><strong>Required.</strong> Project identifier.</td></tr>
-              <tr><td><code>user</code></td><td>LoupeUser</td><td><strong>Required.</strong> Who is commenting.</td></tr>
-              <tr><td><code>userHmac</code></td><td>string?</td><td>HMAC-SHA256(user.id, secret), computed server-side.</td></tr>
-              <tr><td><code>apiBase</code></td><td>string?</td><td>Set → HTTP mode; omitted → offline localStorage.</td></tr>
-              <tr><td><code>autoOpen</code></td><td>boolean?</td><td>Open the control panel with the inspector active immediately.</td></tr>
-              <tr><td><code>label</code></td><td>string?</td><td>Brand name shown in the control header (defaults to <code>"Loupe"</code>).</td></tr>
-              <tr><td><code>captureScreenshot</code></td><td>fn?</td><td>Override <code>(el) =&gt; Promise&lt;string?&gt;</code> (the extension uses this).</td></tr>
-              <tr><td><code>captureRegion</code></td><td>fn?</td><td>Region-shot override <code>(rect) =&gt; Promise&lt;string?&gt;</code>.</td></tr>
-              <tr><td><code>headers</code></td><td>object?</td><td>Extra request headers (e.g. a CSRF token).</td></tr>
-              <tr><td><code>credentials</code></td><td>RequestCredentials?</td><td>Fetch credentials mode (<code>include</code> for cross-origin cookies).</td></tr>
-              <tr><td><code>timeZone</code></td><td>string?</td><td>IANA zone every timestamp is rendered in (e.g. <code>"Africa/Cairo"</code>). Defaults to the browser's.</td></tr>
-              <tr><td><code>locale</code></td><td>string?</td><td>BCP 47 locale for dates (e.g. <code>"en-GB"</code> for day-first). Defaults to the browser's.</td></tr>
-              <tr><td><code>packageVersion</code></td><td>string?</td><td>Version of the host package that served this bundle. Shown beside the bundle version and flagged when the two differ.</td></tr>
-              <tr><td><code>chat</code></td><td>boolean?</td><td>Turn on the experimental Chat page. Off by default: the tab shows dimmed and does not open.</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Internal modules</h3>
-        <div class="grid">
-          <div class="card"><h4><code>fingerprint.ts</code></h4><p><code>captureAnchor</code> /
-            <code>resolveAnchor</code> — the <a href="#reanchoring">re-anchoring</a> engine.</p></div>
-          <div class="card"><h4><code>capture.ts</code></h4><p><code>captureElementContext</code> +
-            <code>captureScreenshot</code> / <code>captureRegionScreenshot</code>.</p></div>
-          <div class="card"><h4><code>http-adapter.ts</code></h4><p><code>HttpAdapter</code> — uploads the
-            blob first, stores only the URL.</p></div>
-          <div class="card"><h4><code>store.ts</code></h4><p><code>LocalStorageAdapter</code> — the offline
-            fallback.</p></div>
-          <div class="card"><h4><code>app.ts</code></h4><p><code>LoupeApp</code> — Shadow-DOM host: the
-            dockable control panel, inspector, composer, pins; repositions on scroll/resize + MutationObserver.</p></div>
-          <div class="card"><h4><code>styles.ts</code></h4><p>The Shadow-DOM stylesheet (theme vars on
-            <code>:host</code> so they inherit through the shadow tree).</p></div>
-        </div>
-        <p>The <code>StorageAdapter</code> contract: <code>list(projectKey, url)</code>,
-          <code>save(comment)</code>, <code>update(id, patch)</code>, <code>remove(id)</code>. A demo
-          product ("Acme Analytics") lives in <code>demo/</code>, served at <code>/demo/</code>.</p>
-      </section>
-
-      <hr class="hr">
-
-      <!-- server -->
-      <section class="doc" id="pkg-server">
-        <p class="eyebrow">Package</p>
-        <div class="pkg-id"><span class="nm">@loupekit/server</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.12</span><span class="badge">deps: pglite, pg</span><span class="badge">Node 24 native TS</span></div>
-        <p>The API — <code>node:http</code>, Postgres, object storage, auth, and static hosting.
-          <code>index.ts</code> exports <code>handler</code> and <code>start(port = PORT)</code>, and only
-          listens when run as the entry point (so tests mount <code>handler</code> on an ephemeral port).</p>
-
-        <h3>HTTP routes</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Notes</th></tr></thead>
-            <tbody>
-              <tr><td><span class="method get">GET</span></td><td><code>/</code></td><td><span class="pill none">none</span></td><td>302 → <code>/dashboard/</code></td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>/v1/health</code></td><td><span class="pill none">none</span></td><td><code>{ ok: true }</code></td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>/v1/blobs/:id</code></td><td><span class="pill public">public</span></td><td>PNG, immutable cache</td></tr>
-              <tr><td><span class="method post">POST</span></td><td><code>/v1/blobs</code></td><td><span class="pill auth">authed</span></td><td><code>{ projectKey, data }</code> → <code>{ url }</code></td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>/v1/comments</code></td><td><span class="pill auth">authed</span></td><td><code>?projectKey=&amp;url=</code></td></tr>
-              <tr><td><span class="method post">POST</span></td><td><code>/v1/comments</code></td><td><span class="pill auth">authed</span></td><td>upsert; user may post only as self (else 403)</td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>/v1/comments/:id</code></td><td><span class="pill auth">authed</span></td><td>auth from the comment's project</td></tr>
-              <tr><td><span class="method patch">PATCH</span></td><td><code>/v1/comments/:id</code></td><td><span class="pill auth">authed</span></td><td>patch <code>status</code> / <code>body</code></td></tr>
-              <tr><td><span class="method delete">DELETE</span></td><td><code>/v1/comments/:id</code></td><td><span class="pill auth">authed</span></td><td>204</td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>/dashboard/*</code> · <code>/demo/*</code> · <code>/sdk/*</code></td><td><span class="pill none">static</span></td><td>served from disk</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p style="font-size:.86rem;color:var(--muted)">CORS echoes the request <code>Origin</code>; allows
-          <code>GET, POST, PATCH, DELETE, OPTIONS</code> and headers <code>Content-Type, X-Loupe-User,
-          X-Loupe-Hmac, X-Loupe-Admin, X-Loupe-Project</code>. Body limit 12&nbsp;MB.</p>
-
-        <h3>Environment variables</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
-            <tbody>
-              <tr><td><code>PORT</code></td><td class="tabular">8787</td><td>Listen port.</td></tr>
-              <tr><td><code>DATABASE_URL</code></td><td>—</td><td>Set → node-<code>pg</code>; unset → embedded PGlite.</td></tr>
-              <tr><td><code>LOUPE_PG_DIR</code></td><td><code>./data/pg</code></td><td>PGlite dir; <code>memory://</code> → in-memory (tests).</td></tr>
-              <tr><td><code>LOUPE_BLOB_DIR</code></td><td><code>./data/blobs</code></td><td>Screenshot disk directory.</td></tr>
-              <tr><td><code>LOUPE_PUBLIC_URL</code></td><td><code>localhost:8787</code></td><td>Public base for blob URLs.</td></tr>
-              <tr><td><code>LOUPE_DEMO_SECRET</code></td><td><code>sk_demo_acme_0f3b9c</code></td><td>Seed secret.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- dashboard -->
-      <section class="doc" id="pkg-dashboard">
-        <p class="eyebrow">Package</p>
-        <div class="pkg-id"><span class="nm">@loupekit/dashboard</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.12</span><span class="badge">tsup bundle</span></div>
-        <p>The Kanban triage board — vanilla TypeScript, tsup-bundled. Three columns
-          (<span class="dot open"></span>Open · <span class="dot prog"></span>In&nbsp;progress ·
-          <span class="dot done"></span>Done) with a page filter, screenshot thumbnails, status moves
-          (PATCH), two-step delete, <strong>Copy for Claude</strong>, and a ~4s live refresh.</p>
-        <div class="grid">
-          <div class="card"><h4>Admin mode</h4><p>Query params <code>?api</code> / <code>?project</code> /
-            <code>?key</code>. The key is sent as <code>X-Loupe-Admin</code> and persisted to
-            <code>localStorage["loupe_admin"]</code>.</p></div>
-          <div class="card"><h4>Session mode</h4><p>Reads injected <code>window.__LOUPE__ { api, project,
-            csrf }</code> (used by the Laravel package) and sends <code>X-CSRF-TOKEN</code> instead of an
-            admin key.</p></div>
-        </div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- mcp -->
-      <section class="doc" id="pkg-mcp">
-        <p class="eyebrow">Package</p>
-        <div class="pkg-id"><span class="nm">@loupekit/mcp</span></div>
-        <div class="badges"><span class="badge g">publishable</span><span class="badge">v0.10.12</span><span class="badge">bin: loupe-mcp</span><span class="badge">deps: @modelcontextprotocol/sdk, zod</span></div>
-        <p>The MCP stdio server that exposes the backlog to Claude Code. Authenticates to the API as admin.
-          Install globally with <code>npm i -g @loupekit/mcp</code> (binary <code>loupe-mcp</code>), or point
-          Claude Code at the source entry directly.</p>
-
-        <h3>What Claude gets</h3>
-        <p>The natural-language request, the page URL, the target element (stable id or CSS path), its
-          <code>outerHTML</code>, a curated slice of computed styles, and the screenshot URL.</p>
-
-        <h3>Tools</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Tool</th><th>Parameters</th><th>Returns</th></tr></thead>
-            <tbody>
-              <tr><td><code>list_comments</code></td><td><code>status?</code>, <code>url?</code></td><td>The backlog as a bulleted list.</td></tr>
-              <tr><td><code>get_comment</code></td><td><code>id</code></td><td>The Claude-ready package (request + HTML + styles + the screenshot as an image + any recording URL).</td></tr>
-              <tr><td><code>propose_change</code></td><td><code>id</code>, <code>html</code>, <code>css?</code>, <code>notes?</code></td><td>Writes Claude's modified HTML/CSS onto the comment (shown as code + live preview in the dashboard).</td></tr>
-              <tr><td><code>update_status</code></td><td><code>id</code>, <code>status</code></td><td>Moves the comment (PATCH).</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Environment</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Variable</th><th>Default</th></tr></thead>
-            <tbody>
-              <tr><td><code>LOUPE_API</code></td><td><code>http://localhost:8787</code></td></tr>
-              <tr><td><code>LOUPE_PROJECT_KEY</code></td><td><code>pk_demo_acme</code></td></tr>
-              <tr><td><code>LOUPE_ADMIN_KEY</code></td><td><code>""</code> — sent as <code>X-Loupe-Admin</code>; required vs a real backend</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>Transport is stdio via <code>@modelcontextprotocol/sdk</code>. The published package ships compiled
-          JS (<code>dist/index.js</code> via tsup), so <code>npm i -g @loupekit/mcp</code> gives a working
-          <code>loupe-mcp</code> binary; from a source checkout it runs directly with <code>node index.ts</code>.
-          See <a href="#quickstart">Quick start</a> for the <code>.mcp.json</code>.</p>
-      </section>
-
-      <hr class="hr">
-
-      <!-- extension -->
-      <section class="doc" id="pkg-extension">
-        <p class="eyebrow">Package</p>
-        <div class="pkg-id"><span class="nm">@loupekit/extension</span></div>
-        <div class="badges"><span class="badge">private (app)</span><span class="badge">v0.10.12</span><span class="badge">Manifest V3</span><span class="badge">dep: @loupekit/sdk</span></div>
-        <p>An MV3 browser extension that reuses the exact SDK core — Loupe on any site, no install on the
-          target. The only difference from the SDK is the screenshot source:
-          <code>chrome.tabs.captureVisibleTab</code> gives real pixels, cropped to the element/region with
-          redaction, via the SDK's <code>captureScreenshot</code> override.</p>
-        <div class="grid">
-          <div class="card"><h4>Parts</h4><ul class="bul" style="margin:.3rem 0 0;font-size:.86rem">
-            <li><code>content.js</code> — the injected widget (IIFE build artifact, gitignored)</li>
-            <li><code>background.js</code> — the capture worker</li>
-            <li><code>popup.html / popup.js</code> — config + "Start Loupe on this tab"</li>
-          </ul></div>
-          <div class="card"><h4>Load it</h4><ul class="bul" style="margin:.3rem 0 0;font-size:.86rem">
-            <li>Permissions: <code>activeTab</code>, <code>scripting</code>, <code>storage</code></li>
-            <li>Build: <code>npm run build:extension</code></li>
-            <li>Load unpacked at <code>chrome://extensions</code> (Developer mode)</li>
-          </ul></div>
-        </div>
-        <div class="callout note"><span class="cl">Privacy</span>
-          The extension only runs after you click its icon and "Start Loupe on this tab" — no background
-          collection, no browsing tracking, no third-party analytics. Feedback goes only to your configured
-          backend; with none set, it stays in local storage.</div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- ============ LARAVEL ============ -->
+      <!-- 8. LARAVEL -->
       <section class="doc" id="laravel">
-        <p class="eyebrow">Loupe for Laravel</p>
-        <h1 style="font-size:2rem">loupekit/laravel</h1>
-        <div class="badges"><span class="badge g">Packagist</span><span class="badge">PHP ^8.2</span><span class="badge">Laravel 11 · 12 · 13</span><span class="badge w">LoupeServer v1.0.0</span><span class="badge g">100% coverage</span></div>
-        <p class="lead" style="margin-top:.8rem">A Composer package that installs the entire loop into any
-          Laravel app: an in-app widget, comments in <em>your</em> database, per-user access control, a
-          Laravel-served triage dashboard, and a first-party MCP server — session-authenticated, no HMAC
-          wiring, no secrets in the browser.</p>
+        <p class="eyebrow">Reference</p>
+        <h2 id="laravel-title">Loupe for Laravel</h2>
+        <p><code>loupekit/laravel</code> puts the whole loop inside a Laravel app: the widget, your database,
+          your users, a dashboard and an MCP server. It needs PHP <code>^8.2</code> and Laravel 11, 12 or 13
+          (Laravel 13 needs PHP 8.3 or later). Install it with the <a href="#install-laravel">Laravel procedure</a>.</p>
+        <p><img src="../images/laravel-dashboard.png" alt="The Loupe dashboard inside a Laravel app" loading="lazy"></p>
 
-        <h3>Requirements</h3>
-        <ul class="bul">
-          <li>PHP <strong>8.2+</strong> (8.3+ on Laravel 13); Laravel <strong>11 / 12 / 13</strong> (9/10 intentionally unsupported).</li>
-          <li>Any Eloquent-supported database — MySQL, PostgreSQL, SQLite, SQL Server.</li>
-          <li>MCP is optional (<code>laravel/mcp ^0.8</code>), guarded by <code>class_exists</code>.</li>
-        </ul>
-
-        <h3>Install</h3>
-        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
-<pre><code>composer require loupekit/laravel
-php artisan loupe:install   <span class="tc"># config, migration, assets, provider stub</span>
-php artisan migrate
-<span class="tc"># add @loupeWidget before &lt;/body&gt;, then open /loupe/dashboard</span>
-php artisan mcp:start loupe  <span class="tc"># expose the backlog to Claude (optional)</span></code></pre></div>
-        <p><code>loupe:install</code> publishes the config, the migration, the browser assets to
-          <code>public/vendor/loupe</code>, and <code>app/Providers/LoupeServiceProvider.php</code>
-          (auto-registered in <code>bootstrap/providers.php</code>). The <code>@loupeWidget</code> directive
-          injects the SDK <code>&lt;script&gt;</code> + <code>Loupe.init({...})</code> — but only for users who
-          pass <code>loupe:use</code>.</p>
-        <p>Publish individual pieces with the <code>vendor:publish</code> tags:
-          <code>loupe-config</code>, <code>loupe-migrations</code>, <code>loupe-assets</code>,
-          <code>loupe-provider</code>, <code>loupe-views</code>.</p>
-
-        <h3>Routes</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Method</th><th>Path (under <code>/{path}</code>)</th><th>Authorize</th><th>Name</th></tr></thead>
-            <tbody>
-              <tr><td><span class="method get">GET</span></td><td><code>v1/blobs/{id}</code></td><td><span class="pill public">public</span></td><td><code>loupe.blobs.show</code></td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>v1/comments</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.index</code></td></tr>
-              <tr><td><span class="method post">POST</span></td><td><code>v1/comments</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.store</code></td></tr>
-              <tr><td><span class="method patch">PATCH</span></td><td><code>v1/comments/{id}</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.update</code></td></tr>
-              <tr><td><span class="method delete">DELETE</span></td><td><code>v1/comments/{id}</code></td><td><span class="pill auth">use</span></td><td><code>loupe.comments.destroy</code></td></tr>
-              <tr><td><span class="method post">POST</span></td><td><code>v1/blobs</code></td><td><span class="pill auth">use</span></td><td><code>loupe.blobs.store</code></td></tr>
-              <tr><td><span class="method get">GET</span></td><td><code>dashboard</code></td><td><span class="pill auth">admin</span></td><td><code>loupe.dashboard</code></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="doc" id="laravel-authz">
-        <h2><a class="anchor" href="#laravel-authz">Authorization</a></h2>
-        <p>Two abilities gate everything: <code>loupe:use</code> (see the widget, create/update comments) and
-          <code>loupe:admin</code> (open the dashboard). Denied users never receive widget markup;
-          API/dashboard return 403.</p>
-        <p>Authorization is decided in this order:</p>
+        <h3 id="laravel-authz">Authorization order</h3>
+        <p>The package checks access in this order and stops at the first answer:</p>
         <ol class="steps">
-          <li><code>Loupe::useWhen()</code> / <code>Loupe::adminWhen()</code> closures (registered in code).</li>
-          <li>Config closures <code>authorize.use</code> / <code>authorize.dashboard</code>.</li>
-          <li>Frictionless access in the <code>local</code> environment, if <code>allow_in_local</code> (default true).</li>
-          <li>Gate abilities <code>loupe:use</code> / <code>loupe:admin</code> — <strong>deny by default</strong> (secure in production).</li>
+          <li>No signed-in user: deny.</li>
+          <li>A closure in <code>config('loupe.authorize.use')</code> or <code>config('loupe.authorize.dashboard')</code>: its answer.</li>
+          <li>A closure registered with <code>Loupe::useWhen()</code> or <code>Loupe::adminWhen()</code>: its answer.</li>
+          <li><code>allow_in_local</code> is true and the environment is <code>local</code>: allow.</li>
+          <li>The <code>loupe:use</code> or <code>loupe:admin</code> gate: its answer.</li>
         </ol>
-        <div class="callout warn"><span class="cl">config:cache</span>
-          Config closures can't be used with <code>config:cache</code>. If you cache config in production,
-          grant access via Gate abilities instead.</div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-authorize.md">How to grant access →</a></p>
+
+        <h3 id="laravel-config">Configuration</h3>
+        <p>Publish the file with <code>php artisan vendor:publish --tag=loupe-config</code>. Common keys:</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Env var</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td><code>LOUPE_ENABLED</code></td><td><code>false</code></td></tr>
+            <tr><td><code>path</code></td><td>string</td><td><code>'loupe'</code></td><td><code>LOUPE_PATH</code></td><td><code>feedback</code></td></tr>
+            <tr><td><code>domain</code></td><td>string or null</td><td><code>null</code></td><td><code>LOUPE_DOMAIN</code></td><td><code>feedback.example.com</code></td></tr>
+            <tr><td><code>asset_url</code></td><td>string or null</td><td><code>null</code></td><td><code>LOUPE_ASSET_URL</code></td><td><code>https://cdn.example.com</code></td></tr>
+            <tr><td><code>project_key</code></td><td>string</td><td><code>'app'</code></td><td><code>LOUPE_PROJECT_KEY</code></td><td><code>shop</code></td></tr>
+            <tr><td><code>guards</code></td><td>list of strings</td><td>empty (uses the app default guard)</td><td><code>LOUPE_GUARDS</code>, comma-separated</td><td><code>web,admin</code></td></tr>
+            <tr><td><code>disk</code></td><td>string</td><td><code>'public'</code></td><td><code>LOUPE_DISK</code></td><td><code>s3</code></td></tr>
+            <tr><td><code>allow_in_local</code></td><td>bool</td><td><code>true</code></td><td>none</td><td><code>false</code></td></tr>
+            <tr><td><code>hub.url</code></td><td>string or null</td><td><code>null</code></td><td><code>LOUPE_HUB_URL</code></td><td><code>https://hub.example.com</code></td></tr>
+            <tr><td><code>hub.project_id</code></td><td>string or null</td><td><code>null</code></td><td><code>LOUPE_PROJECT_ID</code></td><td>the Hub project id</td></tr>
+            <tr><td><code>hub.project_secret</code></td><td>string or null</td><td><code>null</code></td><td><code>LOUPE_PROJECT_SECRET</code></td><td>the Hub project secret (<code>psk_…</code>)</td></tr>
+          </tbody>
+        </table></div>
+
+        <h3 id="laravel-guards">Multiple guards and asset hosts</h3>
+        <p>Set <code>LOUPE_GUARDS</code> to a comma-separated list, such as <code>web,admin</code>, to resolve the
+          user across several guards. Set <code>LOUPE_ASSET_URL</code> to serve the widget assets from another host.</p>
+
+        <h3 id="laravel-hub">Loupe Hub</h3>
+        <p>Forwarding to Hub turns on only when all three keys are set: <code>LOUPE_HUB_URL</code>,
+          <code>LOUPE_PROJECT_ID</code> and <code>LOUPE_PROJECT_SECRET</code>. See <a href="#hub">Loupe Hub</a>.</p>
+
+        <h3 id="laravel-mcp">MCP server</h3>
+        <p>The package registers an MCP server named <code>loupe</code> when <code>laravel/mcp</code> is
+          installed. It has four tools: <code>list-comments</code>, <code>get-comment</code>,
+          <code>propose-change</code> and <code>update-status</code>.</p>
+        <ol class="steps">
+          <li>Install <code>laravel/mcp</code>:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">composer require laravel/mcp:^0.8</code></pre>
+            </div>
+          </li>
+          <li>Create <code>.mcp.json</code> in the root of your Laravel app:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">json</span></div>
+<pre><code class="language-json">{
+  "mcpServers": {
+    "loupe": {
+      "command": "php",
+      "args": ["artisan", "mcp:start", "loupe"]
+    }
+  }
+}</code></pre>
+            </div>
+          </li>
+          <li>Open the app folder in Claude Code and run <code>/mcp</code>. You should see <code>loupe</code>
+            listed, with the four tools above.</li>
+        </ol>
+
+        <h3 id="laravel-troubleshoot">Troubleshooting</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>config:cache</code> fails with "non-serializable".</td><td>A resolver is a closure.</td><td>Use a class name for <code>user_resolver</code> and <code>people_resolver</code>.</td></tr>
+            <tr><td>The widget works locally but not in production.</td><td><code>allow_in_local</code> allowed everyone in <code>local</code>.</td><td>Define the <code>loupe:use</code> and <code>loupe:admin</code> gates.</td></tr>
+          </tbody>
+        </table></div>
+        <p><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/LARAVEL.md">Full reference: LARAVEL.md →</a></p>
       </section>
 
-      <section class="doc" id="laravel-config">
-        <h2><a class="anchor" href="#laravel-config">Configuration</a></h2>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Config · env</th><th>Default</th><th>Purpose</th></tr></thead>
-            <tbody>
-              <tr><td><code>enabled</code> · <code>LOUPE_ENABLED</code></td><td>true</td><td>Master switch.</td></tr>
-              <tr><td><code>path</code> · <code>LOUPE_PATH</code></td><td><code>loupe</code></td><td>Route prefix.</td></tr>
-              <tr><td><code>domain</code> · <code>LOUPE_DOMAIN</code></td><td>—</td><td>Route domain.</td></tr>
-              <tr><td><code>project_key</code> · <code>LOUPE_PROJECT_KEY</code></td><td><code>app</code></td><td>Project identifier.</td></tr>
-              <tr><td><code>middleware.api</code> / <code>.dashboard</code></td><td><code>['web','loupe.auth']</code></td><td>Route middleware stacks.</td></tr>
-              <tr><td><code>guards</code> · <code>LOUPE_GUARDS</code></td><td>default guard</td><td>Ordered CSV of auth guards to try (e.g. <code>web,admin</code>).</td></tr>
-              <tr><td><code>authorize.use</code> / <code>.dashboard</code></td><td>Gate abilities</td><td>Closures; null → the Gate abilities.</td></tr>
-              <tr><td><code>allow_in_local</code></td><td>true</td><td>Frictionless auth in <code>local</code>.</td></tr>
-              <tr><td><code>comment_model</code></td><td><code>Comment::class</code></td><td>Bring your own Eloquent model.</td></tr>
-              <tr><td><code>user_resolver</code></td><td>—</td><td>Closure → <code>{id, name, email?}</code>.</td></tr>
-              <tr><td><code>asset_url</code> · <code>LOUPE_ASSET_URL</code></td><td>app URL</td><td>Origin for bundled assets (bypasses <code>ASSET_URL</code>/CDN).</td></tr>
-              <tr><td><code>disk</code> · <code>LOUPE_DISK</code></td><td><code>public</code></td><td>Filesystem disk for screenshots (<code>loupe/screenshots</code>).</td></tr>
-              <tr><td><code>hub.url</code> · <code>LOUPE_HUB_URL</code></td><td>—</td><td>Loupe Hub base URL. Forwarding is off unless all three <code>hub.*</code> keys are set.</td></tr>
-              <tr><td><code>hub.project_id</code> · <code>LOUPE_PROJECT_ID</code></td><td>—</td><td>Hub Project ID (<code>prj_…</code>).</td></tr>
-              <tr><td><code>hub.project_secret</code> · <code>LOUPE_PROJECT_SECRET</code></td><td>—</td><td>Hub Project Secret (<code>psk_…</code>). Keep it in <code>.env</code>.</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>The dashboard is the exact <code>@loupekit/dashboard</code> bundle, vendored and configured via an
-          injected <code>window.__LOUPE__</code> (API base, project key, CSRF) — no secret in the browser.
-          The data lands in a <code>loupe_comments</code> table (see the <a href="#data-model">data model</a>).</p>
-      </section>
+      <hr class="hr">
 
-      <section class="doc" id="laravel-guards">
-        <h2><a class="anchor" href="#laravel-guards">Multi-guard &amp; CDN</a></h2>
-        <h3>Multiple auth guards</h3>
-        <p>Apps using separate guards (e.g. <code>web</code> for users, <code>admin</code> for admins) could
-          render the widget under one guard and authenticate the API under another, mismatching ids and
-          producing a 403 "cannot post as another user". Set an ordered guard list and Loupe resolves
-          identity the same way everywhere — widget author, gates, API middleware
-          (<code>loupe.auth</code>), and the anti-spoof check.</p>
-        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">.env</span></div>
-<pre><code><span class="tp">LOUPE_GUARDS</span>=web,admin   <span class="tc"># unset = the app's default guard (backward compatible)</span></code></pre></div>
+      <!-- 9. HUB -->
+      <section class="doc" id="hub">
+        <p class="eyebrow">Explanation and how-to</p>
+        <h2 id="hub-title">Loupe Hub</h2>
+        <p>Hub is an optional, separate server that moves a comment from the app where it was written to
+          the app that should handle it. It routes only between apps of the same organization, and it does
+          not store tickets.</p>
 
-        <h3>Behind a CDN / ASSET_URL</h3>
-        <p>Loupe resolves its published assets from the <strong>app URL</strong> via
-          <code>Url::asset()</code>, bypassing <code>ASSET_URL</code> — so apps pointing <code>ASSET_URL</code>
-          at a CDN (with only their Vite build uploaded) don't get 404s and a silently missing widget. Serve
-          <code>public/vendor/loupe</code> elsewhere? Point <code>LOUPE_ASSET_URL</code> at it and re-run
-          <code>vendor:publish --tag=loupe-assets --force</code>.</p>
-      </section>
+        <h3 id="hub-concepts">Concepts</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>Organization</td><td>Holds members, an optional allowed email domain, and projects.</td></tr>
+            <tr><td>Owner / member</td><td>Owners change everything. Members view and submit.</td></tr>
+            <tr><td>Project</td><td>One connected app, with a Hub project secret (<code>psk_</code>) and a webhook signing secret (<code>whs_</code>). The Hub project secret is not the Loupe project secret.</td></tr>
+            <tr><td>Inbound URL</td><td>Where a project receives tickets, for example <code>https://tracker.example.com/loupe/v1/hub/inbound</code>.</td></tr>
+            <tr><td>Destination</td><td>The project that a project's tickets go to.</td></tr>
+          </tbody>
+        </table></div>
+        <h3 id="hub-start">Start Hub and create a project</h3>
+        <p><strong>Prerequisites:</strong> a clone with <code>npm install</code> done, and a Google OAuth
+          client id. Without <code>GOOGLE_CLIENT_ID</code>, the sign-in page says it is not configured and
+          sign-in answers 503.</p>
+        <ol class="steps">
+          <li>Start Hub with your client id:
+            <div class="code">
+              <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
+<pre><code class="language-bash">GOOGLE_CLIENT_ID=&lt;GOOGLE_CLIENT_ID&gt; npm run start:hub</code></pre>
+            </div>
+            <p><code>&lt;GOOGLE_CLIENT_ID&gt;</code> is the client id of your Google OAuth client. You should see
+              <code>[hub] Loupe Hub on http://127.0.0.1:8790</code>.</p>
+          </li>
+          <li>Open <code>http://127.0.0.1:8790/</code> and sign in with Google. You should see the
+            <strong>Organizations</strong> page.
+            <p><img src="../images/hub-signin.png" alt="The Hub sign-in page" loading="lazy"></p>
+          </li>
+          <li>Type a name, for example <code>Acme</code>, and click <strong>Create</strong>. You should see the new
+            organization in the list.
+            <p><img src="../images/hub-orgs.png" alt="The list of organizations" loading="lazy"></p>
+          </li>
+          <li>Open the organization. You should see its members and projects.
+            <p><img src="../images/hub-org.png" alt="An organization page with members and projects" loading="lazy"></p>
+          </li>
+          <li>Type a project name, for example <code>Tracker</code>, and click <strong>Create project</strong>. You
+            should see the project page with the card <strong>Copy now. These secrets are shown only
+            once.</strong> Hub shows the secrets only when it creates or rotates them, so copy them now.
+            <p><img src="../images/hub-project-secrets.png" alt="The page that shows new project secrets once" loading="lazy"></p>
+          </li>
+          <li>Go back to the organization and open the project. You should see the project page without the secrets.
+            <p><img src="../images/hub-project.png" alt="A project page" loading="lazy"></p>
+          </li>
+        </ol>
+        <p>To run Hub for others, set <code>HUB_SESSION_SECRET</code> (required when
+          <code>NODE_ENV=production</code>). See <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-self-host.md">Self-host Hub</a>.</p>
 
-      <section class="doc" id="laravel-hub">
-        <h2><a class="anchor" href="#laravel-hub">Loupe Hub (optional)</a></h2>
-        <p><strong>Loupe Hub</strong> is a small hosted service. Organization owners sign in with Google,
-          add allowed members (Google emails and/or one email domain) and create one project per app. Each
-          project has a Project ID and a Project Secret, and can have an Inbound URL, a project to send tickets
-          to, and a webhook. Hub accepts an issue only when its author belongs to the organization, then sends
-          it to the destination project, or else to the webhook, signed.</p>
-        <p>Create a project in Hub, then set all three keys. Forwarding is off unless all three are set:</p>
-        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">.env</span></div>
-<pre><code><span class="tp">LOUPE_HUB_URL</span>=https://hub.example.com
-<span class="tp">LOUPE_PROJECT_ID</span>=prj_…
-<span class="tp">LOUPE_PROJECT_SECRET</span>=psk_…</code></pre></div>
+        <h3 id="hub-routing">Routing</h3>
+        <p>Hub checks the signature, the body and the submitter, then picks the first route that applies:</p>
+        <ol class="steps">
+          <li><strong>Destination project.</strong> If the project has a destination with an inbound URL, Hub
+            delivers there, signed with the destination's secret and the <code>X-Loupe-Hub-Project</code> header.</li>
+          <li><strong>Webhook fallback.</strong> Otherwise, if the project has a webhook URL, Hub delivers there,
+            signed with the webhook signing secret.</li>
+          <li><strong>Nowhere.</strong> Otherwise Hub answers <code>202 {id, delivery: "none"}</code>.</li>
+        </ol>
+        <p><img src="../images/hub-project-routing.png" alt="The routing settings of a project" loading="lazy"></p>
+
+        <h3 id="hub-sync">Two-way sync</h3>
+        <p>After a project-to-project delivery, both apps hold the ticket. The receiving app owns the status:
+          when it changes there, the sender's card moves to the same stage and its chip shows the remote
+          state, for example <code>→ Tracker · TCK-42 · In progress</code>. Replies travel both ways. A ticket
+          sent to an external webhook is one-way and cannot receive updates.</p>
+        <p><img src="../images/sdk-forwarded-chip.png" alt="A comment with a chip that shows the forwarded ticket state" loading="lazy"></p>
+
+        <h3 id="hub-security">Security summary</h3>
         <ul class="bul">
-          <li>Each <strong>new</strong> comment (not later edits) dispatches the
-            <code>Loupekit\Loupe\Jobs\SendToHub</code> job. It POSTs
-            <code>{ user: { email, name }, issue }</code> to <code>{LOUPE_HUB_URL}/v1/issues</code>. The user is the
-            logged-in user, through <code>user_resolver</code> if set.</li>
-          <li>The request is signed: <code>X-Loupe-Project</code>, <code>X-Loupe-Timestamp</code> and
-            <code>X-Loupe-Signature</code> = hex(HMAC-SHA256(timestamp + "." + body, project secret)).</li>
-          <li>The job runs on your queue. On the <code>sync</code> queue, or if the queue is unavailable, it runs
-            after the response. With a real queue, keep a worker running.</li>
-          <li>A Hub failure (for example <code>403 user not in organization</code>, a network error or a failed
-            webhook delivery) is logged as a warning and <strong>never breaks comment creation</strong>. Users
-            without an email are skipped.</li>
-          <li>Hub's answer is stored on the comment as <code>forwarded</code>. The card shows
-            <strong>→ CRM</strong>, in red when delivery failed.</li>
+          <li>Every request in both directions is signed with HMAC-SHA256 over <code>&lt;timestamp&gt;.&lt;raw body&gt;</code>.
+            Timestamps more than 300 seconds off are refused.</li>
+          <li>Hub stores secrets in plain text, because it must sign with them. Protect its database.</li>
+          <li>Dashboard sign-in uses Google with a verified email; the <code>hub_session</code> cookie is
+            <code>HttpOnly; Secure; SameSite=Lax</code>.</li>
+          <li><span class="pill">Unreleased</span> Hub refuses to deliver to private, loopback and link-local
+            addresses. <code>HUB_ALLOW_PRIVATE_URLS=1</code> turns this off, for local development only.</li>
+          <li><span class="pill">Unreleased</span> A reply URL is kept only when its path ends in
+            <code>/v1/hub/inbound</code> and it has no credentials. When the sending project has an inbound URL
+            registered, the reply URL must also have the same origin as that inbound URL.</li>
         </ul>
-        <h3>Send tickets to another project</h3>
-        <p>To collect every app's tickets in one app, such as a CRM: install the package on the receiving app with
-          its own Hub keys, set its <strong>Inbound URL</strong> in Hub to
-          <code>https://&lt;app&gt;/loupe/v1/hub/inbound</code>, and choose it under <strong>Send tickets to</strong>
-          on each sending project. Hub signs each delivery with the receiving project's own secret. The receiver
-          fails closed (503 without Hub keys; 401 for a missing header, another project, a stale timestamp or a bad
-          signature; 413 over 6 MB), stores each issue id once, and fires
-          <code>Loupekit\Loupe\Events\TicketReceived</code> for your own listener.</p>
-        <p><code>GET /loupe/v1/org</code> feeds the panel's project chip and menu with the organization's projects.
-          <code>GET /loupe/v1/activity</code> feeds the Activity view; set <code>LOUPE_ACTIVITY=false</code> to stop
-          recording. Run <code>php artisan migrate</code> after upgrading to 0.13.0.</p>
-        <p>Since 0.13.0 the two projects stay in step after a delivery. A status change on the receiving app moves
-          the sender's card and its chip, for example "→ Converted OS · CT-1405 · In progress", and replies travel
-          both ways. The package also serves replies, reactions, <code>/loupe/v1/people</code> for @mentions and
-          <code>/loupe/v1/notifications</code>.</p>
-        <p>Hub itself, its API, webhook format and deployment: see
-          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/packages/hub">packages/hub</a>.</p>
-      </section>
-
-      <section class="doc" id="laravel-mcp">
-        <h2><a class="anchor" href="#laravel-mcp">MCP server (Laravel)</a></h2>
-        <p>With <code>laravel/mcp</code> installed, a server named <code>loupe</code> is registered
-          automatically. Start it with <code>php artisan mcp:start loupe</code>. Unlike the Node MCP server,
-          the tools read the app's own database <strong>directly</strong> — no HTTP hop, no admin key.</p>
-        <ul class="bul">
-          <li><code>list_comments(status?, priority?, changeType?, url?)</code> — the backlog, newest first; each item carries its stage, priority and change type.</li>
-          <li><code>get_comment(id)</code> — request + element HTML + computed styles + the screenshot <strong>as an image</strong> + any recording URL (or region rect).</li>
-          <li><code>propose_change(id, html, css?, notes?)</code> — stores Claude's modified HTML/CSS on the comment; the dashboard renders it as code + a live before/after preview.</li>
-          <li><code>update_status(id, status)</code> — moves a comment along the board: <code>queue</code> / <code>todo</code> / <code>in_progress</code> / <code>in_review</code> / <code>resolved</code>. An agent moves it to <code>in_review</code>; only a person resolves.</li>
-        </ul>
-        <p>For different-subdomain SPA frontends (Sanctum), add
-          <code>EnsureFrontendRequestsAreStateful</code> + <code>auth:sanctum</code> to
-          <code>middleware.api</code> and use <code>credentials: 'include'</code>.</p>
-      </section>
-
-      <section class="doc" id="laravel-troubleshoot">
-        <h2><a class="anchor" href="#laravel-troubleshoot">Troubleshooting</a></h2>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Symptom</th><th>Cause &amp; fix</th></tr></thead>
-            <tbody>
-              <tr><td>Widget missing</td><td>User fails <code>loupe:use</code>, <code>@loupeWidget</code> not in layout, or <code>LOUPE_ENABLED=false</code>.</td></tr>
-              <tr><td>419 on save</td><td>CSRF token missing — ensure the widget view sends <code>X-CSRF-TOKEN</code>.</td></tr>
-              <tr><td>403 on dashboard</td><td>User fails <code>loupe:admin</code>.</td></tr>
-              <tr><td>Screenshots 404</td><td>Disk not public — run <code>php artisan storage:link</code>.</td></tr>
-              <tr><td>403 "cannot post as another user"</td><td>Multi-guard app — set <code>LOUPE_GUARDS=web,admin</code>.</td></tr>
-              <tr><td>Widget missing only behind a CDN</td><td>Set <code>LOUPE_ASSET_URL</code>; re-publish assets with <code>--force</code>.</td></tr>
-              <tr><td><code>mcp:start</code> unknown</td><td>Install <code>laravel/mcp:^0.8</code>.</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <p>The two <strong>Unreleased</strong> items are not in Hub 0.14.0.</p>
+        <p>Read more: <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/hub.md">How Hub works</a> ·
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-self-host.md">Self-host Hub</a> ·
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-connect-apps.md">Connect apps</a> ·
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/hub.md">Hub reference</a>.</p>
       </section>
 
       <hr class="hr">
 
-      <!-- ============ REFERENCE ============ -->
+      <!-- 10. ARCHITECTURE -->
+      <section class="doc" id="architecture">
+        <p class="eyebrow">Explanation</p>
+        <h2 id="architecture-title">Architecture</h2>
+        <p>A summary. The full design, with diagrams, is in
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE.md</a>.</p>
 
-      <!-- FEATURES -->
-      <section class="doc" id="features">
-        <h2><a class="anchor" href="#features">Feature guide</a></h2>
-        <p>Cross-cutting SDK features ship simultaneously to the standalone SDK, the browser extension, and
-          the Laravel widget — all three share the <code>@loupekit/sdk</code> core.</p>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Feature</th><th>What it does</th><th>Since</th></tr></thead>
-            <tbody>
-              <tr><td>Two-way sync</td><td>The receiving project's status and replies reach the sender through Hub; the sender's chip shows the remote state.</td><td class="tabular">0.13.0</td></tr>
-              <tr><td>Replies, mentions and inbox on Laravel</td><td>The package serves the messages, reactions, people and notifications routes the widget uses.</td><td class="tabular">0.13.0</td></tr>
-              <tr><td>Tickets between projects</td><td>A Hub project sends its tickets to another project in the organization. The Laravel package receives them, shows "from" and "→" chips, and fires <code>TicketReceived</code>.</td><td class="tabular">0.12.0</td></tr>
-              <tr><td>Organization projects</td><td>The Home project chip and menu show the organization and its projects, read from Hub. Replaces repo linking.</td><td class="tabular">0.12.0</td></tr>
-              <tr><td>Live Activity on Laravel</td><td>The package records comment, status and ticket events, and the Activity view polls them while open.</td><td class="tabular">0.12.0</td></tr>
-              <tr><td>Loupe Hub</td><td>Optional hosted service: orgs, allowed members (emails / one domain), projects; verifies signed issues, checks org membership, forwards to a signed per-project webhook with retries + delivery log.</td><td class="tabular">0.10.12</td></tr>
-              <tr><td>Laravel → Hub</td><td>Set <code>LOUPE_HUB_URL</code> + <code>LOUPE_PROJECT_ID</code> + <code>LOUPE_PROJECT_SECRET</code> and every new comment is also sent to Hub (queued, never blocks comment creation).</td><td class="tabular">0.10.12</td></tr>
-              <tr><td>Free comments</td><td>Drop a page-level note anywhere via the <strong>Note</strong> mode — no element, no screenshot (<code>kind: "free"</code>).</td><td class="tabular">0.5.0</td></tr>
-              <tr><td>Dockable control</td><td>DevTools-style panel: dock to left / right / bottom (pushes the host page over) or float as a movable, resizable window. Position persists.</td><td class="tabular">0.6.0</td></tr>
-              <tr><td>Light / dark theme</td><td>Theme toggle in the panel header; dark by default, persists.</td><td class="tabular">0.6.0</td></tr>
-              <tr><td>Re-anchoring</td><td>Multi-signal fingerprint survives redeploys; detaches rather than mis-pin.</td><td class="tabular">0.1.0</td></tr>
-              <tr><td>Region shot</td><td>Drag a free box (no element); anchored to element under center as fractional coords — tracks reflow, viewport &amp; scroll.</td><td class="tabular">0.2.0</td></tr>
-              <tr><td>Screen recording</td><td><strong>Record</strong> tool: drag a box (same UX as Region), capture a screen video of it via <code>getDisplayMedia</code> + canvas crop, saved as <code>.webm</code> (duration-capped, Stop button). Plays inline in the widget &amp; dashboard.</td><td class="tabular">0.7.0</td></tr>
-              <tr><td>Claude round-trip</td><td>MCP <code>get_comment</code> returns the screenshot <strong>as an image</strong> + HTML/CSS; new <code>propose_change</code> tool writes Claude's modified HTML/CSS back onto the comment.</td><td class="tabular">0.7.0</td></tr>
-              <tr><td>Proposal preview</td><td>Dashboard renders Claude's modified HTML/CSS as copyable code + a <strong>live before/after</strong> preview (sandboxed iframe) for the dev team.</td><td class="tabular">0.7.0</td></tr>
-              <tr><td>Two-page sidebar</td><td>Widget dock &amp; dashboard each get a <strong>Comments</strong> page and a <strong>Connect Claude</strong> page (MCP setup steps), plus an "Integrates with" row.</td><td class="tabular">0.7.0</td></tr>
-              <tr><td>Offline mode</td><td>Omit <code>apiBase</code> → localStorage adapter.</td><td class="tabular">0.1.0</td></tr>
-              <tr><td>Session auth (SDK)</td><td><code>headers</code> + <code>credentials</code> config for CSRF / cookie auth.</td><td class="tabular">0.3.0</td></tr>
-              <tr><td>Collapsible control</td><td>Close collapses the panel to a small <code>◎</code> launcher button; click it to reopen. (Pre-0.6.0: collapsed the pill toolbar to its logo.)</td><td class="tabular">0.3.3 / 0.6.0</td></tr>
-              <tr><td>Font embedding</td><td>Awaits <code>document.fonts.ready</code> (capped) so screenshots use the right fonts, never hanging.</td><td class="tabular">0.3.4 / 0.4.1</td></tr>
-              <tr><td>Device / viewport</td><td>Desktop/tablet/mobile badge end-to-end; <code>deviceType()</code> helper + DB column.</td><td class="tabular">0.4.0</td></tr>
-              <tr><td>SPA per-page comments</td><td>Patches <code>pushState</code>/<code>replaceState</code> + <code>popstate</code> to reload comments on client-side navigation.</td><td class="tabular">0.4.0</td></tr>
-              <tr><td>Mobile bottom sheet</td><td>On viewports ≤ 640px the panel is a full-width bottom sheet; it shrinks to a header+tools bar while inspecting so the page stays tappable.</td><td class="tabular">0.6.0</td></tr>
-              <tr><td>Instant region open</td><td>Composer opens immediately; capture runs in background, attached on submit.</td><td class="tabular">0.4.1</td></tr>
-              <tr><td>Copy for Claude</td><td>Dashboard action copies a comment's full context to paste into Claude.</td><td class="tabular">—</td></tr>
-              <tr><td>Redaction</td><td><code>[data-loupe-redact]</code> regions painted over before pixels leave the browser.</td><td class="tabular">0.1.0</td></tr>
-              <tr><td>Canary channel</td><td>Install prereleases with <code>npm i @loupekit/sdk@next</code>.</td><td class="tabular">0.2.0</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <h3 id="architecture-packages">Packages</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Package</th><th>Role</th><th>Reference</th></tr></thead>
+          <tbody>
+            <tr id="pkg-shared"><td><code>@loupekit/shared</code></td><td>Types, the five stages, <code>normalizeUrl()</code>.</td><td><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/shared.md">shared.md</a></td></tr>
+            <tr id="pkg-sdk"><td><code>@loupekit/sdk</code></td><td>The widget.</td><td><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/sdk.md">sdk.md</a></td></tr>
+            <tr id="pkg-server"><td><code>@loupekit/server</code></td><td>The API on port 8787. Request bodies are capped at 12 MB for JSON and 60 MB for blob uploads.</td><td><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/server.md">server.md</a> (all routes)</td></tr>
+            <tr id="pkg-dashboard"><td><code>@loupekit/dashboard</code></td><td>The triage board.</td><td><a href="#dashboard">Dashboard</a></td></tr>
+            <tr id="pkg-mcp"><td><code>@loupekit/mcp</code></td><td>MCP server and bridge.</td><td><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/mcp.md">mcp.md</a></td></tr>
+            <tr id="pkg-extension"><td><code>@loupekit/extension</code></td><td>Chrome MV3 extension.</td><td><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/extension.md">extension.md</a></td></tr>
+            <tr id="pkg-hub"><td><code>@loupekit/hub</code></td><td>Optional ticket router, port 8790 by default.</td><td><a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/hub.md">hub.md</a></td></tr>
+          </tbody>
+        </table></div>
+
+        <h3 id="reanchoring">Re-anchoring</h3>
+        <p>Each pin stores a fingerprint, a set of properties that identify its element: tag, CSS path,
+          XPath, test id, text, attributes and position.
+          On every load, a unique test id or id wins at a score of 0.98. A CSS path rooted at a stable id
+          wins at 0.90. Otherwise Loupe scores candidates: the elements at the stored
+          CSS path and XPath, every element with the same tag, and, when the pin has text, elements with the
+          same text, a scan that stops at 4,000 candidates. Below 0.5, the pin detaches and shows
+          "moved" instead of pinning to the wrong element. Give important elements a
+          <code>data-testid</code>. A region anchors to the smallest ancestor that covers at least 60% of it.</p>
+
+        <h3 id="auth">Authentication</h3>
+        <p>The Node server accepts an admin (the <code>X-Loupe-Admin</code> header equals the project secret)
+          or a user (the <code>X-Loupe-Hmac</code> header equals HMAC-SHA256 of the user id with the project
+          secret). Your server computes the HMAC, so the browser never sees the secret. The Laravel package
+          uses the session and its gates instead. See
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/auth-and-privacy.md">Authentication and privacy</a>.</p>
+
+        <h3 id="url-normalization">URL normalization</h3>
+        <p><code>normalizeUrl</code> keeps the path and query, drops tracking parameters such as
+          <code>utm_*</code>, <code>gclid</code> and <code>fbclid</code>, sorts the rest and removes one trailing
+          slash. So <code>/checkout?utm_source=x</code> and <code>/checkout</code> share one set of comments.</p>
+
+        <h3 id="screenshots">Screenshots and storage</h3>
+        <p>The SDK uploads each capture to <code>POST /v1/blobs</code> and stores only the returned URL. The
+          server keeps blobs under <code>LOUPE_BLOB_DIR</code>; the Laravel package uses a filesystem disk.</p>
+
+        <h3 id="seams">Seams</h3>
+        <p>You can replace request headers and credentials, capture functions, panel tabs,
+          the generate function, integration providers, the database (<code>DATABASE_URL</code>), and, in
+          Laravel, the event listeners and resolvers. The SDK picks its storage itself: the HTTP adapter
+          when you pass <code>apiBase</code>, <code>localStorage</code> otherwise. The storage adapter is an
+          internal interface, not an option.</p>
+
+        <h3 id="data-model">Data model</h3>
+        <p>The Node server stores projects, comments, thread messages, thread participants, reactions,
+          notifications, working branches, repo URLs, integrations, integration mappings and integration
+          deliveries. The Laravel package uses <code>loupe_comments</code>, <code>loupe_messages</code>,
+          <code>loupe_reactions</code>, <code>loupe_notifications</code> and <code>loupe_activity</code>.</p>
       </section>
 
       <hr class="hr">
 
-      <!-- DATA MODEL -->
-      <section class="doc" id="data-model">
-        <h2><a class="anchor" href="#data-model">Data model</a></h2>
-        <p>Two tables in Postgres. Comments are keyed by <a href="#url-normalization">normalized</a> URL.</p>
-        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">schema.sql</span></div>
-<pre><code><span class="tk">CREATE TABLE</span> projects (
-  project_key     <span class="tf">TEXT</span> <span class="tk">PRIMARY KEY</span>,
-  name            <span class="tf">TEXT</span>,
-  secret          <span class="tf">TEXT</span>,
-  allowed_origins <span class="tf">TEXT[]</span> <span class="tk">DEFAULT</span> <span class="ts">'{}'</span>,
-  created_at      <span class="tf">TIMESTAMPTZ</span> <span class="tk">DEFAULT</span> now()
-);
-
-<span class="tk">CREATE TABLE</span> comments (
-  id             <span class="tf">TEXT</span> <span class="tk">PRIMARY KEY</span>,
-  project_key    <span class="tf">TEXT</span> <span class="tk">REFERENCES</span> projects <span class="tk">ON DELETE CASCADE</span>,
-  url            <span class="tf">TEXT</span>,
-  status         <span class="tf">TEXT</span> <span class="tk">DEFAULT</span> <span class="ts">'queue'</span>,
-  priority       <span class="tf">TEXT</span> <span class="tk">DEFAULT</span> <span class="ts">'medium'</span>,
-  change_type    <span class="tf">TEXT</span> <span class="tk">DEFAULT</span> <span class="ts">'other'</span>,
-  repo           <span class="tf">TEXT</span>,   <span class="tc">-- org/repo, branch-aware threads</span>
-  branch         <span class="tf">TEXT</span>,   <span class="tc">-- nullable</span>
-  body           <span class="tf">TEXT</span>,
-  author  <span class="tf">JSONB</span>,  anchor  <span class="tf">JSONB</span>,  context <span class="tf">JSONB</span>,  <span class="tp">"offset"</span> <span class="tf">JSONB</span>,
-  kind    <span class="tf">TEXT</span> <span class="tk">DEFAULT</span> <span class="ts">'element'</span>,           <span class="tc">-- additive</span>
-  region  <span class="tf">JSONB</span>,  viewport <span class="tf">JSONB</span>,             <span class="tc">-- additive</span>
-  screenshot_url <span class="tf">TEXT</span>,
-  created_at     <span class="tf">TIMESTAMPTZ</span> <span class="tk">DEFAULT</span> now()
-);
-<span class="tk">CREATE INDEX</span> comments_project_url <span class="tk">ON</span> comments (project_key, url);</code></pre></div>
-        <div class="callout note"><span class="cl">Laravel table</span>
-          The Laravel package mirrors this as <code>loupe_comments</code> with a UUID <code>id</code>, a
-          <code>timestamps</code> pair, and an indexed denormalized <code>author_id</code> for ownership
-          checks. <code>url</code> is <code>VARCHAR(500)</code> and <code>project_key</code>
-          <code>VARCHAR(191)</code> so the composite index fits MySQL's key-length limit.</div>
-      </section>
-
-      <hr class="hr">
-
-      <!-- TESTING -->
+      <!-- 11. TESTING / RELEASING / CONTRIBUTING -->
       <section class="doc" id="testing">
-        <h2><a class="anchor" href="#testing">Testing</a></h2>
-        <p>Runner is <strong>Vitest + v8 coverage</strong>. DOM code runs under <strong>happy-dom</strong>
-          (opt-in per file); the rest runs in Node.</p>
-        <div class="code"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">bash</span></div>
-<pre><code>npm test              <span class="tc"># run the suite once</span>
-npm run test:watch    <span class="tc"># watch mode</span>
-npm run test:coverage <span class="tc"># text + HTML report in coverage/</span></code></pre></div>
-        <p>Coverage is ~91% lines / ~85% statements. Pure-logic modules sit at or near 100%
-          (<code>server/store</code>, <code>server/blobs</code>). Deliberately under-covered:
-          <code>db.ts</code>'s <code>pg</code> branch (needs a live Postgres), the
-          <code>modern-screenshot</code> redaction filter, and the rAF/MutationObserver-driven app code that
-          needs a real layout engine. The extension's <code>content.src.ts</code> is validated by the
-          manifest test + build rather than executed (it needs Chrome APIs + canvas).</p>
-        <p>The Laravel package runs an Orchestra Testbench suite across every PHP × Laravel combination in
-          CI, under a <strong>100% line-coverage</strong> gate
-          (<code>composer test:coverage-100</code>).</p>
+        <p class="eyebrow">Reference</p>
+        <h2 id="testing-title">Testing</h2>
+        <p>One Vitest run covers the TypeScript packages: run <code>npm test</code> from the root. The Laravel
+          package uses PHPUnit with Orchestra Testbench: run <code>composer test</code> in
+          <code>packages/laravel</code>. The 100% line-coverage gate, which CI runs, is
+          <code>composer run test:coverage-100</code>. A "stranger test" installs the package
+          into a new Laravel app the way a first-time user would.
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md">TESTING.md →</a></p>
       </section>
 
-      <hr class="hr">
-
-      <!-- RELEASING -->
       <section class="doc" id="releasing">
-        <h2><a class="anchor" href="#releasing">Releasing &amp; publishing</a></h2>
-        <p>Loupe uses <strong>Semantic Versioning</strong> and ships through <strong>GitHub Releases</strong>
-          backed by annotated tags (<code>vX.Y.Z</code>). MAJOR = breaking change to a public contract (SDK
-          <code>init</code>, HTTP routes, MCP tool shapes, DB schema); MINOR = compatible features;
-          PATCH = compatible fixes.</p>
-        <div class="callout warn"><span class="cl">The release rule</span>
-          A release <strong>must</strong> update the docs: (1) <code>CHANGELOG.md</code>, (2) the landing-page
-          version, (3) the wiki, (4) each published package's <code>version</code>. CI fails the release if
-          <code>CHANGELOG.md</code> has no entry for the tag.</div>
+        <p class="eyebrow">Reference</p>
+        <h2 id="releasing-title">Releasing</h2>
+        <p>Every package carries the same version and follows Semantic Versioning. Record each change under
+          <code>## [Unreleased]</code> in <code>CHANGELOG.md</code>. Pushing a <code>v*</code> tag creates the
+          GitHub Release, publishes <code>@loupekit/shared</code>, <code>@loupekit/mcp</code> and
+          <code>@loupekit/sdk</code> to npm, mirrors them to GitHub Packages under the
+          <code>@mohamed-ashraf-elsaed</code> scope, and forwards the tag to the Laravel split
+          repository for Packagist. A push to <code>main</code> publishes canary builds under the
+          <code>next</code> tag.
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/RELEASING.md">RELEASING.md →</a></p>
+      </section>
 
-        <h3>Two channels, two registries</h3>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Channel</th><th>Trigger</th><th>dist-tag</th><th>npm</th><th>GitHub Packages</th></tr></thead>
-            <tbody>
-              <tr><td>Canary</td><td>every push to <code>main</code></td><td><code>next</code></td><td><code>@loupekit/*</code></td><td><code>@mohamed-ashraf-elsaed/*</code></td></tr>
-              <tr><td>Stable</td><td>tag <code>vX.Y.Z</code></td><td><code>latest</code></td><td><code>@loupekit/*</code></td><td><code>@mohamed-ashraf-elsaed/*</code></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>Publishable to npm: <code>@loupekit/shared</code>, <code>@loupekit/sdk</code>,
-          <code>@loupekit/mcp</code>. Publish <code>shared</code> first — <code>mcp</code> imports it at
-          runtime. The Laravel package is split to its own repo by CI and picked up by Packagist; one
-          <code>vX.Y.Z</code> tag ships npm + Packagist together. The extension ships to the Chrome Web Store.</p>
+      <section class="doc" id="contributing">
+        <p class="eyebrow">How-to</p>
+        <h2 id="workspace">Contributing</h2>
+        <p>Clone the repository, run <code>npm install</code> and <code>npm run build</code>, then run the
+          JavaScript and Laravel tests before you change anything. Add a changelog entry and open a pull
+          request against <code>main</code>.
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CONTRIBUTING.md">CONTRIBUTING.md →</a></p>
       </section>
 
       <hr class="hr">
 
-      <!-- CHANGELOG -->
+      <!-- 12. CHANGELOG -->
       <section class="doc" id="changelog">
-        <h2><a class="anchor" href="#changelog">Changelog</a></h2>
-        <p>Follows <a href="https://keepachangelog.com">Keep a Changelog</a> + Semantic Versioning. Current
-          release: <strong>0.14.0</strong> (2026-10-05).</p>
+        <p class="eyebrow">Reference</p>
+        <h2 id="changelog-title">Changelog</h2>
+        <p>Headlines of the last three versions. The full history is in
+          <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
 
-        <div class="cl-entry latest">
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.14.0</span><span class="cl-date">2026-10-05</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
-            <li><strong>Act from Home.</strong> Recent rows carry Resolve or Reopen, Open, and Delete with one confirmation.</li>
-            <li><strong>Status filter and sort order.</strong> The Comments list filters by one status and orders newest,
-              oldest or by page. Both are remembered.</li>
-            <li><strong>Collapsible day groups.</strong> Click a day header to fold it; each header shows its count.</li>
+            <li><strong>Act from Home.</strong> Resolve (or Reopen), Open and Delete on each Recent row. Delete asks "Confirm delete" first.</li>
+            <li><strong>Status filter and sort order on Comments.</strong> Both are remembered per browser.</li>
+            <li><strong>Collapsible day groups.</strong> Click a day header to fold it.</li>
+            <li><strong>Fixed:</strong> resolving, reopening or deleting now updates the All list and the Home feed at once.</li>
           </ul>
         </div>
 
         <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.13.1</span><span class="cl-date">2026-10-05</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
-            <li><strong>Updates without a reload.</strong> The panel re-reads comments, open threads and mentions
-              every 10 seconds, pauses while the tab is hidden, and never refreshes under someone typing.</li>
+            <li><strong>Updates without a reload.</strong> The panel re-reads every 10 seconds, pauses while the tab is hidden, and skips a read while someone types.</li>
           </ul>
         </div>
 
         <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.13.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
           <ul class="bul">
-            <li><strong>Two-way sync between projects.</strong> The receiving project's status changes move the
-              sender's card, and its chip shows the remote state and links to it. Replies travel both ways with a
-              "from" tag. Hub relays them at <code>POST /v1/issues/{id}/updates</code>.</li>
-            <li><strong>Replies, reactions, mentions and the inbox on Laravel.</strong> The package serves the four
-              routes the widget already called.</li>
-            <li><strong>Events for host apps.</strong> <code>CommentCreated</code>, <code>CommentStatusChanged</code>,
-              <code>CommentDeleted</code>, <code>MessageAdded</code>, <code>HubUpdateReceived</code>.</li>
-            <li><strong>Changed:</strong> an unknown status is refused with 422, and only the author or an admin can
-              delete a comment. Run <code>php artisan migrate</code> and redeploy Hub.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.12.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Tickets between projects.</strong> In Loupe Hub, a project can send its tickets to another
-              project in the same organization. The Laravel package receives them at
-              <code>/loupe/v1/hub/inbound</code>, shows "from" and "→" chips, and fires <code>TicketReceived</code>.</li>
-            <li><strong>The organization in the panel.</strong> The Home project chip reads "Project ·
-              Organization", and the project menu lists the organization's projects and where tickets go.</li>
-            <li><strong>Live Activity on Laravel.</strong> The package records comment, status and ticket events.
-              The Activity view polls them every 15 seconds while it is open and shows Live or Offline.</li>
-            <li><strong>Changed: Chat is off by default.</strong> The tab shows dimmed. Pass
-              <code>chat: true</code> to turn it on.</li>
-            <li><strong>Removed: repository linking.</strong> The <code>repo</code>, <code>branch</code> and
-              <code>repos</code> options and the repo picker are gone.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.11.1</span><span class="cl-date">2026-10-04</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>The chat view rendered under every tab.</strong> Its <code>display: flex</code>
-              outranked the hidden-view rule by source order, so the chat sat behind Home, Comments and
-              Activity and swallowed clicks meant for the Comments tools.</li>
-            <li><strong>Squeezed menus.</strong> The header's 26px icon-button rule also matched the rows,
-              switches and swatches inside the Settings and Position popovers.</li>
-            <li><strong>Menus stayed open over the page.</strong> A click on the host page, or <kbd>Esc</kbd>,
-              now closes an open popover.</li>
-            <li><strong>Region pins landed on the wrong element.</strong> A region now anchors to the smallest
-              element covering at least 60% of it, or is page-level when nothing does. Implausible fractions
-              stored by earlier versions are ignored and the pin is marked “moved”.</li>
-            <li><strong>Re-anchoring skips hidden duplicates</strong> where the browser can tell
-              (<code>checkVisibility</code>), and element pins off to the side are no longer drawn.</li>
-            <li><strong>A thread's location reads as text</strong> (<code>button · “Red Sea”</code>), not a
-              CSS path, and the “All” scope chip carries its count from the first paint.</li>
-            <li><strong>A hidden launcher could not be brought back on a phone.</strong> The only way back was
-              <kbd>Alt+Shift+L</kbd>. On a touch screen a slim tab now sits at the right edge while the
-              launcher is hidden; tapping it restores the launcher.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.11.0</span><span class="cl-date">2026-10-04</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Hide the launcher.</strong> The <code>◎</code> button can sit on top of a page's own
-              controls. A quick action hides it, and so do the Settings menu, <kbd>Alt+Shift+L</kbd> and
-              <code>hideLauncher()</code> / <code>showLauncher()</code>. The choice persists, and a toast
-              says how to bring it back.</li>
-            <li><strong>Drag the launcher anywhere.</strong> Press and move it. The position is clamped to the
-              viewport, anchored to the nearest edges so it survives a resize, remembered across reloads,
-              and reset from the Settings menu.</li>
-            <li><strong>Who raised it, and when.</strong> Every thread shows its author and an absolute
-              timestamp rendered in <code>init({ timeZone, locale })</code>, so one team reads one clock.</li>
-            <li><strong>Version check.</strong> <code>Loupe.version</code> exposes the bundle version;
-              <code>init({ packageVersion })</code> carries the host package's. When they differ the Home
-              footer and the Settings menu flag it, which is the state after an upgrade that skipped
-              re-publishing the assets.</li>
-            <li><strong>Changed: one tap opens the panel.</strong> Clicking the launcher opens the panel
-              directly. The quick actions moved behind a small chevron beside it.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.28</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Integrations.</strong> Slack and Telegram, with one lifecycle for every provider:
-              connect, test, then map repos to channels. Tokens are encrypted at rest and never returned
-              by the API — there is no reveal endpoint, and a failed test is reported with the fix rather
-              than just the error code.</li>
-            <li><strong>Delivery you can audit.</strong> Three attempts with backoff, a timeout, and a log
-              of every attempt so “it didn’t arrive” has an answer. A revoked token disables the
-              integration; a transient error doesn’t.</li>
-            <li><strong>Fixed — the dashboard could not load at all.</strong> Its bundle kept a bare
-              <code>@loupekit/shared</code> import the browser refuses to resolve, so it only worked for
-              whoever’s build output happened to be current.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.27</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Chat in the panel.</strong> Gather several elements into one message — a visual
-              brief is usually about several things at once, and one click at a time makes you write what
-              you could have shown. Order is part of the message, so the chips reorder.</li>
-            <li><strong>Dictation</strong>, with a red recording pill and an honest message about why it
-              is unavailable when it is.</li>
-            <li><strong>Activity dashboard</strong> at <code>/monitor</code> — a live timeline, sessions,
-              tool bars and files touched, served by the bridge so it works when nothing else is running.</li>
-            <li><strong>Fixed — every SSE stream was silently dead.</strong> The bridge names its events,
-              so a client listening on <code>onmessage</code> received nothing: the live thread refresh and
-              the reply push both never worked, and the poll masked the second.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.26</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>Companion chat.</strong> Send a message to the agent while it is working — it
-              arrives prepended to the next tool result, so it cannot be missed, and the original result
-              is kept beneath it. Delivery is exactly once: failed tool calls do not consume a message.</li>
-            <li><strong>Agent instrumentation.</strong> Claude Code hooks report tool use, prompts and
-              sessions. The installer is idempotent, takes a backup, never touches another tool's hooks
-              and refuses to overwrite a settings file it cannot parse.</li>
-            <li><strong>Activity.</strong> A bounded event store and sessions folded from it: tool
-              counts, files touched, and whether a session is still live.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.25</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Attachments on a reply.</strong> A message can carry its own images and video,
-              uploaded through the same blob pipeline as the comment, rendered inline beneath it.</li>
-            <li><strong>Soft delete.</strong> Retracting a reply marks it rather than erasing it, so a
-              thread's history stays auditable — and the reader still never sees it.</li>
-            <li><strong>Live threads.</strong> A new reply or a retraction is relayed over the bridge, so
-              an open conversation updates itself instead of waiting for the poll.</li>
-            <li><strong>Fixed — reactions never loaded from the server.</strong> The client asked for an
-              endpoint that did not exist, so every reaction pill would have been missing against a real
-              backend. Only a real browser against a real server could show it.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.24</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Reactions.</strong> Emoji on a reply with counts and per-user state. The database
-              key <em>is</em> the toggle — reacting twice cannot create two rows — and the toggle is
-              idempotent in both directions, because a flaky network resends.</li>
-            <li><strong>Presence.</strong> See who else has this page open, as an avatar cluster in the
-              panel header. Liveness is a heartbeat, not a flag: a closed tab sends no goodbye, so
-              silence past 20&nbsp;s means gone. Hidden entirely when no bridge is configured.</li>
-            <li><strong>Fixed — a bug live since 0.10.20:</strong> <code>auth.projectKey</code> was
-              <code>undefined</code> on every route that took its project from the authenticated
-              request, so registering a working branch returned a 500 and reading one back returned
-              nothing. Route-level tests now cover those endpoints, and a source scan fails with the
-              exact line if it reappears.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.23</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Mentions.</strong> <code>@name</code> in a reply is parsed, resolved and acted on.
-              An email address is not a mention, nor is a name inside a code span, and trailing
-              punctuation is not part of the handle. A handle that matches nobody is <em>reported</em>
-              rather than dropped — a mention that quietly does nothing is the failure worth avoiding.</li>
-            <li><strong>In-app notifications</strong> — a mention notifies each person once (never the
-              author), and Home shows a <em>“N mentions waiting”</em> block with a click through to the
-              thread and <em>Mark as read</em>.</li>
-            <li><strong>“Needs you”, centralised.</strong> One predicate flags a thread in review, an
-              agent's unanswered question and a failed run — and deliberately does <em>not</em> flag a
-              thread an agent is still working on, because counting those would train people to ignore
-              the filter.</li>
-            <li><strong>Fixed:</strong> the same person could appear twice in the mention list, which
-              would have notified them twice.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.22</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>The conversation is in the panel.</strong> Expanding a thread shows its replies, a
-              reply box, an activity timeline and copy actions. An agent's reply carries a left accent bar
-              and an <em>agent</em> tag, so who you are talking to is obvious.</li>
-            <li><strong>Replies send optimistically.</strong> The row appears immediately; if the store
-              rejects it the text <em>stays on screen</em> with a Retry — losing what someone typed is
-              worse than showing a failed row. Typing never re-renders, so the caret never jumps.</li>
-            <li><strong>An activity timeline</strong> — captured → replied → change ready → PR opened →
-              preview live → waiting on a human → resolved, built from what the thread already carries so
-              it cannot drift from the truth. Only steps that happened appear.</li>
-            <li><strong>Copy thread text</strong> produces a readable summary that leads with the element
-              selector — pasted anywhere else, that is the part that still means something.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.21</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>One pull request per repo, not one per fix.</strong> A repo keeps a single working
-              branch; each fix is a commit on it and the PR body keeps a table of every fix with its
-              commit. When that PR is merged or closed, the next fix starts a fresh branch. A revision
-              never joins it — it gets its own <code>revision-*</code> branch, because adding to a PR a
-              reviewer already approved is the one thing that must not happen.</li>
-            <li><strong>Thread handoff.</strong> <code>mark_thread_addressed</code> moves a thread to In
-              Review and <strong>has no status parameter</strong> — it cannot resolve one. Plus
-              <code>add_thread_message</code> for replies, and <code>get_thread_conversation</code> to
-              read the whole exchange.</li>
-            <li><strong>Threads are conversations.</strong> Replies with authors typed
-              <em>user / agent / guest</em>; the original request is message #1 without anything being
-              migrated. A revised thread shows an <strong>Iteration N</strong> chip naming its parent.</li>
-            <li><strong>Fixed:</strong> a fix could be committed to the branch of a merged PR — detecting
-              a stale PR set the outcome but not the branch decision. Also the second parameter-property
-              crash in the MCP server, now guarded by a test that scans for the pattern.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.20</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>A GitHub client.</strong> Loupe could store a proposal but not act on it — now it
-              commits and opens pull requests. A multi-file fix lands as <strong>one atomic commit</strong>
-              (blob → tree → commit → ref), the token comes from <code>GITHUB_TOKEN</code> or
-              <code>gh auth token</code>, a placeholder like <code>&lt;your token&gt;</code> is recognised
-              rather than sent and rejected, and the token is never logged.</li>
-            <li><strong>Working branches and preview URLs.</strong> Which branch accumulates a repo's
-              fixes, its PR and a running fix count; plus per-repo URL patterns. Asking "is there a
-              preview yet?" tries the reported URL, the registered patterns and the GitHub Pages
-              convention, <em>probing each</em> — so "ready" means a URL that responded, and otherwise it
-              says <em>not ready</em> and lists what it tried. A preview URL is never guessed.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.19</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>The workspace source mapper.</strong> A captured element maps to ranked
-              <code>file:line</code> candidates instead of raw HTML — weights in one tunable table,
-              boosts for component files and agreeing signals, styling utilities filtered out before
-              searching, and build output skipped by directory <em>and</em> by shape.</li>
-            <li><strong>Four element-context MCP tools</strong> — <code>get_latest_selection</code>,
-              <code>get_selection_history</code>, <code>get_element_context</code>,
-              <code>find_source_for_selection</code> — each taking a live selection or a
-              <code>thread_id</code>, with a ready-made edit prompt that pins the diff.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.18</span><span class="cl-date">2026-10-02</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>A package upgrade can no longer break a host app's writes.</strong>
-              <code>POST /comments</code> returned 500 on an app whose database had not run the migration
-              adding a column the controller writes. The write path now keeps only the attributes the
-              table actually has, so a pending migration degrades instead of taking feedback down. Run
-              <code>php artisan migrate</code> to add the missing column.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.17</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>A local bridge.</strong> The MCP server now hosts a bridge on
-              <code>127.0.0.1</code> so your browser and your agent can see each other: element selections
-              are posted in and read back by tools, agents register with a heartbeat and drop out after
-              30s of silence, and thread updates stream to the panel over SSE — so "sent to agent… PR
-              opened" arrives without a refresh.</li>
-            <li><strong>Fixed:</strong> the MCP server could not start from a source checkout at all —
-              two classes used constructor parameter properties, which Node's strip-only TypeScript mode
-              rejects.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.16</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Generate a change and iterate on it.</strong> Pass <code>generate</code> to
-              <code>init()</code> and a thread gains a Generate pane: a sandboxed preview, an
-              <strong>opacity slider</strong> to compare it against the original, <strong>undo</strong>,
-              <strong>prev/next</strong> through every iteration, and a refine/revise input. Any model
-              works — the panel owns the preview and the history; producing the markup is yours.
-              Configure a local one (endpoint + model) in the project manager, with a real connection
-              check.</li>
-            <li><strong>Agent navigation needs your consent.</strong>
-              <code>requestNavigation(url)</code> asks first — the panel shows who wants to go where and
-              why, and nothing navigates until you say yes. <code>javascript:</code> and
-              <code>file:</code> requests are refused outright, and every decision is kept.</li>
-            <li><strong>Dictation and context menus.</strong> A mic button in the composer where the
-              browser supports it, and in the extension a right-click menu to comment on the page, a
-              selection, an image, a link or a field — plus show/hide Loupe per site.</li>
-            <li><strong>Fixed:</strong> the preview plane collapsed to two pixels on threads without a
-              screenshot, and a generated <em>fragment</em> rendered as a dark box because the plane had
-              no surface under it.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.15</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>A thread's change has a lifecycle.</strong> A comment can record the pull
-              request carrying its fix, and one chip tells you where it has got to —
-              <em>Sent to agent → In PR → Review preview → Reviewed</em> — with the PR number linking
-              out and a checks meter. A thread with nothing attached wears no badge.</li>
-            <li><strong>Review from the panel.</strong> Threads in In Review lead with a banner —
-              <em>Waiting on your review</em> — carrying <strong>Approve</strong> and
-              <strong>Add comment</strong>; a strip above the list counts them and filters to them.
-              Approving resolves the thread: an agent moves work to In Review, only a human closes it.</li>
-            <li><strong>Compare the original against the change.</strong> Where Claude has proposed
-              something, <em>Show original</em> puts your request and the element's HTML beside the
-              proposal's notes, HTML and CSS.</li>
-            <li><strong>Fixed:</strong> a card's header row could overflow once it carried a lifecycle
-              chip and a PR chip — it wraps now — and a resolved thread no longer wears two green pills
-              saying the same thing.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.14</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Bring your own tabs.</strong> <code>init({ tabs: [...] })</code> adds your own
-              sidebar pages. A tab gets a context object (project key, apiBase, user, the page's comments,
-              the URL, the running version, plus <code>track</code>/<code>open</code>/<code>close</code>)
-              and returns markup or an element — so a tab never reaches into the panel, and a tab that
-              throws shows an error card instead of taking the panel down.</li>
-            <li><strong>Connect Claude is now opt-in.</strong> The panel no longer ships that page; add it
-              back with <code>tabs: [connectTab()]</code>, which also restores the FAB shortcut.</li>
-            <li><strong>An Activity Monitor.</strong> A status dot, a collapsible session summary, tool
-              chips that filter the feed, and a live event feed that pauses as you scroll back. Feed it
-              from an agent bridge or your app with <code>trackActivity()</code> — Loupe's own operations
-              land in the same stream.</li>
-            <li><strong>The version is in the UI</strong> — in the Home footer and the settings menu, which
-              also shows whether the panel is in server or offline mode.</li>
-            <li><strong>A project manager.</strong> Link the page to a repository from a searchable list
-              you supply (<code>repos</code>), and manage the project's environment URLs with real
-              validation. Scope chips now carry counts (<em>This page 3</em> / <em>All 14</em>).</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.13</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>The panel gained a shell.</strong> The header now has a <strong>position menu</strong>
-              (left / bottom / right / float in a 2×2 grid) and a <strong>minimize</strong> button that collapses the
-              panel to a one-line bar — <code>3 open on this page</code> — which restores on click.</li>
-            <li><strong>Accent colours and a settings dropdown.</strong> Five accents (indigo, violet, teal,
-              amber, rose) plus switches for <em>hover hints</em>, <em>markers</em> and <em>page paths</em>, all
-              persisted with the rest of the panel state.</li>
-            <li><strong>A guided tour and contextual hints.</strong> A four-step spotlight tour runs once on
-              first open, is skippable and is replayable from Settings. Each view also shows a one-time hint
-              card with a <em>Turn off hints</em> link. Both are click-through — onboarding never traps you.</li>
-            <li><strong>A malformed anchor can no longer blank the panel.</strong> A stored anchor missing
-              <code>attrs</code>/<code>rect</code>/<code>viewport</code> threw inside the fingerprint scorer and
-              aborted the entire first render; the scorer now defaults those fields and a failing anchor is
-              isolated to its own comment.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.12</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>The panel opens on a Home overview.</strong> The widget now leads with a new
-              <strong>Home</strong> page: four stat tiles — <em>Open</em>, <em>Needs you</em>
-              (<code>in_review</code>), <em>Resolved</em> and <em>Stale</em> (open over a week) — each a button that
-              narrows the list, a <strong>scope switch</strong> between this page and the whole project, a one-click
-              <em>Pin feedback</em>, and the most recent feedback. Its sidebar is three pages: Home · Comments ·
-              Connect Claude.</li>
-            <li><strong>The project scope is a timeline.</strong> Switching to <em>All</em> pulls the whole
-              project's feedback, newest first, <strong>grouped by day</strong> with a repo filter — so the panel
-              answers "what is happening across this product" and not just "what is on this page".</li>
-            <li><strong>A latent storage bug fixed.</strong> Offline mode's <code>update()</code> /
-              <code>remove()</code> treated every <code>loupe:</code> key as a comment list, but
-              <code>loupe:dock</code> holds panel state as an object — so resolving or deleting a comment threw as
-              soon as the panel had saved anything. Both now filter to real list keys and tolerate odd values.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.11</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>The card leads with the pixels.</strong> A card now opens with its captured screenshot (or
-              a recording's poster frame) above the text, so the board reads visually instead of as a wall of
-              titles. The full recording plays on expand.</li>
-            <li><strong>Copy for agent.</strong> Every card has a one-click brief — stage, priority, change type,
-              repo/branch, page, target selector, the element HTML and its computed styles — the same package the
-              MCP <code>get_comment</code> tool returns, as pasteable Markdown.</li>
-            <li><strong>Compact density.</strong> A header toggle trades the media strip and padding for
-              scanability on a long board, remembered between visits.</li>
-            <li><strong>Keyboard and loading.</strong> A card is a focusable disclosure (<code>Enter</code> /
-              <code>Space</code> to expand, with <code>aria-expanded</code>), and the board says
-              <em>Loading feedback…</em> on first paint instead of showing an empty board.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.10</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Branch-aware threads.</strong> A comment now records the <strong>repo</strong> and
-              <strong>branch</strong> it was filed against — the widget takes both from <code>init()</code>, the
-              API and the dashboard store and filter them, and both MCP servers report and filter by them.</li>
-            <li><strong>Filtering moves into SQL.</strong> <code>GET /v1/comments</code> (and the Laravel route)
-              now accept <code>repo</code>, <code>branch</code>, <code>status</code>, <code>priority</code>,
-              <code>changeType</code>, <code>kind</code> and <code>q</code>, so a board with thousands of rows
-              never ships them all to the client. Legacy stage names still match.</li>
-            <li><strong>Saved views.</strong> The board gains Repo and Branch filters plus a view switcher —
-              <em>All feedback</em>, <em>Needs you (In Review)</em>, <em>Critical only</em>, <em>Not linked to a
-              repo</em> — remembered between visits and reflected in the URL, so a filtered board can be shared
-              as a link.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.9</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Priorities and change types on every comment.</strong> Each comment now carries a
-              <strong>priority</strong> (Critical → Low, default Medium) and a <strong>change type</strong>
-              (Frontend / Backend / API / Other, default Other). A reporter picks both in the widget's
-              composer; the board shows them as chips and lets you re-triage from the card.
-              <code>COMMENT_PRIORITIES</code> / <code>PRIORITY_RANK</code> / <code>CHANGE_TYPES</code> and the
-              <code>normalize*</code> helpers in <code>@loupekit/shared</code> are the one source of truth,
-              mirrored in Laravel by <code>Loupekit\Loupe\Support\Triage</code>.</li>
-            <li><strong>Filter and sort by them.</strong> The board gains Priority and Type filters and a
-              "Priority" sort (most urgent first), and both MCP servers report both fields per comment and
-              accept them as filters — so an agent can start with what actually matters.</li>
-            <li><strong>Existing rows are fine.</strong> A comment written before this release has no triage
-              columns; every read path defaults it to Medium · Other rather than leaving it blank.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.8</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>The board is five stages, not three.</strong> A comment now moves through
-              <strong>Queue → To Do → In Progress → In Review → Resolved</strong> instead of
-              open / in_progress / done. The extra columns let a team tell "not triaged yet" apart from
-              "waiting on me" and "waiting on a preview" — and they give the agent handoff somewhere to land:
-              an agent may move a comment to <strong>In Review</strong>, but only a person resolves it.
-              <code>COMMENT_STAGES</code> / <code>STAGE_LABELS</code> / <code>normalizeStatus()</code> in
-              <code>@loupekit/shared</code> are the one source of truth, mirrored in Laravel by
-              <code>Loupekit\Loupe\Support\Stages</code>.</li>
-            <li><strong>The old names still work.</strong> The API, the SDK and both MCP servers normalize
-              <code>open</code> / <code>done</code> onto the board, so an older widget or an agent configured
-              before the board keeps working; unrecognised values land in <strong>Queue</strong> rather than
-              falling off it. Rows written before the board are migrated on both servers, and every read path
-              normalizes as it reads.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.7</span><span class="cl-date">2026-10-02</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Laravel supports PHP 8.2+</strong> (was 8.4+), matching what Laravel 11/12 actually
-              require, with the public install path made honest and a stranger test in CI.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.6</span><span class="cl-date">2026-10-02</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>The collapsed widget is a quick-action cluster</strong> (<code>@loupekit/sdk</code>).
-              The single launcher button is replaced by a FAB cluster: a primary brand button carrying the live
-              comment-count badge, plus four quick actions — <strong>Pin comment</strong>, <strong>Note</strong>,
-              <strong>Markers</strong> and <strong>Connect Claude</strong> — each with a hover label, a chevron
-              that flips on expand, and a staggered reveal that is switched off under
-              <code>prefers-reduced-motion</code>. The cluster sits on the dock's edge and steps aside when the
-              panel opens.</li>
-            <li><strong>Hide the markers without losing them.</strong> A quick action hides every pin on the page
-              and remembers the choice in <code>loupe:dock</code> beside the rest of the panel state, so a
-              reporter can read the page with the pins out of the way.</li>
-            <li><strong>Opening the panel</strong> from the cluster is a quick action (<code>Pin comment</code>
-              or <code>Note</code>), or <code>Connect Claude</code> to land straight on the MCP setup page. The
-              panel itself is unchanged.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.10.5</span><span class="cl-date">2026-09-24</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li><strong>Loupe Hub</strong> (<code>packages/hub</code>, private). A minimal hosted service with
-              Google sign-in: org owners create organizations, add allowed members (Google emails and/or one
-              email domain) and create projects with a Project ID, Project Secret, webhook URL and webhook
-              signing secret (shown once, rotatable). <code>POST /v1/issues</code> verifies the project HMAC
-              (±5 min), checks the submitter belongs to the organization (<code>403</code> otherwise) and
-              forwards the issue to the project webhook, signed, with a 10 s timeout and 3 attempts. The
-              dashboard lists the last 20 deliveries. Ships with <code>deploy/</code> scripts for a GCP e2-micro
-              VM (Node 24, Postgres 16, Caddy HTTPS, systemd).</li>
-            <li><strong>Laravel → Hub forwarding.</strong> New <code>loupe.hub.*</code> config
-              (<code>LOUPE_HUB_URL</code>, <code>LOUPE_PROJECT_ID</code>, <code>LOUPE_PROJECT_SECRET</code>). When
-              all three are set, each new comment dispatches a queued <code>SendToHub</code> job signed with the
-              Project Secret and carrying the logged-in user's email. Hub failures are logged and never break
-              comment creation. See <a href="#laravel-hub">Loupe Hub</a>.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.7.0</span><span class="cl-date">2026-07-20</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Claude modification loop.</strong> MCP <code>get_comment</code> now returns the
-              <strong>actual screenshot as an image</strong> (not just a URL) with the element HTML &amp;
-              computed styles, and a new <code>propose_change(id, html, css?, notes?)</code> tool writes
-              Claude's <strong>modified HTML/CSS back</strong> onto the comment. The dashboard shows it as
-              copyable code plus a <strong>live before/after preview</strong> (sandboxed iframe). Mirrored in
-              the Laravel MCP server.</li>
-            <li><strong>Screen recording.</strong> A new <strong>Record</strong> tool captures a screen video
-              of a drag-selected region (same UX as Region) via <code>getDisplayMedia</code> + canvas crop,
-              saved as <code>.webm</code> (duration-capped, Stop button). Plays back inline in the widget and
-              dashboard. Overridable via the <code>captureRecording</code> config seam.</li>
-            <li><strong>Two-page sidebar</strong> on both the widget dock and the dashboard —
-              <strong>Comments</strong> + <strong>Connect Claude</strong> (MCP setup steps) — plus an
-              "Integrates with" row (GitHub / Slack / Telegram / Linear). The widget list no longer shows the
-              author's name.</li>
-            <li><strong>Data model (additive).</strong> <code>Comment</code> gains <code>recording</code> and
-              <code>proposal</code>; new nullable columns on both schemas; blobs now carry a content type
-              (serves <code>video/webm</code> as well as <code>image/png</code>). Back-compat — drop-in upgrade.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.6.0</span><span class="cl-date">2026-07-17</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Dockable, DevTools-style control.</strong> The widget is now one dockable panel —
-              header (<code>◎ Loupe</code> + dock controls) → tools → comment list — that docks to the
-              <strong>left</strong>, <strong>right</strong>, or <strong>bottom</strong> edge, or
-              <strong>floats</strong> as a movable, resizable window. Docked edges <em>push the host page
-              over</em> so the panel never covers content; float overlays. Position, theme, and open state
-              persist.</li>
-            <li><strong>Light / dark theme toggle</strong> in the panel header (dark by default).</li>
-            <li><strong>Mobile bottom sheet.</strong> On viewports ≤ 640px the panel becomes a full-width
-              bottom sheet, shrinking to a compact header+tools bar while a tool is active so the page stays
-              tappable.</li>
-            <li>New <code>label</code> config sets the brand name in the header. <strong>UI-only</strong> — no
-              DB migration and no change to <code>init</code> (additive), the HTTP API, or MCP tools.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.5.2</span><span class="cl-date">2026-07-15</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong><code>loupe-mcp</code> binary now actually starts.</strong> After 0.5.1 shipped
-              compiled JS, the installed binary still exited without serving: the entrypoint guard compared
-              <code>import.meta.url</code> to <code>argv[1]</code>, but the npm <code>bin</code> is a
-              <em>symlink</em> — Node resolves it for <code>import.meta.url</code> while <code>argv[1]</code>
-              stays the symlink path. The check now resolves symlinks before comparing, so <code>loupe-mcp</code>
-              (and Glama-style introspection) works.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.5.1</span><span class="cl-date">2026-07-15</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong><code>@loupekit/mcp</code> now installs and runs from npm.</strong> It shipped its raw
-              <code>index.ts</code> and relied on runtime type-stripping, but Node won't strip types under
-              <code>node_modules</code> — so <code>npm i -g @loupekit/mcp</code> + <code>loupe-mcp</code> failed
-              for every consumer (and blocked containerized introspection on directories like Glama). It now
-              compiles to <code>dist/index.js</code> (tsup) with <code>bin</code>/<code>main</code> pointing
-              there. Running from a checkout (<code>node packages/mcp/index.ts</code>) is unchanged.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.5.0</span><span class="cl-date">2026-07-14</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Free comments.</strong> A new <strong>Note</strong> toolbar mode drops a page-level
-              comment anywhere — no element, no screenshot. New <code>kind: "free"</code>, positioned via the
-              existing <code>offset</code> field as a document fraction, so <strong>no DB migration</strong>.
-              Renders as a page-level item in the panel, dashboard, and both MCP servers.</li>
-            <li><strong>Draggable, edge-aware toolbar.</strong> Drag the <code>◎</code> logo anywhere; the
-              position persists and the bar expands <em>inward</em> so it's always on-screen — vertical on a
-              left/right edge, horizontal along the top/bottom.</li>
-            <li>All packages aligned to <code>0.5.0</code> — <code>@loupekit/server</code>, the extension
-              <code>manifest.json</code>, and the Node <code>McpServer</code> were stale at <code>0.2.0</code>.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.4.3</span><span class="cl-date">2026-07-13</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Laravel: multi-guard identity resolution.</strong> Multi-guard apps no longer 403 with
-              "cannot post as another user". Identity resolves through an ordered guard list
-              (<code>LOUPE_GUARDS</code>) used everywhere — widget author, gates, API middleware
-              (<code>loupe.auth</code>), anti-spoof. Backward compatible.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.4.2</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Laravel: assets load behind a CDN.</strong> Loupe resolves published assets from the
-              app URL via <code>Url::asset()</code>, bypassing <code>ASSET_URL</code>. New
-              <code>LOUPE_ASSET_URL</code> override.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.4.1</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Captures never hang.</strong> Font wait capped (~0.8s), capture timeout lowered to 6s,
-              every capture wrapped in a hard outer timeout.</li>
-            <li><strong>Region shot opens instantly.</strong> Composer appears immediately; screenshot captured
-              in the background and attached on submit.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.4.0</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Device / viewport tracking (end to end)</strong> — desktop/tablet/mobile badge in the
-              panel, dashboard, and MCP payload; <code>deviceType(width)</code> helper + DB column.</li>
-            <li><strong>Per-page comments on SPA navigation</strong> — reloads comments on client-side route
-              changes.</li>
-            <li><strong>Mobile toolbar</strong> — compact, icon-only, pinned left.</li>
-            <li>Region-shot renders the smallest covering element (faster, reliable font embedding).</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.3.4</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Screenshots no longer fall back to system fonts.</strong> Capture awaits
-              <code>document.fonts.ready</code> (30s timeout) before rasterizing.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.3.3</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Collapsible toolbar</strong> across all SDK surfaces.</li>
-            <li><strong>Laravel: frictionless in <code>local</code></strong> (<code>allow_in_local</code>,
-              default true); baseline gates now deny by default.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.3.2</span><span class="cl-date">2026-07-12</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Laravel migration on MySQL.</strong> <code>url</code> → <code>VARCHAR(500)</code>,
-              <code>project_key</code> → <code>VARCHAR(191)</code> so the composite index fits MySQL's
-              key-length limit.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.3.1</span><span class="cl-date">2026-07-12</span><span class="cl-tag chg">Changed</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li>SEO / GEO — schema.org author &amp; entity metadata, AI-crawler allow-list, <code>llms.txt</code>.</li>
-            <li>Release/CI — synced <code>package-lock.json</code> so <code>npm ci</code> passes on tags.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.3.0</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul">
-            <li><strong>Loupe for Laravel (<code>loupekit/laravel</code>)</strong> — the whole loop as a
-              Composer package; PHP 8.2+, Laravel 11/12/13, 100% line-coverage gate.</li>
-            <li>SDK gained <code>headers</code> + <code>credentials</code> config; dashboard reads
-              <code>window.__LOUPE__</code> for session auth.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.2.1</span><span class="cl-date">2026-07-12</span><span class="cl-tag chg">Changed</span></div>
-          <ul class="bul"><li>Professional npm READMEs for <code>sdk</code>, <code>mcp</code>, <code>shared</code>. No code changes.</li></ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.2.0</span><span class="cl-date">2026-07-12</span><span class="cl-tag add">Added</span><span class="cl-tag chg">Changed</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Free-region screenshots ("Region shot")</strong> — anchored to the element under its
-              center as fractional coords; tracks reflow, a different viewport, and scrolling. New
-              <code>captureRegion</code> hook.</li>
-            <li>Automated dual-registry publishing (<code>next</code> canary + <code>latest</code> stable).</li>
-            <li>Fixed SDK Shadow-DOM theming — vars moved to <code>:host</code> so they inherit.</li>
-          </ul>
-        </div>
-
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.1.0</span><span class="cl-date">2026-07-09</span><span class="cl-tag add">Added</span></div>
-          <ul class="bul">
-            <li>The first release — the full loop, end to end: <code>sdk</code>, <code>server</code>,
-              <code>dashboard</code>, <code>mcp</code>, <code>extension</code>, <code>shared</code>. Vitest
-              suite (~91%), Mermaid architecture docs, a GitHub Wiki, and an SEO/GEO landing page.</li>
+            <li><strong>Two-way sync between projects.</strong> Hub relays updates at <code>POST /v1/issues/{id}/updates</code>.</li>
+            <li><strong>Replies, reactions, mentions and the inbox on Laravel.</strong></li>
+            <li><strong>Events:</strong> <code>CommentCreated</code>, <code>CommentStatusChanged</code>, <code>CommentDeleted</code>, <code>MessageAdded</code>, <code>HubUpdateReceived</code>.</li>
+            <li><strong>Changed:</strong> in the Laravel package, an unknown status is refused with 422, and only the author or an admin can delete. Run <code>php artisan migrate</code> and redeploy Hub.</li>
           </ul>
         </div>
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.10.12 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.14.0 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
-        <p style="font-size:.8rem;color:var(--faint)">Generated from the repository source —
-          <code>README.md</code>, <code>CHANGELOG.md</code>, <code>docs/ARCHITECTURE.md</code>,
-          <code>docs/TESTING.md</code>, <code>docs/LARAVEL.md</code>, <code>RELEASING.md</code>, and each
-          package's README.</p>
+        <p style="font-size:.8rem;color:var(--faint)">Summarized from the repository source and the canonical
+          docs in <code>docs/</code>, <code>CHANGELOG.md</code>, <code>RELEASING.md</code> and
+          <code>CONTRIBUTING.md</code>.</p>
       </footer>
 
     </div>
@@ -1963,7 +1393,22 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
   <!-- ============ RIGHT TOC ============ -->
   <aside class="toc" id="toc">
     <div class="t-label">On this page</div>
-    <nav id="tocNav"></nav>
+    <nav id="tocNav">
+      <a href="#what-loupe-is">What Loupe is</a>
+      <a href="#quickstart-title">Quick start</a>
+      <a href="#install-title">Install</a>
+      <a href="#features">Using the widget</a>
+      <a href="#dashboard-title">Dashboard</a>
+      <a href="#mcp-title">MCP server</a>
+      <a href="#extension-title">Browser extension</a>
+      <a href="#laravel-title">Loupe for Laravel</a>
+      <a href="#hub-title">Loupe Hub</a>
+      <a href="#architecture-title">Architecture</a>
+      <a href="#testing-title">Testing</a>
+      <a href="#releasing-title">Releasing</a>
+      <a href="#workspace">Contributing</a>
+      <a href="#changelog-title">Changelog</a>
+    </nav>
   </aside>
 </div>
 
@@ -2012,6 +1457,7 @@ npm run test:coverage <span class="tc"># text + HTML report in coverage/</span><
 
     // ---- Build the full "On this page" outline (whole page, scroll-spied) ----
     var tocNav = document.getElementById('tocNav');
+    tocNav.innerHTML = ''; // replace the static fallback with the full outline
     var tocLinks = [];
     headings.forEach(function (h) {
       var link = document.createElement('a');

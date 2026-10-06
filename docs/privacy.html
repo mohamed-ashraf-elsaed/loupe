@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loupe — Privacy Policy</title>
-<meta name="description" content="Privacy policy for the Loupe visual-feedback browser extension and SDK.">
+<meta name="description" content="Privacy policy for the Loupe visual-feedback browser extension.">
 <link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/privacy.html">
 <style>
   :root{--bg:#0d0e13;--surface:#14161d;--ink:#e9ebf1;--ink-2:#aab0c0;--line:#262a35;--accent:#8b95f2}
@@ -15,10 +15,10 @@
   h1{font-size:32px;letter-spacing:-.02em;margin:0 0 6px}
   .meta{color:var(--ink-2);font-size:14px;margin-bottom:32px}
   h2{font-size:20px;letter-spacing:-.01em;margin:34px 0 10px}
-  p,li{color:var(--ink-2)} p,ul{margin:0 0 14px} li{margin-bottom:6px}
+  p,li{color:var(--ink-2)} p,ul,ol{margin:0 0 14px} li{margin-bottom:6px}
   strong{color:var(--ink)}
   a{color:var(--accent)}
-  code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px;overflow-wrap:anywhere}
   hr{border:none;border-top:1px solid var(--line);margin:34px 0}
   .brand{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:28px}
   .logo{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#8b5cf6);position:relative}
@@ -30,43 +30,125 @@
 <div class="wrap">
   <div class="brand"><span class="logo"></span> Loupe</div>
   <h1>Privacy Policy</h1>
-  <p class="meta">Last updated: July 20, 2026 · Applies to the Loupe browser extension and the Loupe SDK.</p>
+  <p class="meta">Last updated: October 5, 2026 · Applies to the Loupe browser extension, version 0.14.0. A site that embeds the Loupe SDK itself controls more settings; see <a href="#embedded-sdk">Sites that embed the Loupe SDK</a>.</p>
 
-  <p>Loupe is an open-source visual-feedback tool. It lets you inspect an element on a web page, attach a comment, and capture a screenshot or a short screen recording, then send that feedback to a Loupe backend that <strong>you or your organization control</strong>. This policy explains exactly what data Loupe handles and how.</p>
+  <p>Loupe is an open-source visual-feedback tool. It lets you inspect an element on a web page, attach a comment, and capture a screenshot or a short screen recording. It then sends that feedback to a Loupe backend that <strong>you or your organization control</strong>. This policy explains what data the extension handles and where it goes.</p>
 
-  <h2>What Loupe handles</h2>
+  <p>Contents:</p>
   <ul>
-    <li><strong>Settings you enter</strong> — your project key, a display name/identifier, and the URL of your Loupe backend. These are stored locally in your browser via <code>chrome.storage</code> and are never sent anywhere except to the backend you configure.</li>
-    <li><strong>Feedback you create</strong> — only when you actively leave a comment: the comment text, a screenshot of the visible page, and the selected element's HTML and computed styles. This is sent to the backend URL you configured, so your development team can act on it.</li>
-    <li><strong>Screen recordings you create</strong> — only when you actively use the <strong>Record</strong> tool. Recording is initiated by you and uses your browser's standard screen-share prompt (<code>getDisplayMedia</code>); you choose what to share and can stop at any time. The captured video is cropped to the region you selected, and — like screenshots — is sent only to the backend you configured. Loupe never starts a recording on its own.</li>
+    <li><a href="#when">When Loupe runs</a></li>
+    <li><a href="#browser-storage">What Loupe stores in your browser</a></li>
+    <li><a href="#feedback">What Loupe handles when you create feedback</a></li>
+    <li><a href="#network">Where your data goes</a></li>
+    <li><a href="#not">What Loupe does not do</a></li>
+    <li><a href="#permissions">Permissions</a></li>
+    <li><a href="#retention">Data retention and deletion</a></li>
+    <li><a href="#embedded-sdk">Sites that embed the Loupe SDK</a></li>
   </ul>
 
-  <h2>What Loupe does not do</h2>
+  <h2 id="when">When Loupe runs</h2>
+  <p>The extension declares no content scripts and no host permissions. It never runs on a page by itself. It enters a tab only when you do one of these:</p>
   <ul>
-    <li>It does <strong>not</strong> collect or transmit any data in the background. It only runs on a tab after you explicitly click the Loupe icon and press "Start Loupe on this tab."</li>
-    <li>It does <strong>not</strong> track your browsing history, and it does <strong>not</strong> use third-party analytics or advertising.</li>
+    <li>Click the Loupe toolbar icon, then click <strong>Start Loupe on this tab</strong>.</li>
+    <li>Right-click a page and choose one of the Loupe comment items: <strong>Comment on this page</strong>, <strong>Comment on “<em>selected text</em>”</strong>, <strong>Comment on this image</strong>, <strong>Comment on this video</strong>, <strong>Comment on this audio</strong>, <strong>Comment on this link</strong> or <strong>Comment on this field</strong>.</li>
+    <li>Choose <strong>Show / hide Loupe on this page</strong> in the right-click menu on a site you hid earlier. This shows the site again and starts Loupe on that tab.</li>
+  </ul>
+  <p>The same <strong>Show / hide Loupe on this page</strong> item works in the other direction too. On a site where Loupe is visible, it hides the site and removes the panel from the tab. While a site is hidden, the toolbar button and the comment items do nothing on it. Choose <strong>Show / hide Loupe on this page</strong> again to bring Loupe back.</p>
+  <p>Loupe also needs a project key and a user id before it starts. A <dfn>project key</dfn> names the Loupe project your feedback belongs to. A <dfn>user id</dfn> identifies you to that project. You enter both in the extension popup. If either is missing, Loupe does not start. It writes this message to the page's developer console:</p>
+  <p><code>[loupe] Set a project key and user in the extension popup first.</code></p>
+  <p>For the popup fields, see the <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/browser-extension.md">browser extension guide</a> and the <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/extension.md#popup-fields">popup fields reference</a>.</p>
+
+  <h2 id="browser-storage">What Loupe stores in your browser</h2>
+  <p>The extension stores these values with <code>chrome.storage</code>. They stay in your browser:</p>
+  <ul>
+    <li><code>projectKey</code>: the project key you enter in the popup.</li>
+    <li><code>user</code>: the user id and display name you enter (<code>{id, name}</code>). If you leave the name blank, Loupe uses "Reviewer". The popup does not ask for an email address.</li>
+    <li><code>apiBase</code>: the <dfn>API base</dfn>, which is the URL of the Loupe backend that receives your feedback. It is optional.</li>
+    <li><code>userHmac</code>: an optional signature that your own backend computes from your user id. The backend checks it to confirm that requests really come from that user. See <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/auth-and-privacy.md#why-userhmac-is-computed-on-the-server">why userHmac is computed on the server</a>.</li>
+    <li><code>hiddenSites</code>: the site origins you hid with <strong>Show / hide Loupe on this page</strong>, and whether each one is hidden.</li>
+    <li><code>loupeIntent</code>: a one-time note in session storage. It holds the tool to open after you choose a right-click item, and the time you chose it. Loupe deletes it when it starts on the tab. If Loupe does not start, for example because the site is hidden or the popup is not filled in, the browser clears it when you close the browser.</li>
+  </ul>
+  <p>While Loupe runs on a page, it also saves data in that page's own <code>localStorage</code>:</p>
+  <ul>
+    <li><code>loupe:dock</code>: panel state, such as dock position, theme, accent color, open tab, filters, sort order, launcher position and whether you finished the tour.</li>
+    <li><code>loupe:project:<em>&lt;project key&gt;</em></code>: project settings you change in the panel. These include the environment URLs and, if you enter them, the local AI endpoint URL and model name.</li>
+    <li>If you have not set an API base, your comments (<code>loupe:<em>&lt;project key&gt;</em>:<em>&lt;page&gt;</em></code>), replies (<code>loupe:msgs:*</code>) and reactions (<code>loupe:rxn:*</code>).</li>
+  </ul>
+  <p>For the full list of extension storage keys, see the <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/extension.md#storage-keys">storage keys reference</a>.</p>
+
+  <h2 id="feedback">What Loupe handles when you create feedback</h2>
+  <ul>
+    <li><strong>Comments</strong>. Loupe builds a comment only when you leave one. It contains:
+      <ul>
+        <li>the title and text you type, and the priority and change type you choose;</li>
+        <li>your user id and display name;</li>
+        <li>the page path and query string, for example <code>/checkout?step=2</code>. A query string can contain ids or tokens;</li>
+        <li>the selected element's HTML, cut at 6,000 characters, and a fixed set of its computed styles, such as size, color, font and spacing;</li>
+        <li>the element's text (up to 120 characters), some of its attributes (<code>role</code>, <code>aria-label</code>, <code>name</code>, <code>type</code>, <code>alt</code>, <code>href</code>, <code>placeholder</code>, <code>title</code>), its position on the page, and selectors that locate it again (a CSS path, an XPath and any test id);</li>
+        <li>your viewport size, the Loupe SDK version, and three device facts: whether the screen is a touch screen, whether the pointer is coarse (a finger rather than a mouse), and whether the browser supports screen recording.</li>
+      </ul>
+    </li>
+    <li><strong>Dictation</strong>. The comment box has a microphone button. Dictation runs only when you click it, and it stops when you click it again. It uses your browser's built-in speech recognition. Some browsers send the audio to the browser vendor's speech service to turn it into text. Loupe puts the resulting text into the comment box. Loupe does not store or send the audio itself.</li>
+    <li><strong>Screenshots</strong>. The extension captures the visible part of the current tab with <code>chrome.tabs.captureVisibleTab</code>. It then crops the image to the element or region you chose. It does not capture the full page. Any element marked <code>data-loupe-redact</code> is painted over in a solid color before the image leaves the page.</li>
+    <li><strong>Redaction limits</strong>. Redaction applies to the image only. If you comment on an element that contains a redacted element, the HTML and text sent with the comment can still include the redacted element's content.</li>
+    <li><strong>Screen recordings</strong>. Loupe records only when you use the <strong>Record</strong> tool, which captures a short video of a region you select. Recording uses your browser's standard screen-share prompt (<code>getDisplayMedia</code>). You choose what to share, and you can stop at any time. Recordings stop after 20 seconds. Loupe crops the video to the region you selected. Recordings have no audio. Redaction is not applied to recordings, so do not record content you do not want to share. Loupe never starts a recording on its own.</li>
+    <li><strong>Files you attach</strong>. Loupe sends only files you pick yourself.</li>
+  </ul>
+  <p>For a field-by-field explanation, see <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/auth-and-privacy.md#what-a-comment-captures">what a comment captures</a>.</p>
+
+  <h2 id="network">Where your data goes</h2>
+  <p>The extension's background worker makes no network requests. The Loupe code that the extension adds to the tab can contact these destinations:</p>
+  <ul>
+    <li><strong>Your Loupe backend</strong>, if you set an API base. That backend is run by you or your organization. The Loupe server is open source and self-hosted. Your feedback, screenshots, recordings and attachments go there. Every request carries your user id, and your <code>userHmac</code> if you set one.</li>
+    <li><strong>Your Loupe backend, while Loupe runs on a visible tab</strong>. Every 10 seconds, Loupe asks the backend for new comments and replies. Each request includes the page path and query string and your user id. The checks pause while the tab is hidden. While the <strong>Activity</strong> tab of the panel is on screen, Loupe also asks for the activity feed every 15 seconds.</li>
+    <li><strong>No server at all</strong>, if you leave the API base empty. Feedback stays in the page's <code>localStorage</code> on your computer.</li>
+    <li><strong>Your local AI endpoint</strong>, if you enter a local AI URL in the project settings and click <strong>Test connection</strong>. Loupe sends one request to that URL's <code>/v1/models</code> endpoint to list the available models. The request times out after 4 seconds.</li>
+    <li><strong>Your browser's speech service</strong>, only while dictation is on. See <a href="#feedback">Dictation</a>.</li>
+  </ul>
+  <p>Loupe's authors do not operate a shared server and never receive your data.</p>
+
+  <h2 id="not">What Loupe does not do</h2>
+  <ul>
+    <li>It does <strong>not</strong> run on a tab you did not start it on.</li>
+    <li>It does <strong>not</strong> track your browsing history across sites. It does <strong>not</strong> use third-party analytics or advertising.</li>
     <li>It does <strong>not</strong> sell or transfer your data to third parties.</li>
     <li>It does <strong>not</strong> use your data for any purpose unrelated to delivering the feedback you create.</li>
   </ul>
 
-  <h2>Where your data goes</h2>
-  <p>Feedback is sent only to the backend endpoint you configure in the extension's settings. That backend is operated by you or your organization (the Loupe server is open source and self-hosted). If no endpoint is configured, feedback stays in your browser's local storage and is not transmitted at all. Loupe's authors do not operate a shared server and never receive your data.</p>
-
-  <h2>Permissions</h2>
+  <h2 id="permissions">Permissions</h2>
   <ul>
-    <li><code>activeTab</code> — to run only on the tab you activate Loupe on, so it can show the feedback control panel and capture a screenshot of that tab.</li>
-    <li><code>scripting</code> — to inject the feedback control panel into the current page when you start Loupe.</li>
-    <li><code>storage</code> — to remember your settings locally between sessions.</li>
+    <li><code>activeTab</code>: to run only on the tab you start Loupe on, and to capture a screenshot of that tab.</li>
+    <li><code>scripting</code>: to add the feedback panel to the current page when you start Loupe.</li>
+    <li><code>storage</code>: to remember your settings and hidden sites locally.</li>
+    <li><code>contextMenus</code>: to add the Loupe items to the right-click menu. You use them to start a comment from what you right-clicked, or to hide Loupe on a site.</li>
   </ul>
 
-  <h2>Data retention & deletion</h2>
-  <p>Local settings are removed when you uninstall the extension or clear the extension's storage. Feedback stored on your configured backend is controlled by you — delete it there at any time (for example, from the Loupe dashboard).</p>
+  <h2 id="retention">Data retention and deletion</h2>
+  <p>The browser removes the extension settings and hidden sites when you uninstall the extension.</p>
+  <p>Data in a page's <code>localStorage</code> stays until you remove it. You can remove only Loupe's keys and keep the site's own data, such as your login. In Chrome:</p>
+  <ol>
+    <li>Open the site and press <kbd>F12</kbd> to open DevTools.</li>
+    <li>Click the <strong>Application</strong> tab.</li>
+    <li>In the sidebar, expand <strong>Storage &gt; Local storage</strong> and click the site's origin.</li>
+    <li>Select each key that starts with <code>loupe:</code> and press <kbd>Delete</kbd>.</li>
+    <li>Reload the page.</li>
+  </ol>
+  <p>You should see the Loupe panel with its default layout and, in offline mode, no comments. Do not use <strong>Clear site data</strong> for this. It also signs you out of the site and deletes the site's own storage.</p>
+  <p>Feedback stored on your backend is controlled by you or your organization. Delete it there at any time, for example from the dashboard of the <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/run-local-server.md">Loupe local server</a>.</p>
+
+  <h2 id="embedded-sdk">Sites that embed the Loupe SDK</h2>
+  <p>A website can include the Loupe SDK directly instead of you running the extension. That site chooses the configuration, and its own privacy policy covers it. Three differences from the extension matter:</p>
+  <ul>
+    <li><strong>Screenshots</strong> are made by re-drawing the page's elements into an image, not by capturing the tab. Elements marked <code>data-loupe-redact</code> are left out of the image.</li>
+    <li><strong>Agent bridge</strong>. If the site configures an agent bridge, Loupe sends your presence to it on a timer: the page path and query string, your user id and your name. It also keeps a live connection open to the bridge for thread updates. If the site also turns on chat, your chat messages and any screenshots you include go to the bridge. The extension never configures a bridge.</li>
+    <li><strong>Code generation</strong>. If the site supplies its own code generator, Loupe passes the comment, and your local AI URL and model if you set them, to that generator.</li>
+  </ul>
 
   <h2>Changes</h2>
-  <p>If this policy changes, the "Last updated" date above will change and the revised version will be posted at this URL.</p>
+  <p>If this policy changes, the "Last updated" date above changes too. The revised version is posted at this URL.</p>
 
   <h2>Contact</h2>
-  <p>Questions or requests: open an issue at <a href="https://github.com/mohamed-ashraf-elsaed/loupe/issues">github.com/mohamed-ashraf-elsaed/loupe/issues</a>.</p>
+  <p>To ask a question or make a request, open an issue at <a href="https://github.com/mohamed-ashraf-elsaed/loupe/issues">github.com/mohamed-ashraf-elsaed/loupe/issues</a>.</p>
 
   <hr>
   <p class="meta"><a href="https://mohamed-ashraf-elsaed.github.io/loupe/">← Back to Loupe</a></p>

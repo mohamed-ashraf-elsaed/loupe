@@ -544,7 +544,7 @@ describe("POST /v1/issues/{id}/updates", () => {
 
   it("sends the destination's status back to the source's reply URL, signed with the source secret", async () => {
     const { web, tracker } = await shared();
-    const update = { kind: "status", status: "in_progress", label: "In progress", reference: "CT-1405" };
+    const update = { kind: "status", status: "in_progress", label: "In progress", reference: "TCK-42" };
     const r = await postUpdate(tracker, "c_1", update);
     expect(r.status).toBe(202);
     expect(await r.json()).toEqual({ id: expect.stringMatching(/^dlv_/), delivery: "ok" });

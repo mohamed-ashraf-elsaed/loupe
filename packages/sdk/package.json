@@ -40,6 +40,9 @@
     "directory": "packages/sdk"
   },
   "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
+  "bugs": {
+    "url": "https://github.com/mohamed-ashraf-elsaed/loupe/issues"
+  },
   "publishConfig": {
     "access": "public"
   },

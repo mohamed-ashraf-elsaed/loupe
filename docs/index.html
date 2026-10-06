@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loupe — Pin feedback to the live UI. Hand it to Claude.</title>
-<meta name="description" content="Loupe is an open-source visual-feedback SDK. Inspect any element on a live product, pin a comment, capture a screenshot — comments persist, re-anchor across redeploys, and reach Claude Code as an actionable backlog via MCP.">
+<meta name="description" content="Loupe is an open-source visual-feedback tool. Pin a comment to any element on a live page, attach a screenshot or a short recording, and triage it on a five-stage board. Claude Code reads the feedback over MCP, and Loupe Hub routes tickets between your apps.">
 <meta name="keywords" content="visual feedback tool, website feedback SDK, pin comments on website, in-app feedback, bug reporting, Claude Code, MCP, model context protocol, product manager tools, screenshot feedback, annotate website, developer tools, open source, embeddable widget, AI agents">
 <meta name="author" content="Mohamed Ashraf Elsaed">
 <link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/">
@@ -20,14 +20,14 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Loupe">
 <meta property="og:title" content="Loupe — Pin feedback to the live UI. Hand it to Claude.">
-<meta property="og:description" content="An embeddable visual-feedback SDK: inspect an element, pin a comment, capture a screenshot, and hand it to Claude Code via MCP. Comments re-anchor across redeploys.">
+<meta property="og:description" content="An embeddable visual-feedback widget: pin a comment to an element, attach a screenshot, and hand it to Claude Code over MCP. Comments re-anchor across redeploys.">
 <meta property="og:url" content="https://mohamed-ashraf-elsaed.github.io/loupe/">
-<meta property="og:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
-<meta property="og:image:alt" content="The Loupe triage board — a Kanban of pinned product feedback.">
+<meta property="og:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/images/sdk-home-tab.png">
+<meta property="og:image:alt" content="The Loupe widget Home tab with Open, Needs you, Resolved and Stale counts and a feed of recent comments.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Loupe — visual feedback for the live UI, wired to Claude Code">
-<meta name="twitter:description" content="Inspect an element, pin a comment, capture a screenshot, hand it to Claude via MCP. Open source.">
-<meta name="twitter:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
+<meta name="twitter:description" content="Pin a comment to an element, attach a screenshot, hand it to Claude Code over MCP. Open source.">
+<meta name="twitter:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/images/sdk-home-tab.png">
 
 <script type="application/ld+json">
 {
@@ -75,10 +75,9 @@
       "name": "Loupe",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Web, Node.js, PHP",
-      "description": "Open-source embeddable visual-feedback SDK. PMs inspect any element on a live product, pin a comment, capture a screenshot; comments persist, re-anchor across redeploys, and reach Claude Code as an actionable backlog via the Model Context Protocol (MCP). Ships an SDK, a Node API, a Kanban dashboard, an MV3 browser extension, and a Laravel package (loupekit/laravel).",
+      "description": "Open-source embeddable visual-feedback tool. Reviewers pin comments to elements on a live page and attach screenshots or recordings; comments re-anchor across redeploys, move through a five-stage board (Queue, To Do, In Progress, In Review, Resolved), and reach Claude Code through the Model Context Protocol (MCP). Ships a browser SDK, a Node API with a triage dashboard, an MCP server, an MV3 browser extension, a Laravel package (loupekit/laravel), and Loupe Hub for routing tickets between apps with two-way sync.",
       "url": "https://mohamed-ashraf-elsaed.github.io/loupe/",
       "codeRepository": "https://github.com/mohamed-ashraf-elsaed/loupe",
-      "license": "https://opensource.org/licenses/MIT",
       "programmingLanguage": ["TypeScript", "PHP"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@id": "https://mohamed-ashraf-elsaed.github.io/loupe/#person" },
@@ -91,10 +90,12 @@
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
-{"@type":"Question","name":"What is Loupe?","acceptedAnswer":{"@type":"Answer","text":"Loupe is an open-source visual-feedback SDK. A developer embeds it in a product; authorized users pin comments to elements and capture screenshots. Feedback is read by Claude Code via MCP."}},
-{"@type":"Question","name":"How do comments survive a redeploy?","acceptedAnswer":{"@type":"Answer","text":"Each comment stores a multi-signal fingerprint of its target element and re-resolves it by scoring candidates on load and DOM changes, so a pin follows its element even after the markup changes."}},
-{"@type":"Question","name":"How does Loupe connect to Claude Code?","acceptedAnswer":{"@type":"Answer","text":"Loupe ships an MCP server exposing list_comments, get_comment, and update_status, so Claude reads feedback as a backlog with full element context and resolves it."}},
-{"@type":"Question","name":"Is Loupe free and open source?","acceptedAnswer":{"@type":"Answer","text":"Yes, Loupe is MIT-licensed and free."}}
+{"@type":"Question","name":"What is Loupe?","acceptedAnswer":{"@type":"Answer","text":"Loupe is an open-source visual-feedback tool. You embed its widget in your web app, and signed-in reviewers pin comments to elements, attach screenshots or short recordings, and discuss them in threads. Claude Code reads the feedback over MCP."}},
+{"@type":"Question","name":"How do comments survive a redeploy?","acceptedAnswer":{"@type":"Answer","text":"Each comment stores a fingerprint of its element: test id, CSS path, XPath, text and attributes. On load, Loupe tries a unique test id or id first, then a unique CSS path rooted at a stable id, then scores candidates by weighted similarity. A pin that scores below 0.5 is marked as moved instead of being attached to the wrong element."}},
+{"@type":"Question","name":"Which stages does a comment move through?","acceptedAnswer":{"@type":"Answer","text":"Five: Queue, To Do, In Progress, In Review and Resolved. New comments start in Queue. The MCP tools tell an agent to stop at In Review when a change is ready, so that a person reviews and resolves it. The legacy statuses open and done map to Queue and Resolved."}},
+{"@type":"Question","name":"How does Loupe connect to Claude Code?","acceptedAnswer":{"@type":"Answer","text":"Through the Model Context Protocol (MCP). The Node MCP server (@loupekit/mcp) has 19 tools, including list_comments, get_comment, update_status, propose_change and create_pr_for_thread. The Laravel package has a built-in MCP server with 4 tools: list-comments, get-comment, propose-change and update-status."}},
+{"@type":"Question","name":"What is Loupe Hub?","acceptedAnswer":{"@type":"Answer","text":"Loupe Hub groups projects into organizations and routes tickets between them. A project can send each new comment from a member of its organization to another project in the same organization or to a signed webhook. When the receiving app changes the ticket's status or replies, Hub relays the update back to the sender."}},
+{"@type":"Question","name":"Is Loupe free and open source?","acceptedAnswer":{"@type":"Answer","text":"Yes. Loupe is free, and its source is public on GitHub. The SDK (@loupekit/sdk), the MCP server (@loupekit/mcp), the shared package (@loupekit/shared) and the Laravel package (loupekit/laravel) are published under the MIT license."}}
 ]}
 </script>
 
@@ -138,7 +139,7 @@
   .nav-links a:hover{color:var(--text)}
   .nav-gh{display:inline-flex;align-items:center;gap:8px;background:#fff;color:#08080c;font-weight:600;font-size:13.5px;padding:9px 16px;border-radius:999px;transition:transform .4s var(--ease)}
   .nav-gh:hover{transform:scale(1.04)} .nav-gh:active{transform:scale(.97)}
-  @media(max-width:720px){.nav-links{display:none}}
+  @media(max-width:720px){.nav-links{gap:0}.nav-links a:not(.nav-keep){display:none}}
 
   .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
   section{position:relative}
@@ -209,7 +210,10 @@
   .reveal{opacity:0;transform:translateY(38px);filter:blur(8px);transition:opacity .9s var(--ease),transform .9s var(--ease),filter .9s var(--ease)}
   .reveal.in{opacity:1;transform:none;filter:none}
   @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;filter:none;transition:none}}
+  .install .next{margin-top:12px;font-size:14px;color:var(--muted)}
+  .install .next a,.shead p a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 </style>
+<noscript><style>.reveal{opacity:1;transform:none;filter:none}</style></noscript>
 </head>
 <body>
   <div class="orbs"><span class="orb a"></span><span class="orb b"></span><span class="orb c"></span></div>
@@ -221,11 +225,13 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
-        <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">Docs</a>
+        <a href="#start">Get started</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-keep" href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">Docs</a>
       </div>
       <a class="nav-gh" href="https://github.com/mohamed-ashraf-elsaed/loupe">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.22-3.37-1.22-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.72 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
-        Star
+        GitHub
       </a>
     </div>
   </nav>
@@ -233,7 +239,7 @@
   <header class="hero">
     <div class="reveal"><span class="eyebrow"><span class="dot"></span>Open source · Claude Code · MCP</span></div>
     <h1 class="display reveal">Loupe</h1>
-    <p class="sub reveal">Pin feedback to the <b>live UI</b> — inspect any element, drop a comment, capture a screenshot — then hand it to <b>Claude Code</b> as an actionable backlog. Comments persist and re-anchor across redeploys.</p>
+    <p class="sub reveal">Pin a comment to any element on your <b>live web app</b>, attach a screenshot or a short recording, and move it across a five-stage board. <b>Claude Code</b>, Anthropic's coding agent, reads the feedback over the Model Context Protocol (MCP), an open standard that lets AI agents call external tools. Pins re-anchor after you redeploy.</p>
 
     <div class="install reveal">
       <div class="shell"><div class="core">
@@ -244,34 +250,37 @@
           <span id="copyLabel">Copy</span>
         </button>
       </div></div>
+      <p class="next">Installing the package does not show the widget yet. Next, initialize it: see <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/install-npm.md">Install with npm</a>, or follow the <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/tutorials/first-comment-local.md">first-comment tutorial</a>.</p>
     </div>
 
     <div class="ctas reveal">
       <a class="btn btn-primary" href="https://github.com/mohamed-ashraf-elsaed/loupe">View on GitHub <span class="ico"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></span></a>
       <a class="btn btn-ghost" href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">Documentation</a>
-      <a class="btn btn-ghost" href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/Getting-Started">Get started</a>
+      <a class="btn btn-ghost" href="#start">Get started</a>
     </div>
 
-    <div class="shot reveal"><img src="dashboard.png" width="1000" alt="The Loupe triage board: a three-column Kanban of pinned product feedback with screenshots, element selectors, and status." loading="lazy"></div>
+    <div class="shot reveal"><img src="images/sdk-home-tab.png" width="1000" alt="The Loupe widget's Home tab: tiles for Open, Needs you, Resolved and Stale comments, This page and All scope chips, a Pin feedback on this page button, and a feed of recent comments." loading="lazy"></div>
   </header>
 
   <section class="wrap" id="features">
     <div class="shead reveal">
       <span class="eyebrow"><span class="dot"></span>What you get</span>
-      <h2 class="display">Built like a product, not a prototype.</h2>
-      <p>An SDK, a backend, a triage board, an MCP server, and a browser extension — all open source, all TypeScript.</p>
+      <h2 class="display">Features</h2>
+      <p>A browser widget, a Node API with a triage dashboard, an MCP server, a browser extension, a Laravel package and Loupe Hub. All open source.</p>
     </div>
     <div class="bento">
       <div class="cell wide reveal"><div class="in">
-        <h3 class="display">Feedback that carries its context all the way to code — element HTML, computed styles, and a screenshot.</h3>
-        <a class="btn btn-primary" href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/Architecture">How it works <span class="ico"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+        <h3 class="display">Each comment carries its context to the code: the element's HTML, its computed styles and a screenshot.</h3>
+        <a class="btn btn-primary" href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/ARCHITECTURE.md">How it works <span class="ico"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
       </div></div>
-      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><h3>Element inspector</h3><p>Click any element; comments anchor to the DOM, not to pixels — inside a Shadow DOM, so no CSS leaks.</p></div></div>
-      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg></span><h3>Survives redeploys</h3><p>A multi-signal fingerprint re-anchors each pin when the markup changes.</p></div></div>
-      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 15 4-4 4 4 4-5 4 4"/></svg></span><h3>Screenshots to storage</h3><p>Images go to object storage; comments carry a URL, so reads stay fast.</p></div></div>
-      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg></span><h3>MCP for Claude Code</h3><p>Comments become a task backlog an AI agent can list, read, and resolve — with full element context.</p></div></div>
-      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><h3>Real auth</h3><p>Per-project secrets, HMAC-signed identity.</p></div></div>
-      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01"/></svg></span><h3>Browser extension</h3><p>Inspect and comment on any site with pixel-perfect capture — no install needed on the target.</p></div></div>
+      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><h3>Four ways to capture</h3><p>Click an element with Inspect, drag a rectangle with Region, record a region for up to 20 seconds with Record, or drop a free Note anywhere on the page. The widget runs in a shadow root (a DOM subtree isolated from the page), so its CSS does not touch your page.</p></div></div>
+      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg></span><h3>Survives redeploys</h3><p>Each pin stores a fingerprint of its element: test id (its <code class="mono">data-testid</code>, <code class="mono">data-test</code> or stable <code class="mono">id</code> attribute), CSS path, XPath (a path expression through the DOM tree), text and attributes. When the markup changes, Loupe finds the element again. A pin it cannot place with confidence is marked as moved.</p></div></div>
+      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v10M12 7v6M16 7v8"/></svg></span><h3>Five-stage board</h3><p>Comments move through Queue, To Do, In Progress, In Review and Resolved. Filter by priority, change type, device and page, or open the Needs you view.</p></div></div>
+      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg></span><h3>MCP for Claude Code</h3><p>The Node MCP server has 19 tools. Claude reads a comment with its screenshot as an image, proposes an HTML and CSS change back to the dashboard, opens a pull request, and moves the comment to In Review. The Laravel package has its own MCP server with 4 tools.</p></div></div>
+      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12Z"/></svg></span><h3>Threads, mentions and reactions</h3><p>Reply to any comment, @mention a teammate to notify them, and react with an emoji. The widget refreshes every 10 seconds, so new replies appear without a reload.</p></div></div>
+      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.3 11 16.7 7M7.3 13l9.4 4"/></svg></span><h3>Loupe Hub routing</h3><p>Group projects into organizations. A project sends each new comment from a member of its organization to another project in the same organization, or to a signed webhook. Between two projects, the receiver's status changes and both sides' replies sync back.</p></div></div>
+      <div class="cell c-4 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><h3>Authentication</h3><p>The Node API checks a per-project secret and an HMAC (a keyed hash signed with that secret) of each user id. The Laravel package uses your app's sign-in and gates.</p></div></div>
+      <div class="cell c-8 reveal"><div class="in"><span class="badge"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01"/></svg></span><h3>Browser extension</h3><p>Comment on any site without installing anything on it. Start Loupe from the toolbar or the right-click menu. The extension captures the visible tab through the browser.</p></div></div>
     </div>
   </section>
 
@@ -280,27 +289,75 @@
   <section class="wrap" id="how">
     <div class="shead reveal"><span class="eyebrow"><span class="dot"></span>How it works</span><h2 class="display">From a pin to a shipped change.</h2></div>
     <div class="why">
-      <div class="cell reveal"><div class="in"><span class="num">01</span><h3>Inspect &amp; comment</h3><p>A PM clicks an element on the live product and writes what should change. Loupe captures a screenshot, the element's HTML, its styles, and a robust anchor — drag a region to <b>screenshot</b> or <b>screen-record</b> it, or drop a free note anywhere on the page.</p></div></div>
-      <div class="cell reveal"><div class="in"><span class="num">02</span><h3>Store</h3><p>It persists to your project — Postgres-backed, screenshots in object storage. The pin re-anchors even after you redeploy.</p></div></div>
-      <div class="cell reveal"><div class="in"><span class="num">03</span><h3>Triage</h3><p>See every comment on a Kanban board: open, in progress, done — with screenshots and the exact selector.</p></div></div>
-      <div class="cell reveal"><div class="in"><span class="num">04</span><h3>Ship with Claude</h3><p>Claude Code reads the backlog over MCP — with the screenshot <b>as an image</b>, element HTML and styles — rewrites the UI, and sends the <b>modified HTML/CSS back</b> to the dashboard for the dev team, then marks it done.</p></div></div>
+      <div class="cell reveal"><div class="in"><span class="num">01</span><h3>Pin a comment</h3><p>A reviewer clicks an element on the live app and writes a title and a description. Loupe captures a screenshot, the element's HTML, its computed styles and an anchor. You can also drag a region to <b>screenshot</b> or <b>record</b> it, or drop a free note anywhere on the page.</p></div></div>
+      <div class="cell reveal"><div class="in"><span class="num">02</span><h3>Store</h3><p>The comment saves to your backend: the Node API or your Laravel app. Screenshots and recordings upload as separate files, and the comment keeps their URLs. With no backend, comments stay in the browser's local storage.</p></div></div>
+      <div class="cell reveal"><div class="in"><span class="num">03</span><h3>Triage</h3><p>Every comment starts in <b>Queue</b>. Move it through To Do, In Progress, In Review and Resolved on the dashboard, and set its priority and change type.</p></div></div>
+      <div class="cell reveal"><div class="in"><span class="num">04</span><h3>Ship with Claude</h3><p>Claude Code reads the comment over MCP, with the screenshot <b>as an image</b>, the element's HTML and its styles. It proposes the <b>changed HTML and CSS</b> back to the dashboard and moves the comment to In Review. A person reviews the change and resolves it.</p></div></div>
     </div>
   </section>
 
   <div class="spacer"></div>
 
-  <section class="wrap">
+  <section class="wrap" id="start">
     <div class="shead reveal">
-      <span class="eyebrow"><span class="dot"></span>Read the docs</span>
-      <h2 class="display">Everything, documented.</h2>
-      <div class="links reveal">
-        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/Getting-Started">Getting Started</a>
-        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/Architecture">Architecture</a>
-        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/MCP-Integration">MCP Integration</a>
-        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/Browser-Extension">Browser Extension</a>
-        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/FAQ">FAQ</a>
-        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/wiki/Changelog">Changelog</a>
-      </div>
+      <span class="eyebrow"><span class="dot"></span>Get started</span>
+      <h2 class="display">Pick your starting point.</h2>
+      <p>Each guide solves one task, from installing the widget to routing tickets through Loupe Hub. New to Loupe? Read the <a href="guide/"><b>complete guide</b></a> first.</p>
+    </div>
+    <div class="why">
+      <div class="cell reveal"><div class="in"><h3>Start here</h3><p>New to Loupe? Follow a tutorial end to end on your own machine.</p><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/tutorials/first-comment-local.md">Pin your first comment locally</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/tutorials/hub-two-projects-local.md">Route a ticket between two projects</a>
+      </div></div></div>
+      <div class="cell reveal"><div class="in"><h3>Add Loupe to your app</h3><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/install-npm.md">Install with npm</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/embed-script-tag.md">Add a script tag</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/run-local-server.md">Run the local server</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/upgrade.md">Upgrade Loupe</a>
+      </div></div></div>
+      <div class="cell reveal"><div class="in"><h3>Laravel</h3><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-install.md">Install in Laravel</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/laravel-authorize.md">Control who can use Loupe</a>
+      </div></div></div>
+      <div class="cell reveal"><div class="in"><h3>Give and act on feedback</h3><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/use-the-widget.md">Use the widget</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/browser-extension.md">Use the browser extension</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/connect-mcp-clients.md">Connect Claude Code</a>
+      </div></div></div>
+      <div class="cell reveal"><div class="in"><h3>Loupe Hub</h3><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-manage-projects.md">Manage organizations and projects</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-connect-apps.md">Route tickets between apps</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/verify-hub-webhooks.md">Verify Hub webhooks</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/hub-self-host.md">Self-host Loupe Hub</a>
+      </div></div></div>
+      <div class="cell reveal"><div class="in"><h3>Reference</h3><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/sdk.md">SDK options</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/server.md">Node server</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/mcp.md">MCP tools</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/hub.md">Loupe Hub</a>
+      </div></div></div>
+      <div class="cell reveal"><div class="in"><h3>Explanation</h3><div class="links">
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/hub.md">How Loupe Hub works</a>
+        <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/explanation/auth-and-privacy.md">Authentication and privacy</a>
+      </div></div></div>
+    </div>
+  </section>
+
+  <div class="spacer"></div>
+
+  <section class="wrap" id="faq">
+    <div class="shead reveal">
+      <span class="eyebrow"><span class="dot"></span>FAQ</span>
+      <h2 class="display">FAQ</h2>
+    </div>
+    <div class="why">
+      <div class="cell reveal"><div class="in"><h3>What is Loupe?</h3><p>Loupe is an open-source visual-feedback tool. You embed its widget in your web app, and signed-in reviewers pin comments to elements, attach screenshots or short recordings, and discuss them in threads. Claude Code reads the feedback over MCP.</p></div></div>
+      <div class="cell reveal"><div class="in"><h3>How do comments survive a redeploy?</h3><p>Each comment stores a fingerprint of its element: test id, CSS path, XPath, text and attributes. On load, Loupe tries a unique test id or id first, then a unique CSS path rooted at a stable id, then scores candidates by weighted similarity. A pin that scores below 0.5 is marked as moved instead of being attached to the wrong element.</p></div></div>
+      <div class="cell reveal"><div class="in"><h3>Which stages does a comment move through?</h3><p>Five: Queue, To Do, In Progress, In Review and Resolved. New comments start in Queue. The MCP tools tell an agent to stop at In Review when a change is ready, so that a person reviews and resolves it. The legacy statuses open and done map to Queue and Resolved.</p></div></div>
+      <div class="cell reveal"><div class="in"><h3>How does Loupe connect to Claude Code?</h3><p>Through MCP. The Node MCP server (@loupekit/mcp) has 19 tools, including list_comments, get_comment, update_status, propose_change and create_pr_for_thread. The Laravel package has a built-in MCP server with 4 tools: list-comments, get-comment, propose-change and update-status.</p></div></div>
+      <div class="cell reveal"><div class="in"><h3>What is Loupe Hub?</h3><p>Loupe Hub groups projects into organizations and routes tickets between them. A project can send each new comment from a member of its organization to another project in the same organization or to a signed webhook. When the receiving app changes the ticket's status or replies, Hub relays the update back to the sender.</p></div></div>
+      <div class="cell reveal"><div class="in"><h3>Is Loupe free and open source?</h3><p>Yes. Loupe is free, and its source is public on GitHub. The SDK (@loupekit/sdk), the MCP server (@loupekit/mcp), the shared package (@loupekit/shared) and the Laravel package (loupekit/laravel) are published under the MIT license.</p></div></div>
     </div>
   </section>
 
@@ -309,25 +366,34 @@
       <a href="https://github.com/mohamed-ashraf-elsaed/loupe">GitHub</a> ·
       <a href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">Docs</a> ·
       <a href="llms.txt">llms.txt</a> ·
-      <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md">Changelog</a> ·
+      <a href="privacy.html">Privacy</a>
     </div>
     <div style="margin-top:12px">
       Built by <a href="https://www.linkedin.com/in/mohamedashrafelsaed/" rel="author me noopener" target="_blank"><strong>Mohamed Ashraf Elsaed</strong></a>
       · <a href="https://github.com/mohamed-ashraf-elsaed" rel="me noopener" target="_blank">GitHub</a>
       · <a href="mailto:m.ashraf.saed@gmail.com" rel="me">m.ashraf.saed@gmail.com</a>
     </div>
-    <div style="margin-top:6px">MIT © Mohamed Ashraf Elsaed · v0.14.0</div>
+    <div style="margin-top:6px">© Mohamed Ashraf Elsaed · v0.14.0</div>
   </footer>
 
 <script>
   (function(){
     var btn=document.getElementById('copyBtn'),label=document.getElementById('copyLabel'),
         cmd=document.getElementById('cmd').textContent.trim();
+    function fallback(){
+      // Clipboard access denied, or an insecure context: select the command so the user can copy it.
+      var range=document.createRange();range.selectNodeContents(document.getElementById('cmd'));
+      var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+      label.textContent='Select and copy';
+      setTimeout(function(){label.textContent='Copy';},2400);
+    }
     btn.addEventListener('click',function(){
+      if(!navigator.clipboard||!navigator.clipboard.writeText){fallback();return;}
       navigator.clipboard.writeText(cmd).then(function(){
         btn.classList.add('done');label.textContent='Copied';
         setTimeout(function(){btn.classList.remove('done');label.textContent='Copy';},1800);
-      });
+      }).catch(fallback);
     });
   })();
   (function(){
