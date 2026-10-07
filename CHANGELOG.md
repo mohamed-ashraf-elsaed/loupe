@@ -9,6 +9,27 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A recording no longer ends without explanation.** The recording pill shows the elapsed
+  `m:ss`; the duration cap is 60s (was 20s, so a take used to stop with no warning); a 16 MiB
+  size guard keeps the base64 clip shippable; and when the recorder stops itself the panel
+  says why. `recordMaxMs` / `recordMaxBytes` set both limits per host.
+- **The widget is hidden while recording.** Screen capture takes real pixels, so the panel,
+  launcher and pins were being filmed; they are hidden for the take now, and the recording
+  pill is the only control left on screen.
+- **A host app's `<dialog>` can no longer cover the panel.** The widget host joins the
+  browser's **top layer** as a `popover="manual"` (feature-detected), so a native modal — which
+  paints above every z-index — no longer hides the panel and its launcher.
+- **Submitting no longer hangs on “Saving…” when the save fails.** A failed upload restores
+  the button and keeps the draft, instead of leaving the composer stuck.
+- **Submit is faster.** An element's screenshot is captured in the background when the
+  composer opens rather than on submit, and the screenshot, recording and attachments upload
+  in parallel instead of one after another.
+- **A region comment no longer carries a container's whole text.** A region over a large
+  element stored the concatenated text of every child in its anchor, which read as noise in
+  tickets and MCP context; a region anchor now keeps the element's identity, not its text.
+
 ## [0.14.1] — 2026-10-06
 
 ### Security

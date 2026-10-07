@@ -1,6 +1,13 @@
 // Scoped to the Shadow DOM — none of this leaks to (or is affected by) the host page.
 export const STYLES = /* css */ `
-:host { all: initial; }
+:host {
+  all: initial;
+  /* The host is a manual popover in the browser's TOP LAYER (see app.ts buildDom), so the
+     host app's own <dialog> cannot cover it. Neutralise the popover's UA box — the visible
+     UI is all position:fixed children, so the host itself stays a 0×0, click-through anchor. */
+  position: fixed; inset: 0; width: 0; height: 0;
+  margin: 0; padding: 0; border: 0; overflow: visible; background: transparent;
+}
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
 
 /* Theme tokens live on :host (inside the Shadow DOM :root matches nothing).
@@ -464,6 +471,14 @@ export const STYLES = /* css */ `
 .recbar .recdot { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); animation: loupe-recpulse 1.1s infinite; }
 @keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
+
+/* Screen capture takes REAL pixels, so hide the widget while recording or the panel,
+   launcher and pins are filmed. The recbar (the Stop control) deliberately stays. */
+:host(.recording) .dock,
+:host(.recording) .minbar,
+:host(.recording) .fab-cluster,
+:host(.recording) .fab-handle,
+:host(.recording) .pin { display: none !important; }
 
 /* ---------------------------------------------------------------- toast */
 /* A short notice (e.g. how to bring a hidden launcher back). Click to dismiss. */
