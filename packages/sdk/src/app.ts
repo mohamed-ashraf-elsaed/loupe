@@ -141,8 +141,10 @@ type ComposeTarget =
   | { kind: "free"; offset: { x: number; y: number }; point: { x: number; y: number }; label?: string };
 
 const DOCK_MODES: DockMode[] = ["left", "right", "bottom", "float"];
-/** How long a single screen recording may run before it auto-stops. */
-const RECORD_MAX_MS = 20000;
+/** How long a single screen recording may run before it auto-stops (overridable per host). */
+const RECORD_MAX_MS = 60000;
+/** Size guard for one recording — the webm travels as base64, so keep it shippable. */
+const RECORD_MAX_BYTES = 16 * 1024 * 1024;
 /** Attachment limits for the composer — small enough to survive a base64 POST. */
 const MAX_FILES = 10;
 /** How often the panel re-reads comments, open threads and mentions on every host, alongside any bridge stream. */
@@ -253,6 +255,10 @@ export class LoupeApp {
   private recBar!: HTMLElement;
   /** Stops the in-flight screen recording (wired while recording). */
   private stopRecording?: () => void;
+  /** When the current recording began, for the recbar's elapsed clock. */
+  private recStart = 0;
+  /** The recbar's elapsed-clock interval, while recording. */
+  private recTimer?: number;
 
   private comments: Comment[] = [];
   /** Free-text filter over the list (title / body / author). */
@@ -425,6 +431,26 @@ export class LoupeApp {
   }
 
   /**
+   * Put the panel above the page, and re-raise it. The host is a `popover="manual"`
+   * element, so it sits in the browser's TOP LAYER — the one place a native `<dialog>`
+   * cannot paint over. A host dialog opened *after* us would otherwise land on top, so we
+   * re-open the popover (close, then show) whenever a tool is armed. A no-op where the
+   * Popover API is missing: the fixed UI's own z-index still applies there.
+   */
+  private showTopLayer() {
+    const host = this.root as HTMLElement & { showPopover?: () => void; hidePopover?: () => void; matches?: (s: string) => boolean };
+    if (typeof host.showPopover !== "function") return;
+    // The `:popover-open` probe is best-effort: some selector engines reject it, and a
+    // failed probe must not stop the promotion below.
+    let open = false;
+    try { open = !!host.matches?.(":popover-open"); } catch { open = false; }
+    try {
+      if (open) host.hidePopover?.();
+      host.showPopover();
+    } catch { /* engine without popover, or a state we cannot re-order — z-index still applies */ }
+  }
+
+  /**
    * Reload comments when the page URL changes without a full reload (SPA
    * navigation), so each page only ever shows its own comments.
    */
@@ -524,8 +550,16 @@ export class LoupeApp {
   private buildDom() {
     this.root = document.createElement("div");
     this.root.id = "loupe-root";
+    // A host app's native <dialog> / popover lives in the browser's TOP LAYER, which paints
+    // above every z-index — so a plain overlay would be covered the moment the app opens a
+    // modal. Put our host in the top layer too (popover="manual", feature-detected) so the
+    // panel and launcher stay reachable; showTopLayer() re-raises it above later dialogs.
+    if (typeof (this.root as HTMLElement & { showPopover?: () => void }).showPopover === "function") {
+      this.root.setAttribute("popover", "manual");
+    }
     document.body.appendChild(this.root);
     this.shadow = this.root.attachShadow({ mode: "open" });
+    this.showTopLayer();
 
     const style = document.createElement("style");
     style.textContent = STYLES;
@@ -2402,18 +2436,29 @@ export class LoupeApp {
     this.selbox.style.display = "none";
     const { region, element } = this.regionFromViewport(vp);
     const capture = this.cfg.captureRecording ?? captureRegionRecording;
+    const maxMs = this.cfg.recordMaxMs ?? RECORD_MAX_MS;
     this.showRecBar();
+    // Screen capture takes real pixels, so our own UI would be filmed. Hide it for the
+    // duration — the recbar, the one control still needed, stays.
+    this.setRecordingUi(true);
     let recording: string | undefined;
     try {
       // Call the capture synchronously (getDisplayMedia needs the click gesture).
       recording = await capture(vp, {
-        maxMs: RECORD_MAX_MS,
+        maxMs,
+        maxBytes: this.cfg.recordMaxBytes ?? RECORD_MAX_BYTES,
         register: (stop) => { this.stopRecording = stop; },
+        // The recorder stopped itself — say why, instead of the recording just ending.
+        onAutoStop: (reason) => this.toast(reason === "size"
+          ? "Recording stopped at the size limit. Attach the clip, or record a shorter one."
+          : `Recording stopped at the ${Math.round(maxMs / 1000)}s limit. Attach the clip, or record a shorter one.`),
       });
     } catch {
       recording = undefined;
+    } finally {
+      this.setRecordingUi(false);
+      this.hideRecBar();
     }
-    this.hideRecBar();
     if (!recording) return; // user cancelled the share prompt or capture failed
     const target: ComposeTarget = { kind: "region", region, element, recording };
     const x = Math.min(vp.x + vp.w, window.innerWidth - 320);
@@ -2422,12 +2467,27 @@ export class LoupeApp {
 
   private showRecBar() {
     this.stopRecording = undefined;
-    this.recBar.innerHTML = `<span class="recdot"></span><span>Recording… <b>Stop</b></span>`;
+    this.recStart = Date.now();
+    this.paintRecBar();
     this.recBar.classList.add("show");
+    window.clearInterval(this.recTimer);
+    this.recTimer = window.setInterval(() => this.paintRecBar(), 500);
   }
   private hideRecBar() {
     this.recBar.classList.remove("show");
+    window.clearInterval(this.recTimer);
+    this.recTimer = undefined;
     this.stopRecording = undefined;
+  }
+  /** Elapsed clock on the recording pill — so a stop at the cap is never a surprise. */
+  private paintRecBar() {
+    const s = Math.max(0, Math.floor((Date.now() - this.recStart) / 1000));
+    const ss = String(s % 60).padStart(2, "0");
+    this.recBar.innerHTML = `<span class="recdot"></span><span>Recording ${Math.floor(s / 60)}:${ss} · <b>Stop</b></span>`;
+  }
+  /** While recording, hide the widget so it is not filmed (a `:host(.recording)` rule). */
+  private setRecordingUi(on: boolean) {
+    this.root.classList.toggle("recording", on);
   }
 
   /** elementFromPoint, ignoring our own UI. */
@@ -2447,6 +2507,9 @@ export class LoupeApp {
       if (!this.open) this.open = true;
       if (this.tab !== "comments") { this.tab = "comments"; this.saveState(); }
       this.applyDockLayout();
+      // The user just reached for a tool — make sure a dialog they opened since we mounted
+      // has not pushed us out of the top layer.
+      this.showTopLayer();
     }
     this.mode = mode;
     this.hl.style.display = "none";
@@ -2517,6 +2580,13 @@ export class LoupeApp {
 
   private openComposer(target: ComposeTarget, x: number, y: number, seedFiles: File[] = []) {
     this.pending = target;
+    // Capture the element's screenshot NOW, in the background, so Submit never sits on a
+    // multi-second DOM render (the region flow does the same in finishRegion). It is used
+    // only if the "Attach screenshot" box is still checked at submit time.
+    if (target.kind === "element") {
+      const shot = this.cfg.captureScreenshot ?? captureScreenshot;
+      this.pendingShot = shot(target.element);
+    }
     const isRecording = target.kind === "region" && !!target.recording;
     const c = this.composer;
     c.innerHTML = "";
@@ -2660,7 +2730,8 @@ export class LoupeApp {
 
     if (target.kind === "element") {
       const capture = this.cfg.captureScreenshot ?? captureScreenshot;
-      screenshot = withShot ? await capture(target.element) : undefined;
+      // Usually already in flight from openComposer; the inline call is the fallback.
+      screenshot = withShot ? (await this.pendingShot ?? await capture(target.element)) : undefined;
       anchor = captureAnchor(target.element);
       context = captureElementContext(target.element);
       offset = this.targetOffset;
@@ -2682,7 +2753,11 @@ export class LoupeApp {
       // Prefer the real center-element anchor (survives reflow + gives Claude a
       // real element); fall back to a synthetic region anchor when there's none.
       if (target.element) {
-        anchor = captureAnchor(target.element);
+        // A region is geometric: keep the element's identity (tag, cssPath, testid, rect)
+        // for re-anchoring, but not its whole textContent. A region over a large container
+        // otherwise stores the concatenated text of every child, which leaked into tickets
+        // and MCP context as unreadable noise.
+        anchor = { ...captureAnchor(target.element), text: "" };
         context = captureElementContext(target.element);
         anchoredEl = target.element;
       } else {
@@ -2721,7 +2796,16 @@ export class LoupeApp {
       },
       createdAt: new Date().toISOString(),
     };
-    await this.store.save(comment);
+    try {
+      await this.store.save(comment);
+    } catch (e) {
+      // A failed save must never leave the composer stuck on "Saving…" forever, which
+      // reads as "it is taking a long time". Keep the draft and let the reporter retry.
+      console.warn("[loupe] save failed", e);
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Comment"; }
+      this.toast("Could not save — the connection failed. Your comment is still here; try again.");
+      return;
+    }
     this.comments.push(comment);
     this.resolved.set(comment.id, anchoredEl);
     this.closeComposer();
@@ -2739,14 +2823,17 @@ export class LoupeApp {
   /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
   private async uploadAttachments(files: File[]): Promise<Attachment[] | undefined> {
     if (!files.length) return undefined;
-    const out: Attachment[] = [];
-    for (const f of files) {
+    // Upload in parallel — each is an independent round trip, so serialising them only
+    // makes the save slower.
+    const results = await Promise.all(files.map(async (f) => {
       try {
-        out.push(await this.store.upload(this.cfg.projectKey, f));
+        return await this.store.upload(this.cfg.projectKey, f);
       } catch (e) {
         console.warn("[loupe] attachment upload failed", f.name, e);
+        return null;
       }
-    }
+    }));
+    const out = results.filter((a): a is Attachment => a !== null);
     return out.length ? out : undefined;
   }
 
@@ -4725,6 +4812,7 @@ export class LoupeApp {
     this.stopVoice();
     this.stopPresence();
     this.stopRecording?.();
+    window.clearInterval(this.recTimer);
     this.setMode("off");
     this.mo?.disconnect();
     if (this.tick) clearInterval(this.tick);

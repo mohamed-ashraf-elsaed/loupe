@@ -60,13 +60,17 @@ export class HttpAdapter implements StorageAdapter {
 
   async save(comment: Comment): Promise<Comment> {
     // Upload media to object storage first, then store only the URL — keeps the
-    // comment row (and every later list/read) small.
-    if (comment.screenshot?.startsWith("data:")) {
-      comment = { ...comment, screenshot: await this.uploadBlob(comment.projectKey, comment.screenshot) };
-    }
-    if (comment.recording?.startsWith("data:")) {
-      comment = { ...comment, recording: await this.uploadBlob(comment.projectKey, comment.recording) };
-    }
+    // comment row (and every later list/read) small. The screenshot and the recording
+    // are independent uploads, so run them together rather than back to back.
+    const [screenshot, recording] = await Promise.all([
+      comment.screenshot?.startsWith("data:")
+        ? this.uploadBlob(comment.projectKey, comment.screenshot)
+        : Promise.resolve(comment.screenshot),
+      comment.recording?.startsWith("data:")
+        ? this.uploadBlob(comment.projectKey, comment.recording)
+        : Promise.resolve(comment.recording),
+    ]);
+    comment = { ...comment, screenshot, recording };
     const res = await fetch(`${this.base}/v1/comments`, this.opts({
       method: "POST",
       headers: this.headers(),

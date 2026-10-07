@@ -39,7 +39,14 @@ var Loupe = (() => {
   var STYLES = (
     /* css */
     `
-:host { all: initial; }
+:host {
+  all: initial;
+  /* The host is a manual popover in the browser's TOP LAYER (see app.ts buildDom), so the
+     host app's own <dialog> cannot cover it. Neutralise the popover's UA box \u2014 the visible
+     UI is all position:fixed children, so the host itself stays a 0\xD70, click-through anchor. */
+  position: fixed; inset: 0; width: 0; height: 0;
+  margin: 0; padding: 0; border: 0; overflow: visible; background: transparent;
+}
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
 
 /* Theme tokens live on :host (inside the Shadow DOM :root matches nothing).
@@ -503,6 +510,14 @@ var Loupe = (() => {
 .recbar .recdot { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); animation: loupe-recpulse 1.1s infinite; }
 @keyframes loupe-recpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .recbar .recdot { animation: none; } }
+
+/* Screen capture takes REAL pixels, so hide the widget while recording or the panel,
+   launcher and pins are filmed. The recbar (the Stop control) deliberately stays. */
+:host(.recording) .dock,
+:host(.recording) .minbar,
+:host(.recording) .fab-cluster,
+:host(.recording) .fab-handle,
+:host(.recording) .pin { display: none !important; }
 
 /* ---------------------------------------------------------------- toast */
 /* A short notice (e.g. how to bring a hidden launcher back). Click to dismiss. */
@@ -3060,6 +3075,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   }
   async function recordCropped(stream, rect, opts) {
     const maxMs = opts?.maxMs ?? 2e4;
+    const maxBytes = opts?.maxBytes ?? 0;
     const video = document.createElement("video");
     video.srcObject = stream;
     video.muted = true;
@@ -3090,14 +3106,23 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     const mime = pickRecordingMime();
     const rec = new MediaRecorder(out, mime ? { mimeType: mime } : void 0);
     const chunks = [];
-    rec.ondataavailable = (e) => {
-      if (e.data && e.data.size) chunks.push(e.data);
-    };
+    let bytes = 0;
     const stop = () => {
       if (rec.state !== "inactive") rec.stop();
     };
+    const autoStop = (reason) => {
+      if (rec.state === "inactive") return;
+      opts?.onAutoStop?.(reason);
+      rec.stop();
+    };
+    rec.ondataavailable = (e) => {
+      if (!e.data || !e.data.size) return;
+      chunks.push(e.data);
+      bytes += e.data.size;
+      if (maxBytes && bytes >= maxBytes) autoStop("size");
+    };
     opts?.register?.(stop);
-    const timer = window.setTimeout(stop, maxMs);
+    const timer = window.setTimeout(() => autoStop("time"), maxMs);
     track?.addEventListener("ended", stop);
     const done = new Promise((resolve) => {
       rec.onstop = () => resolve();
@@ -3889,12 +3914,11 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       return data;
     }
     async save(comment) {
-      if (comment.screenshot?.startsWith("data:")) {
-        comment = { ...comment, screenshot: await this.uploadBlob(comment.projectKey, comment.screenshot) };
-      }
-      if (comment.recording?.startsWith("data:")) {
-        comment = { ...comment, recording: await this.uploadBlob(comment.projectKey, comment.recording) };
-      }
+      const [screenshot, recording] = await Promise.all([
+        comment.screenshot?.startsWith("data:") ? this.uploadBlob(comment.projectKey, comment.screenshot) : Promise.resolve(comment.screenshot),
+        comment.recording?.startsWith("data:") ? this.uploadBlob(comment.projectKey, comment.recording) : Promise.resolve(comment.recording)
+      ]);
+      comment = { ...comment, screenshot, recording };
       const res = await fetch(`${this.base}/v1/comments`, this.opts({
         method: "POST",
         headers: this.headers(),
@@ -4069,7 +4093,8 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     { id: "chat", label: "Chat" }
   ];
   var DOCK_MODES = ["left", "right", "bottom", "float"];
-  var RECORD_MAX_MS = 2e4;
+  var RECORD_MAX_MS = 6e4;
+  var RECORD_MAX_BYTES = 16 * 1024 * 1024;
   var MAX_FILES = 10;
   var SYNC_POLL_MS = 1e4;
   var MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -4133,6 +4158,8 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.fabDrag = null;
       /** Set for one tick after a drag so the click the browser fires afterwards does not open the panel. */
       this.fabSuppressClick = false;
+      /** When the current recording began, for the recbar's elapsed clock. */
+      this.recStart = 0;
       this.comments = [];
       /** Free-text filter over the list (title / body / author). */
       this.search = "";
@@ -4602,6 +4629,28 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.setMode(tool === "note" ? "free" : "inspect");
     }
     /**
+     * Put the panel above the page, and re-raise it. The host is a `popover="manual"`
+     * element, so it sits in the browser's TOP LAYER — the one place a native `<dialog>`
+     * cannot paint over. A host dialog opened *after* us would otherwise land on top, so we
+     * re-open the popover (close, then show) whenever a tool is armed. A no-op where the
+     * Popover API is missing: the fixed UI's own z-index still applies there.
+     */
+    showTopLayer() {
+      const host = this.root;
+      if (typeof host.showPopover !== "function") return;
+      let open = false;
+      try {
+        open = !!host.matches?.(":popover-open");
+      } catch {
+        open = false;
+      }
+      try {
+        if (open) host.hidePopover?.();
+        host.showPopover();
+      } catch {
+      }
+    }
+    /**
      * Reload comments when the page URL changes without a full reload (SPA
      * navigation), so each page only ever shows its own comments.
      */
@@ -4689,8 +4738,12 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     buildDom() {
       this.root = document.createElement("div");
       this.root.id = "loupe-root";
+      if (typeof this.root.showPopover === "function") {
+        this.root.setAttribute("popover", "manual");
+      }
       document.body.appendChild(this.root);
       this.shadow = this.root.attachShadow({ mode: "open" });
+      this.showTopLayer();
       const style = document.createElement("style");
       style.textContent = STYLES;
       this.shadow.appendChild(style);
@@ -6110,19 +6163,26 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       this.selbox.style.display = "none";
       const { region, element } = this.regionFromViewport(vp);
       const capture = this.cfg.captureRecording ?? captureRegionRecording;
+      const maxMs = this.cfg.recordMaxMs ?? RECORD_MAX_MS;
       this.showRecBar();
+      this.setRecordingUi(true);
       let recording;
       try {
         recording = await capture(vp, {
-          maxMs: RECORD_MAX_MS,
+          maxMs,
+          maxBytes: this.cfg.recordMaxBytes ?? RECORD_MAX_BYTES,
           register: (stop) => {
             this.stopRecording = stop;
-          }
+          },
+          // The recorder stopped itself — say why, instead of the recording just ending.
+          onAutoStop: (reason) => this.toast(reason === "size" ? "Recording stopped at the size limit. Attach the clip, or record a shorter one." : `Recording stopped at the ${Math.round(maxMs / 1e3)}s limit. Attach the clip, or record a shorter one.`)
         });
       } catch {
         recording = void 0;
+      } finally {
+        this.setRecordingUi(false);
+        this.hideRecBar();
       }
-      this.hideRecBar();
       if (!recording) return;
       const target = { kind: "region", region, element, recording };
       const x = Math.min(vp.x + vp.w, window.innerWidth - 320);
@@ -6130,12 +6190,27 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     }
     showRecBar() {
       this.stopRecording = void 0;
-      this.recBar.innerHTML = `<span class="recdot"></span><span>Recording\u2026 <b>Stop</b></span>`;
+      this.recStart = Date.now();
+      this.paintRecBar();
       this.recBar.classList.add("show");
+      window.clearInterval(this.recTimer);
+      this.recTimer = window.setInterval(() => this.paintRecBar(), 500);
     }
     hideRecBar() {
       this.recBar.classList.remove("show");
+      window.clearInterval(this.recTimer);
+      this.recTimer = void 0;
       this.stopRecording = void 0;
+    }
+    /** Elapsed clock on the recording pill — so a stop at the cap is never a surprise. */
+    paintRecBar() {
+      const s = Math.max(0, Math.floor((Date.now() - this.recStart) / 1e3));
+      const ss = String(s % 60).padStart(2, "0");
+      this.recBar.innerHTML = `<span class="recdot"></span><span>Recording ${Math.floor(s / 60)}:${ss} \xB7 <b>Stop</b></span>`;
+    }
+    /** While recording, hide the widget so it is not filmed (a `:host(.recording)` rule). */
+    setRecordingUi(on) {
+      this.root.classList.toggle("recording", on);
     }
     /** elementFromPoint, ignoring our own UI. */
     pick(x, y) {
@@ -6155,6 +6230,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
           this.saveState();
         }
         this.applyDockLayout();
+        this.showTopLayer();
       }
       this.mode = mode;
       this.hl.style.display = "none";
@@ -6193,6 +6269,10 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     // ---- composer -------------------------------------------------------------
     openComposer(target, x, y, seedFiles = []) {
       this.pending = target;
+      if (target.kind === "element") {
+        const shot = this.cfg.captureScreenshot ?? captureScreenshot;
+        this.pendingShot = shot(target.element);
+      }
       const isRecording = target.kind === "region" && !!target.recording;
       const c = this.composer;
       c.innerHTML = "";
@@ -6325,7 +6405,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
       let anchoredEl = null;
       if (target.kind === "element") {
         const capture = this.cfg.captureScreenshot ?? captureScreenshot;
-        screenshot = withShot ? await capture(target.element) : void 0;
+        screenshot = withShot ? await this.pendingShot ?? await capture(target.element) : void 0;
         anchor = captureAnchor(target.element);
         context = captureElementContext(target.element);
         offset = this.targetOffset;
@@ -6341,7 +6421,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         region = target.region;
         offset = { x: 0, y: 0 };
         if (target.element) {
-          anchor = captureAnchor(target.element);
+          anchor = { ...captureAnchor(target.element), text: "" };
           context = captureElementContext(target.element);
           anchoredEl = target.element;
         } else {
@@ -6379,7 +6459,17 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
         },
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
-      await this.store.save(comment);
+      try {
+        await this.store.save(comment);
+      } catch (e) {
+        console.warn("[loupe] save failed", e);
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Comment";
+        }
+        this.toast("Could not save \u2014 the connection failed. Your comment is still here; try again.");
+        return;
+      }
       this.comments.push(comment);
       this.resolved.set(comment.id, anchoredEl);
       this.closeComposer();
@@ -6395,14 +6485,15 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
     /** Upload the reporter's picked files. A file that fails is skipped, not fatal. */
     async uploadAttachments(files) {
       if (!files.length) return void 0;
-      const out = [];
-      for (const f of files) {
+      const results = await Promise.all(files.map(async (f) => {
         try {
-          out.push(await this.store.upload(this.cfg.projectKey, f));
+          return await this.store.upload(this.cfg.projectKey, f);
         } catch (e) {
           console.warn("[loupe] attachment upload failed", f.name, e);
+          return null;
         }
-      }
+      }));
+      const out = results.filter((a) => a !== null);
       return out.length ? out : void 0;
     }
     // ---- pins + re-anchoring --------------------------------------------------
@@ -8096,6 +8187,7 @@ ${c.body}` : c.body)}</div>` + (c.context?.html ? `<pre class="or-code">${escape
       this.stopVoice();
       this.stopPresence();
       this.stopRecording?.();
+      window.clearInterval(this.recTimer);
       this.setMode("off");
       this.mo?.disconnect();
       if (this.tick) clearInterval(this.tick);

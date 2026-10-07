@@ -132,8 +132,20 @@ function regionContainer(rect: RegionRect): HTMLElement {
 export interface RecordOptions {
   /** Auto-stop after this many ms (a safety cap so recordings never run forever). */
   maxMs?: number;
+  /**
+   * Auto-stop once the recorded webm passes this many bytes. The clip is carried as a
+   * base64 data URL, so an unbounded recording can outgrow what the transport accepts;
+   * a size cap turns "the upload silently fails" into a manageable clip.
+   */
+  maxBytes?: number;
   /** Called once with a `stop()` fn so the caller can wire a Stop button to it. */
   register?: (stop: () => void) => void;
+  /**
+   * Called when the recorder stopped *itself* — the duration cap or the size guard — so
+   * the host can explain why (rather than the recording appearing to close with no reason).
+   * Never called for a stop the user caused (the Stop button, or the browser's "Stop sharing").
+   */
+  onAutoStop?: (reason: "time" | "size") => void;
 }
 
 /** Best available webm MIME the browser can record, or "" to let MediaRecorder pick. */
@@ -198,6 +210,7 @@ export async function captureRegionRecording(rect: RegionRect, opts?: RecordOpti
 
 async function recordCropped(stream: MediaStream, rect: RegionRect, opts?: RecordOptions): Promise<string | undefined> {
   const maxMs = opts?.maxMs ?? 20000;
+  const maxBytes = opts?.maxBytes ?? 0;
   const video = document.createElement("video");
   video.srcObject = stream;
   video.muted = true;
@@ -229,12 +242,27 @@ async function recordCropped(stream: MediaStream, rect: RegionRect, opts?: Recor
   const mime = pickRecordingMime();
   const rec = new MediaRecorder(out, mime ? { mimeType: mime } : undefined);
   const chunks: BlobPart[] = [];
-  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  let bytes = 0;
 
   const stop = () => { if (rec.state !== "inactive") rec.stop(); };
+  // A stop the recorder chose (the cap, or the size guard) is reported so the host can
+  // say why; a stop the user caused is left to the caller's own Stop handling.
+  const autoStop = (reason: "time" | "size") => {
+    if (rec.state === "inactive") return;
+    opts?.onAutoStop?.(reason);
+    rec.stop();
+  };
+
+  rec.ondataavailable = (e) => {
+    if (!e.data || !e.data.size) return;
+    chunks.push(e.data);
+    bytes += e.data.size;
+    if (maxBytes && bytes >= maxBytes) autoStop("size");
+  };
+
   opts?.register?.(stop);
   // Auto-stop on the cap, or when the user ends the share via the browser UI.
-  const timer = window.setTimeout(stop, maxMs);
+  const timer = window.setTimeout(() => autoStop("time"), maxMs);
   track?.addEventListener("ended", stop);
 
   const done = new Promise<void>((resolve) => { rec.onstop = () => resolve(); });

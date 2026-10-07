@@ -161,14 +161,26 @@ export interface LoupeConfig {
   captureRegion?: (rect: RegionRect) => Promise<string | undefined>;
   /**
    * Override screen-recording capture. `rect` is in viewport coordinates; `opts`
-   * carries a duration cap and a `register(stop)` hook to wire a Stop button.
-   * Defaults to a getDisplayMedia + canvas-crop recorder; the extension can back
-   * this with a real tab-capture recorder. Returns a webm data URL (or undefined).
+   * carries a duration cap, a size cap and a `register(stop)` hook to wire a Stop
+   * button. Defaults to a getDisplayMedia + canvas-crop recorder; the extension can
+   * back this with a real tab-capture recorder. Returns a webm data URL (or undefined).
    */
   captureRecording?: (
     rect: RegionRect,
-    opts?: { maxMs?: number; register?: (stop: () => void) => void },
+    opts?: { maxMs?: number; maxBytes?: number; register?: (stop: () => void) => void; onAutoStop?: (reason: "time" | "size") => void },
   ) => Promise<string | undefined>;
+  /**
+   * Longest a single screen recording may run before it auto-stops, in ms. Defaults
+   * to 60000. The recorder stops with a visible reason, so raise this freely — but a
+   * longer clip is a bigger base64 payload, so `recordMaxBytes` still applies.
+   */
+  recordMaxMs?: number;
+  /**
+   * Size cap for a screen recording, in bytes. Defaults to 16 MiB. The clip travels
+   * as a base64 data URL, so this keeps it within what the backend accepts; the
+   * recorder stops and says so rather than letting the upload fail.
+   */
+  recordMaxBytes?: number;
   /**
    * Extra headers merged into every backend request. Use this to pass a CSRF
    * token (e.g. `{ "X-CSRF-TOKEN": "…" }`) when the backend authenticates via a

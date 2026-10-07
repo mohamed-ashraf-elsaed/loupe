@@ -440,6 +440,127 @@ describe("LoupeApp", () => {
     expect(stored[0].viewport.gdm).toBe(false);
   });
 
+  it("hides the widget while recording (so it is not filmed) and shows an elapsed clock", async () => {
+    setPointer("coarse"); // the tap-Record path: whole-viewport capture, no drag
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getDisplayMedia: () => undefined },
+      configurable: true,
+    });
+    let seen: { recording: boolean; pill: string } | undefined;
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      captureRecording: async () => {
+        const host = document.getElementById("loupe-root")!;
+        seen = { recording: host.classList.contains("recording"), pill: sr().querySelector(".recbar")!.textContent! };
+        return "data:video/webm;base64,QUJD";
+      },
+    });
+
+    sr().querySelector<HTMLElement>('[data-role="record"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // The panel is hidden for the take, and the pill counts the time up.
+    expect(seen!.recording).toBe(true);
+    expect(seen!.pill).toMatch(/Recording \d+:\d\d/);
+    // Restored once the recording ends.
+    expect(document.getElementById("loupe-root")!.classList.contains("recording")).toBe(false);
+
+    delete (navigator as any).mediaDevices;
+  });
+
+  it("says why a recording stopped itself, instead of ending with no reason", async () => {
+    setPointer("coarse");
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getDisplayMedia: () => undefined },
+      configurable: true,
+    });
+    init({
+      projectKey: "pk", user: { id: "u", name: "U" },
+      recordMaxMs: 3000,
+      captureRecording: async (_vp: any, opts: any) => { opts?.onAutoStop?.("time"); return undefined; },
+    });
+
+    sr().querySelector<HTMLElement>('[data-role="record"]')!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sr().querySelector(".toast")!.textContent).toContain("3s limit");
+
+    delete (navigator as any).mediaDevices;
+  });
+
+  it("a failed save re-enables the button instead of hanging on “Saving…”", async () => {
+    const realFetch = globalThis.fetch;
+    // Reads are fine; only the comment create fails — a dropped connection mid-save.
+    globalThis.fetch = (async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/v1/comments") && init?.method === "POST") return new Response("{}", { status: 503 });
+      return new Response("[]", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    try {
+      init({ projectKey: "pk", user: { id: "u", name: "U" }, apiBase: "http://api.test", captureScreenshot: async () => undefined });
+      await new Promise((r) => setTimeout(r, 20));
+
+      sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
+      const target = document.querySelector('[data-testid="save"]')!;
+      fire(target, "pointermove", { clientX: 5, clientY: 5 });
+      fire(target, "click", { clientX: 5, clientY: 5 });
+      fillComposer("t", "b");
+      const save = sr().querySelector<HTMLButtonElement>(".composer .primary")!;
+      save.click();
+      await new Promise((r) => setTimeout(r, 20));
+
+      // Not stuck: the button is back, the draft is still there, and the reason is shown.
+      expect(save.textContent).toBe("Comment");
+      expect(save.disabled).toBe(false);
+      expect(sr().querySelector<HTMLElement>(".composer")!.style.display).toBe("block");
+      expect(sr().querySelector(".toast")!.textContent).toContain("Could not save");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("a region anchor keeps the element's identity but not its whole text blob", async () => {
+    init({ projectKey: "pk", user: { id: "u", name: "U" }, captureRegion: async () => "data:image/png;base64,REGION" });
+    // A 200×200 element covers the drag, so it becomes the region's anchor.
+    boxOf(document.querySelector('[data-testid="save"]')!, 0, 0, 200, 200);
+    sr().querySelector<HTMLElement>('[data-role="region"]')!.click();
+    firePointer(document.body, "pointerdown", { clientX: 10, clientY: 20, button: 0 }, "mouse");
+    firePointer(document.body, "pointermove", { clientX: 130, clientY: 110 }, "mouse");
+    firePointer(document.body, "pointerup", { clientX: 130, clientY: 110, button: 0 }, "mouse");
+    await new Promise((r) => setTimeout(r, 10));
+    fillComposer("region", "region note");
+    sr().querySelector<HTMLElement>(".composer .primary")!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const stored = JSON.parse(localStorage.getItem(keyFor(`${location.pathname}${location.search}`))!);
+    expect(stored[0].kind).toBe("region");
+    // The container's concatenated textContent is gone (it read as noise in a ticket)...
+    expect(stored[0].anchor.text).toBe("");
+    // ...while the identity used to re-anchor survives.
+    expect(stored[0].anchor.testid).toBe("save");
+  });
+
+  it("joins the browser top layer so a host <dialog> cannot cover the panel", () => {
+    const show = vi.fn();
+    const hide = vi.fn();
+    (HTMLElement.prototype as any).showPopover = show;
+    (HTMLElement.prototype as any).hidePopover = hide;
+
+    init({ projectKey: "pk", user: { id: "u", name: "U" } });
+    const host = document.getElementById("loupe-root")!;
+    expect(host.getAttribute("popover")).toBe("manual");
+    expect(show).toHaveBeenCalled();
+
+    // Arming a tool re-raises the panel above a dialog the host opened since we mounted.
+    show.mockClear();
+    sr().querySelector<HTMLElement>('[data-role="inspect"]')!.click();
+    expect(show).toHaveBeenCalled();
+
+    delete (HTMLElement.prototype as any).showPopover;
+    delete (HTMLElement.prototype as any).hidePopover;
+  });
+
   it("touch: inspect highlights on finger-down", () => {
     setPointer("coarse");
     init({ projectKey: "pk", user: { id: "u", name: "U" } });
