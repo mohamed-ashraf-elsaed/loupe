@@ -4031,7 +4031,7 @@ a.fwdchip { text-decoration: none; cursor: pointer; }
   };
 
   // src/app.ts
-  var SDK_VERSION = true ? "0.14.1" : "dev";
+  var SDK_VERSION = true ? "0.14.2" : "dev";
   var FAB_SIZE = 46;
   var FAB_DRAG_THRESHOLD = 6;
   var LAUNCHER_SHORTCUT = "Alt+Shift+L";

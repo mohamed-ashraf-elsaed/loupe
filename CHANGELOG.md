@@ -9,6 +9,8 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
+## [0.14.2] — 2026-10-08
+
 ### Fixed
 
 - **A recording no longer ends without explanation.** The recording pill shows the elapsed
@@ -1573,7 +1575,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.2...HEAD
+[0.14.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.0...v0.13.1
