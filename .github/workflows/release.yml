@@ -42,7 +42,7 @@ jobs:
           fi
 
   # Publishes the tagged version to BOTH registries after the release is cut:
-  #   • public npm      → @loupekit/*                 (needs the NPM_TOKEN repo secret)
+  #   • public npm      → @loupekit/*                 (npm Trusted Publishing over OIDC — no secret)
   #   • GitHub Packages → @mohamed-ashraf-elsaed/*    (uses the built-in GITHUB_TOKEN)
   # Publishes in dependency order (shared → mcp → sdk).
   publish-npm:
@@ -51,6 +51,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Let the runner mint a GitHub OIDC token; npm exchanges it for a short-lived
+      # publish credential via each package's Trusted Publisher. No long-lived
+      # NPM_TOKEN to expire or leak. See RELEASING.md → npm Trusted Publishing.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,17 +63,15 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - name: Write .npmrc for both registries
+      - name: Write .npmrc for the GitHub Packages mirror
         run: |
           cat > .npmrc <<'EOF'
-          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
           @mohamed-ashraf-elsaed:registry=https://npm.pkg.github.com
           //npm.pkg.github.com/:_authToken=${GH_TOKEN}
           EOF
 
       - name: Publish to public npm (@loupekit, latest)
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Idempotent, and tolerant of the registry lagging behind its own
@@ -86,7 +88,7 @@ jobs:
               return 0
             fi
 
-            if out=$(npm publish "./${dir}" --access public 2>&1); then
+            if out=$(npm publish "./${dir}" --access public --provenance 2>&1); then
               printf '%s\n' "$out"
               return 0
             fi
@@ -105,7 +107,6 @@ jobs:
 
       - name: Mirror to GitHub Packages (@mohamed-ashraf-elsaed, latest)
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node scripts/set-version.mjs --name-scope @mohamed-ashraf-elsaed

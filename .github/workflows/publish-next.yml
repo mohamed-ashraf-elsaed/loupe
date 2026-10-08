@@ -20,6 +20,9 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  # npm Trusted Publishing over OIDC: the runner mints a short-lived GitHub id-token
+  # that npm exchanges for a publish credential per package. No NPM_TOKEN secret.
+  id-token: write
 
 jobs:
   publish-next:
@@ -38,27 +41,24 @@ jobs:
           BASE=$(node -p "require('./packages/shared/package.json').version")
           echo "version=${BASE}-next.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
-      - name: Write .npmrc for both registries
+      - name: Write .npmrc for the GitHub Packages mirror
         run: |
           cat > .npmrc <<'EOF'
-          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
           @mohamed-ashraf-elsaed:registry=https://npm.pkg.github.com
           //npm.pkg.github.com/:_authToken=${GH_TOKEN}
           EOF
 
       - name: "Publish to public npm (@loupekit, tag: next)"
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node scripts/set-version.mjs --version "${{ steps.v.outputs.version }}"
-          npm publish ./packages/shared --tag next --access public
-          npm publish ./packages/mcp    --tag next --access public
-          npm publish ./packages/sdk    --tag next --access public
+          npm publish ./packages/shared --tag next --access public --provenance
+          npm publish ./packages/mcp    --tag next --access public --provenance
+          npm publish ./packages/sdk    --tag next --access public --provenance
 
       - name: "Mirror to GitHub Packages (@mohamed-ashraf-elsaed, tag: next)"
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node scripts/set-version.mjs --name-scope @mohamed-ashraf-elsaed
