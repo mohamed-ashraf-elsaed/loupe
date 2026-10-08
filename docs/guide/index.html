@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loupe Documentation — SDK, Server, MCP, Extension & Laravel</title>
-<meta name="description" content="Documentation for Loupe 0.14.1, the embeddable visual-feedback platform. Quick start, install guides, the widget, dashboard, MCP server, browser extension, Laravel package, Loupe Hub, architecture and recent changes.">
+<meta name="description" content="Documentation for Loupe 0.14.2, the embeddable visual-feedback platform. Quick start, install guides, the widget, dashboard, MCP server, browser extension, Laravel package, Loupe Hub, architecture and recent changes.">
 <meta name="keywords" content="Loupe documentation, visual feedback SDK docs, MCP server, Claude Code, Laravel feedback package, in-app feedback API, re-anchoring, developer tools">
 <meta name="author" content="Mohamed Ashraf Elsaed">
 <link rel="canonical" href="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
@@ -18,12 +18,12 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Loupe">
 <meta property="og:title" content="Loupe Documentation">
-<meta property="og:description" content="Documentation for Loupe 0.14.1: quick start, install guides, the widget, the dashboard, the MCP server, the browser extension, the Laravel package, Loupe Hub and the architecture.">
+<meta property="og:description" content="Documentation for Loupe 0.14.2: quick start, install guides, the widget, the dashboard, the MCP server, the browser extension, the Laravel package, Loupe Hub and the architecture.">
 <meta property="og:url" content="https://mohamed-ashraf-elsaed.github.io/loupe/guide/">
 <meta property="og:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Loupe Documentation">
-<meta name="twitter:description" content="Documentation for Loupe 0.14.1: install guides, the widget, the MCP server, the Laravel package and Loupe Hub.">
+<meta name="twitter:description" content="Documentation for Loupe 0.14.2: install guides, the widget, the MCP server, the Laravel package and Loupe Hub.">
 <meta name="twitter:image" content="https://mohamed-ashraf-elsaed.github.io/loupe/dashboard.png">
 <style>
   :root {
@@ -306,7 +306,7 @@
       <path d="M19.3 19.3l7 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
     <span class="name">Loupe</span>
-    <span class="ver">v0.14.1</span>
+    <span class="ver">v0.14.2</span>
   </a>
   <div class="search">
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -315,7 +315,7 @@
   <span class="spacer"></span>
   <div class="tlinks">
     <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
-    <a class="icon-btn" href="#changelog">v0.14.1</a>
+    <a class="icon-btn" href="#changelog">v0.14.2</a>
   </div>
 </header>
 
@@ -360,7 +360,7 @@
 
       <!-- 1. OVERVIEW -->
       <section class="doc" id="introduction">
-        <p class="eyebrow">Explanation · v0.14.1</p>
+        <p class="eyebrow">Explanation · v0.14.2</p>
         <h1>Loupe</h1>
         <p class="lead">Loupe lets a reviewer pin a comment and a screenshot to an element of a running
           web page. Claude Code reads the comments through an MCP (Model Context Protocol) server, the
@@ -374,7 +374,7 @@
         </div>
 
         <div class="meta">
-          <div class="c"><div class="k">Version</div><div class="v tabular">0.14.1</div></div>
+          <div class="c"><div class="k">Version</div><div class="v tabular">0.14.2</div></div>
           <div class="c"><div class="k">Packages</div><div class="v">7 workspaces + the Laravel package</div></div>
           <div class="c"><div class="k">Runtime</div><div class="v">Node 24</div></div>
           <div class="c"><div class="k">Also</div><div class="v">PHP 8.2+</div></div>
@@ -556,7 +556,7 @@ npm install</code></pre>
           <li>Add the browser build before <code>&lt;/body&gt;</code>. Pin the exact version:
             <div class="code">
               <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="fn">html</span></div>
-<pre><code class="language-html">&lt;script src="https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.1/dist/index.global.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.2/dist/index.global.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   Loupe.init({
     projectKey: "&lt;PROJECT_KEY&gt;",
@@ -714,7 +714,7 @@ npm install</code></pre>
           </li>
           <li>Open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, click
             <strong>Load unpacked</strong> and select <code>packages/extension</code>. You should see
-            <strong>Loupe — visual feedback</strong> at version 0.14.1.</li>
+            <strong>Loupe — visual feedback</strong> at version 0.14.2.</li>
           <li>Open an <code>http://</code> or <code>https://</code> page, click the Loupe icon, and fill in
             <strong>Project key</strong> and <strong>User id</strong>. Fill in <strong>API base</strong> and
             <strong>User HMAC</strong> only if you use a backend.</li>
@@ -1331,6 +1331,17 @@ npm install</code></pre>
           <a href="https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
 
         <div class="cl-entry">
+          <div class="cl-head"><span class="cl-ver">0.14.2</span><span class="cl-date">2026-10-08</span><span class="cl-tag fix">Fixed</span></div>
+          <ul class="bul">
+            <li><strong>A recording no longer ends without a reason.</strong> The pill shows elapsed <code>m:ss</code>, the cap is 60s (<code>recordMaxMs</code>), a 16 MiB size guard (<code>recordMaxBytes</code>) keeps the clip shippable, and an automatic stop says why.</li>
+            <li><strong>The widget is hidden while recording</strong>, so the panel, launcher and pins are no longer filmed.</li>
+            <li><strong>The panel joins the browser top layer</strong> (a <code>popover</code>), so a host app popover cannot cover it. A modal <code>&lt;dialog showModal()&gt;</code> still wins — the browser paints it above every top-layer element.</li>
+            <li><strong>Submitting no longer hangs on "Saving…"</strong> when a save fails, and is faster: the element screenshot is captured in the background and the media upload in parallel.</li>
+            <li><strong>A region comment no longer carries a container's whole text</strong> in its anchor, which read as noise on a ticket.</li>
+          </ul>
+        </div>
+
+        <div class="cl-entry">
           <div class="cl-head"><span class="cl-ver">0.14.1</span><span class="cl-date">2026-10-06</span><span class="cl-tag sec">Security</span><span class="cl-tag fix">Fixed</span></div>
           <ul class="bul">
             <li><strong>Hub refuses private addresses.</strong> Loopback, private, link-local and other non-public hosts are refused. <code>HUB_ALLOW_PRIVATE_URLS=1</code> turns this off, for local development only.</li>
@@ -1350,16 +1361,10 @@ npm install</code></pre>
           </ul>
         </div>
 
-        <div class="cl-entry">
-          <div class="cl-head"><span class="cl-ver">0.13.1</span><span class="cl-date">2026-10-05</span><span class="cl-tag fix">Fixed</span></div>
-          <ul class="bul">
-            <li><strong>Updates without a reload.</strong> The panel re-reads every 10 seconds, pauses while the tab is hidden, and skips a read while someone types.</li>
-          </ul>
-        </div>
       </section>
 
       <footer>
-        <p><strong>Loupe</strong> v0.14.1 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
+        <p><strong>Loupe</strong> v0.14.2 · MIT © Mohamed Ashraf Elsaed · Pin feedback to the live UI. Hand it
           to Claude.</p>
         <p style="font-size:.8rem;color:var(--faint)">Summarized from the repository source and the canonical
           docs in <code>docs/</code>, <code>CHANGELOG.md</code>, <code>RELEASING.md</code> and

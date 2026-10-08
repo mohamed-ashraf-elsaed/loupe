@@ -65,7 +65,7 @@ Choose one option.
 **Option B: load it from a public npm CDN (no tooling).** The same file is served by jsDelivr. Use this URL as the script source in Step 2, and pin the exact version so the file never changes under you:
 
 ```text
-https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.1/dist/index.global.js
+https://cdn.jsdelivr.net/npm/@loupekit/sdk@0.14.2/dist/index.global.js
 ```
 
 ## Step 2: Add the script tag
@@ -214,7 +214,7 @@ On the local server, the project secret for the demo project is `sk_demo_acme_0f
    Loupe.version
    ```
 
-   You should see `"0.14.1"` (or the version you installed).
+   You should see `"0.14.2"` (or the version you installed).
 
 3. Open the Loupe panel and click **Settings** (the gear in the panel header).
 
