@@ -13,6 +13,7 @@ Packagist, the default Composer package registry.
 
 - [Versioning rules](#versioning-rules)
 - [Prerequisites](#prerequisites)
+- [npm Trusted Publishing](#npm-trusted-publishing)
 - [Version strings to bump together](#version-strings-to-bump-together)
 - [Release steps](#release-steps)
 - [Verify the release](#verify-the-release)
@@ -44,11 +45,14 @@ Set these once in the repository's **Settings → Secrets and variables → Acti
 
 | Name | Kind | Used by | Value |
 |---|---|---|---|
-| `NPM_TOKEN` | Secret | `release.yml`, `publish-next.yml` | An npm automation token with publish rights on the `@loupekit` scope. |
 | `ACCESS_TOKEN` | Secret | `laravel-split.yml` | A personal access token with `repo` scope that can push to the split repository. |
 | `LARAVEL_SPLIT_ORG` | Variable | `laravel-split.yml` | Owner of the split repository. Default `loupekit`. |
 | `LARAVEL_SPLIT_REPO` | Variable | `laravel-split.yml` | Name of the split repository. Default `laravel`. |
 | `GITHUB_TOKEN` | Built in | `release.yml`, `publish-next.yml` | No setup. The jobs request `contents: write` or `packages: write`. |
+
+There is **no npm token**. The public-npm publishes authenticate with a short-lived GitHub OIDC
+token through **npm Trusted Publishing**, so nothing expires and nothing has to be rotated.
+Configure it once per package — see [npm Trusted Publishing](#npm-trusted-publishing).
 
 The *split repository* is a separate repository that holds only `packages/laravel`. See
 [Laravel package split: one-time setup](#laravel-package-split-one-time-setup).
@@ -67,6 +71,25 @@ On your machine you need:
   [Manual fallback](#manual-fallback).
 - `zip`, to package the browser extension for the
   [Chrome Web Store](#chrome-web-store-extension).
+
+## npm Trusted Publishing
+
+`release.yml`'s `publish-npm` job and `publish-next.yml` publish to the public npm registry with a
+short-lived **GitHub OIDC** token, not a stored secret. npm verifies that token against a
+**Trusted Publisher** configured on the package itself. Nothing expires, and there is no
+`NPM_TOKEN` to rotate, leak, or repair.
+
+Set it up once, for each of `@loupekit/shared`, `@loupekit/mcp` and `@loupekit/sdk`:
+
+1. Open the package on [npmjs.com](https://www.npmjs.com) → **Settings** → **Trusted Publisher**
+   → **GitHub Actions**.
+2. Set **Organization or user** to `mohamed-ashraf-elsaed`, **Repository** to `loupe`, and
+   **Workflow filename** to `release.yml`.
+3. Add a second publisher for the same repository with **Workflow filename** `publish-next.yml`,
+   so the canary channel publishes too.
+4. Save. The next tagged release (and the next push to `main`) publishes without a secret.
+
+Both workflows already request `id-token: write` and publish with `--provenance`.
 
 ## Version strings to bump together
 
