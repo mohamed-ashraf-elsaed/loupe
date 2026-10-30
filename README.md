@@ -168,3 +168,7 @@ This quick start runs the local server, leaves one comment on the demo page, and
 ## License
 
 MIT © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/). See [LICENSE](LICENSE).
+
+## Author
+
+Made by [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com), technical lead and backend architect in Cairo. Project page and more tools: [mohamedashrafelsaed.com/projects/loupe/](https://mohamedashrafelsaed.com/projects/loupe/).
