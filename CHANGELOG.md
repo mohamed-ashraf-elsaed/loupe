@@ -9,6 +9,8 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-11-01
+
 ### Changed
 
 - **Package metadata points at the author's site.** `@loupekit/sdk`, `@loupekit/mcp`,
@@ -1597,7 +1599,8 @@ The first release — the full loop, end to end.
 - Vitest test suite (~91% line coverage), Mermaid architecture docs, a GitHub Wiki, and an
   landing page.
 
-[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.2...HEAD
+[Unreleased]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.2...v0.15.0
 [0.14.2]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mohamed-ashraf-elsaed/loupe/compare/v0.13.1...v0.14.0
