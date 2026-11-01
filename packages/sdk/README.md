@@ -211,7 +211,7 @@ For a walkthrough of each feature, see [Use the widget](https://github.com/moham
 ## Links
 
 - [Documentation](https://github.com/mohamed-ashraf-elsaed/loupe/tree/main/docs)
-- [Guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)
+- [Guide](https://loupe.mohamedashrafelsaed.com/guide/)
 - [Changelog](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md)
 - [Issues](https://github.com/mohamed-ashraf-elsaed/loupe/issues)
 - [`@loupekit/mcp`](https://www.npmjs.com/package/@loupekit/mcp): the MCP server that hands comments to a coding agent

@@ -8,7 +8,7 @@
  * ```
  *
  * Terms used below are defined in the guide at
- * https://mohamed-ashraf-elsaed.github.io/loupe/ and in packages/shared/README.md.
+ * https://loupe.mohamedashrafelsaed.com/ and in packages/shared/README.md.
  */
 
 export * from "./activity.js";

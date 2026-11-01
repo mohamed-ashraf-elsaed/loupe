@@ -257,10 +257,11 @@ CI runs the suite on PHP 8.2 to 8.4 with Laravel 11 and 12, and on PHP 8.3 and 8
 
 ## Author
 
-Created and maintained by **[Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)** —
-[LinkedIn](https://www.linkedin.com/in/mohamedashrafelsaed/) ·
-[GitHub](https://github.com/mohamed-ashraf-elsaed)
+Created and maintained by **[Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com)** —
+[Project page](https://mohamedashrafelsaed.com/projects/loupe/) ·
+[GitHub](https://github.com/mohamed-ashraf-elsaed) ·
+[LinkedIn](https://www.linkedin.com/in/mohamedashrafelsaed/)
 
 ## License
 
-[MIT](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE) © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+[MIT](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE) © [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com)

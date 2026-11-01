@@ -215,7 +215,7 @@ For more cases, see [Troubleshooting in Connect Claude Code and other MCP client
 ## Links
 
 - [Loupe on GitHub](https://github.com/mohamed-ashraf-elsaed/loupe)
-- [Website and guide](https://mohamed-ashraf-elsaed.github.io/loupe/)
+- [Website and guide](https://loupe.mohamedashrafelsaed.com/)
 - [Connect Claude Code and other MCP clients](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/how-to/connect-mcp-clients.md)
 - [MCP reference](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/reference/mcp.md)
 - [Changelog](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/CHANGELOG.md)

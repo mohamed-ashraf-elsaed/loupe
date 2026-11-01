@@ -20,7 +20,7 @@ Key facts for Loupe 0.14.1:
 - Each Hub project has a project secret (`psk_`, signs traffic between the app and Hub), a webhook signing secret (`whs_`, signs deliveries to an external webhook), an optional inbound URL (where a Loupe app receives tickets) and an optional webhook URL (for a system that is not a Loupe app). A project's destination is the project its tickets go to.
 - Hub delivers each ticket to the destination project's inbound URL, signed with the destination's project secret. If no destination with an inbound URL is set, it posts to the source project's webhook URL, signed with the webhook signing secret. With neither, it answers `202` with `delivery: "none"`.
 - Repository: https://github.com/mohamed-ashraf-elsaed/loupe
-- Site: https://mohamed-ashraf-elsaed.github.io/loupe/
+- Site: https://loupe.mohamedashrafelsaed.com/
 
 ## Docs
 
@@ -55,7 +55,7 @@ Key facts for Loupe 0.14.1:
 
 - [Changelog](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/CHANGELOG.md): what changed in each version, in Keep a Changelog format.
 - [Architecture](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/ARCHITECTURE.md): how the packages fit together, the re-anchoring algorithm and where data flows.
-- [Single-page guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/): the whole guide as one HTML page.
+- [Single-page guide](https://loupe.mohamedashrafelsaed.com/guide/): the whole guide as one HTML page.
 - [Testing](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/TESTING.md): run the test suites and read what each one covers.
 - [Contributing](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/CONTRIBUTING.md): set up the repository and open a pull request.
 - [Releasing](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/RELEASING.md): version, tag and publish a release.
@@ -63,5 +63,7 @@ Key facts for Loupe 0.14.1:
 ## Author
 
 - Creator and maintainer: Mohamed Ashraf Elsaed.
+- Website: https://mohamedashrafelsaed.com
+- Project page: https://mohamedashrafelsaed.com/projects/loupe/
 - GitHub: https://github.com/mohamed-ashraf-elsaed
 - LinkedIn: https://www.linkedin.com/in/mohamedashrafelsaed/

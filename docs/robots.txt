@@ -1,4 +1,4 @@
-# Loupe — created by Mohamed Ashraf Elsaed (https://www.linkedin.com/in/mohamedashrafelsaed/)
+# Loupe — created by Mohamed Ashraf Elsaed (https://mohamedashrafelsaed.com)
 # All crawlers welcome, including AI search + answer engines (GEO).
 
 User-agent: *
@@ -45,4 +45,4 @@ Allow: /
 User-agent: Meta-ExternalAgent
 Allow: /
 
-Sitemap: https://mohamed-ashraf-elsaed.github.io/loupe/sitemap.xml
+Sitemap: https://loupe.mohamedashrafelsaed.com/sitemap.xml

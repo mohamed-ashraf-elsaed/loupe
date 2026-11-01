@@ -1,7 +1,13 @@
 {
   "name": "@loupekit/server",
+  "author": {
+    "name": "Mohamed Ashraf Elsaed",
+    "email": "hello@mohamedashrafelsaed.com",
+    "url": "https://mohamedashrafelsaed.com"
+  },
   "version": "0.14.2",
   "description": "Loupe comment API — node:http, Postgres (PGlite locally / pg in prod), object storage for screenshots.",
+  "homepage": "https://mohamedashrafelsaed.com/projects/loupe/",
   "type": "module",
   "scripts": {
     "start": "node index.ts",

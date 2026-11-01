@@ -129,16 +129,16 @@ Two files in this folder are not uploaded:
 
 | File | What it is |
 |---|---|
-| `icon-512.png` | A 512×512 icon. The public site uses it as its logo (`docs/index.html:56`). |
+| `icon-512.png` | A 512×512 icon. The public site uses it as its logo (`docs/index.html:47`). |
 | `assets.html` | The HTML page that the promo tiles and screenshots are drawn from. |
 
 ## Store listing tab: additional fields
 
 | Field | Value |
 |---|---|
-| Homepage URL | `https://mohamed-ashraf-elsaed.github.io/loupe/` |
+| Homepage URL | `https://loupe.mohamedashrafelsaed.com/` |
 | Support URL | `https://github.com/mohamed-ashraf-elsaed/loupe/issues` |
-| Official URL (optional) | `https://mohamed-ashraf-elsaed.github.io/loupe/`. You must verify the site in Google Search Console first. |
+| Official URL (optional) | `https://loupe.mohamedashrafelsaed.com/`. You must verify the site in Google Search Console first. |
 | Mature content | No |
 
 Turn on "Item support" to show the Support URL.
@@ -188,7 +188,7 @@ server and never receive this data.
 ### Privacy policy
 
 ```text
-https://mohamed-ashraf-elsaed.github.io/loupe/privacy.html
+https://loupe.mohamedashrafelsaed.com/privacy.html
 ```
 
 ## Distribution tab

@@ -147,7 +147,7 @@ This quick start runs the local server, leaves one comment on the demo page, and
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [The Loupe guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)
+- [The Loupe guide](https://loupe.mohamedashrafelsaed.com/guide/)
 - [The Loupe wiki](https://github.com/mohamed-ashraf-elsaed/loupe/wiki)
 - [Changelog](CHANGELOG.md)
 
@@ -159,16 +159,13 @@ This quick start runs the local server, leaves one comment on the demo page, and
 
 ## Author
 
-**Loupe is created and maintained by [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/).**
+Loupe is created and maintained by [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com), technical lead and backend architect in Cairo. Project page and more tools: [mohamedashrafelsaed.com/projects/loupe/](https://mohamedashrafelsaed.com/projects/loupe/).
 
-- 💼 LinkedIn: [mohamedashrafelsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
-- 🐙 GitHub: [@mohamed-ashraf-elsaed](https://github.com/mohamed-ashraf-elsaed)
-- ✉️ Email: [m.ashraf.saed@gmail.com](mailto:m.ashraf.saed@gmail.com)
+- Website: [mohamedashrafelsaed.com](https://mohamedashrafelsaed.com)
+- GitHub: [@mohamed-ashraf-elsaed](https://github.com/mohamed-ashraf-elsaed)
+- LinkedIn: [mohamedashrafelsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+- Email: [hello@mohamedashrafelsaed.com](mailto:hello@mohamedashrafelsaed.com)
 
 ## License
 
-MIT © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/). See [LICENSE](LICENSE).
-
-## Author
-
-Made by [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com), technical lead and backend architect in Cairo. Project page and more tools: [mohamedashrafelsaed.com/projects/loupe/](https://mohamedashrafelsaed.com/projects/loupe/).
+MIT © [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com). See [LICENSE](LICENSE).

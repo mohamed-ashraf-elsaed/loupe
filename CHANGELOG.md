@@ -9,6 +9,19 @@ see [RELEASING.md](RELEASING.md) for the process.
 
 ## [Unreleased]
 
+### Changed
+
+- **Package metadata points at the author's site.** `@loupekit/sdk`, `@loupekit/mcp`,
+  `@loupekit/shared` and `loupekit/laravel` now give
+  `https://mohamedashrafelsaed.com/projects/loupe/` as their homepage. Their author entry links
+  to `https://mohamedashrafelsaed.com` and uses the address `hello@mohamedashrafelsaed.com`.
+  Metadata only: no code changed.
+- **The documentation site moved to `https://loupe.mohamedashrafelsaed.com/`.** The paths stay
+  the same. Canonical links, Open Graph tags, the sitemap, `robots.txt`, `llms.txt` and the
+  structured data use the new domain, and `docs/CNAME` sets it for GitHub Pages. Each docs page
+  credits the author with a link to `https://mohamedashrafelsaed.com`, and the READMEs link
+  there instead of LinkedIn.
+
 ## [0.14.2] — 2026-10-08
 
 ### Fixed
