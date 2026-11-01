@@ -4,7 +4,7 @@ Loupe for Laravel adds a visual feedback widget to your app, stores every commen
 
 [![Packagist version](https://img.shields.io/packagist/v/loupekit/laravel?color=4a55d6&label=packagist)](https://packagist.org/packages/loupekit/laravel)
 [![PHP version](https://img.shields.io/packagist/php-v/loupekit/laravel?color=4a55d6&label=php)](https://packagist.org/packages/loupekit/laravel)
-![Laravel 11, 12, 13](https://img.shields.io/badge/Laravel-11%20|%2012%20|%2013-4a55d6)
+![Laravel 12, 13](https://img.shields.io/badge/Laravel-12%20|%2013-4a55d6)
 [![MIT license](https://img.shields.io/packagist/l/loupekit/laravel?color=4a55d6)](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE)
 
 ![The Loupe dashboard at /loupe/dashboard, showing feedback cards in five columns: Queue, To Do, In Progress, In Review and Resolved](https://raw.githubusercontent.com/mohamed-ashraf-elsaed/loupe/main/docs/images/laravel-dashboard.png)
@@ -40,7 +40,7 @@ Loupe for Laravel adds a visual feedback widget to your app, stores every commen
 | Requirement | Supported versions |
 | --- | --- |
 | PHP | 8.2 or later (Laravel 13 needs PHP 8.3 or later) |
-| Laravel | 11, 12, 13 |
+| Laravel | 12, 13 |
 | Database | Any database Eloquent supports |
 | Authentication | A way for users to sign in (a `login` route) |
 | MCP (optional) | `laravel/mcp` ^0.8 |
@@ -247,7 +247,7 @@ From `packages/laravel`, run `composer install`, then `composer test`. The PHPUn
 
 `composer stranger-test` installs the package into a fresh Laravel app, as a new user would, and checks the widget, dashboard and API end to end. It needs network access, Composer, PHP, curl and python3.
 
-CI runs the suite on PHP 8.2 to 8.4 with Laravel 11 and 12, and on PHP 8.3 and 8.4 with Laravel 13. See [docs/TESTING.md](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md).
+CI runs the suite on PHP 8.2 to 8.4 with Laravel 12, and on PHP 8.3 and 8.4 with Laravel 13. See [docs/TESTING.md](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/docs/TESTING.md).
 
 ## Related packages
 
@@ -257,10 +257,11 @@ CI runs the suite on PHP 8.2 to 8.4 with Laravel 11 and 12, and on PHP 8.3 and 8
 
 ## Author
 
-Created and maintained by **[Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)** —
-[LinkedIn](https://www.linkedin.com/in/mohamedashrafelsaed/) ·
-[GitHub](https://github.com/mohamed-ashraf-elsaed)
+Created and maintained by **[Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com)** —
+[Project page](https://mohamedashrafelsaed.com/projects/loupe/) ·
+[GitHub](https://github.com/mohamed-ashraf-elsaed) ·
+[LinkedIn](https://www.linkedin.com/in/mohamedashrafelsaed/)
 
 ## License
 
-[MIT](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE) © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+[MIT](https://github.com/mohamed-ashraf-elsaed/loupe/blob/main/packages/laravel/LICENSE) © [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com)

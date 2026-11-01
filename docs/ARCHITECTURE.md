@@ -102,7 +102,7 @@ other.
 | `@loupekit/dashboard` | browser | tsup to `dist/app.js` | [Local server](reference/server.md) |
 | `@loupekit/mcp` and its bridge | Node 24 | tsup to `dist` | [MCP server](reference/mcp.md) |
 | `@loupekit/extension` | browser, Manifest V3 | tsup IIFE to `content.js` | [Browser extension](reference/extension.md) |
-| `loupekit/laravel` | PHP 8.2+, Laravel 11 to 13 | Composer | [Laravel package](LARAVEL.md) |
+| `loupekit/laravel` | PHP 8.2+, Laravel 12 or 13 | Composer | [Laravel package](LARAVEL.md) |
 
 The Node packages need Node 24, because the server and Hub run their TypeScript files directly
 with `node index.ts` (README.md:46; CI uses `node-version: 24`, .github/workflows/ci.yml:15).

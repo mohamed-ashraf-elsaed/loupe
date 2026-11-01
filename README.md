@@ -31,7 +31,7 @@ Loupe is an open-source visual feedback tool. You pin comments to elements of a 
 |---|---|---|
 | Script tag | You want the widget on any page without a build step. | [Embed Loupe with a script tag](docs/how-to/embed-script-tag.md) |
 | npm package | Your app uses a bundler: React, Vue, or any single-page app. | [Install Loupe from npm](docs/how-to/install-npm.md) |
-| Laravel | Your app is built on Laravel 11, 12 or 13. | [Install Loupe in a Laravel app](docs/how-to/laravel-install.md) |
+| Laravel | Your app is built on Laravel 12 or 13. | [Install Loupe in a Laravel app](docs/how-to/laravel-install.md) |
 | Browser extension | You want to comment on a site you cannot change. | [Use the browser extension](docs/how-to/browser-extension.md) |
 | MCP clients | You want Claude Code, or another MCP client, to work through the comments. | [Connect MCP clients](docs/how-to/connect-mcp-clients.md) |
 | Local server and dashboard | You want the Node API and the Kanban board (columns that comment cards move across) on your machine. | [Run the local server](docs/how-to/run-local-server.md) |
@@ -147,7 +147,7 @@ This quick start runs the local server, leaves one comment on the demo page, and
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [The Loupe guide](https://mohamed-ashraf-elsaed.github.io/loupe/guide/)
+- [The Loupe guide](https://loupe.mohamedashrafelsaed.com/guide/)
 - [The Loupe wiki](https://github.com/mohamed-ashraf-elsaed/loupe/wiki)
 - [Changelog](CHANGELOG.md)
 
@@ -159,16 +159,13 @@ This quick start runs the local server, leaves one comment on the demo page, and
 
 ## Author
 
-**Loupe is created and maintained by [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/).**
+Loupe is created and maintained by [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com), technical lead and backend architect in Cairo. Project page and more tools: [mohamedashrafelsaed.com/projects/loupe/](https://mohamedashrafelsaed.com/projects/loupe/).
 
-- 💼 LinkedIn: [mohamedashrafelsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
-- 🐙 GitHub: [@mohamed-ashraf-elsaed](https://github.com/mohamed-ashraf-elsaed)
-- ✉️ Email: [m.ashraf.saed@gmail.com](mailto:m.ashraf.saed@gmail.com)
+- Website: [mohamedashrafelsaed.com](https://mohamedashrafelsaed.com)
+- GitHub: [@mohamed-ashraf-elsaed](https://github.com/mohamed-ashraf-elsaed)
+- LinkedIn: [mohamedashrafelsaed](https://www.linkedin.com/in/mohamedashrafelsaed/)
+- Email: [hello@mohamedashrafelsaed.com](mailto:hello@mohamedashrafelsaed.com)
 
 ## License
 
-MIT © [Mohamed Ashraf Elsaed](https://www.linkedin.com/in/mohamedashrafelsaed/). See [LICENSE](LICENSE).
-
-## Author
-
-Made by [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com), technical lead and backend architect in Cairo. Project page and more tools: [mohamedashrafelsaed.com/projects/loupe/](https://mohamedashrafelsaed.com/projects/loupe/).
+MIT © [Mohamed Ashraf Elsaed](https://mohamedashrafelsaed.com). See [LICENSE](LICENSE).

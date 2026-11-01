@@ -307,13 +307,12 @@ Two GitHub Actions workflows run tests.
 
 ### The `test` job (laravel-package)
 
-It runs a matrix of PHP `8.2`, `8.3` and `8.4` against Laravel 11, 12 and 13 with
+It runs a matrix of PHP `8.2`, `8.3` and `8.4` against Laravel 12 and 13 with
 `fail-fast: false`. It excludes PHP 8.2 with Laravel 13, because Laravel 13 needs PHP 8.3. That
-leaves 8 jobs.
+leaves 5 jobs.
 
 | Laravel | Testbench constraint |
 |---|---|
-| 11 | `^9.0` |
 | 12 | `^10.0` |
 | 13 | `^11.0` |
 
@@ -324,7 +323,7 @@ Each job:
 3. Runs `composer update --prefer-dist --with-all-dependencies`.
 4. Runs `composer run test:coverage-100`, so every combination must reach 100% line coverage.
 
-`laravel/mcp ^0.8` supports Laravel 11, 12 and 13, so the MCP tools are tested on every
+`laravel/mcp ^0.8` supports Laravel 12 and 13, so the MCP tools are tested on every
 combination.
 
 ### The `stranger` job (laravel-package)
@@ -344,7 +343,7 @@ Each job:
 3. Runs `bin/stranger-test.sh` from `packages/laravel`, with `STRANGER_LARAVEL` set to the
    matrix value.
 
-There is no Laravel 11 stranger job. See
+Laravel 11 has no job in either matrix: the package does not support it since 0.15.0. See
 [About the stranger test and the coverage gate](#about-the-stranger-test-and-the-coverage-gate).
 
 ## Vitest configuration reference
@@ -546,7 +545,7 @@ combination. Measured on 2026-10-05 with PHP 8.4.26 and PCOV:
 | `Coverage file not found: build/clover.xml` | You ran `php bin/check-coverage.php` on its own, before a coverage run wrote `build/clover.xml`. Through `composer test:coverage-100` the checker runs only after PHPUnit succeeds. | Run `composer test:coverage-100`, which writes the file first. |
 | `Coverage <X>% is below the required 100.00%` | New code in `src/` has no test. | Add tests for the uncovered lines. `composer test:coverage` prints the per-file report. |
 | A PHPUnit warning or risky test fails the run. | `failOnWarning` and `failOnRisky` are on. | Fix the warning, or add an assertion to the risky test. |
-| The stranger test prints `composer create-project … failed`. | No network access, or the requested Laravel line cannot be installed (Laravel 11, see [What CI runs](#what-ci-runs)). | Check your connection. Set `STRANGER_LARAVEL` to `12` or `13`. |
+| The stranger test prints `composer create-project … failed`. | No network access, or the requested Laravel line cannot be installed (Laravel 11, which the package does not support). | Check your connection. Set `STRANGER_LARAVEL` to `12` or `13`. |
 | The stranger test prints `the app never came up`. | Something else is using port 8791. | Set `STRANGER_PORT` to a free port. |
 
 ## About the stranger test and the coverage gate
@@ -556,10 +555,10 @@ route. A brand-new Laravel app has none. The stranger test exists for the gap be
 it installs the package into a fresh app and checks the first-run path, including that
 `/loupe/dashboard` never returns a 5xx when the app has no `login` route.
 
-**Why there is no Laravel 11 stranger job.** Composer 2.9 and later refuses packages with known
-security advisories, and every Laravel 11 release from v11.31 to v11.57 is flagged. A brand-new
-Laravel 11 app cannot be installed on any PHP version. The unit matrix in the `test` job still
-covers the package on Laravel 11.
+**Why Laravel 11 is not tested.** Composer 2.9 and later refuses packages with known security
+advisories, and every Laravel 11 release is flagged by advisories that have no fixed 11.x
+version. Laravel 11 cannot be installed on any PHP version, so 0.15.0 dropped it from the
+package's constraints and from both CI matrices.
 
 **Why the Laravel gate is 100% and the JavaScript side has none.** CI runs
 `composer run test:coverage-100` in every cell of the Laravel matrix, so new code in `src/`

@@ -10,12 +10,12 @@
         "product"
     ],
     "license": "MIT",
-    "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
+    "homepage": "https://mohamedashrafelsaed.com/projects/loupe/",
     "authors": [
         {
             "name": "Mohamed Ashraf Elsaed",
-            "email": "m.ashraf.saed@gmail.com",
-            "homepage": "https://www.linkedin.com/in/mohamedashrafelsaed/",
+            "email": "hello@mohamedashrafelsaed.com",
+            "homepage": "https://mohamedashrafelsaed.com",
             "role": "Creator"
         }
     ],
@@ -26,21 +26,21 @@
     },
     "require": {
         "php": "^8.2",
-        "illuminate/support": "^11.0|^12.0|^13.0",
-        "illuminate/console": "^11.0|^12.0|^13.0",
-        "illuminate/database": "^11.0|^12.0|^13.0",
-        "illuminate/http": "^11.0|^12.0|^13.0",
-        "illuminate/routing": "^11.0|^12.0|^13.0",
-        "illuminate/filesystem": "^11.0|^12.0|^13.0"
+        "illuminate/support": "^12.0|^13.0",
+        "illuminate/console": "^12.0|^13.0",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/http": "^12.0|^13.0",
+        "illuminate/routing": "^12.0|^13.0",
+        "illuminate/filesystem": "^12.0|^13.0"
     },
     "require-dev": {
         "laravel/mcp": "^0.8",
         "mockery/mockery": "^1.6",
-        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "orchestra/testbench": "^10.0|^11.0",
         "phpunit/phpunit": "^11.0|^12.0"
     },
     "suggest": {
-        "laravel/mcp": "Enables `php artisan mcp:start loupe` \u2014 hands the feedback backlog to Claude Code. Use ^0.8 (supports Laravel 11, 12 and 13)."
+        "laravel/mcp": "Enables `php artisan mcp:start loupe` \u2014 hands the feedback backlog to Claude Code. Use ^0.8 (supports Laravel 12 and 13)."
     },
     "autoload": {
         "psr-4": {

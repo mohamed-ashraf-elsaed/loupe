@@ -22,17 +22,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # What the package claims to support: PHP ^8.2 (Laravel 11 and 12) and ^8.3
+        # What the package claims to support: PHP ^8.2 (Laravel 12) and ^8.3
         # (Laravel 13). Testing the floor is the point — the constraint was ^8.4 with
         # nothing but 8.4 in CI, which locked out most real apps for no reason.
+        # Laravel 11 was dropped in 0.15.0: composer 2.9+ blocks every Laravel 11 release
+        # over security advisories that have no fixed 11.x version.
         php: ['8.2', '8.3', '8.4']
-        laravel: [11, 12, 13]
+        laravel: [12, 13]
         exclude:
           - php: '8.2'
             laravel: 13
         include:
-          - laravel: 11
-            testbench: '^9.0'
           - laravel: 12
             testbench: '^10.0'
           - laravel: 13
@@ -52,7 +52,7 @@ jobs:
 
       - name: Pin to Laravel ${{ matrix.laravel }}
         # Testbench pins the matching Illuminate components; laravel/mcp ^0.8
-        # supports Laravel 11/12/13, so MCP is exercised on every combination.
+        # supports Laravel 12 and 13, so MCP is exercised on every combination.
         run: composer require "orchestra/testbench:${{ matrix.testbench }}" --dev --no-update --no-interaction
 
       - name: Install dependencies
@@ -69,11 +69,6 @@ jobs:
   #
   # Run at both ends of the support matrix: the PHP floor (8.2, on Laravel 12 — the newest
   # line that supports it) and the newest (8.4 / Laravel 13).
-  #
-  # Why not Laravel 11 on 8.2: composer 2.9+ blocks any package with a known advisory, and
-  # EVERY Laravel 11 release (v11.31 … v11.57) is currently flagged — so a brand-new
-  # Laravel 11 app cannot be installed at all, on any PHP. That is the skeleton's problem,
-  # not this package's; Laravel 11 support is still covered by the unit matrix above.
   stranger:
     runs-on: ubuntu-latest
 

@@ -2,8 +2,8 @@
   "name": "@loupekit/sdk",
   "author": {
     "name": "Mohamed Ashraf Elsaed",
-    "email": "m.ashraf.saed@gmail.com",
-    "url": "https://www.linkedin.com/in/mohamedashrafelsaed/"
+    "email": "hello@mohamedashrafelsaed.com",
+    "url": "https://mohamedashrafelsaed.com"
   },
   "version": "0.14.2",
   "description": "Embeddable visual-feedback layer: pin comments to the live UI and hand them to Claude.",
@@ -39,7 +39,7 @@
     "url": "https://github.com/mohamed-ashraf-elsaed/loupe.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://mohamed-ashraf-elsaed.github.io/loupe/",
+  "homepage": "https://mohamedashrafelsaed.com/projects/loupe/",
   "bugs": {
     "url": "https://github.com/mohamed-ashraf-elsaed/loupe/issues"
   },

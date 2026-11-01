@@ -329,7 +329,7 @@ Replace the placeholders:
 A pull request is ready for review when:
 
 - `npm test` passes. CI (the `CI` workflow) runs `npm ci`, `npm run build:shared` and `npm test` on every pull request.
-- `composer test:coverage-100` passes, if you changed `packages/laravel`. The `laravel-package` workflow runs only when a pull request changes `packages/laravel/**` or `.github/workflows/laravel.yml`. It runs the gate on PHP 8.2, 8.3 and 8.4 against Laravel 11, 12 and 13, except PHP 8.2 with Laravel 13. It also runs the end-to-end install test, `packages/laravel/bin/stranger-test.sh`, on PHP 8.2 with Laravel 12 and on PHP 8.4 with Laravel 13.
+- `composer test:coverage-100` passes, if you changed `packages/laravel`. The `laravel-package` workflow runs only when a pull request changes `packages/laravel/**` or `.github/workflows/laravel.yml`. It runs the gate on PHP 8.2, 8.3 and 8.4 against Laravel 12 and 13, except PHP 8.2 with Laravel 13. It also runs the end-to-end install test, `packages/laravel/bin/stranger-test.sh`, on PHP 8.2 with Laravel 12 and on PHP 8.4 with Laravel 13.
 - The Laravel assets are synced, if you changed the SDK, dashboard or shared package.
 - `CHANGELOG.md` has an entry under `## [Unreleased]`.
 - Docs that describe the changed behavior are updated in the same pull request.

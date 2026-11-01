@@ -86,4 +86,4 @@ The dashboard has no separate setup. The local server redirects `/` to `/dashboa
 - [Testing](TESTING.md): run the test suites and read what each one covers.
 - [Releasing](../RELEASING.md): version, tag, and publish a release.
 - [Changelog](../CHANGELOG.md): what changed in each version.
-- [Privacy policy](https://mohamed-ashraf-elsaed.github.io/loupe/privacy.html): what the browser extension and the SDK collect, and where it goes.
+- [Privacy policy](https://loupe.mohamedashrafelsaed.com/privacy.html): what the browser extension and the SDK collect, and where it goes.
