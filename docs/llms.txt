@@ -2,7 +2,7 @@
 
 > Loupe is an open-source visual feedback tool: reviewers pin comments, screenshots and screen recordings to elements of a live web page, a team triages them on a five-stage board, and AI agents read and act on them through the Model Context Protocol (MCP).
 
-Key facts for Loupe 0.14.1:
+Key facts for Loupe 0.15.0:
 
 - New here: start with the first-comment tutorial below, then pick the install guide for your stack: script tag, npm, Laravel or the browser extension.
 - License: MIT.
