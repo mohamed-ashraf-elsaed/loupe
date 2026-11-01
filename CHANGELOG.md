@@ -22,6 +22,15 @@ see [RELEASING.md](RELEASING.md) for the process.
   credits the author with a link to `https://mohamedashrafelsaed.com`, and the READMEs link
   there instead of LinkedIn.
 
+### Removed
+
+- **Laravel 11 support in `loupekit/laravel`.** The package now requires the `illuminate/*`
+  components at `^12.0|^13.0` and Orchestra Testbench at `^10.0|^11.0`. Composer 2.9 and later
+  refuses every Laravel 11 release, because each one is affected by security advisories that
+  have no fixed 11.x version, so Laravel 11 could no longer be installed or tested. Laravel 10
+  was never supported. To stay on Laravel 11, pin `loupekit/laravel` to `^0.14`. The CI matrix
+  and the docs now list Laravel 12 and 13 only.
+
 ## [0.14.2] — 2026-10-08
 
 ### Fixed

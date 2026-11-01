@@ -31,7 +31,7 @@ Loupe is an open-source visual feedback tool. You pin comments to elements of a 
 |---|---|---|
 | Script tag | You want the widget on any page without a build step. | [Embed Loupe with a script tag](docs/how-to/embed-script-tag.md) |
 | npm package | Your app uses a bundler: React, Vue, or any single-page app. | [Install Loupe from npm](docs/how-to/install-npm.md) |
-| Laravel | Your app is built on Laravel 11, 12 or 13. | [Install Loupe in a Laravel app](docs/how-to/laravel-install.md) |
+| Laravel | Your app is built on Laravel 12 or 13. | [Install Loupe in a Laravel app](docs/how-to/laravel-install.md) |
 | Browser extension | You want to comment on a site you cannot change. | [Use the browser extension](docs/how-to/browser-extension.md) |
 | MCP clients | You want Claude Code, or another MCP client, to work through the comments. | [Connect MCP clients](docs/how-to/connect-mcp-clients.md) |
 | Local server and dashboard | You want the Node API and the Kanban board (columns that comment cards move across) on your machine. | [Run the local server](docs/how-to/run-local-server.md) |

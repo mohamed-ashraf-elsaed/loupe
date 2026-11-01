@@ -7,7 +7,7 @@ Key facts for Loupe 0.14.1:
 - New here: start with the first-comment tutorial below, then pick the install guide for your stack: script tag, npm, Laravel or the browser extension.
 - License: MIT.
 - Languages: TypeScript (npm workspaces monorepo) and PHP (Laravel package).
-- Published packages: `@loupekit/sdk` (embeddable widget), `@loupekit/shared` (types and helpers) and `@loupekit/mcp` (MCP server, binary `loupe-mcp`) on npm, and `loupekit/laravel` on Packagist (PHP ^8.2, Laravel 11, 12 and 13).
+- Published packages: `@loupekit/sdk` (embeddable widget), `@loupekit/shared` (types and helpers) and `@loupekit/mcp` (MCP server, binary `loupe-mcp`) on npm, and `loupekit/laravel` on Packagist (PHP ^8.2, Laravel 12 and 13).
 - The browser extension, the local server, the dashboard and Loupe Hub are not published to npm. Run them from a checkout of the repository.
 - Running from source requires Node.js 24. The server, Hub and MCP packages run `.ts` files directly with Node's built-in type stripping.
 - The extension is a Manifest V3 extension, loaded unpacked from `packages/extension`.

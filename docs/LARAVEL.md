@@ -57,15 +57,15 @@ Terms used on this page:
 | Item | Value | Source |
 |---|---|---|
 | PHP | `^8.2` | `composer.json:28` |
-| `illuminate/*` (support, console, database, http, routing, filesystem) | `^11.0\|^12.0\|^13.0` | `composer.json:29-34` |
-| PHP on Laravel 13 | 8.3 or later. Laravel 13 does not install on PHP 8.2. | `.github/workflows/laravel.yml:30-32` (repository root) |
+| `illuminate/*` (support, console, database, http, routing, filesystem) | `^12.0\|^13.0` | `composer.json:29-34` |
+| PHP on Laravel 13 | 8.3 or later. Laravel 13 does not install on PHP 8.2. | `.github/workflows/laravel.yml:32-34` (repository root) |
 | MCP server (optional) | `laravel/mcp` `^0.8`. Not installed with the package: it is only a `suggest` entry, so install it yourself. See [MCP server](#mcp-server). | `composer.json:42-43` |
 | Service provider | `Loupekit\Loupe\LoupeServiceProvider`, auto-discovered | `composer.json:55-64` |
 | Facade alias | `Loupe` for `Loupekit\Loupe\Facades\Loupe`, auto-discovered | `composer.json:55-64` |
 
-CI tests every combination of PHP 8.2, 8.3 and 8.4 with Laravel 11, 12 and 13, except PHP 8.2 with
-Laravel 13. That is eight combinations
-(`.github/workflows/laravel.yml:28-32`).
+CI tests every combination of PHP 8.2, 8.3 and 8.4 with Laravel 12 and 13, except PHP 8.2 with
+Laravel 13. That is five combinations
+(`.github/workflows/laravel.yml:30-34`). Laravel 11 is not supported since 0.15.0.
 
 ## Configuration
 

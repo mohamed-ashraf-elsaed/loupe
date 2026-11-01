@@ -604,7 +604,7 @@ These packages are **not** published by any workflow:
 | Workflow | What it does |
 |---|---|
 | `ci.yml` (CI) | `npm ci`, `npm run build:shared`, `npm test`. Also runs on every pull request. |
-| `laravel.yml` (laravel-package) | PHPUnit with a 100% line-coverage gate on PHP 8.2–8.4 × Laravel 11–13, except PHP 8.2 on Laravel 13, because Laravel 13 needs PHP 8.3 or later. Also runs the [stranger test](docs/TESTING.md#run-the-stranger-test), which installs the package into a brand-new Laravel app. Runs only when `packages/laravel/**` or the workflow file changed. |
+| `laravel.yml` (laravel-package) | PHPUnit with a 100% line-coverage gate on PHP 8.2–8.4 × Laravel 12–13, except PHP 8.2 on Laravel 13, because Laravel 13 needs PHP 8.3 or later. Also runs the [stranger test](docs/TESTING.md#run-the-stranger-test), which installs the package into a brand-new Laravel app. Runs only when `packages/laravel/**` or the workflow file changed. |
 | `publish-next.yml` (Publish, canary) | Publishes a canary of shared, mcp and sdk under the `next` dist-tag, on npm and GitHub Packages. See [Canary channel](#canary-channel). |
 | `laravel-split.yml`, step `Split (branch)` | Syncs `packages/laravel` to the split repository's `main` branch. Packagist serves it as `dev-main`. |
 

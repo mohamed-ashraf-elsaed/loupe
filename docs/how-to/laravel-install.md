@@ -27,7 +27,7 @@ The package stores comments in your app's own database and authenticates request
 
 You need:
 
-- **Laravel 11, 12 or 13.** The package requires the `illuminate/*` components at `^11.0|^12.0|^13.0`.
+- **Laravel 12 or 13.** The package requires the `illuminate/*` components at `^12.0|^13.0`. Loupe 0.14 and earlier also support Laravel 11.
 - **PHP 8.2 or later.** Laravel 13 itself needs PHP 8.3 or later.
 - **An authentication system with a route named `login`.** Loupe shows the widget only to a signed-in user, and its routes sit behind your app's authentication. Laravel 11 and later ship no authentication scaffolding, so a new app has no `login` route. Without one, the dashboard answers with a 403 error instead of redirecting you to a sign-in page. [Laravel Breeze](https://laravel.com/docs/starter-kits) is one way to add it; step 3 shows how.
 - **A database connection that works.** The `DB_*` settings in your `.env` file must point at a database that `php artisan migrate` can write to. Loupe creates its tables there.
